@@ -1,0 +1,19 @@
+.chip-main-container {
+    flex: 1; /* Chiếm toàn bộ phần còn lại của chiều ngang */
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .chip-content-container {
+    width: 100%;
+    display: flex;
+    justify-content: space-evenly;
+    gap: 20px;
+  }
+
+  .chip-button-container{
+    width: 100%;
+    display: flex;
+    padding: 1rem 0;
+    justify-content: space-between;
+  }

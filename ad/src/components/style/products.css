@@ -1,0 +1,71 @@
+.product-add-functions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.product-add-functions form {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.product-add-functions form button {
+  text-wrap: nowrap;
+  height: 2.5rem;
+  width: 8rem;
+}
+
+.product-add-keyword {
+  max-width: 15rem;
+}
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  overflow-y: scroll;
+  background-color: white;
+  height: 600px;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  width: 50%;
+  padding: 2rem;
+}
+
+.dialog-content::-webkit-scrollbar {
+  display: none;
+}
+
+.open-product-add-dialog {
+  display: flex;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-add-button {
+  display: flex;
+  justify-content: space-evenly;
+}
+
+table {
+  margin-top: 2rem;
+}
+
+.img-products {
+  width: 50px;
+  height: 50px;
+}
+

@@ -1,0 +1,97 @@
+/* Container chính */
+.product-filter-main-container {
+  display: flex;
+  flex-direction: row;
+  max-width: 1920px;
+  margin: 1rem;
+  gap: 2rem;
+  position: relative;
+}
+
+/* Bộ lọc trong chế độ desktop */
+.filter-product-string {
+  width: 300px; /* Độ rộng cố định của form trong desktop */
+  padding: 1rem;
+  background-color: #fff;
+  border: 1px solid rgb(220, 220, 220);
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 20px;
+  height: fit-content;
+  margin-top: 1rem;
+}
+
+/* Đảm bảo form trong dialog không bị overflow */
+.MuiDialogContent-root .filter-product-string {
+  width: 100%; /* Chiếm toàn bộ chiều rộng trong dialog */
+  max-width: 100%; /* Không vượt quá dialog */
+  padding: 1rem;
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
+  position: static;
+  margin-top: 0;
+  box-sizing: border-box; /* Đảm bảo padding không làm tràn */
+}
+
+/* Radio group */
+.radio-group {
+  display: block;
+  flex-wrap: wrap;
+}
+
+/* Form control label */
+.MuiFormControlLabel-root {
+  width: 50%;
+  box-sizing: border-box;
+}
+
+/* Danh sách sản phẩm */
+.product-list {
+  flex: 1;
+}
+
+/* Item sản phẩm */
+.product-item {
+  flex: 0 0 auto;
+}
+
+/* Style cho nút bộ lọc */
+.filter-button {
+  position: absolute;
+  right: 0;
+  top: 0;
+  margin-bottom: 1rem;
+}
+
+/* Media query cho màn hình nhỏ hơn 1400px */
+@media (max-width: 1400px) {
+  .filter-desktop .filter-product-string {
+    display: none;
+  }
+
+  .filter-button {
+    display: flex !important;
+    margin: 0 2rem 0 !important;
+  }
+
+  .product-list-container {
+    justify-content: space-evenly !important;
+  }
+
+  .product-filter-main-container {
+    gap: 0 !important;
+  }
+
+  ul {
+    padding-inline-start: 0;
+  }
+}
+
+/* Ẩn nút bộ lọc khi màn hình lớn hơn 1400px */
+@media (min-width: 1401px) {
+  .filter-button {
+    display: none !important;
+  }
+}

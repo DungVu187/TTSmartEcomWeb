@@ -1,0 +1,11 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%; /* Đảm bảo toàn bộ màn hình được chiếm */
+  }
+  
+#root {
+  display: flex; /* Sử dụng Flexbox để bố trí ngang */
+  height: 100%; /* Chiếm toàn bộ chiều cao màn hình */
+  width: 100%;
+}

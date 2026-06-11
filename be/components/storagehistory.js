@@ -1,0 +1,143 @@
+const express = require('express');
+const mongoose = require("mongoose");
+const { authenticateAdmin, checkPermission } = require('./user');
+
+// ✅ Định nghĩa schema
+const storageHistorySchema = new mongoose.Schema({
+    productId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+        required: true
+    },
+    productName: {
+        type: String,
+        required: true
+    },
+    quantity: {
+        type: Number,
+        required: true
+    },
+    userName: {
+        type: String
+    },
+    orderId: {
+        type: String
+    },
+    orderName: {
+        type: String
+    }
+}, { timestamps: true });
+
+const StorageHistory = mongoose.models.StorageHistory || mongoose.model("StorageHistory", storageHistorySchema);
+
+const router = express.Router();
+
+router.get("/", authenticateAdmin, async (req, res) => {
+    try {
+        let { page = 1, limit = 20, startDate, endDate, orderName, userName } = req.query;
+
+        page = Math.max(1, parseInt(page));
+        limit = [20, 50, 100].includes(parseInt(limit)) ? parseInt(limit) : 20;
+
+        const skip = (page - 1) * limit;
+
+        const filter = {};
+        if (startDate || endDate) {
+            filter.createdAt = {};
+            if (startDate) filter.createdAt.$gte = new Date(startDate);
+            if (endDate) filter.createdAt.$lte = new Date(endDate);
+        }
+
+        if (orderName) {
+            filter.orderName = { $regex: orderName, $options: "i" };
+        }
+
+        if (userName) {
+            filter.userName = { $regex: userName, $options: "i" };
+        }
+
+        const [history, total] = await Promise.all([
+            StorageHistory.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            StorageHistory.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            history
+        });
+    } catch (error) {
+        console.error("Error fetching storage history:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
+
+router.get("/:id", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+    try {
+        const { id } = req.params;
+        let { page = 1, limit = 20, startDate, endDate } = req.query;
+
+        page = Math.max(1, parseInt(page));
+        limit = [20, 50, 100].includes(parseInt(limit)) ? parseInt(limit) : 20;
+
+        const skip = (page - 1) * limit;
+
+        const filter = { productId: id };
+        if (startDate || endDate) {
+            filter.createdAt = {};
+            if (startDate) filter.createdAt.$gte = new Date(startDate);
+            if (endDate) filter.createdAt.$lte = new Date(endDate);
+        }
+
+        const [history, total] = await Promise.all([
+            StorageHistory.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            StorageHistory.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+            history
+        });
+    } catch (error) {
+        console.error("Error fetching storage history by product:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
+
+router.put("/update-ordername", authenticateAdmin, async (req, res) => {
+    try {
+        const { orderId, newOrderName } = req.body;
+
+        if (!orderId || !newOrderName) {
+            return res.status(400).json({ success: false, message: "Thiếu orderId hoặc newOrderName" });
+        }
+
+        const result = await StorageHistory.updateMany(
+            { orderId },
+            { $set: { orderName: newOrderName } }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `Đã cập nhật ${result.modifiedCount} lịch sử với orderId = ${orderId}`,
+        });
+    } catch (error) {
+        console.error("Error updating orderName:", error);
+        res.status(500).json({ success: false, message: "Server error", error: error.message });
+    }
+});
+
+module.exports = { StorageHistory, router };

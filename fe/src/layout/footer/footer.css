@@ -1,0 +1,29 @@
+.footer{
+    width: 100%;
+    max-width: 1920px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-evenly;
+    padding-top: 1rem;
+    background-size: contain;
+}
+
+.footer-section img{
+    max-width: 100%;
+}
+
+.footer-header-section{
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.footer-section{
+    font-weight: 400;
+    font-size: 15px;
+}
+
+@media (max-width: 800px) {
+    .hide{
+        display: none;
+    }
+}

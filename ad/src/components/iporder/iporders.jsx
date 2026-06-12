@@ -373,9 +373,20 @@ const IpOrders = () => {
 
   return (
     <Box p={2}>
-      <Box display="flex" justifyContent="space-between" mb={2}>
-        <Typography variant="h5">Quản lý đơn nhập</Typography>
-        <Box>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 2,
+          mb: 2,
+        }}
+      >
+        <Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
+          Quản lý đơn nhập
+        </Typography>
+        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
           <Button
             variant="contained"
             color="secondary"
@@ -387,7 +398,6 @@ const IpOrders = () => {
             variant="contained"
             color="primary"
             onClick={handleOpenCreateDialog}
-            sx={{ ml: 1 }}
           >
             Tạo đơn mới
           </Button>
@@ -395,20 +405,28 @@ const IpOrders = () => {
       </Box>
 
       {/* Bộ lọc */}
-      <Box display="flex" gap={2} mb={2} alignItems="center">
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          mb: 2,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
         <TextField
           label="Tên hóa đơn"
           value={filterOrderName}
           onChange={(e) => setFilterOrderName(e.target.value)}
           size="small"
-          sx={{ width: "200px" }}
+          sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
         />
         <TextField
           label="Tên người tạo"
           value={filterUserName}
           onChange={(e) => setFilterUserName(e.target.value)}
           size="small"
-          sx={{ width: "200px" }}
+          sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
         />
         <TextField
           select
@@ -416,7 +434,7 @@ const IpOrders = () => {
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           size="small"
-          sx={{ width: "150px" }}
+          sx={{ width: "150px", minWidth: "110px", flex: { xs: "1 1 120px", sm: "none" } }}
           SelectProps={{ native: true }}
         >
           <option value="all">Tất cả</option>
@@ -430,7 +448,7 @@ const IpOrders = () => {
           onChange={(e) => setFilterStartDate(e.target.value)}
           size="small"
           InputLabelProps={{ shrink: true }}
-          sx={{ width: "150px" }}
+          sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
         />
         <TextField
           label="Đến ngày"
@@ -439,7 +457,7 @@ const IpOrders = () => {
           onChange={(e) => setFilterEndDate(e.target.value)}
           size="small"
           InputLabelProps={{ shrink: true }}
-          sx={{ width: "150px" }}
+          sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
         />
         <Button
           variant="contained"
@@ -448,6 +466,7 @@ const IpOrders = () => {
             setCurrentPage(1);
             fetchOrders(1);
           }}
+          sx={{ height: "40px", minWidth: "80px", flexShrink: 0 }}
         >
           Lọc
         </Button>

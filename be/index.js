@@ -21,26 +21,51 @@ const { router: chatRoutes, ChatMessage } = require('./components/chat');
 
 // Tạo app + http server + socket.io
 const app = express();
+app.set('trust proxy', true);
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 
+// CORS cấu hình nguồn gốc được phép
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://ttsmart.com.vn',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://192.168.1.226:3000',
+  'http://192.168.1.226:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
+].filter(Boolean);
+
+const checkOrigin = (origin, callback) => {
+  if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.loca.lt') || origin.endsWith('.localtunnel.me')) {
+    callback(null, true);
+  } else {
+    callback(new Error('Not allowed by CORS'));
+  }
+};
+
 // Khởi tạo Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: [
-      process.env.FRONTEND_URL,
-      'https://ttsmart.com.vn',
-      'http://localhost:3000',
-      'http://localhost:5173'
-    ].filter(Boolean),
+    origin: checkOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
 });
 
+const activeSupports = new Map();
+
 io.on('connection', (socket) => {
   console.log('✅ Socket connected:', socket.id);
+
+  // Gửi danh sách các phòng đang được hỗ trợ cho client vừa kết nối
+  const currentSupports = {};
+  for (const [sessId, data] of activeSupports.entries()) {
+    currentSupports[sessId] = { adminName: data.adminName, socketId: data.socketId };
+  }
+  socket.emit('active_supports_list', currentSupports);
 
   // Log sự kiện tùy chỉnh nhận từ client
   socket.onAny((event, ...args) => {
@@ -54,6 +79,26 @@ io.on('connection', (socket) => {
   socket.on('join_chat', ({ sessionId }) => {
     socket.join(`room_${sessionId}`);
     console.log(`💬 Socket ${socket.id} joined room_${sessionId}`);
+  });
+
+  socket.on('occupy_session', ({ sessionId, adminName }) => {
+    const currentSupport = activeSupports.get(sessionId);
+    if (!currentSupport || currentSupport.socketId === socket.id) {
+      activeSupports.set(sessionId, { adminName, socketId: socket.id });
+      console.log(`🔒 Session ${sessionId} occupied by Admin ${adminName} (${socket.id})`);
+      io.emit('session_occupied', { sessionId, adminName, socketId: socket.id });
+    } else {
+      console.log(`⚠️ Session ${sessionId} is already occupied by Admin ${currentSupport.adminName}. Occupy request from Admin ${adminName} (${socket.id}) is denied.`);
+    }
+  });
+
+  socket.on('leave_session', ({ sessionId }) => {
+    const support = activeSupports.get(sessionId);
+    if (support && support.socketId === socket.id) {
+      activeSupports.delete(sessionId);
+      console.log(`🔓 Session ${sessionId} released`);
+      io.emit('session_released', { sessionId });
+    }
   });
 
   socket.on('send_msg', async (data) => {
@@ -81,6 +126,13 @@ io.on('connection', (socket) => {
   // Khi client ngắt kết nối
   socket.on('disconnect', (reason) => {
     console.log(`❌ Socket disconnected (${socket.id}): ${reason}`);
+    for (const [sessionId, support] of activeSupports.entries()) {
+      if (support.socketId === socket.id) {
+        activeSupports.delete(sessionId);
+        console.log(`🔓 Session ${sessionId} automatically released due to disconnect`);
+        io.emit('session_released', { sessionId });
+      }
+    }
   });
 });
 
@@ -92,22 +144,8 @@ app.set('io', io);
 app.use(express.json());
 app.use(cookieParser());
 
-// CORS cấu hình
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'https://ttsmart.com.vn',
-  'http://localhost:3000',
-  'http://localhost:5173'
-].filter(Boolean);
-
 const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: checkOrigin,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'CSRF-Token'],
   credentials: true,

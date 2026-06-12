@@ -103,6 +103,18 @@ const assignPermissionsForFunctions = (functions = []) => {
   }, []);
 };
 
+const getCookieOptions = (req, maxAge = 43200000) => {
+  const origin = req.headers.origin || "";
+  const isLocaltunnel = origin.includes("loca.lt") || origin.includes("localtunnel");
+  const secureCookie = isLocaltunnel || req.secure || process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: secureCookie ? "none" : "lax",
+    ...(maxAge ? { maxAge } : {})
+  };
+};
+
 // Middleware xác thực admin (đọc token từ cookie)
 const authenticateAdmin = async (req, res, next) => {
   const token = req.cookies.authToken; // Đọc token từ cookie
@@ -240,12 +252,7 @@ router.post("/login", async (req, res) => {
       { expiresIn: "12h" } // Cập nhật thành 12 tiếng
     );
     // Đặt token vào httpOnly cookie
-    res.cookie("authToken", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Chỉ secure trong production
-      sameSite: "strict",
-      maxAge: 43200000, // 12 tiếng (1000ms * 60 * 60 * 12)
-    });
+    res.cookie("authToken", token, getCookieOptions(req, 43200000));
     res.json({ message: "Đăng nhập thành công" });
   } catch (error) {
     console.error("Lỗi trong đăng nhập:", error.message);
@@ -279,12 +286,7 @@ router.post("/admin/login", async (req, res) => {
       { expiresIn: "12h" } // Cập nhật thành 12 tiếng
     );
     // Đặt token vào httpOnly cookie
-    res.cookie("authToken", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 43200000, // 12 tiếng
-    });
+    res.cookie("authToken", token, getCookieOptions(req, 43200000));
     res.json({ message: "Đăng nhập admin thành công" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -293,11 +295,7 @@ router.post("/admin/login", async (req, res) => {
 
 // Đăng xuất (xóa cookie)
 router.post("/logout", (req, res) => {
-  res.clearCookie("authToken", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-  });
+  res.clearCookie("authToken", getCookieOptions(req, null));
   res.json({ message: "Logout successful" });
 });
 

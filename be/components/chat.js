@@ -43,6 +43,7 @@ router.get("/sessions", [authenticateAdmin, checkPermission("read_order")], asyn
           _id: "$sessionId",
           lastMessage: { $first: "$message" },
           lastMessageTime: { $first: "$createdAt" },
+          lastSenderRole: { $first: "$senderRole" },
           names: { $push: "$senderName" },
           phones: { $push: "$senderPhone" },
         },
@@ -57,6 +58,7 @@ router.get("/sessions", [authenticateAdmin, checkPermission("read_order")], asyn
         sessionId: s._id,
         lastMessage: s.lastMessage,
         lastMessageTime: s.lastMessageTime,
+        lastSenderRole: s.lastSenderRole,
         senderName,
         senderPhone,
       };

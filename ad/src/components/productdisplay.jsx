@@ -113,11 +113,6 @@ const ProductDisplay = () => {
     }
 
     try {
-      if (updatedProduct.value && !values.includes(updatedProduct.value)) {
-        toast.error("Không có thiết bị tương ứng");
-        return;
-      }
-
       const variantData = updatedProduct.variant?.length
         ? updatedProduct.variant[0]
         : {};
@@ -146,11 +141,11 @@ const ProductDisplay = () => {
           {
             price: variantData.price || "",
             importPrice: variantData.importPrice || "",
-            earn: Number(variantData.earn) || 0,
+            earn: earnInput !== "" ? Number(earnInput) : (Number(variantData.earn) || 0),
             quantityForSale: Number(variantData.quantityForSale) || 0,
             quantityInStorage: Number(variantData.quantityInStorage) || 0,
             imgUrl: variantData.imgUrl || "",
-            note: variantData.note || "",
+            note: noteInput !== "" ? noteInput : (variantData.note || ""),
             color: variantData.color || "",
             shape: variantData.shape || "",
             buttonCount: variantData.buttonCount || "",
@@ -424,7 +419,7 @@ const url = await QRCode.toDataURL(qrContent);
     <div style={{ maxWidth: "900px" }}>
       {product ? (
         <>
-          <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+          <Box sx={{ mb: 2, display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
             <Button
               onClick={() => handleProductUpdate()}
               variant="contained"
@@ -444,30 +439,38 @@ const url = await QRCode.toDataURL(qrContent);
             <Button onClick={generateQRCode} variant="contained" size="small">
               Tạo mã QR
             </Button>
-            <Button
-              variant="outlined"
+            <Box
               onClick={handleToggleDisplay}
-              size="small"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0,
+                border: "1px solid",
+                borderColor: "primary.main",
+                borderRadius: 1,
+                pl: 1,
+                pr: 0.5,
+                height: "30px",
+                cursor: "pointer",
+                userSelect: "none",
+                "&:hover": { backgroundColor: "rgba(25,118,210,0.08)" },
+              }}
             >
-              Hiển thị
+              <Typography sx={{ fontSize: "0.8125rem", color: "primary.main", lineHeight: 1 }}>Hiển thị</Typography>
               <Checkbox
                 size="small"
                 checked={product.display}
                 color="primary"
-                sx={{
-                  "& .MuiSvgIcon-root": {
-                    color: "primary.main",
-                  },
-                  "&.Mui-checked .MuiSvgIcon-root": {
-                    color: "primary.main",
-                  },
-                }}
+                disableRipple
+                onClick={(e) => e.stopPropagation()}
+                onChange={handleToggleDisplay}
+                sx={{ p: "4px" }}
               />
-            </Button>
+            </Box>
           </Box>
 
           {product.variant?.[0]?.imgUrl ? (
-            <Card sx={{ maxWidth: "400px", mt: 2 }}>
+            <Card sx={{ maxWidth: "400px", mt: 2, mb: 2 }}>
               <CardMedia
                 component="img"
                 sx={{ width: "400px", height: "300px", objectFit: "contain" }}
@@ -513,7 +516,8 @@ const url = await QRCode.toDataURL(qrContent);
             sx={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              gap: 1.5,
+              mt: 2,
             }}
           >
             <NumericFormat
@@ -534,15 +538,15 @@ const url = await QRCode.toDataURL(qrContent);
                 })
               }
               fullWidth
-              margin="normal"
               size="small"
-              sx={{ width: "50%" }}
+              sx={{ flex: 1 }}
             />
             <Button
               onClick={handleUpdateImportPrice}
               variant="contained"
               color="primary"
-              sx={{ width: "210px" }}
+              size="small"
+              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
             >
               Cập nhật giá nhập
             </Button>
@@ -552,7 +556,8 @@ const url = await QRCode.toDataURL(qrContent);
             sx={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              gap: 1.5,
+              mt: 1.5,
             }}
           >
             <TextField
@@ -561,13 +566,14 @@ const url = await QRCode.toDataURL(qrContent);
               onChange={(e) => setEarnInput(e.target.value)}
               label="% Lợi nhuận"
               size="small"
-              sx={{ width: "50%" }}
+              sx={{ flex: 1 }}
             />
             <Button
               onClick={handleUpdateEarn}
               variant="contained"
               color="primary"
-              sx={{ width: "210px" }}
+              size="small"
+              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
             >
               Cập nhật % lợi nhuận
             </Button>
@@ -577,9 +583,8 @@ const url = await QRCode.toDataURL(qrContent);
             sx={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              mt: 1,
-              mb: 1,
+              gap: 1.5,
+              mt: 1.5,
             }}
           >
             <TextField
@@ -588,13 +593,14 @@ const url = await QRCode.toDataURL(qrContent);
               onChange={(e) => setQuantityInput(e.target.value)}
               label="Nhập số lượng"
               size="small"
-              sx={{ width: "50%" }}
+              sx={{ flex: 1 }}
             />
             <Button
               onClick={handleUpdateQuantity}
               variant="contained"
               color="primary"
-              sx={{ width: "210px" }}
+              size="small"
+              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
             >
               Nhập số lượng
             </Button>
@@ -604,7 +610,8 @@ const url = await QRCode.toDataURL(qrContent);
             sx={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              gap: 1.5,
+              mt: 1.5,
             }}
           >
             <TextField
@@ -613,13 +620,14 @@ const url = await QRCode.toDataURL(qrContent);
               onChange={(e) => setNoteInput(e.target.value)}
               label="Ghi chú"
               size="small"
-              sx={{ width: "50%" }}
+              sx={{ flex: 1 }}
             />
             <Button
               onClick={handleSaveNote}
               variant="contained"
               color="primary"
-              sx={{ width: "210px" }}
+              size="small"
+              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
             >
               Lưu ghi chú
             </Button>

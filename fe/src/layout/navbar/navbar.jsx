@@ -66,6 +66,7 @@ function Navbar() {
       const data = await response.json();
       if (response.ok) {
         setIsLoggedIn(false);
+        localStorage.removeItem("chat_session");
         toast.success("Đăng xuất thành công");
         setTimeout(() => {
           window.location.href = "/login";

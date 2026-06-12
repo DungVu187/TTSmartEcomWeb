@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   server: {
     port: 5173,
+    host: true, // Expose to local network
   },
   plugins: [react()],
   base: '/admin/', // Đảm bảo tài nguyên tĩnh dùng /admin

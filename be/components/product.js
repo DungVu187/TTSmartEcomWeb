@@ -130,8 +130,6 @@ const productSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-module.exports = mongoose.model("Product", productSchema);
-
 const Product = mongoose.model('Product', productSchema);
 
 // Tạo router cho các API sản phẩm
@@ -392,12 +390,21 @@ router.put('/update-display-field', [authenticateAdmin, checkPermission('update_
 // API sửa thông tin sản phẩm
 router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     try {
-        const updatedProduct = await Product.findByIdAndUpdate(req.params._id, req.body, { new: true });
+        console.log('[PUT /products/:_id] id =', req.params._id);
+        console.log('[PUT /products/:_id] name in body =', req.body.name);
+        const updatedProduct = await Product.findByIdAndUpdate(
+            req.params._id,
+            { $set: req.body },
+            { new: true, runValidators: false }
+        );
+        console.log('[PUT /products/:_id] name saved =', updatedProduct?.name);
+        console.log('[PUT /products/:_id] result =', updatedProduct ? 'found & updated' : 'NOT FOUND');
         if (!updatedProduct) {
             return res.status(404).json({ message: 'Product not found' });
         }
         res.json(updatedProduct);
     } catch (error) {
+        console.error('[PUT /products/:_id] error =', error.message);
         res.status(500).json({ message: error.message });
     }
 });

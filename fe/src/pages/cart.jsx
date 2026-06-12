@@ -215,8 +215,8 @@ function Cart() {
   }
 
   return (
-    <div style={{ width: '100%', backgroundColor: 'rgb(235, 246, 254)', padding: '3rem 0', minHeight: '100vh' }}>
-      <Container sx={{ backgroundColor: 'white', margin: 'auto', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)', padding: '2rem 0' }}>
+    <div style={{ width: '100%', backgroundColor: 'rgb(235, 246, 254)', padding: '3rem 16px', minHeight: '100vh', boxSizing: 'border-box' }}>
+      <Container sx={{ backgroundColor: 'white', margin: 'auto', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)', py: '2rem' }}>
         <h1>Giỏ hàng</h1>
         {cartItems.length === 0 ? (
           <Typography variant="body1">

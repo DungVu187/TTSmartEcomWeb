@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -26,6 +26,7 @@ const apiUrl = import.meta.env.VITE_API_URL;
 
 const StationDisplay = () => {
   const { code } = useParams();
+  const navigate = useNavigate();
   const [station, setStation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,6 +138,25 @@ const StationDisplay = () => {
       alert("Lỗi khi cập nhật: " + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteStation = async () => {
+    if (!station?._id) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa trạm ${station.stationName || ""}?`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/stations/${station._id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Không thể xóa trạm");
+      }
+      alert("Xóa trạm thành công!");
+      navigate("/admin/station");
+    } catch (err) {
+      alert("Lỗi khi xóa trạm: " + err.message);
     }
   };
 
@@ -276,18 +296,20 @@ const StationDisplay = () => {
       field: "image",
       headerName: "Hình ảnh",
       flex: 1,
+      minWidth: 80,
       renderCell: (params) => (
         <Box sx={{ display: "flex", alignItems: "center", width: "100%", height: "100%" }}>
           <Avatar src={params.value} variant="rounded" />
         </Box>
       ),
     },
-    { field: "name", headerName: "Tên sản phẩm", flex: 2 },
-    { field: "code", headerName: "Mã sản phẩm", flex: 1.5 },
+    { field: "name", headerName: "Tên sản phẩm", flex: 2, minWidth: 160 },
+    { field: "code", headerName: "Mã sản phẩm", flex: 1.5, minWidth: 120 },
     {
       field: "actions",
       headerName: "Thao tác",
       flex: 1,
+      minWidth: 100,
       renderCell: (params) => (
         <Button variant="contained" color="error" size="small" onClick={() => handleRemoveProduct(params.row._id)}>
           Xóa
@@ -337,9 +359,14 @@ const StationDisplay = () => {
         <TextField label="Mã trạm" value={form.stationCode} onChange={handleChange("stationCode")} fullWidth size="small" />
         <TextField label="Tên trạm" value={form.stationName} onChange={handleChange("stationName")} fullWidth size="small" />
         <TextField label="Vị trí" value={form.location} onChange={handleChange("location")} fullWidth size="small" />
-        <Button variant="contained" onClick={handleUpdate} disabled={saving}>
-          {saving ? "Đang cập nhật..." : "Cập nhật thông tin"}
-        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button variant="contained" onClick={handleUpdate} disabled={saving} sx={{ flex: 1 }}>
+            {saving ? "Đang cập nhật..." : "Cập nhật"}
+          </Button>
+          <Button variant="contained" color="error" onClick={handleDeleteStation} sx={{ flex: 1 }}>
+            Xóa trạm
+          </Button>
+        </Stack>
       </Stack>
 
       <Typography variant="h6" gutterBottom>Danh sách sản phẩm</Typography>

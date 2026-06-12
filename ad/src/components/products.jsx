@@ -19,6 +19,7 @@ import {
   Select,
   MenuItem,
   Checkbox,
+  Paper,
 } from "@mui/material";
 import "./style/products.css";
 import toast from "react-hot-toast";
@@ -528,15 +529,13 @@ const Products = () => {
   const cellStyle = {
     width: "100%",
     backgroundColor: "inherit",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    display: "-webkit-box",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: 5,
+    fontSize: "0.875rem",
+    lineHeight: "1.5",
     whiteSpace: "pre-wrap",
-    lineHeight: "1.4em",
+    wordBreak: "break-word",
+    overflow: "hidden",
+    display: "block",
     maxHeight: "7em",
-    zIndex: -1,
   };
 
   const handleFilterChange = (e) => {
@@ -736,23 +735,23 @@ const Products = () => {
       </div>
 
       <div>
-        <TableContainer>
-          <Table>
+        <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
+          <Table sx={{ minWidth: 1600 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#dedede" }}>
                 <TableCell align="center">Hiển thị</TableCell>
-                <TableCell align="center">Loại</TableCell>
-                <TableCell align="center">Tên</TableCell>
-                <TableCell align="center">Mã sản phẩm</TableCell>
+                <TableCell align="center" sx={{ minWidth: 100 }}>Loại</TableCell>
+                <TableCell align="center" sx={{ minWidth: 200 }}>Tên</TableCell>
+                <TableCell align="center" sx={{ minWidth: 130 }}>Mã sản phẩm</TableCell>
                 <TableCell align="center">Ảnh</TableCell>
-                <TableCell align="center">Giá</TableCell>
+                <TableCell align="center" sx={{ minWidth: 110 }}>Giá</TableCell>
                 <TableCell align="center">Hãng</TableCell>
-                <TableCell align="center">Cụm</TableCell>
-                <TableCell align="center">Thiết bị</TableCell>
-                <TableCell align="center">Bảo hành</TableCell>
-                <TableCell align="center">Số lượng tồn</TableCell>
-                <TableCell align="center">Số lượng đã bán</TableCell>
-                <TableCell align="center">Ghi chú</TableCell>
+                <TableCell align="center" sx={{ minWidth: 120 }}>Cụm</TableCell>
+                <TableCell align="center" sx={{ minWidth: 120 }}>Thiết bị</TableCell>
+                <TableCell align="center" sx={{ minWidth: 100 }}>Bảo hành</TableCell>
+                <TableCell align="center" sx={{ minWidth: 120 }}>Số lượng tồn</TableCell>
+                <TableCell align="center" sx={{ minWidth: 130 }}>Số lượng đã bán</TableCell>
+                <TableCell align="center" sx={{ minWidth: 250 }}>Ghi chú</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -808,14 +807,10 @@ const Products = () => {
                     {product.variant?.[0]?.quantityInStorage ?? "Chưa nhập"}
                   </TableCell>
                   <TableCell align="center">{product.purchaseCount}</TableCell>
-                  <TableCell align="center">
-                    <TextField
-                      multiline
-                      value={product.variant?.[0]?.note}
-                      variant="standard"
-                      InputProps={{ disableUnderline: true }}
-                      sx={cellStyle}
-                    />
+                  <TableCell align="left" sx={{ verticalAlign: "top" }}>
+                    <div style={cellStyle}>
+                      {product.variant?.[0]?.note || ""}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

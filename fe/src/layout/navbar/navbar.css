@@ -179,9 +179,7 @@
   .navbar-bot {
     display: none;
   }
-  .cart{
-    display: none;
-  }
+  /* Keep cart icon visible on mobile */
 }
 
 .hamburger-menu-dropdown {

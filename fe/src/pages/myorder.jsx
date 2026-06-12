@@ -266,7 +266,7 @@ const MyOrder = () => {
   };
 
   return (
-    <div style={{ backgroundColor: 'rgb(235, 246, 254)', width: '100%', padding: '2rem 0', minHeight: '100vh' }}>
+    <div style={{ backgroundColor: 'rgb(235, 246, 254)', width: '100%', padding: '2rem 16px', minHeight: '100vh', boxSizing: 'border-box' }}>
       <Container sx={{ minHeight: "80vh", textAlign: "center", width: '100%' }}>
         <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
           Danh sách đơn hàng

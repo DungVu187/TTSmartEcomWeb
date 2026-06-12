@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Box } from '@mui/material';
 import Sidebar from './layout/sidebar';
 import Products from './components/products';
 import Chips from './components/chips';
@@ -33,9 +34,9 @@ const App = () => {
           path="/*"
           element={
             <ProtectedRoute>
-              <div style={{ display: 'flex', width: "100%" }}>
+              <Box sx={{ display: 'flex', width: "100%", minHeight: "100vh" }}>
                 <Sidebar />
-                <div style={{ flex: 1, padding: '20px' }}>
+                <Box sx={{ flex: 1, padding: '20px', pt: { xs: '70px', md: '20px' }, minWidth: 0 }}>
                   <Routes>
                     <Route path="/account" element={<Account />} />
                     <Route path="/product" element={<Products />} />
@@ -58,8 +59,8 @@ const App = () => {
                     <Route path="/history" element={<History />} />
                     <Route path="/chat" element={<Chat />} />
                   </Routes>
-                </div>
-              </div>
+                </Box>
+              </Box>
             </ProtectedRoute>
           }
         />

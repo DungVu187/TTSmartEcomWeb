@@ -9,6 +9,7 @@ import {
   DialogActions,
   TextField,
   Avatar,
+  useMediaQuery,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +18,7 @@ import toast from "react-hot-toast";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const Station = () => {
+  const isMobile = useMediaQuery("(max-width:900px)");
   const navigate = useNavigate();
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -89,11 +91,30 @@ const Station = () => {
     }
   };
 
+  const handleDeleteStation = async (id, name) => {
+    if (!id) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa trạm ${name || ""}?`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/stations/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Không thể xóa trạm");
+      }
+      toast.success("Xóa trạm thành công!");
+      fetchStations();
+    } catch (err) {
+      toast.error("Lỗi khi xóa trạm: " + err.message);
+    }
+  };
+
   const columns = [
     {
       field: "imgUrl",
       headerName: "Ảnh",
-      flex: 1,
+      width: 80,
       sortable: false,
       renderCell: (params) => (
         <Box sx={{ height: "100%", display: "flex", alignItems: "center" }}>
@@ -106,14 +127,14 @@ const Station = () => {
         </Box>
       ),
     },
-    { field: "code", headerName: "Mã trạm", flex: 1 },
-    { field: "name", headerName: "Tên trạm", flex: 1.5 },
-    { field: "productCount", headerName: "Sản phẩm", flex: 1 },
-    { field: "location", headerName: "Vị trí", flex: 2 },
+    { field: "code", headerName: "Mã trạm", flex: 1, minWidth: 140 },
+    { field: "name", headerName: "Tên trạm", flex: 1.8, minWidth: 260 },
+    { field: "productCount", headerName: "Sản phẩm", width: 100 },
+    { field: "location", headerName: "Vị trí", flex: 2, minWidth: 220 },
     {
       field: "actions",
       headerName: "Thao tác",
-      flex: 1.5,
+      width: 180,
       sortable: false,
       renderCell: (params) => (
         <Box
@@ -128,11 +149,22 @@ const Station = () => {
           <Button
             variant="contained"
             size="small"
-            onClick={() => navigate(`/station/${params.row.code}`)}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/station/${params.row.code}`);
+            }}
           >
             Chi tiết
           </Button>
-          <Button variant="contained" color="error" size="small">
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteStation(params.row.id, params.row.name);
+            }}
+          >
             Xóa
           </Button>
         </Box>
@@ -161,12 +193,13 @@ const Station = () => {
           loading={loading}
           disableColumnMenu
           disableRowSelectionOnClick
+          onRowClick={(params) => navigate(`/station/${params.row.code}`)}
           sx={{
             "& .MuiDataGrid-cell": {
               alignItems: "center",
             },
-            "& .MuiDataGrid-row:hover": {
-              cursor: "default",
+            "& .MuiDataGrid-row": {
+              cursor: "pointer",
             },
           }}
         />

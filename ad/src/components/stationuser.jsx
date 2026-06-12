@@ -207,30 +207,15 @@ const StationUser = () => {
     }
   };
 
-  useEffect(() => {
-    if (!stationSearch.name && !stationSearch.code) {
-      setStationResults([]);
-      return;
-    }
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-    debounceTimeout.current = setTimeout(async () => {
-      try {
-        setStationLoading(true);
-        const url = new URL(`${apiUrl}/stations/search`);
-        if (stationSearch.name)
-          url.searchParams.set("name", stationSearch.name);
-        if (stationSearch.code)
-          url.searchParams.set("code", stationSearch.code);
-        const res = await fetch(url.toString());
-        const data = await res.json();
-        setStationResults(data.stations || []);
-      } catch (err) {
-        console.error("Lỗi tìm trạm:", err);
-      } finally {
-        setStationLoading(false);
-      }
-    }, 1000);
-  }, [stationSearch]);
+  const filteredStations = stations.filter((station) => {
+    const searchName = (stationSearch.name || "").trim().toLowerCase();
+    const searchCode = (stationSearch.code || "").trim().toLowerCase();
+
+    const nameMatch = !searchName || (station.stationName || "").toLowerCase().includes(searchName);
+    const codeMatch = !searchCode || (station.stationCode || "").toLowerCase().includes(searchCode);
+
+    return nameMatch && codeMatch;
+  });
 
   const handleOpenPasswordDialog = (user) => {
     setPasswordInput("");
@@ -468,9 +453,8 @@ const StationUser = () => {
             }
             size="small"
           />
-          {stationLoading && <Typography>Đang tìm kiếm...</Typography>}
           <List sx={{ maxHeight: 400, overflowY: "auto" }}>
-            {stationResults.map((station) => (
+            {filteredStations.map((station) => (
               <ListItem
                 key={station._id}
                 button

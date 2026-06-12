@@ -1,6 +1,23 @@
 .product-add-functions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 1.5rem;
+}
+
+.product-add-button-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.product-add-button-add button,
+.product-add-button-add .MuiButton-root {
+  margin-left: 0 !important;
+  white-space: nowrap;
 }
 
 .product-add-functions form {
@@ -11,9 +28,19 @@
 }
 
 .product-add-functions form button {
+  white-space: nowrap;
   text-wrap: nowrap;
   height: 2.5rem;
   width: 8rem;
+}
+
+.filter-desktop {
+  display: flex;
+  align-items: center;
+}
+
+.filter-desktop button {
+  white-space: nowrap;
 }
 
 .product-add-keyword {

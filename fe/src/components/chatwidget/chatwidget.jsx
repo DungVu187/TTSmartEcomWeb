@@ -28,27 +28,11 @@ const ChatWidget = () => {
     }
   }, [messages, isOpen]);
 
-  // Kiểm tra xác thực người dùng đã đăng nhập hoặc đã có phiên chat cũ
+  // 1. Kiểm tra xác thực người dùng khi load trang
   useEffect(() => {
     const checkUserAndProfile = async () => {
-      // 1. Kiểm tra xem có phiên chat cũ lưu ở localStorage không
-      const savedSession = localStorage.getItem("chat_session");
-      if (savedSession) {
-        try {
-          const session = JSON.parse(savedSession);
-          if (session.phone && session.name) {
-            setName(session.name);
-            setPhone(session.phone);
-            initializeChat(session.phone, session.name);
-            return;
-          }
-        } catch (e) {
-          console.error("Lỗi đọc phiên chat từ localStorage", e);
-        }
-      }
-
-      // 2. Nếu không có, thử lấy profile từ backend nếu đã đăng nhập
       try {
+        // Ưu tiên lấy thông tin tài khoản đang đăng nhập từ backend trước
         const response = await fetch(`${apiUrl}/users/profile`, {
           method: "GET",
           credentials: "include",
@@ -59,44 +43,62 @@ const ChatWidget = () => {
             const userDispName = userData.name || `Khách hàng ${userData.phone.slice(-4)}`;
             setName(userDispName);
             setPhone(userData.phone);
-            initializeChat(userData.phone, userDispName);
+            // Đồng bộ phiên đăng nhập vào localStorage
+            localStorage.setItem(
+              "chat_session",
+              JSON.stringify({ phone: userData.phone, name: userDispName })
+            );
+            return;
           }
         }
       } catch (err) {
         console.error("Lỗi check auth cho chat widget:", err);
       }
+
+      // Nếu không đăng nhập, thử lấy từ localStorage (dành cho khách vãng lai đã chat trước đó)
+      const savedSession = localStorage.getItem("chat_session");
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          if (session.phone && session.name) {
+            setName(session.name);
+            setPhone(session.phone);
+          }
+        } catch (e) {
+          console.error("Lỗi đọc phiên chat từ localStorage", e);
+        }
+      }
     };
 
     checkUserAndProfile();
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
   }, []);
 
-  // Khởi tạo kết nối Socket và tải lịch sử
-  const initializeChat = async (userPhone, userName) => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-    }
+  // 2. Tự động kết nối Socket và tải lịch sử chat khi có số điện thoại (phone)
+  useEffect(() => {
+    if (!phone) return;
+
+    let isMounted = true;
 
     // Tải lịch sử tin nhắn
-    setLoadingHistory(true);
-    try {
-      const res = await fetch(`${apiUrl}/chat/history/${userPhone}`, {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessages(data.messages || []);
+    const fetchHistory = async () => {
+      setLoadingHistory(true);
+      try {
+        const res = await fetch(`${apiUrl}/chat/history/${phone}`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (data.success && isMounted) {
+          setMessages(data.messages || []);
+        }
+      } catch (err) {
+        console.error("Không thể tải lịch sử chat:", err);
+      } finally {
+        if (isMounted) {
+          setLoadingHistory(false);
+        }
       }
-    } catch (err) {
-      console.error("Không thể tải lịch sử chat:", err);
-    } finally {
-      setLoadingHistory(false);
-    }
+    };
+    fetchHistory();
 
     // Kết nối socket.io
     const socket = io(apiUrl, {
@@ -107,18 +109,34 @@ const ChatWidget = () => {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      socket.emit("join_chat", { sessionId: userPhone });
-      setIsJoined(true);
+      socket.emit("join_chat", { sessionId: phone });
+      if (isMounted) {
+        setIsJoined(true);
+      }
     });
 
     socket.on("receive_msg", (newMsg) => {
-      setMessages((prev) => [...prev, newMsg]);
+      if (isMounted) {
+        setMessages((prev) => {
+          // Tránh tin nhắn bị lặp bằng cách lọc ID trùng
+          if (prev.some((m) => m._id === newMsg._id)) return prev;
+          return [...prev, newMsg];
+        });
+      }
     });
 
     socket.on("disconnect", () => {
-      setIsJoined(false);
+      if (isMounted) {
+        setIsJoined(false);
+      }
     });
-  };
+
+    return () => {
+      isMounted = false;
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [phone]);
 
   // Bắt đầu chat từ Form điền thông tin (dành cho khách chưa đăng nhập)
   const handleStartChatSubmit = (e) => {
@@ -140,7 +158,9 @@ const ChatWidget = () => {
       JSON.stringify({ phone: trimmedPhone, name: trimmedName })
     );
 
-    initializeChat(trimmedPhone, trimmedName);
+    // Cập nhật name và phone, useEffect phụ thuộc vào phone sẽ tự động khởi chạy socket
+    setName(trimmedName);
+    setPhone(trimmedPhone);
   };
 
   // Gửi tin nhắn

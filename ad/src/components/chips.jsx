@@ -332,6 +332,10 @@ const fetchSectionDevices = async (sectionName) => {
   const handleChipTypeChange = (event) => setChipType(event.target.value);
 
   const handleAddChip = async () => {
+    if (!chipType || !chipValue.trim()) {
+      toast.error("Vui lòng chọn loại và nhập giá trị!");
+      return;
+    }
     const response = await fetch(`${apiUrl}/chips/addValue`, {
       method: "POST",
       headers: {
@@ -340,16 +344,18 @@ const fetchSectionDevices = async (sectionName) => {
       credentials: "include",
       body: JSON.stringify({
         type: chipType,
-        value: chipValue,
+        value: chipValue.trim(),
       }),
     });
+
+    const data = await response.json().catch(() => ({}));
 
     if (response.ok) {
       toast.success("Thêm chip thành công!");
       fetchData();
       handleCloseDialog();
     } else {
-      alert("Có lỗi xảy ra khi thêm chip.");
+      toast.error(data.message || "Có lỗi xảy ra khi thêm chip.");
     }
   };
 

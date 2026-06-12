@@ -9,12 +9,15 @@ import {
   Toolbar,
   Typography,
   Collapse,
+  useMediaQuery,
+  IconButton,
 } from "@mui/material";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ExpandLess,
   ExpandMore,
   Logout as LogoutIcon,
+  Menu as MenuIcon,
 } from "@mui/icons-material";
 import {
   Inventory as ProductIcon,
@@ -41,6 +44,19 @@ const socket = io(apiUrl, { withCredentials: true });
 const drawerWidth = 240;
 
 const Sidebar = () => {
+  const isMobile = useMediaQuery("(max-width:900px)");
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const handleItemClick = () => {
+    if (isMobile) {
+      setMobileOpen(false);
+    }
+  };
+
   const { orderChanged } = useOrderContext();
   const navigate = useNavigate();
   const [openItems, setOpenItems] = useState({});
@@ -210,21 +226,8 @@ const Sidebar = () => {
     { text: "Đăng xuất", icon: <LogoutIcon />, action: "logout" },
   ].filter(Boolean);
 
-  return (
-    <Drawer
-      sx={{
-        width: drawerWidth,
-        flexShrink: 0,
-        "& .MuiDrawer-paper": {
-          width: drawerWidth,
-          boxSizing: "border-box",
-          backgroundColor: "#212121",
-          color: "#fff",
-        },
-      }}
-      variant="permanent"
-      anchor="left"
-    >
+  const drawerContent = (
+    <>
       <Toolbar>
         <Typography
           variant="h6"
@@ -241,6 +244,7 @@ const Sidebar = () => {
                 <ListItemButton
                   component={Link}
                   to={item.path}
+                  onClick={handleItemClick}
                   sx={{
                     justifyContent: "center",
                     color: "white",
@@ -254,7 +258,10 @@ const Sidebar = () => {
                 </ListItemButton>
               ) : item.action === "logout" ? (
                 <ListItemButton
-                  onClick={handleLogout}
+                  onClick={() => {
+                    handleLogout();
+                    handleItemClick();
+                  }}
                   sx={{
                     justifyContent: "center",
                     color: "white",
@@ -291,6 +298,7 @@ const Sidebar = () => {
                       <ListItemButton
                         component={Link}
                         to={subItem.path}
+                        onClick={handleItemClick}
                         sx={{
                           justifyContent: "center",
                           color: "white",
@@ -310,7 +318,59 @@ const Sidebar = () => {
           </React.Fragment>
         ))}
       </List>
-    </Drawer>
+    </>
+  );
+
+  return (
+    <>
+      {isMobile && (
+        <IconButton
+          color="inherit"
+          aria-label="open drawer"
+          edge="start"
+          onClick={handleDrawerToggle}
+          sx={{
+            position: "fixed",
+            left: 16,
+            top: 16,
+            zIndex: 1100,
+            backgroundColor: "#212121",
+            color: "white",
+            "&:hover": {
+              backgroundColor: "#333333",
+            },
+          }}
+        >
+          <MenuIcon />
+        </IconButton>
+      )}
+      <Drawer
+        variant={isMobile ? "temporary" : "permanent"}
+        open={isMobile ? mobileOpen : true}
+        onClose={handleDrawerToggle}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile.
+        }}
+        sx={{
+          width: isMobile ? 0 : drawerWidth,
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: drawerWidth,
+            boxSizing: "border-box",
+            backgroundColor: "#212121",
+            color: "#fff",
+            "&::-webkit-scrollbar": {
+              display: "none",
+            },
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          },
+        }}
+        anchor="left"
+      >
+        {drawerContent}
+      </Drawer>
+    </>
   );
 };
 

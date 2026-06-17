@@ -94,7 +94,7 @@ const MyOrder = () => {
           if (response.status === 401) {
             toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
             setTimeout(() => {
-              window.location.href = "/login";
+              window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
             }, 1000);
             return;
           }
@@ -178,7 +178,7 @@ const MyOrder = () => {
         if (response.status === 401) {
           toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
           setTimeout(() => {
-            window.location.href = "/login";
+            window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
           }, 1000);
           return;
         }

@@ -10,6 +10,16 @@ code {
     monospace;
 }
 
-html{
+html {
   scroll-behavior: smooth;
+}
+
+.main-content {
+  padding-top: 90px;
+}
+
+@media (max-width: 888px) {
+  .main-content {
+    padding-top: 60px;
+  }
 }

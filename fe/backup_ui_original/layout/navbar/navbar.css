@@ -1,11 +1,8 @@
 .navbar-container {
   width: 100%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  background-color: white;
-  z-index: 999;
+  position: relative;
   border-bottom: 3px solid rgb(220, 220, 220); /* Bottom border full width */
+  background-color: #ffffff; /* Khớp màu nền logo */
 }
 
 .navbar-top {
@@ -195,7 +192,7 @@
   left: -250px;
   opacity: 0;
   transition: left 0.3s ease, opacity 0.3s ease;
-  z-index: 1001;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -260,13 +257,11 @@
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: -5;
-  pointer-events: none;
 }
 
 .overlay.active {
   opacity: 1;
-  z-index: 1000;
-  pointer-events: auto;
+  z-index: 5;
 }
 
 .navbar-bot {

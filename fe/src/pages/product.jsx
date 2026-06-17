@@ -50,8 +50,14 @@ function Product() {
   const [sections, setSections] = useState([]);
   const [values, setValues] = useState([]);
 
-  const fetchProducts = async () => {
+  // States mới cho việc lọc theo trạm trộn
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userStations, setUserStations] = useState([]);
+  const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || "Tất cả");
+
+  const fetchProducts = async (currStationId = null) => {
     try {
+      const activeStationId = currStationId !== null ? currStationId : selectedStation;
       const updatedFilters = {
         page,
         limit,
@@ -63,6 +69,7 @@ function Product() {
         sortBy: filters.sortBy || "purchaseCount",
         sortOrder: filters.sortOrder || "desc",
         display: "true",
+        stationId: activeStationId === "Tất cả" ? "" : activeStationId,
       };
 
       const query = new URLSearchParams(updatedFilters).toString();
@@ -72,16 +79,52 @@ function Product() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
       });
 
       const data = await response.json();
-
-      setProducts(data.products);
-      setTotalPages(Math.ceil(data.total / limit));
+      setProducts(data.products || []);
+      setTotalPages(Math.ceil((data.total || 0) / limit));
     } catch (error) {
       console.error("Error fetching products:", error);
     }
   };
+
+  // Check đăng nhập và load danh sách trạm
+  useEffect(() => {
+    const checkAuthAndLoadStations = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/users/profile`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          setIsLoggedIn(true);
+          const codes = userData.station || []; // these are station IDs!
+          if (codes.length > 0) {
+            const stationsRes = await fetch(`${apiUrl}/stations/by-ids`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ ids: codes }),
+            });
+            if (stationsRes.ok) {
+              const stationsData = await stationsRes.json();
+              setUserStations(stationsData);
+            }
+          }
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.error("Error loading user profile or stations:", error);
+        setIsLoggedIn(false);
+      }
+    };
+    checkAuthAndLoadStations();
+  }, []);
 
   useEffect(() => {
     const updatedFilters = {
@@ -96,7 +139,11 @@ function Product() {
     setFilters(updatedFilters);
     const pageParam = queryParams.get("page");
     setPage(pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 1);
-    fetchProducts();
+    
+    const stationIdParam = queryParams.get("stationId") || "Tất cả";
+    setSelectedStation(stationIdParam);
+    
+    fetchProducts(stationIdParam);
   }, [location.search]);
 
   const handleFilterChange = (e) => {
@@ -125,6 +172,26 @@ function Product() {
     }
   };
 
+  const handleStationChange = (e) => {
+    const stationId = e.target.value;
+    setSelectedStation(stationId);
+    
+    const urlQuery = new URLSearchParams({
+      ...filters,
+      brand: filters.brand === "Tất cả" ? "" : filters.brand,
+      type: filters.type === "Tất cả" ? "" : filters.type,
+      section: filters.section === "Tất cả" ? "" : filters.section,
+      value: filters.value === "Tất cả" ? "" : filters.value,
+      sortBy: filters.sortBy || "purchaseCount",
+      sortOrder: filters.sortOrder || "desc",
+      stationId: stationId === "Tất cả" ? "" : stationId,
+      page: 1,
+    }).toString();
+
+    navigate(`/product?${urlQuery}`);
+    setPage(1);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const urlQuery = new URLSearchParams({
@@ -135,13 +202,13 @@ function Product() {
       value: filters.value === "Tất cả" ? "" : filters.value,
       sortBy: filters.sortBy || "purchaseCount",
       sortOrder: filters.sortOrder || "desc",
+      stationId: selectedStation === "Tất cả" ? "" : selectedStation,
       page: 1,
     }).toString();
 
     navigate(`/product?${urlQuery}`);
     setPage(1);
     setOpenDialog(false);
-    fetchProducts();
   };
 
   const handlePageChange = (event, newPage) => {
@@ -153,12 +220,12 @@ function Product() {
       value: filters.value === "Tất cả" ? "" : filters.value,
       sortBy: filters.sortBy || "purchaseCount",
       sortOrder: filters.sortOrder || "desc",
+      stationId: selectedStation === "Tất cả" ? "" : selectedStation,
       page: newPage,
     }).toString();
 
     setPage(Number(newPage) || 1);
     navigate(`/product?${urlQuery}`);
-    fetchProducts();
   };
 
   useEffect(() => {
@@ -193,6 +260,28 @@ function Product() {
   const filterForm = (
     <form onSubmit={handleSubmit} className="filter-product-string">
       <Typography variant="h6">Tìm kiếm sản phẩm</Typography>
+      
+      {/* Chọn trạm trộn (Chỉ hiển thị cho khách hàng đã đăng nhập và có trạm) */}
+      {isLoggedIn && userStations.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <InputLabel sx={{ fontWeight: "bold", mb: 0.5 }}>Chọn trạm trộn</InputLabel>
+          <Select
+            value={selectedStation}
+            onChange={handleStationChange}
+            size="small"
+            fullWidth
+            sx={{ backgroundColor: "white" }}
+          >
+            <MenuItem value="Tất cả">Tất cả trạm của tôi</MenuItem>
+            {userStations.map((station, index) => (
+              <MenuItem key={index} value={station._id}>
+                {station.stationName || station.stationCode} ({station.stationCode})
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+      )}
+
       <TextField
         label="Tìm kiếm theo tên"
         variant="outlined"
@@ -350,7 +439,7 @@ function Product() {
             <DialogContent>{filterForm}</DialogContent>
           </Dialog>
 
-          <ul>
+          <div style={{ flexGrow: 1 }}>
             {products.length > 0 ? (
               <Box
                 className="product-list-container"
@@ -366,9 +455,32 @@ function Product() {
                 ))}
               </Box>
             ) : (
-              <p>Không tìm thấy sản phẩm nào phù hợp.</p>
+              <Box sx={{ width: "100%", py: 8, px: 2, textAlign: "center", backgroundColor: "white", borderRadius: "8px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}>
+                {!isLoggedIn ? (
+                  <Box>
+                    <Typography variant="h6" sx={{ color: "text.secondary", mb: 2 }}>
+                      Vui lòng đăng nhập để xem các thiết bị / vật liệu thuộc trạm trộn của bạn.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => navigate("/login")}
+                    >
+                      Đăng nhập ngay
+                    </Button>
+                  </Box>
+                ) : userStations.length === 0 ? (
+                  <Typography variant="h6" sx={{ color: "text.secondary" }}>
+                    Tài khoản của bạn chưa được cấp trạm trộn nào. Vui lòng liên hệ Admin để được cấu hình trạm.
+                  </Typography>
+                ) : (
+                  <Typography variant="h6" sx={{ color: "text.secondary" }}>
+                    Trạm trộn của bạn chưa được cấu hình thiết bị nào, hoặc bộ lọc không tìm thấy sản phẩm phù hợp.
+                  </Typography>
+                )}
+              </Box>
             )}
-          </ul>
+          </div>
         </div>
         <div
           style={{ display: "flex", justifyContent: "center", margin: "2rem 0" }}

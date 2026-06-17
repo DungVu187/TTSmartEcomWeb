@@ -3,8 +3,24 @@ const mongoose = require("mongoose");
 const { authenticateUser, authenticateAdmin, checkPermission, User } = require("./user");
 require("dotenv").config();
 const { Product } = require('./product');
+const { sendNewOrderNotification } = require('../mailer');
 
 const router = express.Router();
+
+const getUpdatedImgUrl = (originalUrl) => {
+  if (!originalUrl) return originalUrl;
+  const address = process.env.ADDRESS;
+  if (!address) return originalUrl;
+
+  const paths = ['/images/', '/station/', '/section-images/'];
+  for (const p of paths) {
+    const idx = originalUrl.indexOf(p);
+    if (idx !== -1) {
+      return address.replace(/\/$/, '') + originalUrl.substring(idx);
+    }
+  }
+  return originalUrl;
+};
 
 const orderSchema = new mongoose.Schema(
   {
@@ -224,6 +240,15 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       }
     );
 
+    // 👉 Gửi email thông báo đến admin
+    sendNewOrderNotification({
+      orderId: savedOrder._id,
+      userPhone,
+      userName,
+      total,
+      createdAt: savedOrder.createdAt,
+    });
+
     // 👉 Emit khi tạo đơn hàng
     io.emit("order_created", {
       orderId: savedOrder._id,
@@ -318,7 +343,7 @@ router.get('/:_id', async (req, res) => {
             color: variant.color,
             shape: variant.shape,
             price: variant.price,
-            imgUrl: variant.imgUrl,
+            imgUrl: getUpdatedImgUrl(variant.imgUrl),
           },
           quantity: item.quantity,
         };

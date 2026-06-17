@@ -109,11 +109,11 @@ function Navbar() {
             </Link>
           </div>
           <div style={{ display: "flex", gap: "1rem" }}>
-            {/* <a href="tel:+8413158383" style={{ textDecoration: "none" }}>
+            {/* <a href="tel:0813158383" style={{ textDecoration: "none" }}>
               <div className="phone tab">
                 <i className="fa-solid fa-phone fa-2xl"></i>
                 <div className="phone-text">
-                  <p>+8413158383</p>
+                  <p>0813158383</p>
                 </div>
               </div>
             </a> */}
@@ -143,19 +143,13 @@ function Navbar() {
                     </p>
                     <Link
                       style={{ textDecoration: "none" }}
-                      to="/profile"
-                    >
-                      <p>Thông tin cá nhân</p>
-                    </Link>
-                    <Link
-                      style={{ textDecoration: "none" }}
                       to="/change-password"
                     >
                       <p>Đổi mật khẩu</p>
                     </Link>
                   </>
                 ) : (
-                  <Link style={{ textDecoration: "none" }} to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`}>
+                  <Link style={{ textDecoration: "none" }} to="/login">
                     <p>Đăng nhập</p>
                   </Link>
                 )}
@@ -201,6 +195,13 @@ function Navbar() {
               Giỏ hàng ({getCartItemCount()})
             </Link>
           </li>
+          {isLoggedIn && (
+            <li className="hamburger-filter">
+              <Link to="/myorder" onClick={closeMenu} style={linkStyle}>
+                Đơn hàng của tôi
+              </Link>
+            </li>
+          )}
           <li className="hamburger-filter">
             <Link to="/station" onClick={closeMenu} style={linkStyle}>
               Trạm trộn
@@ -227,24 +228,10 @@ function Navbar() {
             </Link>
           </li>
           <li className="hamburger-filter">
-            <a href="tel:+8413158383" style={linkStyle}>
+            <a href="tel:0813158383" style={linkStyle}>
               Liên hệ
             </a>
           </li>
-          {isLoggedIn && (
-            <>
-              <li className="hamburger-filter">
-                <Link to="/profile" onClick={closeMenu} style={linkStyle}>
-                  Thông tin cá nhân
-                </Link>
-              </li>
-              <li className="hamburger-filter">
-                <Link to="/myorder" onClick={closeMenu} style={linkStyle}>
-                  Đơn hàng của tôi
-                </Link>
-              </li>
-            </>
-          )}
           <li className="hamburger-filter">
             {isLoggedIn ? (
               <p
@@ -254,7 +241,7 @@ function Navbar() {
                 {isLoading ? "Đang đăng xuất..." : "Đăng xuất"}
               </p>
             ) : (
-              <Link to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} onClick={closeMenu} style={linkStyle}>
+              <Link to="/login" onClick={closeMenu} style={linkStyle}>
                 Đăng nhập
               </Link>
             )}

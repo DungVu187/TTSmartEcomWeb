@@ -153,7 +153,7 @@ const StationDisplayDetail = () => {
                               variant="contained"
                               color="success"
                               size="small"
-                              href="tel:+8413158383"
+                              href="tel:0913158383"
                               sx={{
                                 minWidth: '40px',
                                 padding: '6px 12px',
@@ -161,9 +161,15 @@ const StationDisplayDetail = () => {
                                 justifyContent: 'center',
                                 alignItems: 'center',
                                 gap: 1,
+                                whiteSpace: 'nowrap',
                               }}
                             >
-                              {isSmallScreen ? <PhoneIcon /> : 'Gọi mua hàng'}
+                              {isSmallScreen ? <PhoneIcon /> : (
+                                <>
+                                  <PhoneIcon sx={{ fontSize: 16 }} />
+                                  Liên hệ: 0913 158 383
+                                </>
+                              )}
                             </Button>
                             <Button
                               variant="contained"

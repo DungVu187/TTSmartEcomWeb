@@ -26,6 +26,7 @@ import { toast } from "react-hot-toast";
 function Cart() {
   const {
     cartItems,
+    setCartItems,
     updateCartItem,
     removeFromCart,
     clearCart,
@@ -102,24 +103,6 @@ function Cart() {
         return;
       }
 
-      // Kiểm tra số lượng tồn kho trước khi đặt hàng
-      for (const item of selectedItems) {
-        const productRes = await fetch(
-          `${process.env.REACT_APP_BACK_END}/products/${item.productId}`,
-          {
-            credentials: "include",
-          }
-        );
-        const productData = await productRes.json();
-        const variant = productData.variant[item.variantIndex];
-        if (variant.quantityForSale < item.quantity) {
-          toast.error(
-            `Không đủ hàng cho sản phẩm ${productData.name}, chỉ còn ${variant.quantityForSale} sản phẩm.`
-          );
-          return;
-        }
-      }
-
       let total = 0;
       selectedItems.forEach((item) => {
         const product = products.find((p) => p._id === item.productId);
@@ -160,11 +143,8 @@ function Cart() {
       }
 
       toast.success("Đặt hàng thành công");
+      setCartItems(data.cart || []);
       await fetchProducts(); // Cập nhật lại danh sách sản phẩm
-      // Xóa các sản phẩm đã đặt khỏi giỏ hàng
-      selectedItems.forEach((item) => {
-        removeFromCart(item.productId, item.variantIndex);
-      });
     } catch (error) {
       console.error("Lỗi khi đặt hàng:", error);
       toast.error(error.message || "Có lỗi xảy ra. Vui lòng thử lại sau!");

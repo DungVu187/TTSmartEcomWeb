@@ -85,8 +85,10 @@ function LogIn() {
 
       if (response.ok) {
         toast.success("Đăng nhập thành công");
+        const queryParams = new URLSearchParams(window.location.search);
+        const redirectUrl = queryParams.get("redirect") || "/";
         setTimeout(() => {
-          window.location.href = "/";
+          window.location.href = redirectUrl;
         }, 1000);
       } else {
         toast.error("Số điện thoại hoặc mật khẩu không đúng");

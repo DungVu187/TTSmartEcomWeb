@@ -23,7 +23,7 @@ import moment from "moment";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
-const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const apiUrl = import.meta.env.VITE_API_URL || "";
 
 const ExportedProducts = () => {
   const [products, setProducts] = useState([]);

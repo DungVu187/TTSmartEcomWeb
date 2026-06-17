@@ -21,7 +21,7 @@ const ShopContextProvider = ({ children }) => {
         if (response.status === 401) {
           toast.error("Bạn cần đăng nhập để thực hiện hành động này");
           setTimeout(() => {
-            window.location.href = "/login";
+            window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
           }, 1000);
           throw new Error("Unauthorized");
         }

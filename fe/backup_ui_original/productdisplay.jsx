@@ -174,8 +174,10 @@ const ProductDisplay = () => {
   }, [fetchUserProfile, fetchProduct]);
 
   useEffect(() => {
-    fetchReviews();
-  }, [fetchReviews]);
+    if (userEmail) {
+      fetchReviews();
+    }
+  }, [userEmail, fetchReviews]);
 
   if (loading) {
     return <p>Loading product details...</p>;
@@ -308,137 +310,181 @@ const ProductDisplay = () => {
       product.infoDoc.others?.trim());
 
   return (
-    <div style={{ backgroundColor: "rgb(235, 246, 254)", padding: "3rem 0", minHeight: '100vh' }}>
+    <div style={{ padding: "3rem 16px", minHeight: '100vh', boxSizing: 'border-box' }}>
       <div
         className="more-huge-container"
         style={{
-          maxWidth: "1920px",
+          maxWidth: "1400px",
           margin: "auto",
-          width: "full",
+          width: "100%",
           display: "flex",
           gap: "2rem",
           justifyContent: "center",
+          flexWrap: "wrap"
         }}
       >
-        <div className="huge-container" style={{ width: "764px" }}>
-          <div className="produt-display-main-container">
-            <div>
+        <div className="huge-container" style={{ width: "850px", maxWidth: "100%" }}>
+          <div className="produt-display-main-container" style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "2rem" }}>
+            {/* Left Column: Product Image Gallery */}
+            <Paper
+              className="glass-panel"
+              sx={{
+                flex: "1 1 450px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "#ffffff",
+                p: 2,
+                borderRadius: "16px",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.04)"
+              }}
+            >
               <img
                 src={selectedVariant?.imgUrl}
-                alt="Ảnh sản phẩm"
+                alt={product.name}
                 style={{
-                  width: "450px",
-                  aspectRatio: 3 / 2,
-                  borderRadius: "5px",
-                  backgroundColor: "white",
-                  padding: "1rem 0",
+                  width: "100%",
+                  maxHeight: "360px",
                   objectFit: "contain",
                 }}
               />
-            </div>
-            <div
-              className="product-main-info"
-              style={{
-                width: "230px",
-                backgroundColor: "white",
-                borderRadius: "5px",
+            </Paper>
+
+            {/* Right Column: Product Core Info */}
+            <Paper
+              className="glass-panel"
+              sx={{
+                flex: "1 1 320px",
+                p: 3,
+                borderRadius: "16px",
                 display: "flex",
                 flexDirection: "column",
-                padding: "0 1rem 1rem",
+                justifyContent: "space-between"
               }}
             >
-              <div style={{ flex: 1, textAlign: "left", padding: "1rem" }}>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
-                >
-                  <h1 style={{ margin: 0 }}>{product.name}</h1>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "400",
-                      color: "#555",
+              <div style={{ textAlign: "left" }}>
+                <Box sx={{ mb: 1 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      bgcolor: "#eff6ff",
+                      color: "#2563eb",
+                      fontWeight: 700,
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: "4px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em"
                     }}
                   >
-                    ({product.purchaseCount})
-                  </span>
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
-                >
+                    {product.brand}
+                  </Typography>
+                </Box>
+                
+                <Typography variant="h5" sx={{ fontWeight: 800, color: "#0f172a", mb: 1 }}>
+                  {product.name}
+                </Typography>
+
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
                   <Rating
                     name="rating"
-                    value={product.averageReviews}
+                    value={product.averageReviews || 5}
+                    precision={0.5}
                     readOnly
+                    size="small"
                   />
-                  <span
-                    style={{
-                      fontSize: "0.8rem",
-                      fontWeight: "400",
-                      color: "#555",
-                    }}
-                  >
-                    ({product.reviewCount})
-                  </span>
-                </div>
-                <p style={{ fontWeight: 500 }}>{product.code}</p>
-                <p className="product-display-price">
-                  {Number(selectedVariant?.price).toLocaleString("vi-VN")} VND
-                </p>
-                <p>{product.type}</p>
-                {/* Phần filter variant bị comment, giữ nguyên */}
-                {/* <div className="product-filters">
-                  {["color", "shape", "frame", "buttonCount"].some(
-                    (filterKey) => product.variant.some((v) => v[filterKey])
-                  ) && (
-                    <div className="product-filters">
-                      {["color", "shape", "frame", "buttonCount"].map(
-                        (filterKey) => {
-                          const options = Array.from(
-                            new Set(product.variant.map((v) => v[filterKey]))
-                          ).filter(Boolean);
-                          if (options.length === 0) return null;
-                          return (
-                            <div key={filterKey} className="filter-group">
-                              {options.map((option) => (
-                                <button
-                                  key={option}
-                                  onClick={() =>
-                                    handleFilterChange(filterKey, option)
-                                  }
-                                  className={`${
-                                    filters[filterKey] === option
-                                      ? "active-filter"
-                                      : ""
-                                  } ${
-                                    activeValues[filterKey]?.has(option)
-                                      ? "matching-filter"
-                                      : "inactive-filter"
-                                  }`}
-                                >
-                                  {option}
-                                </button>
-                              ))}
+                  <Typography variant="body2" sx={{ color: "#64748b" }}>
+                    Lượt mua: {product.purchaseCount} | Đánh giá: ({product.reviewCount || 0})
+                  </Typography>
+                </Box>
+
+                <Typography variant="subtitle2" sx={{ color: "#64748b", fontWeight: 600, mb: 1 }}>
+                  Mã hàng: {product.code}
+                </Typography>
+
+                <Typography variant="h4" sx={{ fontWeight: 800, color: "#2563eb", mb: 2 }}>
+                  {Number(selectedVariant?.price).toLocaleString("vi-VN")} đ
+                </Typography>
+
+                <Typography variant="body2" sx={{ color: "#475569", mb: 3 }}>
+                  Loại sản phẩm: <strong>{product.type}</strong>
+                </Typography>
+
+                {/* Phân loại sản phẩm (Variant Selector) */}
+                {["color", "shape", "frame", "buttonCount"].some(
+                  (filterKey) => product.variant && product.variant.some((v) => v[filterKey])
+                ) && (
+                  <div className="product-filters">
+                    {["color", "shape", "frame", "buttonCount"].map(
+                      (filterKey) => {
+                        const options = Array.from(
+                          new Set(product.variant.map((v) => v[filterKey]))
+                        ).filter(Boolean);
+                        if (options.length === 0) return null;
+                        
+                        const labelMap = {
+                          color: "Màu sắc",
+                          shape: "Hình dạng",
+                          frame: "Khung vỏ",
+                          buttonCount: "Số nút bấm"
+                        };
+                        
+                        return (
+                          <div key={filterKey} className="filter-group" style={{ marginBottom: "12px" }}>
+                            <span className="filter-label" style={{ display: "block", marginBottom: "6px" }}>
+                              {labelMap[filterKey] || filterKey}
+                            </span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                              {options.map((option) => {
+                                const isActive = filters[filterKey] === option;
+                                const isMatching = activeValues[filterKey]?.has(option);
+                                let chipClass = "filter-chip";
+                                if (isActive) chipClass += " active-filter";
+                                if (!isMatching && !isActive) chipClass += " inactive-filter";
+                                
+                                return (
+                                  <button
+                                    key={option}
+                                    type="button"
+                                    onClick={() => handleFilterChange(filterKey, option)}
+                                    className={chipClass}
+                                    disabled={!isMatching && !isActive}
+                                  >
+                                    {option}
+                                  </button>
+                                );
+                              })}
                             </div>
-                          );
-                        }
-                      )}
-                    </div>
-                  )}
-                </div> */}
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                )}
               </div>
+
               <Button
                 variant="contained"
-                color="primary"
                 onClick={handleAddToCart}
                 startIcon={<ShoppingCartIcon />}
                 sx={{
-                  width: "90%",
-                  margin: "auto",
+                  width: "100%",
+                  bgcolor: "#2563eb",
+                  "&:hover": {
+                    bgcolor: "#1d4ed8"
+                  },
+                  py: 1.5,
+                  borderRadius: "8px",
+                  fontWeight: 700,
+                  textTransform: "none",
+                  fontSize: "1rem",
+                  mt: 3,
+                  boxShadow: "0 4px 12px rgba(37, 99, 235, 0.2)"
                 }}
               >
                 Thêm vào giỏ hàng
               </Button>
-            </div>
+            </Paper>
           </div>
           {product?.description && (
             <Box className="box">
@@ -650,7 +696,7 @@ const ProductDisplay = () => {
               >
                 <SmartphoneIcon sx={{ width: 15, height: 15 }} />
                 <a
-                  href="tel:+8413158383"
+                  href="tel:0813158383"
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   Đường dây nóng

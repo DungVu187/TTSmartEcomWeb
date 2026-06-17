@@ -13,7 +13,7 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
   useEffect(() => {
     const checkAuthAndRole = async () => {
       try {
-        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const backendUrl = import.meta.env.VITE_API_URL || '';
         const response = await fetch(`${backendUrl}/users/profile`, {
           method: 'GET',
           credentials: 'include',

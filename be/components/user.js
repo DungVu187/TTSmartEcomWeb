@@ -85,6 +85,15 @@ const userSchema = new mongoose.Schema({
       trim: true
     },
   ],
+  addresses: [
+    {
+      label: { type: String, default: "Công trình" },
+      receiverName: { type: String },
+      receiverPhone: { type: String },
+      addressDetail: { type: String },
+      isDefault: { type: Boolean, default: false },
+    }
+  ],
   logInString: {
     type: String
   }
@@ -347,6 +356,141 @@ router.get("/profile", authenticateUser, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// Cập nhật thông tin cá nhân của người dùng hiện tại
+router.put("/profile", authenticateUser, async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+
+    await user.save();
+    
+    const userObj = user.toObject();
+    delete userObj.password;
+    
+    res.json({ message: "Cập nhật thông tin cá nhân thành công", user: userObj });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Thêm địa chỉ mới
+router.post("/profile/addresses", authenticateUser, async (req, res) => {
+  try {
+    const { label, receiverName, receiverPhone, addressDetail } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    const isFirstAddress = user.addresses.length === 0;
+    const newAddress = {
+      label: label || "Công trình",
+      receiverName,
+      receiverPhone,
+      addressDetail,
+      isDefault: isFirstAddress
+    };
+
+    user.addresses.push(newAddress);
+    await user.save();
+    res.status(201).json({ message: "Thêm địa chỉ thành công", addresses: user.addresses });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Cập nhật địa chỉ
+router.put("/profile/addresses/:addressId", authenticateUser, async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const { label, receiverName, receiverPhone, addressDetail } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    const address = user.addresses.id(addressId);
+    if (!address) {
+      return res.status(404).json({ message: "Không tìm thấy địa chỉ" });
+    }
+
+    if (label !== undefined) address.label = label;
+    if (receiverName !== undefined) address.receiverName = receiverName;
+    if (receiverPhone !== undefined) address.receiverPhone = receiverPhone;
+    if (addressDetail !== undefined) address.addressDetail = addressDetail;
+
+    await user.save();
+    res.json({ message: "Cập nhật địa chỉ thành công", addresses: user.addresses });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Xóa địa chỉ
+router.delete("/profile/addresses/:addressId", authenticateUser, async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    const addressIndex = user.addresses.findIndex(a => a._id.toString() === addressId);
+    if (addressIndex === -1) {
+      return res.status(404).json({ message: "Không tìm thấy địa chỉ" });
+    }
+
+    const wasDefault = user.addresses[addressIndex].isDefault;
+    user.addresses.splice(addressIndex, 1);
+
+    if (wasDefault && user.addresses.length > 0) {
+      user.addresses[0].isDefault = true;
+    }
+
+    await user.save();
+    res.json({ message: "Xóa địa chỉ thành công", addresses: user.addresses });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Đặt địa chỉ làm mặc định
+router.put("/profile/addresses/:addressId/default", authenticateUser, async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    let found = false;
+    user.addresses.forEach(a => {
+      if (a._id.toString() === addressId) {
+        a.isDefault = true;
+        found = true;
+      } else {
+        a.isDefault = false;
+      }
+    });
+
+    if (!found) {
+      return res.status(404).json({ message: "Không tìm thấy địa chỉ" });
+    }
+
+    await user.save();
+    res.json({ message: "Đã đặt địa chỉ làm mặc định", addresses: user.addresses });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
   try {

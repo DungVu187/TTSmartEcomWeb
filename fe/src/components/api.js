@@ -27,7 +27,7 @@ api.interceptors.response.use(
         return api(originalRequest); // Thử lại request ban đầu
       } catch (refreshError) {
         toast.error("Token đã hết hạn, bạn cần đăng nhập lại");
-        window.location.href = "/login";
+        window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname + window.location.search);
         return Promise.reject(refreshError);
       }
     }

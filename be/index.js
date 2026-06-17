@@ -32,17 +32,27 @@ const allowedOrigins = [
   'https://ttsmart.com.vn',
   'http://localhost:3000',
   'http://localhost:5173',
-  'http://192.168.1.226:3000',
-  'http://192.168.1.226:5173',
+  'http://192.168.1.227:3000',
+  'http://192.168.1.227:5173',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173'
+  'http://127.0.0.1:5173',
+  'https://provides-reef-precious-house.trycloudflare.com',
+  'https://hydrocodone-jet-brunswick-controversial.trycloudflare.com',
+  'https://busy-commonly-edmonton-tablet.trycloudflare.com'
 ].filter(Boolean);
 
 const checkOrigin = (origin, callback) => {
-  if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.loca.lt') || origin.endsWith('.localtunnel.me')) {
+  if (
+    process.env.NODE_ENV === 'development' ||
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    origin.endsWith('.loca.lt') ||
+    origin.endsWith('.localtunnel.me') ||
+    origin === 'null'
+  ) {
     callback(null, true);
   } else {
-    callback(new Error('Not allowed by CORS'));
+    callback(null, false); // Trả về false thay vì ném lỗi gây crash 500
   }
 };
 
@@ -161,11 +171,13 @@ app.use((req, res, next) => {
 });
 
 // Kết nối MongoDB
-const password = process.env.DB_PASSWORD;
-const uri = `mongodb://localhost:27017/`;
-mongoose.connect(uri)
-  .then(() => console.log('Connected to MongoDB!'))
-  .catch(err => console.error('MongoDB connection error:', err));
+if (process.env.NODE_ENV !== 'test') {
+  const password = process.env.DB_PASSWORD;
+  const uri = `mongodb://localhost:27017/`;
+  mongoose.connect(uri)
+    .then(() => console.log('Connected to MongoDB!'))
+    .catch(err => console.error('MongoDB connection error:', err));
+}
 
 // Routes
 app.use('/users', userRoutes);
@@ -185,6 +197,32 @@ app.use('/images', express.static(path.join(__dirname, 'upload', 'images')));
 app.use('/section-images', express.static(path.join(__dirname, 'upload', 'sections')));
 app.use('/station', express.static(path.join(__dirname, 'upload', 'stations')));
 
+// Serve admin dashboard static files
+const adminDistPath = path.join(__dirname, '../ad/dist');
+app.use('/admin', express.static(adminDistPath));
+
+app.get('/admin/*', (req, res) => {
+  res.sendFile(path.join(adminDistPath, 'index.html'));
+});
+
+// Serve customer frontend static files
+const feBuildPath = path.join(__dirname, '../fe/build');
+app.use(express.static(feBuildPath));
+
+// Fallback for React Router on customer website (exclude API endpoints)
+app.get('*', (req, res, next) => {
+  const apiPaths = [
+    '/users', '/products', '/orders', '/chips', '/carts',
+    '/manages', '/iporders', '/eporders', '/stations',
+    '/histories', '/chat', '/images', '/section-images'
+  ];
+  const isApi = apiPaths.some(path => req.path.startsWith(path));
+  if (isApi) {
+    return next();
+  }
+  res.sendFile(path.join(feBuildPath, 'index.html'));
+});
+
 // 404 handler
 app.use((req, res, next) => {
   res.status(404).json({ message: 'Route not found' });
@@ -197,7 +235,11 @@ app.use((err, req, res, next) => {
 });
 
 // Start server with socket
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;

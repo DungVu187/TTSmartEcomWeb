@@ -1,11 +1,23 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
-const { authenticateUser, authenticateAdmin, checkPermission } = require('./user');
+const { authenticateUser, authenticateAdmin, checkPermission, User } = require('./user');
+const { Station } = require('./station');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config();
 const fs = require('fs').promises;
 const { StorageHistory } = require("./storagehistory");
+
+function removeVietnameseTones(str) {
+    if (!str) return '';
+    return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D');
+}
+
 
 const productSchema = new mongoose.Schema({
     type: {
@@ -17,6 +29,11 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
+    },
+    nameUnsigned: {
+        type: String,
+        trim: true,
+        index: true
     },
     display: {
         type: Boolean,
@@ -130,6 +147,52 @@ const productSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+productSchema.pre('save', function(next) {
+    if (this.isModified('name')) {
+        this.nameUnsigned = removeVietnameseTones(this.name);
+    }
+    next();
+});
+
+const getUpdatedImgUrl = (originalUrl) => {
+  if (!originalUrl) return originalUrl;
+
+  const paths = ['/images/', '/station/', '/section-images/'];
+  for (const p of paths) {
+    const idx = originalUrl.indexOf(p);
+    if (idx !== -1) {
+      return originalUrl.substring(idx);
+    }
+  }
+  return originalUrl;
+};
+
+productSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    if (ret.variant && Array.isArray(ret.variant)) {
+      ret.variant.forEach(v => {
+        if (v.imgUrl) {
+          v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+        }
+      });
+    }
+    return ret;
+  }
+});
+
+productSchema.set('toObject', {
+  transform: (doc, ret) => {
+    if (ret.variant && Array.isArray(ret.variant)) {
+      ret.variant.forEach(v => {
+        if (v.imgUrl) {
+          v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+        }
+      });
+    }
+    return ret;
+  }
+});
+
 const Product = mongoose.model('Product', productSchema);
 
 // Tạo router cho các API sản phẩm
@@ -216,7 +279,8 @@ router.get("/", async (req, res) => {
             value,
             sortBy = "purchaseCount",
             sortOrder = "desc",
-            display
+            display,
+            stationId
         } = req.query;
 
         // Chuyển đổi và đảm bảo page, limit hợp lệ
@@ -226,13 +290,68 @@ router.get("/", async (req, res) => {
 
         // Tạo bộ lọc
         const filter = {};
-        if (search && search !== "") filter.name = { $regex: search, $options: "i" };
+        if (search && search !== "") {
+            const searchUnsigned = removeVietnameseTones(search);
+            filter.$or = [
+                { name: { $regex: search, $options: "i" } },
+                { nameUnsigned: { $regex: searchUnsigned, $options: "i" } }
+            ];
+        }
         if (code && code !== "") filter.code = { $regex: code, $options: "i" };
         if (type && type !== "") filter.type = type;
         if (brand && brand !== "") filter.brand = brand;
         if (section && section !== "") filter.section = section;
         if (value && value !== "") filter.value = value;
         if (display !== undefined) filter.display = display === "true"; 
+
+        // Kiểm tra cookie authToken để thực hiện lọc theo trạm trộn của khách hàng
+        const token = req.cookies?.authToken;
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const user = await User.findById(decoded.userId);
+                if (user && user.role === "customer") {
+                    const userStations = user.station || [];
+                    
+                    if (userStations.length === 0) {
+                        // Khách hàng không có trạm trộn nào -> Không hiển thị sản phẩm nào
+                        return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
+                    }
+
+                    let allowedProductIds = [];
+                    
+                    // Nếu khách hàng chọn lọc một trạm cụ thể từ dropdown
+                    if (stationId && stationId !== "Tất cả") {
+                        // Kiểm tra xem trạm này có thuộc sở hữu của khách hàng không
+                        if (!userStations.includes(stationId)) {
+                            return res.status(403).json({ message: "Bạn không có quyền truy cập trạm trộn này." });
+                        }
+                        const stationObj = await Station.findById(stationId);
+                        if (stationObj && Array.isArray(stationObj.productId)) {
+                            allowedProductIds = stationObj.productId;
+                        }
+                    } else {
+                        // Nếu chọn "Tất cả" hoặc không truyền stationId -> Lấy sản phẩm của tất cả trạm của user
+                        const stations = await Station.find({ _id: { $in: userStations } });
+                        stations.forEach(s => {
+                            if (Array.isArray(s.productId)) {
+                                allowedProductIds.push(...s.productId);
+                            }
+                        });
+                    }
+
+                    // Loại bỏ trùng lặp và lọc
+                    const uniqueProductIds = [...new Set(allowedProductIds)];
+                    filter._id = { $in: uniqueProductIds };
+                }
+            } catch (err) {
+                console.error("Lỗi xác thực token/trạm của khách hàng:", err.message);
+                return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
+            }
+        } else {
+            // Khách vãng lai chưa đăng nhập -> Trả về danh sách trống
+            return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
+        }
 
         // Xử lý sắp xếp
         const validSortFields = ["purchaseCount", "averageReviews", "createdAt"];
@@ -254,10 +373,11 @@ router.get("/", async (req, res) => {
         ]);
 
         const processedProducts = products.map(product => {
+            const productObj = product.toJSON();
             return {
-                ...product._doc,
-                purchaseCount: product.purchaseCount || 0,
-                averageReviews: product.averageReviews || 0
+                ...productObj,
+                purchaseCount: productObj.purchaseCount || 0,
+                averageReviews: productObj.averageReviews || 0
             };
         });
 
@@ -286,7 +406,7 @@ router.get('/top-purchased', async (req, res) => {
     }
 });
 
-// API lấy thông tin sản phẩm theo ID
+// API lấy thông tin sản phẩm theo ID (Public)
 router.get('/:_id', async (req, res) => {
     try {
         const product = await Product.findById(req.params._id);
@@ -338,13 +458,16 @@ router.post('/fetch-by-ids', async (req, res) => {
         const products = await Product.find({ _id: { $in: validIds } });
 
         // Xử lý kết quả để đảm bảo dữ liệu đầy đủ
-        const processedProducts = products.map(product => ({
-            ...product._doc,
-            purchaseCount: product.purchaseCount || 0,
-            averageReviews: product.averageReviews || 0,
-            reviewCount: product.reviewCount || 0,
-            totalRating: product.totalRating || 0
-        }));
+        const processedProducts = products.map(product => {
+            const productObj = product.toJSON();
+            return {
+                ...productObj,
+                purchaseCount: productObj.purchaseCount || 0,
+                averageReviews: productObj.averageReviews || 0,
+                reviewCount: productObj.reviewCount || 0,
+                totalRating: productObj.totalRating || 0
+            };
+        });
 
         res.json({
             success: 1,
@@ -392,6 +515,9 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
     try {
         console.log('[PUT /products/:_id] id =', req.params._id);
         console.log('[PUT /products/:_id] name in body =', req.body.name);
+        if (req.body.name !== undefined) {
+            req.body.nameUnsigned = removeVietnameseTones(req.body.name);
+        }
         const updatedProduct = await Product.findByIdAndUpdate(
             req.params._id,
             { $set: req.body },
@@ -752,7 +878,7 @@ router.put('/:id/:variantIndex/update-earn', [authenticateAdmin, checkPermission
         return res.status(200).json({
             message: 'Earn and price updated successfully',
             variant: {
-                ...variant._doc,
+                ...variant.toJSON(),
                 price: variant.price,
                 earn: variant.earn,
                 importPrice: variant.importPrice
@@ -809,7 +935,7 @@ router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPe
         return res.status(200).json({
             message: 'Import price and price updated successfully',
             variant: {
-                ...variant._doc,
+                ...variant.toJSON(),
                 price: variant.price,
                 earn: variant.earn,
                 importPrice: variant.importPrice

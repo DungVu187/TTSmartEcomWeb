@@ -57,6 +57,45 @@ const sectionSchema = new mongoose.Schema({
   ],
 });
 
+const getUpdatedImgUrl = (originalUrl) => {
+  if (!originalUrl) return originalUrl;
+
+  const paths = ['/images/', '/station/', '/section-images/'];
+  for (const p of paths) {
+    const idx = originalUrl.indexOf(p);
+    if (idx !== -1) {
+      return originalUrl.substring(idx);
+    }
+  }
+  return originalUrl;
+};
+
+sectionSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    if (ret.Section && Array.isArray(ret.Section)) {
+      ret.Section.forEach(sec => {
+        if (sec.imgUrl) {
+          sec.imgUrl = getUpdatedImgUrl(sec.imgUrl);
+        }
+      });
+    }
+    return ret;
+  }
+});
+
+sectionSchema.set('toObject', {
+  transform: (doc, ret) => {
+    if (ret.Section && Array.isArray(ret.Section)) {
+      ret.Section.forEach(sec => {
+        if (sec.imgUrl) {
+          sec.imgUrl = getUpdatedImgUrl(sec.imgUrl);
+        }
+      });
+    }
+    return ret;
+  }
+});
+
 const Brand = mongoose.model("Brand", brandSchema);
 const Type = mongoose.model("Type", typeSchema);
 const Chip = mongoose.model("Chip", chipSchema);
@@ -330,7 +369,7 @@ router.post("/sections/images", async (req, res) => {
     const result = {};
     for (const name of names) {
       const section = doc.Section.find((sec) => sec.name === name);
-      result[name] = section ? section.imgUrl || null : null;
+      result[name] = section ? getUpdatedImgUrl(section.imgUrl) || null : null;
     }
 
     res.json(result);

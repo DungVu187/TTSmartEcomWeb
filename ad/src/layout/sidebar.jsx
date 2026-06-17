@@ -63,6 +63,8 @@ const Sidebar = () => {
   const [processingCount, setProcessingCount] = useState(0);
   const [userFunctions, setUserFunctions] = useState([]);
   const [userRole, setUserRole] = useState("");
+  const [userName, setUserName] = useState("");
+  const [userPhone, setUserPhone] = useState("");
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -74,6 +76,8 @@ const Sidebar = () => {
         if (res.ok) {
           setUserFunctions(data.functions || []);
           setUserRole(data.role || "");
+          setUserName(data.name || "");
+          setUserPhone(data.phone || "");
         }
       } catch (err) {
         console.error("Lỗi khi lấy thông tin người dùng:", err);
@@ -228,13 +232,21 @@ const Sidebar = () => {
 
   const drawerContent = (
     <>
-      <Toolbar>
+      <Toolbar sx={{ display: "flex", flexDirection: "column", justifyContent: "center", py: 1.5 }}>
         <Typography
           variant="h6"
-          sx={{ color: "white", width: "100%", textAlign: "center" }}
+          sx={{ color: "white", width: "100%", textAlign: "center", fontWeight: "bold" }}
         >
           Điều hướng
         </Typography>
+        {(userName || userPhone) && (
+          <Typography
+            variant="body2"
+            sx={{ color: "#b0bec5", width: "100%", textAlign: "center", mt: 0.5 }}
+          >
+            Xin chào, {userName || userPhone}
+          </Typography>
+        )}
       </Toolbar>
       <List>
         {menuItems.map((item, index) => (

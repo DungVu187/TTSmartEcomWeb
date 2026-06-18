@@ -218,12 +218,17 @@ const Sidebar = () => {
         { text: "Khách hàng", path: "/stationuser", icon: <PersonIcon /> },
       ],
     },
-    { text: "Quản lý", path: "/manage", icon: <ManageIcon /> },
+    { text: "Quản lý banner", path: "/manage", icon: <ManageIcon /> },
     { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
     userRole === "admin" && {
       text: "Phân quyền",
       path: "/account",
       icon: <PersonIcon />,
+    },
+    userRole === "admin" && {
+      text: "Cấu hình Zalo",
+      path: "/zalo",
+      icon: <ManageIcon />,
     },
     { text: "Lịch sử", path: "/history", icon: <TocIcon /> },
     { text: "Chat hỗ trợ", path: "/chat", icon: <ChatIcon /> },

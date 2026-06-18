@@ -98,7 +98,31 @@ const Products = () => {
   });
 
   const [filters, setFilters] = useState(getInitialFilters);
+  const [quickSearch, setQuickSearch] = useState(() => {
+    const initFilters = getInitialFilters();
+    return initFilters.search || "";
+  });
   const [openSearchDialog, setOpenSearchDialog] = useState(false);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setFilters((prev) => {
+        if (prev.search === quickSearch) return prev;
+        return { ...prev, search: quickSearch };
+      });
+      setTempFilters((prev) => {
+        if (prev.search === quickSearch) return prev;
+        return { ...prev, search: quickSearch };
+      });
+      setCurrentPage(1);
+    }, 600);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [quickSearch]);
+
+  useEffect(() => {
+    setQuickSearch(filters.search || "");
+  }, [filters.search]);
 
   const navigate = useNavigate();
 
@@ -723,6 +747,15 @@ const Products = () => {
           </Button>
         </div>
         <div className="filter-desktop">
+          <TextField
+            label="Tìm kiếm nhanh..."
+            variant="outlined"
+            size="small"
+            value={quickSearch}
+            onChange={(e) => setQuickSearch(e.target.value)}
+            placeholder="Tìm theo tên, mã, hãng..."
+            sx={{ width: 250, mr: 2, bgcolor: "white" }}
+          />
           <Button
             className="filter-button"
             onClick={() => setOpenSearchDialog(true)}

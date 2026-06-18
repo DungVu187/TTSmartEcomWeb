@@ -294,7 +294,9 @@ router.get("/", async (req, res) => {
             const searchUnsigned = removeVietnameseTones(search);
             filter.$or = [
                 { name: { $regex: search, $options: "i" } },
-                { nameUnsigned: { $regex: searchUnsigned, $options: "i" } }
+                { nameUnsigned: { $regex: searchUnsigned, $options: "i" } },
+                { code: { $regex: search, $options: "i" } },
+                { brand: { $regex: search, $options: "i" } }
             ];
         }
         if (code && code !== "") filter.code = { $regex: code, $options: "i" };

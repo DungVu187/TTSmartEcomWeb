@@ -4,6 +4,7 @@ const { authenticateUser, authenticateAdmin, checkPermission, User } = require("
 require("dotenv").config();
 const { Product } = require('./product');
 const { sendNewOrderNotification } = require('../mailer');
+const { sendZaloOrderNotification } = require('../zaloService');
 
 const router = express.Router();
 
@@ -22,8 +23,19 @@ const getUpdatedImgUrl = (originalUrl) => {
   return originalUrl;
 };
 
+const counterSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  seq: { type: Number, default: 0 }
+});
+
+const Counter = mongoose.model("Counter", counterSchema);
+
 const orderSchema = new mongoose.Schema(
   {
+    orderCode: {
+      type: String,
+      unique: true
+    },
     userPhone: {
       type: String,
       required: true,
@@ -82,7 +94,11 @@ router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, 
     const filter = {};
 
     if (id) {
-      filter._id = id;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        filter._id = id;
+      } else {
+        filter.orderCode = new RegExp(id, "i");
+      }
     }
 
     if (status) filter.status = status;
@@ -220,7 +236,16 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       await product.save();
     }
 
+    // Tự tăng số thứ tự và tạo mã dạng TTSM-01
+    const counter = await Counter.findOneAndUpdate(
+      { id: "orderCode" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+
     const newOrder = new Order({
+      orderCode,
       userPhone,
       userName,
       cartItems,
@@ -240,18 +265,28 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       }
     );
 
-    // 👉 Gửi email thông báo đến admin
+    // 👉 Gửi email thông báo đến admin (Sử dụng orderCode thay cho ObjectId)
     sendNewOrderNotification({
-      orderId: savedOrder._id,
+      orderId: savedOrder.orderCode || savedOrder._id,
       userPhone,
       userName,
       total,
       createdAt: savedOrder.createdAt,
     });
 
+    // 👉 Gửi tin nhắn thông báo Zalo OA đến admin (không làm gián đoạn luồng đặt hàng nếu lỗi)
+    sendZaloOrderNotification({
+      orderId: savedOrder.orderCode || savedOrder._id,
+      userPhone,
+      userName,
+      total,
+      createdAt: savedOrder.createdAt,
+    }).catch(err => console.error("Lỗi gửi thông báo Zalo:", err));
+
     // 👉 Emit khi tạo đơn hàng
     io.emit("order_created", {
       orderId: savedOrder._id,
+      orderCode: savedOrder.orderCode,
       userPhone,
       total,
       createdAt: savedOrder.createdAt,

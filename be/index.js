@@ -18,6 +18,7 @@ const { router: eporderRoutes } = require('./components/eporder');
 const { router: stationRoutes } = require('./components/station');
 const { router: historyRoutes } = require('./components/storagehistory');
 const { router: chatRoutes, ChatMessage } = require('./components/chat');
+const { router: zaloRoutes } = require('./components/zalo');
 
 // Tạo app + http server + socket.io
 const app = express();
@@ -26,19 +27,14 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 
-// CORS cấu hình nguồn gốc được phép
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  process.env.ADDRESS, // Lấy động URL Cloudflare Tunnel từ file .env
   'https://ttsmart.com.vn',
   'http://localhost:3000',
   'http://localhost:5173',
-  'http://192.168.1.227:3000',
-  'http://192.168.1.227:5173',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173',
-  'https://provides-reef-precious-house.trycloudflare.com',
-  'https://hydrocodone-jet-brunswick-controversial.trycloudflare.com',
-  'https://busy-commonly-edmonton-tablet.trycloudflare.com'
+  'http://127.0.0.1:5173'
 ].filter(Boolean);
 
 const checkOrigin = (origin, callback) => {
@@ -46,6 +42,7 @@ const checkOrigin = (origin, callback) => {
     process.env.NODE_ENV === 'development' ||
     !origin ||
     allowedOrigins.includes(origin) ||
+    origin.startsWith('http://192.168.') || // Tự động cho phép mọi IP trong mạng LAN nội bộ
     origin.endsWith('.loca.lt') ||
     origin.endsWith('.localtunnel.me') ||
     origin === 'null'
@@ -191,6 +188,7 @@ app.use('/eporders', eporderRoutes);
 app.use('/stations', stationRoutes);
 app.use('/histories', historyRoutes);
 app.use('/chat', chatRoutes);
+app.use('/zalo', zaloRoutes);
 
 // Static files
 app.use('/images', express.static(path.join(__dirname, 'upload', 'images')));
@@ -214,7 +212,7 @@ app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
-    '/histories', '/chat', '/images', '/section-images'
+    '/histories', '/chat', '/images', '/section-images', '/zalo'
   ];
   const isApi = apiPaths.some(path => req.path.startsWith(path));
   if (isApi) {

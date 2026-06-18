@@ -455,7 +455,7 @@ const Orders = () => {
           <TableBody>
             {orders.map((order) => (
               <TableRow key={order._id}>
-                <TableCell align="center">{order._id}</TableCell>
+                <TableCell align="center">{order.orderCode || order._id}</TableCell>
                 <TableCell align="center">{order.userPhone}</TableCell>
                 <TableCell align="center">{order.userName || "N/A"}</TableCell>
                 <TableCell align="center">
@@ -516,7 +516,7 @@ const Orders = () => {
       />
 
       <Dialog open={isDialogOpen} onClose={closeDialog} maxWidth="md" fullWidth>
-        <DialogTitle>Chi tiết đơn hàng {selectedOrder?._id}</DialogTitle>
+        <DialogTitle>Chi tiết đơn hàng {selectedOrder?.orderCode || selectedOrder?._id}</DialogTitle>
         <DialogContent>
           {dialogLoading ? (
             <Box display="flex" justifyContent="center" p={3}>

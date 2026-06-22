@@ -67,12 +67,25 @@ const Chat = () => {
     fetchAdminProfile();
   }, []);
 
-  // Kết nối socket.io chính của Admin
+  // Kết nối socket.io chính của Admin với cấu hình path động
   useEffect(() => {
-    const socket = io(apiUrl, {
+    let socketUrl = apiUrl;
+    let socketOptions = {
       withCredentials: true,
       transports: ["websocket", "polling"],
-    });
+    };
+
+    try {
+      const parsedUrl = new URL(apiUrl);
+      if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
+        socketUrl = parsedUrl.origin;
+        socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
+      }
+    } catch (e) {
+      console.warn("Lỗi phân tích cú pháp apiUrl cho socket:", e);
+    }
+
+    const socket = io(socketUrl, socketOptions);
     socketRef.current = socket;
 
     socket.on("connect", () => {

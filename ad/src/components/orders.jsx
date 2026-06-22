@@ -57,7 +57,6 @@ const Orders = () => {
     endDate: "",
   });
   const { setOrderChanged } = useOrderContext();
-  const socket = io(apiUrl, { withCredentials: true });
 
   // Trạng thái bộ lọc đã được debounce
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
@@ -234,6 +233,24 @@ const Orders = () => {
   }, [location.state]);
 
   useEffect(() => {
+    let socketUrl = apiUrl;
+    let socketOptions = {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    };
+
+    try {
+      const parsedUrl = new URL(apiUrl);
+      if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
+        socketUrl = parsedUrl.origin;
+        socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
+      }
+    } catch (e) {
+      console.warn("Lỗi phân tích cú pháp apiUrl cho socket:", e);
+    }
+
+    const socket = io(socketUrl, socketOptions);
+
     const handleOrderCreated = (data) => {
       toast.success("📦 Có đơn hàng mới!");
       fetchOrders(page + 1); // Cập nhật trang hiện tại
@@ -252,6 +269,7 @@ const Orders = () => {
     return () => {
       socket.off("order_created", handleOrderCreated);
       socket.off("order_cancelled", handleOrderCancelled);
+      socket.disconnect();
     };
   }, [fetchOrders, page, setOrderChanged]);
 

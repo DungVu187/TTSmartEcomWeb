@@ -100,11 +100,24 @@ const ChatWidget = () => {
     };
     fetchHistory();
 
-    // Kết nối socket.io
-    const socket = io(apiUrl, {
+    // Kết nối socket.io với cấu hình path động
+    let socketUrl = apiUrl;
+    let socketOptions = {
       withCredentials: true,
       transports: ["websocket", "polling"],
-    });
+    };
+
+    try {
+      const parsedUrl = new URL(apiUrl);
+      if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
+        socketUrl = parsedUrl.origin;
+        socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
+      }
+    } catch (e) {
+      console.warn("Lỗi phân tích cú pháp apiUrl cho socket:", e);
+    }
+
+    const socket = io(socketUrl, socketOptions);
 
     socketRef.current = socket;
 

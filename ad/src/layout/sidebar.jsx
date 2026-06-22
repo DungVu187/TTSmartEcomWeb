@@ -103,10 +103,23 @@ const Sidebar = () => {
   }, [orderChanged]);
 
   useEffect(() => {
-    const socketInstance = io(apiUrl, {
+    let socketUrl = apiUrl;
+    let socketOptions = {
       withCredentials: true,
       transports: ["websocket", "polling"],
-    });
+    };
+
+    try {
+      const parsedUrl = new URL(apiUrl);
+      if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
+        socketUrl = parsedUrl.origin;
+        socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
+      }
+    } catch (e) {
+      console.warn("Lỗi phân tích cú pháp apiUrl cho socket:", e);
+    }
+
+    const socketInstance = io(socketUrl, socketOptions);
 
     const updateCount = async () => {
       try {

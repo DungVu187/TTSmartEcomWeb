@@ -32,13 +32,16 @@ const Station = () => {
   const fetchStations = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/stations/`);
+      const res = await fetch(`${apiUrl}/stations/`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Lỗi khi gọi API");
       const data = await res.json();
       setStations(
         data.map((s) => ({
           id: s._id,
           code: s.stationCode,
+          inviteCode: s.inviteCode || (s.stationCode && s.inviteSecret ? `${s.stationCode}-${s.inviteSecret}` : s.stationCode),
           name: s.stationName,
           location: s.location,
           productCount: s.productId?.length || 0,
@@ -56,6 +59,39 @@ const Station = () => {
     fetchStations();
   }, []);
 
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      return new Promise((resolve, reject) => {
+        if (document.execCommand("copy")) {
+          resolve();
+        } else {
+          reject(new Error("Không thể sao chép"));
+        }
+        document.body.removeChild(textArea);
+      });
+    }
+  };
+
+  const handleCopyLink = (inviteCode) => {
+    const customerOrigin = window.location.origin.includes(":5173")
+      ? "http://localhost:3000"
+      : window.location.origin;
+    const link = `${customerOrigin}/station/${inviteCode}`;
+    copyToClipboard(link)
+      .then(() => toast.success("Đã sao chép link trạm!"))
+      .catch(() => toast.error("Không thể sao chép!"));
+  };
+
   const handleCreateStation = async () => {
     const { stationCode, stationName, location } = newStation;
 
@@ -70,6 +106,7 @@ const Station = () => {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
           stationCode,
           stationName,
@@ -134,7 +171,7 @@ const Station = () => {
     {
       field: "actions",
       headerName: "Thao tác",
-      width: 180,
+      width: 280,
       sortable: false,
       renderCell: (params) => (
         <Box
@@ -166,6 +203,17 @@ const Station = () => {
             }}
           >
             Xóa
+          </Button>
+          <Button
+            variant="outlined"
+            color="success"
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopyLink(params.row.inviteCode);
+            }}
+          >
+            Copy Link
           </Button>
         </Box>
       ),

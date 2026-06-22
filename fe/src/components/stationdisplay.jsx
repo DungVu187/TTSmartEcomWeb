@@ -9,16 +9,24 @@ const StationDisplay = () => {
   const navigate = useNavigate();
 
   const [sections, setSections] = useState([]);
+  const [stationName, setStationName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (code) {
+      sessionStorage.setItem("activeStationCode", code);
+    }
+  }, [code]);
 
   useEffect(() => {
     const fetchStationSections = async () => {
       try {
         // Gọi sản phẩm để lấy danh sách section có trong trạm
-        const res = await fetch(`${apiUrl}/stations/code/${code}`);
+        const res = await fetch(`${apiUrl}/stations/public/${code}`);
         if (!res.ok) throw new Error("Không tìm thấy trạm");
         const data = await res.json();
+        setStationName(data.stationName || "");
         const productIds = data.productId || [];
 
         if (productIds.length === 0) {
@@ -79,8 +87,36 @@ const StationDisplay = () => {
   if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
-    <Box sx={{ backgroundColor: "#ebf6fe", padding: 2, minHeight: "100vh" }}>
+    <Box sx={{ backgroundColor: "#ebf6fe", padding: 3, minHeight: "100vh" }}>
       <div style={{ maxWidth: "1800px", margin: "auto" }}>
+        {stationName && (
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: "bold",
+              color: "#1e3a8a",
+              mb: 4,
+              textAlign: "left",
+              textTransform: "uppercase",
+              fontFamily: "'Outfit', 'Roboto', sans-serif",
+              position: "relative",
+              display: "inline-block",
+              paddingBottom: "8px",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                width: "80px",
+                height: "4px",
+                backgroundColor: "#3b82f6",
+                borderRadius: "2px",
+              }
+            }}
+          >
+            {stationName}
+          </Typography>
+        )}
         <Grid container spacing={2}>
           {sections.map((section, index) => (
             <Grid item key={index} xs={12} sm={6} md={6} lg={6} xl={6}>

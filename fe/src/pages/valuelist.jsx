@@ -46,7 +46,10 @@ const ValueList = () => {
           const resProd = await fetch(
             `${apiUrl}/products?section=${sectionName}&value=${encodeURIComponent(
               value
-            )}`
+            )}`,
+            {
+              credentials: "include",
+            }
           );
           const data = await resProd.json();
           productResults[value] = data.products || [];
@@ -129,7 +132,20 @@ const ValueList = () => {
                             }}
                           />
                         </TableCell>
-                        <TableCell>{product.name}</TableCell>
+                        <TableCell>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {product.name}
+                          </Typography>
+                          {(product.variant?.[0]?.quantityForSale ?? 0) > 0 ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Còn lại: {product.variant[0].quantityForSale}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="error" sx={{ mt: 0.5, fontWeight: "bold" }}>
+                              Hết hàng
+                            </Typography>
+                          )}
+                        </TableCell>
                         <TableCell align="right">
                           <Box
                             sx={{
@@ -143,7 +159,7 @@ const ValueList = () => {
                               variant="contained"
                               color="success"
                               size="small"
-                              href="tel:+8413158383"
+                              href="tel:0913158383"
                               sx={{
                                 minWidth: "40px",
                                 padding: "6px 12px",
@@ -151,9 +167,15 @@ const ValueList = () => {
                                 justifyContent: "center",
                                 alignItems: "center",
                                 gap: 1,
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              {isSmallScreen ? <PhoneIcon /> : "Gọi mua hàng"}
+                              {isSmallScreen ? <PhoneIcon /> : (
+                                <>
+                                  <PhoneIcon sx={{ fontSize: 16 }} />
+                                  Liên hệ: 0913 158 383
+                                </>
+                              )}
                             </Button>
                             <Button
                               variant="contained"

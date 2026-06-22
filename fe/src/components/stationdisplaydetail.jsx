@@ -26,18 +26,26 @@ const StationDisplayDetail = () => {
   const { code, section } = useParams();
   const [values, setValues] = useState([]);
   const [productsByValue, setProductsByValue] = useState({});
+  const [stationName, setStationName] = useState("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { addToCart } = useContext(ShopContext);
   const isSmallScreen = useMediaQuery('(max-width:750px)');
 
   useEffect(() => {
+    if (code) {
+      sessionStorage.setItem("activeStationCode", code);
+    }
+  }, [code]);
+
+  useEffect(() => {
     const fetchProducts = async () => {
       try {
         // Lấy toàn bộ sản phẩm của trạm
-        const resStation = await fetch(`${apiUrl}/stations/code/${code}`);
+        const resStation = await fetch(`${apiUrl}/stations/public/${code}`);
         if (!resStation.ok) throw new Error("Không tìm thấy trạm");
         const station = await resStation.json();
+        setStationName(station.stationName || "");
         const productIds = station.productId || [];
 
         if (!productIds.length) {
@@ -89,13 +97,32 @@ const StationDisplayDetail = () => {
   return (
     <div style={{ backgroundColor: '#ebf6fe', width: '100%', paddingBottom: 16, minHeight: '100vh' }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto 50px' }}>
+        {stationName && (
+          <Typography
+            variant="subtitle1"
+            sx={{
+              textAlign: "center",
+              paddingTop: "20px",
+              fontWeight: 600,
+              color: "#6b7280",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+              fontFamily: "'Outfit', 'Roboto', sans-serif"
+            }}
+          >
+            {stationName}
+          </Typography>
+        )}
         <Typography
           variant="h4"
           gutterBottom
           style={{
             textAlign: 'center',
-            padding: '20px',
+            padding: stationName ? '10px 20px 20px' : '20px',
             textTransform: 'uppercase',
+            fontWeight: "bold",
+            color: "#1e3a8a",
+            fontFamily: "'Outfit', 'Roboto', sans-serif"
           }}
         >
           {section}
@@ -139,7 +166,20 @@ const StationDisplayDetail = () => {
                             }}
                           />
                         </TableCell>
-                        <TableCell>{product.name}</TableCell>
+                        <TableCell>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {product.name}
+                          </Typography>
+                          {(product.variant?.[0]?.quantityForSale ?? 0) > 0 ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Còn lại: {product.variant[0].quantityForSale}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="error" sx={{ mt: 0.5, fontWeight: "bold" }}>
+                              Hết hàng
+                            </Typography>
+                          )}
+                        </TableCell>
                         <TableCell align="right">
                           <Box
                             sx={{
@@ -167,7 +207,7 @@ const StationDisplayDetail = () => {
                               {isSmallScreen ? <PhoneIcon /> : (
                                 <>
                                   <PhoneIcon sx={{ fontSize: 16 }} />
-                                  Liên hệ: 0913 158 383
+                                  0913 158 383
                                 </>
                               )}
                             </Button>

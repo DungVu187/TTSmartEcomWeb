@@ -40,8 +40,17 @@ const AutoLog = () => {
           return;
         }
 
+        const queryParams = new URLSearchParams(window.location.search);
+        const redirectPath = queryParams.get("redirect");
+
+        const isSafeStationRedirect =
+          redirectPath &&
+          /^\/station\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)?\/?$/.test(redirectPath);
+
+        const safeRedirect = isSafeStationRedirect ? redirectPath : "/station";
+
         toast.success("Đăng nhập tự động thành công!");
-        window.location.href = "/station";
+        window.location.href = safeRedirect;
       } catch (err) {
         console.error("Tự động đăng nhập lỗi:", err.message);
         toast.error(err.message || "Lỗi khi đăng nhập tự động.");

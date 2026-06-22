@@ -95,7 +95,7 @@ const IpOrderTemplate = () => {
   const fetchAllProducts = async () => {
     try {
       const response = await fetch(`${apiUrl}/products/?search=${searchTerm}`, {
-        headers: { "auth-token": authToken },
+        credentials: "include",
       });
       const result = await response.json();
       setSearchProducts(result.products);

@@ -39,7 +39,6 @@ import { useOrderContext } from "../context/ordercontext";
 import { io } from "socket.io-client";
 
 const apiUrl = import.meta.env.VITE_API_URL;
-const socket = io(apiUrl, { withCredentials: true });
 
 const drawerWidth = 240;
 
@@ -104,6 +103,11 @@ const Sidebar = () => {
   }, [orderChanged]);
 
   useEffect(() => {
+    const socketInstance = io(apiUrl, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    });
+
     const updateCount = async () => {
       try {
         const response = await fetch(`${apiUrl}/orders/processing-count`, {
@@ -119,16 +123,17 @@ const Sidebar = () => {
     };
 
     // Lắng nghe các sự kiện socket
-    socket.on("order_created", updateCount);
-    socket.on("order_updated", updateCount);
-    socket.on("order_cancelled", updateCount);
-    socket.on("order_deleted", updateCount);
+    socketInstance.on("order_created", updateCount);
+    socketInstance.on("order_updated", updateCount);
+    socketInstance.on("order_cancelled", updateCount);
+    socketInstance.on("order_deleted", updateCount);
 
     return () => {
-      socket.off("order_created", updateCount);
-      socket.off("order_updated", updateCount);
-      socket.off("order_cancelled", updateCount);
-      socket.off("order_deleted", updateCount);
+      socketInstance.off("order_created", updateCount);
+      socketInstance.off("order_updated", updateCount);
+      socketInstance.off("order_cancelled", updateCount);
+      socketInstance.off("order_deleted", updateCount);
+      socketInstance.disconnect();
     };
   }, []);
 
@@ -190,7 +195,33 @@ const Sidebar = () => {
         </div>
       ),
       subItems: [
-        { text: "Đơn hàng bán", path: "/order", icon: <OrderListIcon /> },
+        {
+          text: "Đơn hàng bán",
+          path: "/order",
+          icon: (
+            <div style={{ position: "relative" }}>
+              <OrderListIcon />
+              {processingCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    backgroundColor: "red",
+                    color: "white",
+                    borderRadius: "50%",
+                    padding: "2px 6px",
+                    fontSize: "10px",
+                    fontWeight: "bold",
+                    lineHeight: 1,
+                  }}
+                >
+                  {processingCount}
+                </span>
+              )}
+            </div>
+          ),
+        },
         { text: "Sản phẩm bán", path: "/soldproducts", icon: <SoldIcon /> },
       ],
     },

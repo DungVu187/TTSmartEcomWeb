@@ -1,5 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const router = express.Router();
 const { authenticateAdmin } = require('./user');
 require("dotenv").config();
@@ -16,7 +17,12 @@ const stationSchema = new mongoose.Schema({
     },
     stationCode: {
         type: String,
-        trim: true
+        trim: true,
+        required: true
+    },
+    allowPublicSignup: {
+        type: Boolean,
+        default: true
     },
     location: {
         type: String
@@ -24,11 +30,29 @@ const stationSchema = new mongoose.Schema({
     productId: [
         { type: String }
     ]
+}, {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
+
+stationSchema.virtual("inviteCode").get(function () {
+    return this.stationCode || "";
+});
+
+const findStationByInviteCode = async (inviteCode) => {
+    const trimmed = String(inviteCode).trim();
+    return Station.findOne({ stationCode: trimmed });
+};
 
 const Station = mongoose.model("Station", stationSchema);
 
-router.get("/", async (req, res) => {
+const toPublicStation = (station) => {
+    const obj = station.toObject ? station.toObject({ virtuals: false }) : { ...station };
+    delete obj.inviteCode;
+    return obj;
+};
+
+router.get("/", authenticateAdmin, async (req, res) => {
   try {
     const stations = await Station.find({});
     res.json(stations);
@@ -113,7 +137,7 @@ router.get("/search", async (req, res) => {
     }
 
     const stations = await Station.find(filter);
-    res.json({ stations });
+    res.json({ stations: stations.map(toPublicStation) });
   } catch (error) {
     res.status(500).json({ error: "Không thể tìm kiếm trạm", details: error.message });
   }
@@ -122,7 +146,7 @@ router.get("/search", async (req, res) => {
 // Tạo một station mới
 router.post("/", authenticateAdmin, async (req, res) => {
     try {
-        const { stationName, stationCode, location } = req.body;
+        const { stationName, stationCode, location, allowPublicSignup } = req.body;
         
         // Kiểm tra các trường bắt buộc
         if (!stationName || !stationCode) {
@@ -132,6 +156,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
         const newStation = new Station({
             stationName,
             stationCode,
+            allowPublicSignup: allowPublicSignup !== undefined ? allowPublicSignup : true,
             location,
             productId: []
         });
@@ -173,12 +198,16 @@ router.put("/:id/products", authenticateAdmin, async (req, res) => {
 // Cập nhật thông tin station
 router.put("/:id", authenticateAdmin, async (req, res) => {
     try {
-        const { stationName, stationCode, location } = req.body;
+        const { stationName, stationCode, location, allowPublicSignup } = req.body;
         const stationId = req.params.id;
+        const update = { stationName, stationCode, location };
+        if (allowPublicSignup !== undefined) {
+            update.allowPublicSignup = allowPublicSignup;
+        }
 
         const station = await Station.findByIdAndUpdate(
             stationId,
-            { stationName, stationCode, location },
+            update,
             { new: true }
         );
 
@@ -208,11 +237,49 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
     }
 });
 
-// Lấy thông tin station theo mã
-router.get("/code/:code", async (req, res) => {
+router.post("/:id/rotate-invite", authenticateAdmin, async (req, res) => {
     try {
-        const stationCode = req.params.code;
-        const station = await Station.findOne({ stationCode });
+        const station = await Station.findById(req.params.id);
+        if (!station) {
+            return res.status(404).json({ error: "Không tìm thấy station" });
+        }
+        res.json(station);
+    } catch (error) {
+        res.status(500).json({ error: "Không thể đổi mã link", details: error.message });
+    }
+});
+
+router.get("/public/:inviteCode", async (req, res) => {
+    try {
+        const station = await findStationByInviteCode(req.params.inviteCode);
+        if (!station) {
+            return res.status(404).json({ error: "Không tìm thấy station với mã link này" });
+        }
+        res.json(toPublicStation(station));
+    } catch (error) {
+        res.status(500).json({ error: "Không thể lấy thông tin station", details: error.message });
+    }
+});
+
+// Lấy thông tin station theo mã
+router.get("/code/:code", async (req, res, next) => {
+    try {
+        const code = req.params.code;
+        let station = await findStationByInviteCode(code);
+
+        if (!station) {
+            return authenticateAdmin(req, res, async () => {
+                try {
+                    station = await Station.findOne({ stationCode: code });
+                    if (!station) {
+                        return res.status(404).json({ error: "Không tìm thấy station với mã này" });
+                    }
+                    return res.json(station);
+                } catch (error) {
+                    return res.status(500).json({ error: "Không thể lấy thông tin station", details: error.message });
+                }
+            });
+        }
 
         if (!station) {
             return res.status(404).json({ error: "Không tìm thấy station với mã này" });
@@ -253,5 +320,6 @@ router.post("/by-ids", async (req, res) => {
 
 module.exports = {
     Station,
-    router
+    router,
+    findStationByInviteCode
 };

@@ -36,7 +36,16 @@ function LogIn() {
     const encrypted = AES.encrypt(raw, AES_KEY).toString();
     const logInString = encodeURIComponent(encrypted);
 
-    const user = { name, phone, password, logInString };
+    const queryParams = new URLSearchParams(window.location.search);
+    const redirectUrl = queryParams.get("redirect") || "";
+    const segments = redirectUrl.split("/");
+    const stationIndex = segments.indexOf("station");
+    let inviteCode = "";
+    if (stationIndex !== -1 && segments[stationIndex + 1]) {
+      inviteCode = segments[stationIndex + 1];
+    }
+
+    const user = { name, phone, password, logInString, inviteCode };
 
     try {
       const response = await fetch(

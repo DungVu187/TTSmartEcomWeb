@@ -26,6 +26,7 @@ import { toast } from "react-hot-toast";
 function Cart() {
   const {
     cartItems,
+    fetchCart,
     updateCartItem,
     removeFromCart,
     clearCart,
@@ -131,6 +132,8 @@ function Cart() {
         }
       });
 
+      const activeStationCode = sessionStorage.getItem("activeStationCode");
+
       const response = await fetch(
         `${process.env.REACT_APP_BACK_END}/orders/create-order`,
         {
@@ -141,6 +144,7 @@ function Cart() {
           body: JSON.stringify({
             cartItems: selectedItems,
             total,
+            stationCode: activeStationCode, // Gửi mã trạm đang dùng
           }),
           credentials: "include",
         }
@@ -160,11 +164,9 @@ function Cart() {
       }
 
       toast.success("Đặt hàng thành công");
+      sessionStorage.removeItem("activeStationCode"); // Xóa trạm hoạt động sau khi đặt thành công
       await fetchProducts(); // Cập nhật lại danh sách sản phẩm
-      // Xóa các sản phẩm đã đặt khỏi giỏ hàng
-      selectedItems.forEach((item) => {
-        removeFromCart(item.productId, item.variantIndex);
-      });
+      await fetchCart(); // Đồng bộ giỏ hàng mới từ database (các sản phẩm đã đặt đã được server xóa)
     } catch (error) {
       console.error("Lỗi khi đặt hàng:", error);
       toast.error(error.message || "Có lỗi xảy ra. Vui lòng thử lại sau!");

@@ -223,10 +223,32 @@ const StationUser = () => {
     setSelectedUserPhone(user.phone);
     setOpenPasswordDialog(true);
   };
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      return new Promise((resolve, reject) => {
+        if (document.execCommand("copy")) {
+          resolve();
+        } else {
+          reject(new Error("Không thể sao chép"));
+        }
+        document.body.removeChild(textArea);
+      });
+    }
+  };
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(encryptedString);
+      await copyToClipboard(encryptedString);
       toast.success("Đã sao chép vào bộ nhớ tạm");
     } catch (err) {
       toast.error("Không thể sao chép!");

@@ -2,7 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const mongoose = require("mongoose");
-const { User } = require("./user"); 
+const { User, getCookieOptions } = require("./user"); 
 const router = express.Router();
 
 const autoLoginTokenSchema = new mongoose.Schema({
@@ -85,12 +85,7 @@ router.get("/autologin", async (req, res) => {
       { expiresIn: "12h" }
     );
 
-    res.cookie("authToken", sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 12 * 60 * 60 * 1000, // 12 tiếng
-    });
+    res.cookie("authToken", sessionToken, getCookieOptions(req, 12 * 60 * 60 * 1000));
 
     res.redirect("/"); // hoặc dashboard
   } catch (err) {

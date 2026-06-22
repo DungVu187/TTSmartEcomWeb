@@ -120,7 +120,7 @@ const Station = () => {
                     key={id}
                     hover
                     sx={{ cursor: "pointer" }}
-                    onClick={() => navigate(`/station/${station.stationCode}`)}
+                    onClick={() => navigate(`/station/${station.inviteCode || station.stationCode}`)}
                   >
                     <TableCell>
                       <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>

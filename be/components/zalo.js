@@ -86,7 +86,7 @@ router.get("/auth-url", authenticateAdmin, async (req, res) => {
     }
 
     const serverUrl = process.env.ADDRESS || `${req.protocol}://${req.get("host")}`;
-    const redirectUri = `${serverUrl.replace(/\/$/, "")}/api/zalo/callback`;
+    const redirectUri = `${serverUrl.replace(/\/$/, "")}/zalo/callback`;
     const encodedRedirectUri = encodeURIComponent(redirectUri);
 
     const authUrl = `https://oauth.zalo.me/v4/oa/permission?app_id=${config.appId}&redirect_uri=${encodedRedirectUri}&state=zalo_link`;

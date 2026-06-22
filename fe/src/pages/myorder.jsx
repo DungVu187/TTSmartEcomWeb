@@ -38,7 +38,9 @@ const MyOrder = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [selectedState, setSelectedState] = useState(""); // Trạng thái đơn hàng đang lọc ("" là tất cả)
+  const [selectedState, setSelectedState] = useState(() => {
+    return sessionStorage.getItem("myorder_active_tab") || "";
+  });
   const ordersPerPage = 10;
 
   useEffect(() => {
@@ -220,31 +222,35 @@ const MyOrder = () => {
     setPage(value);
   };
 
-  const getStatusLabel = (status) => {
-    switch (status) {
+  const getStatusLabel = (order) => {
+    if (!order) return "";
+    if (order.state === "Cancelled") {
+      return "Đã hủy";
+    }
+    switch (order.status) {
       case "Processing":
         return "Đang xử lý";
       case "Delivering":
         return "Đang giao hàng";
       case "Completed":
         return "Hoàn thành";
-      case "Cancelled":
-        return "Đã hủy";
       default:
-        return status;
+        return order.status;
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
+  const getStatusColor = (order) => {
+    if (!order) return "default";
+    if (order.state === "Cancelled") {
+      return "error";
+    }
+    switch (order.status) {
       case "Processing":
         return "warning";
       case "Delivering":
         return "info";
       case "Completed":
         return "success";
-      case "Cancelled":
-        return "error";
       default:
         return "default";
     }
@@ -279,6 +285,7 @@ const MyOrder = () => {
               onChange={(e, newValue) => {
                 setSelectedState(newValue);
                 setPage(1);
+                sessionStorage.setItem("myorder_active_tab", newValue);
               }}
               variant="scrollable"
               scrollButtons="auto"
@@ -390,8 +397,8 @@ const MyOrder = () => {
                       </TableCell>
                       <TableCell align="center">
                         <Chip
-                          label={getStatusLabel(order.status)}
-                          color={getStatusColor(order.status)}
+                          label={getStatusLabel(order)}
+                          color={getStatusColor(order)}
                         />
                       </TableCell>
                     </TableRow>
@@ -429,7 +436,7 @@ const MyOrder = () => {
                   {selectedOrder.total.toLocaleString()} VND
                 </Typography>
                 <Typography>
-                  <strong>Trạng thái:</strong> {getStatusLabel(selectedOrder.status)}
+                  <strong>Trạng thái:</strong> {getStatusLabel(selectedOrder)}
                 </Typography>
 
                 <Typography variant="h6" gutterBottom>
@@ -491,6 +498,7 @@ const MyOrder = () => {
               variant="contained"
               disabled={
                 isCancelling ||
+                selectedOrder?.state === "Cancelled" ||
                 selectedOrder?.status === "Completed" ||
                 selectedOrder?.status === "Delivering"
               }

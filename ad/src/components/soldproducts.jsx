@@ -40,7 +40,6 @@ const SoldProducts = () => {
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
-    status: "Tất cả",
     payment: "Tất cả",
     startDate: moment().startOf("month").format("YYYY-MM-DD"),
     endDate: moment().format("YYYY-MM-DD"),
@@ -86,9 +85,10 @@ const SoldProducts = () => {
           page: currentPage,
           limit: rowsPerPage,
           search: filters.productName,
+          status: "Completed", // Chỉ lấy các đơn hàng đã giao thành công (Completed)
+          state: "Processing", // Chỉ lấy các đơn hàng đang hoạt động (không bị hủy)
         };
 
-        if (filters.status !== "Tất cả") queryParams.status = filters.status;
         if (filters.payment !== "Tất cả") queryParams.payment = filters.payment;
         if (filters.startDate) queryParams.startDate = filters.startDate;
         if (filters.endDate) queryParams.endDate = filters.endDate;
@@ -259,21 +259,7 @@ const SoldProducts = () => {
           size="small"
           sx={{ width: 200 }}
         />
-        <FormControl sx={{ minWidth: 180 }}>
-          <InputLabel>Trạng thái đơn hàng</InputLabel>
-          <Select
-            name="status"
-            value={filters.status}
-            onChange={handleFilterChange}
-            label="Trạng thái đơn hàng"
-            size="small"
-          >
-            <MenuItem value="Tất cả">Tất cả</MenuItem>
-            <MenuItem value="Processing">Đang xử lý</MenuItem>
-            <MenuItem value="Delivering">Đang giao</MenuItem>
-            <MenuItem value="Completed">Hoàn thành</MenuItem>
-          </Select>
-        </FormControl>
+
         <FormControl sx={{ minWidth: 150 }}>
           <InputLabel>Thanh toán</InputLabel>
           <Select

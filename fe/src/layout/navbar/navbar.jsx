@@ -9,6 +9,7 @@ const apiUrl = process.env.REACT_APP_BACK_END;
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [brands, setBrands] = useState([]);
   const [types, setTypes] = useState([]);
@@ -22,9 +23,17 @@ function Navbar() {
           method: "GET",
           credentials: "include",
         });
-        setIsLoggedIn(response.ok);
+        if (response.ok) {
+          const data = await response.json();
+          setIsLoggedIn(true);
+          setUserName(data.name || data.phone || "Tài khoản");
+        } else {
+          setIsLoggedIn(false);
+          setUserName("");
+        }
       } catch (error) {
         setIsLoggedIn(false);
+        setUserName("");
         console.error("Error checking auth:", error);
       }
     };
@@ -66,6 +75,7 @@ function Navbar() {
       const data = await response.json();
       if (response.ok) {
         setIsLoggedIn(false);
+        setUserName("");
         localStorage.removeItem("chat_session");
         toast.success("Đăng xuất thành công");
         setTimeout(() => {
@@ -130,17 +140,11 @@ function Navbar() {
             <div className="account tab">
               <i className="fa-solid fa-user fa-2xl"></i>
               <div className="account-text">
-                <p>Tài khoản</p>
+                <p>{isLoggedIn && userName ? userName : "Tài khoản"}</p>
               </div>
               <div className="account-dropdown">
                 {isLoggedIn ? (
                   <>
-                    <p
-                      onClick={handleLogout}
-                      style={{ cursor: isLoading ? "not-allowed" : "pointer" }}
-                    >
-                      {isLoading ? "Đang đăng xuất..." : "Đăng xuất"}
-                    </p>
                     <Link
                       style={{ textDecoration: "none" }}
                       to="/profile"
@@ -149,19 +153,33 @@ function Navbar() {
                     </Link>
                     <Link
                       style={{ textDecoration: "none" }}
+                      to="/myorder"
+                    >
+                      <p>Đơn hàng của tôi</p>
+                    </Link>
+                    <Link
+                      style={{ textDecoration: "none" }}
                       to="/change-password"
                     >
                       <p>Đổi mật khẩu</p>
                     </Link>
+                    <p
+                      onClick={handleLogout}
+                      style={{ cursor: isLoading ? "not-allowed" : "pointer" }}
+                    >
+                      {isLoading ? "Đang đăng xuất..." : "Đăng xuất"}
+                    </p>
                   </>
                 ) : (
-                  <Link style={{ textDecoration: "none" }} to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`}>
-                    <p>Đăng nhập</p>
-                  </Link>
+                  <>
+                    <Link style={{ textDecoration: "none" }} to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`}>
+                      <p>Đăng nhập</p>
+                    </Link>
+                    <Link style={{ textDecoration: "none" }} to="/myorder">
+                      <p>Đơn hàng của tôi</p>
+                    </Link>
+                  </>
                 )}
-                <Link style={{ textDecoration: "none" }} to="/myorder">
-                  <p>Đơn hàng của tôi</p>
-                </Link>
               </div>
             </div>
 

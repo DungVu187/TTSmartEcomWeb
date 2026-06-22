@@ -59,6 +59,17 @@ const Orders = () => {
   const { setOrderChanged } = useOrderContext();
   const socket = io(apiUrl, { withCredentials: true });
 
+  // Trạng thái bộ lọc đã được debounce
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
+  // Effect để debounce bộ lọc (các trường phone, id, name cần debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [filters]);
+
   // Hàm gọi API chung
   const apiFetch = async (url, options = {}) => {
     try {
@@ -94,10 +105,10 @@ const Orders = () => {
     async (currentPage = 1) => {
       setLoading(true);
       const queryFilters = {
-        ...filters,
-        status: filters.status === "Tất cả" ? "" : filters.status,
-        payment: filters.payment === "Tất cả" ? "" : filters.payment,
-        state: filters.state === "Tất cả" ? "" : filters.state,
+        ...debouncedFilters,
+        status: debouncedFilters.status === "Tất cả" ? "" : debouncedFilters.status,
+        payment: debouncedFilters.payment === "Tất cả" ? "" : debouncedFilters.payment,
+        state: debouncedFilters.state === "Tất cả" ? "" : debouncedFilters.state,
       };
 
       const query = new URLSearchParams({
@@ -117,7 +128,7 @@ const Orders = () => {
       }
       setLoading(false);
     },
-    [filters, rowsPerPage]
+    [debouncedFilters, rowsPerPage]
   );
 
   // Cập nhật đơn hàng
@@ -160,7 +171,7 @@ const Orders = () => {
         });
 
         if (result) {
-          setOrders((prev) => prev.filter((order) => order._id !== _id));
+          fetchOrders(page + 1);
           setIsDialogOpen(false);
           toast.success("Hủy đơn hàng thành công");
 
@@ -209,49 +220,46 @@ const Orders = () => {
     setDialogLoading(false);
   };
 
-  // Xử lý tìm kiếm với debounce
+  // Trigger lấy đơn hàng khi page hoặc fetchOrders thay đổi
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchOrders(1);
-      setPage(0);
-    }, 1000);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [filters.phone, filters.id, fetchOrders]);
+    fetchOrders(page + 1);
+  }, [page, fetchOrders]);
 
   // Xử lý orderId từ location.state
   useEffect(() => {
     if (location.state?.orderId) {
       setFilters((prev) => ({ ...prev, id: location.state.orderId }));
+      setPage(0);
     }
   }, [location.state]);
 
   useEffect(() => {
-  const handleOrderCreated = (data) => {
-    toast.success("📦 Có đơn hàng mới!");
-    fetchOrders(1); // Cập nhật danh sách
-    setOrderChanged((prev) => !prev); // Thông báo cho Sidebar
-  };
+    const handleOrderCreated = (data) => {
+      toast.success("📦 Có đơn hàng mới!");
+      fetchOrders(page + 1); // Cập nhật trang hiện tại
+      setOrderChanged((prev) => !prev); // Thông báo cho Sidebar
+    };
 
-  const handleOrderCancelled = (data) => {
-    toast("🚫 Một đơn hàng vừa bị hủy", { icon: "⚠️" });
-    fetchOrders(1);
-    setOrderChanged((prev) => !prev);
-  };
+    const handleOrderCancelled = (data) => {
+      toast("🚫 Một đơn hàng vừa bị hủy", { icon: "⚠️" });
+      fetchOrders(page + 1);
+      setOrderChanged((prev) => !prev);
+    };
 
-  socket.on("order_created", handleOrderCreated);
-  socket.on("order_cancelled", handleOrderCancelled);
+    socket.on("order_created", handleOrderCreated);
+    socket.on("order_cancelled", handleOrderCancelled);
 
-  return () => {
-    socket.off("order_created", handleOrderCreated);
-    socket.off("order_cancelled", handleOrderCancelled);
-  };
-}, [fetchOrders, setOrderChanged]);
+    return () => {
+      socket.off("order_created", handleOrderCreated);
+      socket.off("order_cancelled", handleOrderCancelled);
+    };
+  }, [fetchOrders, page, setOrderChanged]);
 
   // Xử lý thay đổi bộ lọc
   const handleFilterChange = (event) => {
     const { name, value } = event.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
+    setPage(0); // Reset về trang đầu tiên khi đổi bộ lọc
   };
 
   // Xử lý phân trang
@@ -283,8 +291,10 @@ const Orders = () => {
   };
 
   // Lấy nhãn trạng thái
-  const getStatusLabel = (status) => {
-    switch (status) {
+  const getStatusLabel = (order) => {
+    if (!order) return "";
+    if (order.state === "Cancelled") return "Đã hủy";
+    switch (order.status) {
       case "Processing":
         return "Đang xử lý";
       case "Delivering":
@@ -292,13 +302,15 @@ const Orders = () => {
       case "Completed":
         return "Hoàn thành";
       default:
-        return status;
+        return order.status;
     }
   };
 
   // Lấy màu trạng thái
-  const getStatusColor = (status) => {
-    switch (status) {
+  const getStatusColor = (order) => {
+    if (!order) return "default";
+    if (order.state === "Cancelled") return "error";
+    switch (order.status) {
       case "Processing":
         return "warning";
       case "Delivering":
@@ -463,19 +475,20 @@ const Orders = () => {
                 </TableCell>
                 <TableCell align="center">
                   <Chip
-                    label={getStatusLabel(order.status)}
-                    color={getStatusColor(order.status)}
-                    onClick={() =>
+                    label={getStatusLabel(order)}
+                    color={getStatusColor(order)}
+                    onClick={() => {
+                      if (order.state === "Cancelled" || order.status === "Completed") return;
                       updateOrder(
                         order._id,
                         "status",
                         getNextStatus(order.status)
-                      )
-                    }
-                    clickable
+                      );
+                    }}
+                    clickable={order.state !== "Cancelled" && order.status !== "Completed"}
                     sx={{
                       cursor:
-                        order.status === "Completed" ? "default" : "pointer",
+                        order.state === "Cancelled" || order.status === "Completed" ? "default" : "pointer",
                     }}
                   />
                 </TableCell>

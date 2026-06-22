@@ -39,39 +39,43 @@ const ShopContextProvider = ({ children }) => {
     }
   };
 
+  // Lấy giỏ hàng từ server
+  const fetchCart = async () => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACK_END}/carts/getCart`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Gửi cookie
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCartItems(data.cart || []);
+      } else if (response.status === 401) {
+        setCartItems([]);
+        // Không hiển thị lỗi ở đây để tránh thông báo khi chưa đăng nhập
+      } else {
+        throw new Error("Failed to fetch cart");
+      }
+    } catch (error) {
+      console.error("Error fetching cart from server:", error);
+    }
+  };
+
   // Lấy giỏ hàng từ server khi load ứng dụng
   useEffect(() => {
-    const fetchCart = async () => {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_BACK_END}/carts/getCart`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include", // Gửi cookie
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCartItems(data.cart || []);
-        } else if (response.status === 401) {
-          setCartItems([]);
-          // Không hiển thị lỗi ở đây để tránh thông báo khi chưa đăng nhập
-        } else {
-          throw new Error("Failed to fetch cart");
-        }
-      } catch (error) {
-        console.error("Error fetching cart from server:", error);
-      }
-    };
     fetchCart();
   }, []);
 
   // Thêm sản phẩm vào giỏ hàng
-  const addToCart = async (productId, variantIndex) => {
+  const addToCart = async (productId, variantIndex, quantity = 1) => {
+    const sanitizedQuantity = Math.max(1, parseInt(quantity, 10) || 1);
     try {
       await sendRequest(`${process.env.REACT_APP_BACK_END}/carts/addToCart`, "POST", {
         productId,
         variantIndex,
+        quantity: sanitizedQuantity,
       });
       toast.success("Đã thêm sản phẩm vào giỏ hàng");
     } catch (error) {
@@ -134,6 +138,7 @@ const ShopContextProvider = ({ children }) => {
     <ShopContext.Provider
       value={{
         cartItems,
+        fetchCart,
         addToCart,
         removeFromCart,
         updateCartItem,

@@ -18,6 +18,8 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import ExcelJS from "exceljs";
@@ -35,6 +37,7 @@ const StationDisplay = () => {
     stationCode: "",
     stationName: "",
     location: "",
+    allowPublicSignup: true,
   });
 
   const fileInputRef = useRef();
@@ -59,10 +62,12 @@ const StationDisplay = () => {
     debounceTimeout.current = setTimeout(async () => {
       try {
         setSearchLoading(true);
-        const url = new URL(`${apiUrl}/products`);
+        const url = new URL(`${apiUrl || window.location.origin}/products`);
         if (searchInput.name) url.searchParams.set("search", searchInput.name);
         if (searchInput.code) url.searchParams.set("code", searchInput.code);
-        const res = await fetch(url.toString());
+        const res = await fetch(url.toString(), {
+          credentials: "include",
+        });
         const data = await res.json();
         setSearchResults(data.products || []);
       } catch (err) {
@@ -76,7 +81,9 @@ const StationDisplay = () => {
   useEffect(() => {
     const fetchStation = async () => {
       try {
-        const res = await fetch(`${apiUrl}/stations/code/${code}`);
+        const res = await fetch(`${apiUrl}/stations/code/${code}`, {
+          credentials: "include",
+        });
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.error || "Không tìm thấy trạm");
@@ -87,6 +94,7 @@ const StationDisplay = () => {
           stationCode: data.stationCode || "",
           stationName: data.stationName || "",
           location: data.location || "",
+          allowPublicSignup: data.allowPublicSignup !== false,
         });
       } catch (err) {
         setError(err.message);
@@ -140,6 +148,14 @@ const StationDisplay = () => {
       setSaving(false);
     }
   };
+
+  const getInviteCode = () => (
+    station?.inviteCode || (station?.stationCode && station?.inviteSecret
+      ? `${station.stationCode}-${station.inviteSecret}`
+      : "")
+  );
+
+
 
   const handleDeleteStation = async () => {
     if (!station?._id) return;
@@ -359,10 +375,21 @@ const StationDisplay = () => {
         <TextField label="Mã trạm" value={form.stationCode} onChange={handleChange("stationCode")} fullWidth size="small" />
         <TextField label="Tên trạm" value={form.stationName} onChange={handleChange("stationName")} fullWidth size="small" />
         <TextField label="Vị trí" value={form.location} onChange={handleChange("location")} fullWidth size="small" />
+        <TextField label="Public link code" value={getInviteCode()} fullWidth size="small" InputProps={{ readOnly: true }} />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={form.allowPublicSignup}
+              onChange={(e) => setForm({ ...form, allowPublicSignup: e.target.checked })}
+            />
+          }
+          label="Cho phép đăng ký công khai"
+        />
         <Stack direction="row" spacing={2}>
           <Button variant="contained" onClick={handleUpdate} disabled={saving} sx={{ flex: 1 }}>
             {saving ? "Đang cập nhật..." : "Cập nhật"}
           </Button>
+
           <Button variant="contained" color="error" onClick={handleDeleteStation} sx={{ flex: 1 }}>
             Xóa trạm
           </Button>

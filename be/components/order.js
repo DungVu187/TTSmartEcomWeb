@@ -5,6 +5,7 @@ require("dotenv").config();
 const { Product } = require('./product');
 const { sendNewOrderNotification } = require('../mailer');
 const { sendZaloOrderNotification } = require('../zaloService');
+const { Station } = require('./station');
 
 const router = express.Router();
 
@@ -208,7 +209,7 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
 
 // API tạo đơn hàng
 router.post("/create-order", authenticateUser, async (req, res) => {
-  const { cartItems, total } = req.body;
+  const { cartItems, total, stationCode } = req.body;
   const userPhone = req.user.phone;
   const userName = req.user.name;
 
@@ -253,17 +254,40 @@ router.post("/create-order", authenticateUser, async (req, res) => {
     });
     const savedOrder = await newOrder.save();
     
-    await User.findOneAndUpdate(
-      { phone: userPhone },
-      { name: userName },
-      {
-        $pull: {
-          cart: {
-            productId: { $in: cartItems.map((item) => item.productId) }
-          }
+    if (cartItems && cartItems.length > 0) {
+      const user = await User.findById(req.user.userId);
+      if (user) {
+        user.cart = user.cart.filter((cartItem) => {
+          return !cartItems.some(
+            (orderedItem) =>
+              orderedItem.productId.toString() === cartItem.productId.toString() &&
+              orderedItem.variantIndex === cartItem.variantIndex
+          );
+        });
+        await user.save();
+      }
+    }
+
+    // Lấy thông tin trạm dựa trên mã trạm đang mua hàng hoặc danh sách trạm của user
+    let stationNamesStr = "Không có";
+    let stationCodesStr = "Không có";
+
+    if (stationCode) {
+      const station = await Station.findOne({ stationCode: String(stationCode).trim() });
+      if (station) {
+        stationNamesStr = station.stationName || "Không có";
+        stationCodesStr = station.stationCode || "Không có";
+      }
+    } else {
+      const user = await User.findById(req.user.userId);
+      if (user && user.station && user.station.length > 0) {
+        const stations = await Station.find({ _id: { $in: user.station } });
+        if (stations && stations.length > 0) {
+          stationNamesStr = stations.map(s => s.stationName).filter(Boolean).join(", ");
+          stationCodesStr = stations.map(s => s.stationCode).filter(Boolean).join(", ");
         }
       }
-    );
+    }
 
     // 👉 Gửi email thông báo đến admin (Sử dụng orderCode thay cho ObjectId)
     sendNewOrderNotification({
@@ -272,6 +296,8 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       userName,
       total,
       createdAt: savedOrder.createdAt,
+      stationNames: stationNamesStr,
+      stationCodes: stationCodesStr,
     });
 
     // 👉 Gửi tin nhắn thông báo Zalo OA đến admin (không làm gián đoạn luồng đặt hàng nếu lỗi)
@@ -408,7 +434,13 @@ router.delete("/:id", authenticateUser, async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    if (!order.payment) {
+    // Chặn xóa đơn hàng đã hoàn tất
+    if (order.status === "Completed") {
+      return res.status(400).json({ message: "Không thể xóa đơn hàng đã hoàn thành." });
+    }
+
+    // Chỉ hoàn lại số lượng bán nếu đơn chưa từng bị hủy
+    if (order.state !== "Cancelled") {
       for (const item of order.cartItems) {
         const product = await Product.findById(item.productId);
         if (!product) continue;
@@ -443,20 +475,24 @@ router.put("/:id", authenticateUser, async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    // Chặn hủy đơn hàng đã hoàn tất
+    if (order.status === "Completed") {
+      return res.status(400).json({ message: "Không thể hủy đơn hàng đã hoàn thành." });
+    }
+
     if (order.state === "Cancelled") {
       return res.status(400).json({ message: "Order is already cancelled." });
     }
 
-    if (!order.payment) {
-      for (const item of order.cartItems) {
-        const product = await Product.findById(item.productId);
-        if (!product) continue;
-        const variant = product.variant[item.variantIndex];
-        if (!variant) continue;
+    // Hoàn lại số lượng bán cho tất cả các đơn hàng khi hủy
+    for (const item of order.cartItems) {
+      const product = await Product.findById(item.productId);
+      if (!product) continue;
+      const variant = product.variant[item.variantIndex];
+      if (!variant) continue;
 
-        variant.quantityForSale += item.quantity;
-        await product.save();
-      }
+      variant.quantityForSale += item.quantity;
+      await product.save();
     }
 
     order.state = "Cancelled";

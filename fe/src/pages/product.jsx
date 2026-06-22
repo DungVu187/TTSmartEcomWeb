@@ -176,6 +176,15 @@ function Product() {
     const stationId = e.target.value;
     setSelectedStation(stationId);
     
+    if (stationId !== "Tất cả") {
+      const selected = userStations.find(s => s._id === stationId);
+      if (selected && selected.stationCode) {
+        sessionStorage.setItem("activeStationCode", selected.stationCode);
+      }
+    } else {
+      sessionStorage.removeItem("activeStationCode");
+    }
+    
     const urlQuery = new URLSearchParams({
       ...filters,
       brand: filters.brand === "Tất cả" ? "" : filters.brand,

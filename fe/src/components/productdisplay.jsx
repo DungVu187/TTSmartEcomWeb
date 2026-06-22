@@ -37,6 +37,7 @@ const ProductDisplay = () => {
   });
   const [userReview, setUserReview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qty, setQty] = useState(1);
 
   const [filters, setFilters] = useState({
     color: "",
@@ -196,7 +197,7 @@ const ProductDisplay = () => {
       return;
     }
     if (selectedVariant) {
-      addToCart(productId, selectedVariantIndex);
+      addToCart(productId, selectedVariantIndex, qty);
     }
   };
 
@@ -384,48 +385,91 @@ const ProductDisplay = () => {
                 <p className="product-display-price">
                   {Number(selectedVariant?.price).toLocaleString("vi-VN")} VND
                 </p>
-                <p>{product.type}</p>
-                {/* Phần filter variant bị comment, giữ nguyên */}
-                {/* <div className="product-filters">
-                  {["color", "shape", "frame", "buttonCount"].some(
-                    (filterKey) => product.variant.some((v) => v[filterKey])
-                  ) && (
-                    <div className="product-filters">
-                      {["color", "shape", "frame", "buttonCount"].map(
-                        (filterKey) => {
-                          const options = Array.from(
-                            new Set(product.variant.map((v) => v[filterKey]))
-                          ).filter(Boolean);
-                          if (options.length === 0) return null;
-                          return (
-                            <div key={filterKey} className="filter-group">
-                              {options.map((option) => (
-                                <button
-                                  key={option}
-                                  onClick={() =>
-                                    handleFilterChange(filterKey, option)
-                                  }
-                                  className={`${
-                                    filters[filterKey] === option
-                                      ? "active-filter"
-                                      : ""
-                                  } ${
-                                    activeValues[filterKey]?.has(option)
-                                      ? "matching-filter"
-                                      : "inactive-filter"
-                                  }`}
-                                >
-                                  {option}
-                                </button>
-                              ))}
-                            </div>
-                          );
-                        }
-                      )}
-                    </div>
-                  )}
-                </div> */}
+                {(selectedVariant?.quantityForSale || 0) <= 0 ? (
+                  <>
+                    <p style={{ color: "#d32f2f", fontWeight: "bold", margin: "5px 0 0 0" }}>
+                      Trạng thái: Hết hàng
+                    </p>
+                    {/* Nút liên hệ cuộc gọi (Chỉ hiển thị khi hết hàng) */}
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="small"
+                      href="tel:0913158383"
+                      startIcon={<SmartphoneIcon />}
+                      sx={{
+                        width: "100%",
+                        mt: 1,
+                        textTransform: "none",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      0913 158 383
+                    </Button>
+                  </>
+                ) : (
+                  <p style={{ margin: "5px 0 0 0", color: "#333", fontSize: "0.95rem", fontWeight: "bold" }}>
+                    Số lượng đang còn: {selectedVariant.quantityForSale}
+                  </p>
+                )}
+                <p style={{ margin: "5px 0" }}>{product.type}</p>
               </div>
+
+              {/* Bộ chọn số lượng */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1.5,
+                  mb: 2,
+                  mt: 1,
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Số lượng:
+                </Typography>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <button
+                    onClick={() => setQty((prev) => Math.max(1, prev - 1))}
+                    type="button"
+                    style={{
+                      border: "none",
+                      background: "#f0f0f0",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    -
+                  </button>
+                  <span style={{ padding: "0 10px", fontSize: "0.95rem", minWidth: "20px", textAlign: "center" }}>
+                    {qty}
+                  </span>
+                  <button
+                    onClick={() => setQty((prev) => prev + 1)}
+                    type="button"
+                    style={{
+                      border: "none",
+                      background: "#f0f0f0",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    +
+                  </button>
+                </Box>
+              </Box>
+
               <Button
                 variant="contained"
                 color="primary"
@@ -433,7 +477,7 @@ const ProductDisplay = () => {
                 startIcon={<ShoppingCartIcon />}
                 sx={{
                   width: "90%",
-                  margin: "auto",
+                  margin: "0 auto 10px",
                 }}
               >
                 Thêm vào giỏ hàng
@@ -621,8 +665,8 @@ const ProductDisplay = () => {
                 {isSubmitting
                   ? "Đang xử lý..."
                   : userReview
-                  ? "Cập nhật đánh giá"
-                  : "Gửi đánh giá"}
+                    ? "Cập nhật đánh giá"
+                    : "Gửi đánh giá"}
               </Button>
               {userReview && (
                 <Button

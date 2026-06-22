@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
  * @param {Date}   orderInfo.createdAt
  */
 const sendNewOrderNotification = async (orderInfo) => {
-  const { orderId, userPhone, userName, total, createdAt } = orderInfo;
+  const { orderId, userPhone, userName, total, createdAt, stationNames, stationCodes } = orderInfo;
 
   const adminEmail = process.env.ADMIN_NOTIFY_EMAIL;
   if (!adminEmail || !process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
@@ -56,6 +56,14 @@ const sendNewOrderNotification = async (orderInfo) => {
           <tr style="background-color: #f5f5f5;">
             <td style="padding: 10px 14px; font-weight: bold;">Số điện thoại</td>
             <td style="padding: 10px 14px;">${userPhone}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; font-weight: bold;">Mã trạm</td>
+            <td style="padding: 10px 14px;">${stationCodes || 'Không có'}</td>
+          </tr>
+          <tr style="background-color: #f5f5f5;">
+            <td style="padding: 10px 14px; font-weight: bold;">Tên trạm</td>
+            <td style="padding: 10px 14px;">${stationNames || 'Không có'}</td>
           </tr>
           <tr>
             <td style="padding: 10px 14px; font-weight: bold;">Tổng tiền</td>

@@ -137,7 +137,9 @@ const Products = () => {
         limit: rowsPerPage,
         ...normalizeFilters(filters),
       }).toString();
-      const response = await fetch(`${apiUrl}/products?${query}`);
+      const response = await fetch(`${apiUrl}/products?${query}`, {
+        credentials: "include",
+      });
       const data = await response.json();
       setProducts(data.products);
       setTotalPages(Math.ceil(data.total / rowsPerPage));

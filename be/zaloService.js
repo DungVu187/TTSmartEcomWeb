@@ -122,6 +122,40 @@ async function sendZaloMessage(recipientUserId, textContent) {
  */
 async function sendZaloOrderNotification(orderInfo) {
   try {
+    if (process.env.ZALO_DEMO_MODE === "true") {
+      const { orderId, userPhone, userName, total, createdAt } = orderInfo;
+      const orderTime = new Date(createdAt).toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const totalFormatted = new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+      }).format(total);
+      const messageText =
+`CO DON HANG MOI!
+----------------------
+- Ma don: #${orderId}
+- Khach hang: ${userName || "Chua cap nhat"}
+- So dien thoai: ${userPhone}
+- Tong tien: ${totalFormatted}
+- Thoi gian dat: ${orderTime}
+----------------------
+Vui long kiem tra chi tiet trong bang quan tri Admin.`;
+
+      console.log("[ZALO DEMO] Gia lap gui thong bao don hang:", {
+        orderId,
+        userPhone,
+        userName: userName || "Chua cap nhat",
+        total,
+        totalFormatted,
+        orderTime,
+      });
+      console.log("[ZALO DEMO] Noi dung tin nhan:\n" + messageText);
+      return;
+    }
+
     const config = await ZaloConfig.findOne();
     if (!config || !config.recipientUserId) {
       console.warn("⚠️ Zalo Service: Chưa cấu hình Zalo User ID người nhận thông báo.");

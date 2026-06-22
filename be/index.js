@@ -31,6 +31,8 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   process.env.ADDRESS, // Lấy động URL Cloudflare Tunnel từ file .env
   'https://ttsmart.com.vn',
+  'https://irelia.online',
+  'http://irelia.online',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
@@ -159,7 +161,10 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(helmet());
+app.use(helmet({
+  hsts: false,
+  contentSecurityPolicy: false
+}));
 
 // Tiêu đề Cross-Origin-Resource-Policy
 app.use((req, res, next) => {
@@ -215,7 +220,9 @@ app.get('*', (req, res, next) => {
     '/histories', '/chat', '/images', '/section-images', '/zalo'
   ];
   const isApi = apiPaths.some(path => req.path.startsWith(path));
-  if (isApi) {
+  const isStaticFile = /\.(jpg|jpeg|png|gif|webp|svg|css|js|ico|map)$/i.test(req.path);
+
+  if (isApi || isStaticFile) {
     return next();
   }
   res.sendFile(path.join(feBuildPath, 'index.html'));

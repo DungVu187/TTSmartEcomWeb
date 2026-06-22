@@ -2,9 +2,24 @@ const express = require("express");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const router = express.Router();
+
+// Rate limiting configuration
+const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+const max = parseInt(process.env.RATE_LIMIT_MAX) || 100;
+
+const authLimiter = rateLimit({
+  windowMs,
+  max,
+  message: { message: "Quá nhiều yêu cầu, vui lòng thử lại sau." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+});
+
 
 // Schema cho User (giữ nguyên)
 const userSchema = new mongoose.Schema({
@@ -115,7 +130,8 @@ const assignPermissionsForFunctions = (functions = []) => {
 const getCookieOptions = (req, maxAge = 43200000) => {
   const origin = req.headers.origin || "";
   const isLocaltunnel = origin.includes("loca.lt") || origin.includes("localtunnel");
-  const secureCookie = isLocaltunnel || req.secure || process.env.NODE_ENV === "production";
+  // Chỉ set secure khi thực sự chạy trên HTTPS hoặc qua localtunnel
+  const secureCookie = isLocaltunnel || req.secure;
   return {
     httpOnly: true,
     secure: secureCookie,
@@ -140,7 +156,7 @@ const authenticateAdmin = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Error in authenticateAdmin:", error.message);
-    res.status(400).json({ message: "Invalid or expired token" });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
@@ -156,7 +172,7 @@ const authenticateUser = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Error in authenticateUser:", error.message);
-    res.status(400).json({ message: "Invalid or expired token" });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
@@ -187,7 +203,7 @@ const checkPermission = (requiredPermission) => async (req, res, next) => {
     if (error.name === "JsonWebTokenError" && error.message === "jwt malformed") {
       return res.status(400).json({ message: "Token JWT không hợp lệ hoặc sai định dạng" });
     }
-    res.status(400).json({ message: "Invalid or expired token" });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
@@ -206,26 +222,75 @@ userSchema.methods.comparePassword = async function (plainPassword) {
 
 const User = mongoose.model("User", userSchema);
 
-// Đăng ký người dùng (giữ nguyên)
-router.post("/register", async (req, res) => {
+// Đăng ký người dùng (Nodemon restart)
+router.post("/register", authLimiter, (req, res, next) => {
+  if (process.env.PUBLIC_SIGNUP_ENABLED === "true") {
+    next();
+  } else {
+    authenticateAdmin(req, res, next);
+  }
+}, async (req, res) => {
   try {
-    const { email, phone, name, password, role, functions, permissions, logInString } = req.body;
+    const { email, phone, name, password, role, functions, permissions, logInString, stationCode, inviteCode } = req.body;
     const existingUser = await User.findOne({ phone });
     if (existingUser) {
       return res.status(400).json({ message: "Email hoặc số điện thoại đã tồn tại" });
     }
-    const finalPermissions = role === "staff" && functions
-      ? permissions || assignPermissionsForFunctions(functions)
-      : permissions || [];
+
+    let finalRole = "customer";
+    let finalPermissions = [];
+
+    // Phân quyền tạo tài khoản:
+    // 1. Nếu không phải đăng ký công khai và người thực hiện là Admin -> Có toàn quyền gán role/permissions
+    // 2. Nếu người thực hiện là Staff -> Chỉ được phép tạo tài khoản customer với permissions rỗng
+    // 3. Nếu là đăng ký công khai (PUBLIC_SIGNUP_ENABLED=true) -> Chỉ tạo tài khoản customer với permissions rỗng
+    if (process.env.PUBLIC_SIGNUP_ENABLED !== "true" && req.user) {
+      if (req.user.role === "admin") {
+        finalRole = role || "customer";
+        finalPermissions = finalRole === "staff" && functions
+          ? permissions || assignPermissionsForFunctions(functions)
+          : permissions || [];
+      } else {
+        finalRole = "customer";
+        finalPermissions = [];
+      }
+    } else {
+      finalRole = "customer";
+      finalPermissions = [];
+    }
+
+    let userStations = [];
+    if (process.env.PUBLIC_SIGNUP_ENABLED === "true") {
+      const publicInviteCode = inviteCode || stationCode;
+      if (publicInviteCode) {
+        const { findStationByInviteCode } = require('./station');
+        const station = await findStationByInviteCode(publicInviteCode);
+        if (!station) {
+          return res.status(400).json({ message: "Mã link trạm không hợp lệ" });
+        }
+        if (!station.allowPublicSignup) {
+          return res.status(403).json({ message: "Trạm hiện không cho phép đăng ký công khai" });
+        }
+        userStations.push(station._id.toString());
+      }
+    } else if (stationCode && req.user?.role === "admin") {
+      const { Station } = require('./station');
+      const station = await Station.findOne({ stationCode });
+      if (station) {
+        userStations.push(station._id.toString());
+      }
+    }
+
     const newUser = new User({
       email,
       phone,
       name,
       password,
-      role: role || "customer",
-      functions: role === "staff" ? functions || [] : [],
+      role: finalRole,
+      functions: finalRole === "staff" ? functions || [] : [],
       permissions: finalPermissions,
-      logInString: logInString
+      logInString: logInString,
+      station: userStations
     });
     await newUser.save();
     res.status(201).json({ message: "User created successfully" });
@@ -236,7 +301,7 @@ router.post("/register", async (req, res) => {
 });
 
 // Đăng nhập người dùng (sử dụng cookie)
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   try {
     const { phone, password } = req.body;
     const user = await User.findOne({ phone });
@@ -270,7 +335,7 @@ router.post("/login", async (req, res) => {
 });
 
 // Đăng nhập admin/staff (sử dụng cookie)
-router.post("/admin/login", async (req, res) => {
+router.post("/admin/login", authLimiter, async (req, res) => {
   try {
     const { phone, password } = req.body;
     const user = await User.findOne({ phone });
@@ -308,7 +373,7 @@ router.post("/logout", (req, res) => {
   res.json({ message: "Logout successful" });
 });
 
-router.put("/change-password", authenticateUser, async (req, res) => {
+router.put("/change-password", authLimiter, authenticateUser, async (req, res) => {
   try {
     const { currentPassword, newPassword, logInString } = req.body;
 
@@ -516,7 +581,7 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
     await user.save();
     res.json({ message: "Cập nhật quyền thành công", user });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -630,7 +695,7 @@ router.get("/customers", authenticateAdmin, async (req, res) => {
   }
 });
 
-router.put("/stations", async (req, res) => {
+router.put("/stations", authenticateAdmin, async (req, res) => {
   try {
     const { phone, stations } = req.body;
 
@@ -737,4 +802,5 @@ module.exports = {
   authenticateAdmin,
   authenticateUser,
   checkPermission,
+  getCookieOptions,
 };

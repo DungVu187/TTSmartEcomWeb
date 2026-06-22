@@ -4,6 +4,16 @@ const router = express.Router();
 
 router.post('/addToCart', authenticateUser, async (req, res) => {
     const { productId, variantIndex } = req.body;
+    
+    // Validate & sanitize quantity
+    let quantity = 1;
+    if (req.body.quantity !== undefined) {
+        const parsed = parseInt(req.body.quantity, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+            quantity = parsed;
+        }
+    }
+
     try {
         // Lấy user từ database
         const user = await User.findById(req.user.userId);
@@ -17,9 +27,9 @@ router.post('/addToCart', authenticateUser, async (req, res) => {
         );
 
         if (existingCartItem) {
-            existingCartItem.quantity = (existingCartItem.quantity || 1) + 1;
+            existingCartItem.quantity = (existingCartItem.quantity || 1) + quantity;
         } else {
-            user.cart.push({ productId, variantIndex, quantity: 1 });
+            user.cart.push({ productId, variantIndex, quantity });
         }
 
         await user.save();

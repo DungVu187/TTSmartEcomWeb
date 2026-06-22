@@ -16,6 +16,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import toast from "react-hot-toast";
 import logo from "../assets/logo.png";
 
+const apiUrl = import.meta.env.VITE_API_URL || "";
 const dashboardUrl = import.meta.env.VITE_DASHBOARD;
 const adminLogin = import.meta.env.VITE_APP_ADMIN_LOGIN;
 
@@ -61,7 +62,7 @@ export default function SignInPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${adminLogin}`, {
+      const response = await fetch(`${apiUrl}${adminLogin}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, password }),

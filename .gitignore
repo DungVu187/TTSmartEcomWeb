@@ -25,3 +25,10 @@ Thumbs.db
 # Temporary directories
 /temp_git/
 /temp_original/
+
+# Claude / Codex backups
+.claude/
+.codex-backups/
+
+# Backend uploads
+be/upload/

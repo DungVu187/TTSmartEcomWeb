@@ -4,9 +4,11 @@ import logo from "../../assets/TTSlogo.jpg";
 import { Link, useLocation } from "react-router-dom";
 import { ShopContext } from "../../context/shopcontext";
 import toast from "react-hot-toast";
+import { useLanguage } from "../../context/languagecontext.jsx";
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 function Navbar() {
+  const { language, setLanguage, t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState("");
@@ -132,7 +134,7 @@ function Navbar() {
               <div className="station tab">
                 <i className="fa-solid fa-industry fa-2xl"></i>
                 <div className="station-text">
-                  <p>Trạm của tôi</p>
+                  <p>{t("my_stations_nav")}</p>
                 </div>
               </div>
             </Link>
@@ -140,7 +142,7 @@ function Navbar() {
             <div className="account tab">
               <i className="fa-solid fa-user fa-2xl"></i>
               <div className="account-text">
-                <p>{isLoggedIn && userName ? userName : "Tài khoản"}</p>
+                <p>{isLoggedIn && userName ? userName : t("account")}</p>
               </div>
               <div className="account-dropdown">
                 {isLoggedIn ? (
@@ -149,37 +151,49 @@ function Navbar() {
                       style={{ textDecoration: "none" }}
                       to="/profile"
                     >
-                      <p>Thông tin cá nhân</p>
+                      <p>{t("personal_info")}</p>
                     </Link>
                     <Link
                       style={{ textDecoration: "none" }}
                       to="/myorder"
                     >
-                      <p>Đơn hàng của tôi</p>
+                      <p>{t("my_orders")}</p>
                     </Link>
                     <Link
                       style={{ textDecoration: "none" }}
                       to="/change-password"
                     >
-                      <p>Đổi mật khẩu</p>
+                      <p>{t("change_password")}</p>
                     </Link>
                     <p
                       onClick={handleLogout}
                       style={{ cursor: isLoading ? "not-allowed" : "pointer" }}
                     >
-                      {isLoading ? "Đang đăng xuất..." : "Đăng xuất"}
+                      {isLoading ? t("logging_out") : t("logout")}
                     </p>
                   </>
                 ) : (
                   <>
                     <Link style={{ textDecoration: "none" }} to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`}>
-                      <p>Đăng nhập</p>
+                      <p>{t("login")}</p>
                     </Link>
                     <Link style={{ textDecoration: "none" }} to="/myorder">
-                      <p>Đơn hàng của tôi</p>
+                      <p>{t("my_orders")}</p>
                     </Link>
                   </>
                 )}
+              </div>
+            </div>
+
+            <div className="language-selector tab">
+              <i className="fa-solid fa-globe fa-2xl"></i>
+              <div className="language-text">
+                <p>{language === "vi" ? "Tiếng Việt" : language === "zh" ? "中文" : "English"}</p>
+              </div>
+              <div className="language-dropdown">
+                <p onClick={() => setLanguage("vi")}>Tiếng Việt</p>
+                <p onClick={() => setLanguage("zh")}>中文 (Chinese)</p>
+                <p onClick={() => setLanguage("en")}>English</p>
               </div>
             </div>
 
@@ -188,7 +202,7 @@ function Navbar() {
                 <i className="fa-solid fa-cart-shopping fa-2xl"></i>
                 <div className="cart-item-count">{getCartItemCount()}</div>
                 <div className="cart-text">
-                  <p>Giỏ hàng</p>
+                  <p>{t("cart")}</p>
                 </div>
               </div>
             </Link>
@@ -203,7 +217,7 @@ function Navbar() {
 
       <div className={`hamburger-menu-dropdown ${isMenuOpen ? "active" : ""}`}>
         <header>
-          <p>Danh mục</p>
+          <p>{t("categories")}</p>
           <div className="close-btn" onClick={closeMenu}>
             <i className="fa-solid fa-times fa-xl"></i>
           </div>
@@ -211,54 +225,54 @@ function Navbar() {
         <ul>
           <li className="hamburger-filter">
             <Link to="/" onClick={closeMenu} style={linkStyle}>
-              Trang chủ
+              {t("home")}
             </Link>
           </li>
           <li className="hamburger-filter">
             <Link to="/cart" onClick={closeMenu} style={linkStyle}>
-              Giỏ hàng ({getCartItemCount()})
+              {t("cart")} ({getCartItemCount()})
             </Link>
           </li>
           <li className="hamburger-filter">
             <Link to="/station" onClick={closeMenu} style={linkStyle}>
-              Trạm trộn
+              {t("station_mixer")}
             </Link>
           </li>
           <li className="hamburger-filter">
             <Link to="/product" onClick={closeMenu} style={linkStyle}>
-              Sản phẩm
+              {t("products")}
             </Link>
           </li>
           <li className="hamburger-filter">
             <Link to="/dashboard" onClick={closeMenu} style={linkStyle}>
-              Trang chủ Swiper
+              {t("equipment_group")}
             </Link>
           </li>
           <li className="hamburger-filter">
             <Link to="/introduction" onClick={closeMenu} style={linkStyle}>
-              Giới thiệu
+              {t("introduction")}
             </Link>
           </li>
           <li className="hamburger-filter">
             <Link to="/policy" onClick={closeMenu} style={linkStyle}>
-              Chính sách mua hàng
+              {t("purchase_policy")}
             </Link>
           </li>
           <li className="hamburger-filter">
             <a href="tel:+8413158383" style={linkStyle}>
-              Liên hệ
+              {t("contact_us")}
             </a>
           </li>
           {isLoggedIn && (
             <>
               <li className="hamburger-filter">
                 <Link to="/profile" onClick={closeMenu} style={linkStyle}>
-                  Thông tin cá nhân
+                  {t("personal_info")}
                 </Link>
               </li>
               <li className="hamburger-filter">
                 <Link to="/myorder" onClick={closeMenu} style={linkStyle}>
-                  Đơn hàng của tôi
+                  {t("my_orders")}
                 </Link>
               </li>
             </>
@@ -269,13 +283,24 @@ function Navbar() {
                 onClick={handleLogout}
                 style={{ cursor: isLoading ? "not-allowed" : "pointer" }}
               >
-                {isLoading ? "Đang đăng xuất..." : "Đăng xuất"}
+                {isLoading ? t("logging_out") : t("logout")}
               </p>
             ) : (
               <Link to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} onClick={closeMenu} style={linkStyle}>
-                Đăng nhập
+                {t("login")}
               </Link>
             )}
+          </li>
+          {/* Language Selector in Hamburger */}
+          <li className="hamburger-filter" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", marginTop: "1rem", borderTop: "1px solid #ddd", paddingTop: "1rem" }}>
+            <span style={{ fontWeight: "bold", fontSize: "14px", color: "#666" }}>
+              {language === "vi" ? "NGÔN NGỮ" : language === "zh" ? "语言" : "LANGUAGE"}
+            </span>
+            <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+              <span onClick={() => { setLanguage("vi"); closeMenu(); }} style={{ cursor: "pointer", fontWeight: language === "vi" ? "bold" : "normal", color: language === "vi" ? "#007bff" : "black" }}>VI</span>
+              <span onClick={() => { setLanguage("zh"); closeMenu(); }} style={{ cursor: "pointer", fontWeight: language === "zh" ? "bold" : "normal", color: language === "zh" ? "#007bff" : "black" }}>ZH</span>
+              <span onClick={() => { setLanguage("en"); closeMenu(); }} style={{ cursor: "pointer", fontWeight: language === "en" ? "bold" : "normal", color: language === "en" ? "#007bff" : "black" }}>EN</span>
+            </div>
           </li>
         </ul>
       </div>

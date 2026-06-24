@@ -34,7 +34,7 @@ const router = express.Router();
 
 router.get("/", authenticateAdmin, async (req, res) => {
     try {
-        let { page = 1, limit = 20, startDate, endDate, orderName, userName } = req.query;
+        let { page = 1, limit = 20, startDate, endDate, orderName, userName, noteType } = req.query;
 
         page = Math.max(1, parseInt(page));
         limit = [20, 50, 100].includes(parseInt(limit)) ? parseInt(limit) : 20;
@@ -54,6 +54,22 @@ router.get("/", authenticateAdmin, async (req, res) => {
 
         if (userName) {
             filter.userName = { $regex: userName, $options: "i" };
+        }
+
+        if (noteType) {
+            if (noteType === 'nhap_don') {
+                filter.quantity = { $gt: 0 };
+                filter.orderName = { $nin: [null, ""] };
+            } else if (noteType === 'xuat_don') {
+                filter.quantity = { $lt: 0 };
+                filter.orderName = { $nin: [null, ""] };
+            } else if (noteType === 'nhap_thu_cong') {
+                filter.quantity = { $gt: 0 };
+                filter.orderName = { $in: [null, ""] };
+            } else if (noteType === 'xuat_thu_cong') {
+                filter.quantity = { $lt: 0 };
+                filter.orderName = { $in: [null, ""] };
+            }
         }
 
         const [history, total] = await Promise.all([

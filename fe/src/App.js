@@ -21,40 +21,43 @@ import StationDisplay from './components/stationdisplay.jsx';
 import StationDisplayDetail from './components/stationdisplaydetail.jsx';
 import ChangePassword from './pages/changepassword.jsx';
 import Profile from './pages/profile.jsx';
-import ChatWidget from './components/chatwidget/chatwidget.jsx';
+
+import { LanguageProvider } from './context/languagecontext.jsx';
 
 function App() {
   return (
-    <ShopContextProvider>
-      <BrowserRouter>
-        <Navbar />
-        <div className="main-content">
-          <ScrollRestoration>
-            <Routes>
-              <Route path="/" element={<MainPage />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/product" element={<Product />} />
-              <Route path="/product/:productId" element={<ProductDisplay />} />
-              <Route path="/login" element={<LogIn />} />
-              <Route path="/cart" element={<Cart />} />
-              <Route path="/myorder" element={<MyOrder />} />
-              <Route path="/introduction" element={<Intro />} />
-              <Route path="/policy" element={<Policy />} />
-              <Route path="/section/:sectionName" element={<ValueList />} />
-              <Route path="/station" element={<Station />} />
-              <Route path="/station/:code" element={<StationDisplay />} />
-              <Route path="/station/:code/:section" element={<StationDisplayDetail />} />
-              <Route path="/:code" element={<AutoLog />} />
-              <Route path="/change-password" element={<ChangePassword />} />
-              <Route path="/profile" element={<Profile />} />
-            </Routes>
-            {/* <Footer /> */}
-          </ScrollRestoration>
-        </div>
-        <ChatWidget />
-        <Toaster position="top-center" />
-      </BrowserRouter>
-    </ShopContextProvider>
+    <LanguageProvider>
+      <ShopContextProvider>
+        <BrowserRouter>
+          <Navbar />
+          <div className="main-content">
+            <ScrollRestoration>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<MainPage />} />
+                <Route path="/product" element={<Product />} />
+                <Route path="/product/:productId" element={<ProductDisplay />} />
+                <Route path="/login" element={<LogIn />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/myorder" element={<MyOrder />} />
+                <Route path="/introduction" element={<Intro />} />
+                <Route path="/policy" element={<Policy />} />
+                <Route path="/section/:sectionName" element={<ValueList />} />
+                <Route path="/station" element={<Station />} />
+                <Route path="/station/:code" element={<StationDisplay />} />
+                <Route path="/station/:code/:section" element={<StationDisplayDetail />} />
+                <Route path="/:code" element={<AutoLog />} />
+                <Route path="/change-password" element={<ChangePassword />} />
+                <Route path="/profile" element={<Profile />} />
+              </Routes>
+              {/* <Footer /> */}
+            </ScrollRestoration>
+          </div>
+
+          <Toaster position="top-center" />
+        </BrowserRouter>
+      </ShopContextProvider>
+    </LanguageProvider>
   );
 }
 

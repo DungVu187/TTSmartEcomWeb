@@ -35,6 +35,7 @@ const History = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [orderName, setOrderName] = useState("");
+  const [noteType, setNoteType] = useState("");
 
   const navigate = useNavigate();
 
@@ -48,6 +49,7 @@ const History = () => {
         ...(orderName && { orderName }),
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
+        ...(noteType && { noteType }),
       }).toString();
 
       const res = await fetch(`${apiUrl}/histories?${query}`, {
@@ -110,6 +112,22 @@ const History = () => {
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
         />
+        <TextField
+          select
+          label="Ghi chú"
+          value={noteType}
+          onChange={(e) => setNoteType(e.target.value)}
+          size="small"
+          sx={{ width: "180px", minWidth: "150px" }}
+          SelectProps={{ native: true }}
+          InputLabelProps={{ shrink: true }}
+        >
+          <option value="">Tất cả</option>
+          <option value="nhap_don">Nhập kho theo đơn</option>
+          <option value="xuat_don">Xuất kho theo đơn</option>
+          <option value="nhap_thu_cong">Nhập kho thủ công</option>
+          <option value="xuat_thu_cong">Xuất kho thủ công</option>
+        </TextField>
         <Button variant="contained" onClick={handleFilter}>
           Lọc
         </Button>
@@ -156,6 +174,9 @@ const History = () => {
                     <b>Số lượng</b>
                   </TableCell>
                   <TableCell align="center">
+                    <b>Ghi chú</b>
+                  </TableCell>
+                  <TableCell align="center">
                     <b>Thời gian</b>
                   </TableCell>
                 </TableRow>
@@ -189,6 +210,13 @@ const History = () => {
                       )}
                     </TableCell>
                     <TableCell align="center">{row.quantity}</TableCell>
+                    <TableCell align="center">
+                      {row.orderName ? (
+                        row.quantity > 0 ? "Nhập kho theo đơn" : "Xuất kho theo đơn"
+                      ) : (
+                        row.quantity > 0 ? "Nhập kho thủ công" : "Xuất kho thủ công"
+                      )}
+                    </TableCell>
                     <TableCell align="center">
                       {moment(row.createdAt).format("DD/MM/YYYY HH:mm")}
                     </TableCell>

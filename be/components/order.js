@@ -264,6 +264,18 @@ router.post("/create-order", authenticateUser, async (req, res) => {
               orderedItem.variantIndex === cartItem.variantIndex
           );
         });
+
+        // Tự động gán trạm cho user nếu trạm đó chưa được liên kết với user
+        if (stationCode) {
+          const station = await Station.findOne({ stationCode: String(stationCode).trim() });
+          if (station) {
+            const stationIdStr = station._id.toString();
+            if (!user.station.includes(stationIdStr)) {
+              user.station.push(stationIdStr);
+            }
+          }
+        }
+
         await user.save();
       }
     }

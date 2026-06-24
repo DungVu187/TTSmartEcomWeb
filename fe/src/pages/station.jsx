@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useLanguage } from "../context/languagecontext.jsx";
 import {
   Typography,
   Table,
@@ -17,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const Station = () => {
+  const { t } = useLanguage();
   const [stationIds, setStationIds] = useState([]);
   const [stationMap, setStationMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ const Station = () => {
         const res = await fetch(`${apiUrl}/users/my-stations`, {
           credentials: "include",
         });
-        if (!res.ok) throw new Error("Không thể lấy trạm người dùng");
+        if (!res.ok) throw new Error(t("failed_to_get_user_stations", "Không thể lấy trạm người dùng"));
         const data = await res.json();
         const ids = data.stations || [];
         setStationIds(ids);
@@ -60,7 +62,7 @@ const Station = () => {
           body: JSON.stringify({ ids }),
         });
 
-        if (!stationRes.ok) throw new Error("Không thể lấy thông tin trạm");
+        if (!stationRes.ok) throw new Error(t("failed_to_get_station_info", "Không thể lấy thông tin trạm"));
         const stations = await stationRes.json();
 
         const map = {};
@@ -86,7 +88,7 @@ const Station = () => {
   }
 
   if (!isLoggedIn) {
-    return <Typography align="center" mt={4}>Bạn cần đăng nhập để hiển thị danh sách trạm.</Typography>;
+    return <Typography align="center" mt={4}>{t("login_to_view_stations", "Bạn cần đăng nhập để hiển thị danh sách trạm.")}</Typography>;
   }
 
   if (error) {
@@ -94,7 +96,7 @@ const Station = () => {
   }
 
   if (stationIds.length === 0) {
-    return <Typography>Không có trạm nào</Typography>;
+    return <Typography>{t("no_stations_yet", "Không có trạm nào")}</Typography>;
   }
 
   return (
@@ -104,11 +106,11 @@ const Station = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell><strong>Ảnh trạm</strong></TableCell>
-                <TableCell><strong>Tên trạm</strong></TableCell>
-                <TableCell><strong>Mã trạm</strong></TableCell>
-                <TableCell><strong>Số sản phẩm</strong></TableCell>
-                <TableCell><strong>Vị trí</strong></TableCell>
+                <TableCell><strong>{t("station_image", "Ảnh trạm")}</strong></TableCell>
+                <TableCell><strong>{t("station_name", "Tên trạm")}</strong></TableCell>
+                <TableCell><strong>{t("station_code", "Mã trạm")}</strong></TableCell>
+                <TableCell><strong>{t("product_count", "Số sản phẩm")}</strong></TableCell>
+                <TableCell><strong>{t("location", "Vị trí")}</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>

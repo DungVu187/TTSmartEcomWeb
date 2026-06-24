@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLanguage } from "../context/languagecontext.jsx";
 import {
   Container,
   Typography,
@@ -29,6 +30,7 @@ import toast from "react-hot-toast";
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const Profile = () => {
+  const { t } = useLanguage();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -52,11 +54,11 @@ const Profile = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          toast.error(t("session_expired"));
           window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
           return;
         }
-        throw new Error("Không thể tải thông tin hồ sơ");
+        throw new Error(t("failed_to_load_profile", "Không thể tải thông tin hồ sơ"));
       }
 
       const data = await response.json();
@@ -88,10 +90,10 @@ const Profile = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Cập nhật thất bại");
+        throw new Error(data.message || t("update_failed", "Cập nhật thất bại"));
       }
 
-      toast.success("Cập nhật thông tin thành công!");
+      toast.success(t("update_success", "Cập nhật thông tin thành công!"));
       setUser({ ...user, name, email });
       setIsEditingInfo(false);
     } catch (error) {
@@ -119,7 +121,7 @@ const Profile = () => {
 
   const handleSaveAddress = async () => {
     if (!receiverName || !receiverPhone || !addressDetail) {
-      toast.error("Vui lòng điền đầy đủ các thông tin địa chỉ!");
+      toast.error(t("fill_all_address_fields", "Vui lòng điền đầy đủ các thông tin địa chỉ!"));
       return;
     }
 
@@ -140,10 +142,10 @@ const Profile = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Không thể lưu địa chỉ");
+        throw new Error(data.message || t("failed_to_save_address", "Không thể lưu địa chỉ"));
       }
 
-      toast.success(addressId ? "Cập nhật địa chỉ thành công!" : "Thêm địa chỉ thành công!");
+      toast.success(addressId ? t("update_address_success", "Cập nhật địa chỉ thành công!") : t("add_address_success", "Thêm địa chỉ thành công!"));
       setUser({ ...user, addresses: data.addresses });
       setOpenAddressDialog(false);
     } catch (error) {
@@ -152,7 +154,7 @@ const Profile = () => {
   };
 
   const handleDeleteAddress = async (addrId) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa địa chỉ này?")) return;
+    if (!window.confirm(t("confirm_delete_address", "Bạn có chắc chắn muốn xóa địa chỉ này?"))) return;
     try {
       const response = await fetch(`${apiUrl}/users/profile/addresses/${addrId}`, {
         method: "DELETE",
@@ -161,10 +163,10 @@ const Profile = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Không thể xóa địa chỉ");
+        throw new Error(data.message || t("failed_to_delete_address", "Không thể xóa địa chỉ"));
       }
 
-      toast.success("Xóa địa chỉ thành công!");
+      toast.success(t("delete_address_success", "Xóa địa chỉ thành công!"));
       setUser({ ...user, addresses: data.addresses });
     } catch (error) {
       toast.error(error.message);
@@ -180,10 +182,10 @@ const Profile = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Không thể thiết lập địa chỉ mặc định");
+        throw new Error(data.message || t("failed_to_set_default_address", "Không thể thiết lập địa chỉ mặc định"));
       }
 
-      toast.success("Đã đặt làm địa chỉ mặc định!");
+      toast.success(t("set_default_address_success", "Đã đặt làm địa chỉ mặc định!"));
       setUser({ ...user, addresses: data.addresses });
     } catch (error) {
       toast.error(error.message);
@@ -202,7 +204,7 @@ const Profile = () => {
     <div style={{ width: '100%', background: 'var(--bg-gradient)', padding: '3rem 16px', minHeight: '100vh', boxSizing: 'border-box' }}>
       <Container maxWidth="lg">
         <Typography variant="h4" sx={{ fontWeight: 800, color: "#0f172a", mb: 4, fontFamily: "inherit" }}>
-          Thông Tin Tài Khoản
+          {t("account_info", "Thông tin tài khoản")}
         </Typography>
 
         <Grid container spacing={4}>
@@ -220,7 +222,7 @@ const Profile = () => {
             >
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 800, color: "#0f172a" }}>
-                  Thông tin cá nhân
+                  {t("personal_info")}
                 </Typography>
                 {!isEditingInfo && (
                   <IconButton onClick={() => setIsEditingInfo(true)} color="primary">
@@ -233,7 +235,7 @@ const Profile = () => {
                 <form onSubmit={handleUpdateInfo}>
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                     <TextField
-                      label="Họ tên"
+                      label={t("full_name")}
                       fullWidth
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -241,16 +243,16 @@ const Profile = () => {
                       sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
                     />
                     <TextField
-                      label="Số điện thoại"
+                      label={t("phone_number")}
                       fullWidth
                       disabled
                       value={user?.phone || ""}
-                      helperText="Số điện thoại dùng làm thông tin tài khoản đăng nhập"
+                      helperText={t("phone_number_used_for_login", "Số điện thoại dùng làm thông tin tài khoản đăng nhập")}
                       variant="outlined"
                       sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
                     />
                     <TextField
-                      label="Email"
+                      label={t("email_address")}
                       fullWidth
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -267,7 +269,7 @@ const Profile = () => {
                         }}
                         sx={{ textTransform: "none", fontWeight: 700, borderRadius: "8px" }}
                       >
-                        Hủy
+                        {t("cancel")}
                       </Button>
                       <Button
                         type="submit"
@@ -279,7 +281,7 @@ const Profile = () => {
                           borderRadius: "8px",
                         }}
                       >
-                        Lưu thay đổi
+                        {t("save_changes")}
                       </Button>
                     </Box>
                   </Box>
@@ -288,15 +290,15 @@ const Profile = () => {
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                   <Box>
                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
-                      HỌ TÊN
+                      {t("full_name").toUpperCase()}
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600, color: "#0f172a" }}>
-                      {user?.name || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Chưa cập nhật</span>}
+                      {user?.name || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t("not_updated_yet", "Chưa cập nhật")}</span>}
                     </Typography>
                   </Box>
                   <Box>
                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
-                      SỐ ĐIỆN THOẠI
+                      {t("phone_number").toUpperCase()}
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600, color: "#0f172a" }}>
                       {user?.phone}
@@ -304,10 +306,10 @@ const Profile = () => {
                   </Box>
                   <Box>
                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
-                      EMAIL
+                      {t("email_address").toUpperCase()}
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600, color: "#0f172a" }}>
-                      {user?.email || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Chưa cập nhật</span>}
+                      {user?.email || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t("not_updated_yet", "Chưa cập nhật")}</span>}
                     </Typography>
                   </Box>
                 </Box>
@@ -329,7 +331,7 @@ const Profile = () => {
             >
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 800, color: "#0f172a" }}>
-                  Sổ địa chỉ công trình / nhận hàng
+                  {t("address_book", "Sổ địa chỉ công trình / nhận hàng")}
                 </Typography>
                 <Button
                   variant="outlined"
@@ -345,13 +347,13 @@ const Profile = () => {
                     "&:hover": { borderColor: "#2563eb", backgroundColor: "rgba(37, 99, 235, 0.04)" }
                   }}
                 >
-                  Thêm địa chỉ
+                  {t("add_address", "Thêm địa chỉ")}
                 </Button>
               </Box>
 
               {(!user?.addresses || user.addresses.length === 0) ? (
                 <Typography variant="body1" sx={{ color: "#94a3b8", fontStyle: "italic", textAlign: "center", py: 4 }}>
-                  Chưa có địa chỉ công trình nào được lưu. Địa chỉ nhập khi đặt hàng đầu tiên sẽ được tự động lưu vào đây.
+                  {t("no_addresses_saved", "Chưa có địa chỉ công trình nào được lưu. Địa chỉ nhập khi đặt hàng đầu tiên sẽ được tự động lưu vào đây.")}
                 </Typography>
               ) : (
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -380,11 +382,11 @@ const Profile = () => {
                         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0f172a" }}>
-                              {addr.label || "Công trình"}
+                              {t(addr.label || "Công trình")}
                             </Typography>
                             {addr.isDefault && (
                               <Chip
-                                label="Mặc định"
+                                label={t("default")}
                                 size="small"
                                 color="primary"
                                 sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
@@ -392,7 +394,7 @@ const Profile = () => {
                             )}
                           </Box>
                           <Typography variant="body2" sx={{ color: "#475569", fontWeight: 600 }}>
-                            Người nhận: {addr.receiverName} — {addr.receiverPhone}
+                            {t("receiver", "Người nhận")}: {addr.receiverName} — {addr.receiverPhone}
                           </Typography>
                           <Typography variant="body2" sx={{ color: "#64748b" }}>
                             {addr.addressDetail}
@@ -423,12 +425,12 @@ const Profile = () => {
         {/* Address dialog */}
         <Dialog open={openAddressDialog} onClose={() => setOpenAddressDialog(false)} fullWidth maxWidth="sm">
           <DialogTitle sx={{ fontWeight: 800 }}>
-            {addressId ? "Chỉnh sửa địa chỉ công trình" : "Thêm địa chỉ công trình mới"}
+            {addressId ? t("edit_construction_address", "Chỉnh sửa địa chỉ công trình") : t("add_construction_address", "Thêm địa chỉ công trình mới")}
           </DialogTitle>
           <DialogContent>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1.5 }}>
               <TextField
-                label="Tên gợi nhớ (Ví dụ: Công trình A, Văn phòng, Dự án B)"
+                label={t("address_label_placeholder", "Tên gợi nhớ (Ví dụ: Công trình A, Văn phòng, Dự án B)")}
                 fullWidth
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
@@ -436,7 +438,7 @@ const Profile = () => {
                 sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
               />
               <TextField
-                label="Tên người nhận thiết bị"
+                label={t("receiver_name", "Tên người nhận thiết bị")}
                 fullWidth
                 value={receiverName}
                 onChange={(e) => setReceiverName(e.target.value)}
@@ -444,7 +446,7 @@ const Profile = () => {
                 sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
               />
               <TextField
-                label="Số điện thoại người nhận"
+                label={t("receiver_phone", "Số điện thoại người nhận")}
                 fullWidth
                 value={receiverPhone}
                 onChange={(e) => setReceiverPhone(e.target.value)}
@@ -452,7 +454,7 @@ const Profile = () => {
                 sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
               />
               <TextField
-                label="Địa chỉ chi tiết công trình nhận hàng"
+                label={t("address_detail_label", "Địa chỉ chi tiết công trình nhận hàng")}
                 fullWidth
                 multiline
                 rows={3}
@@ -465,10 +467,10 @@ const Profile = () => {
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2.5 }}>
             <Button onClick={() => setOpenAddressDialog(false)} sx={{ fontWeight: 700 }}>
-              Hủy
+              {t("cancel")}
             </Button>
             <Button variant="contained" onClick={handleSaveAddress} sx={{ fontWeight: 700, borderRadius: "8px" }}>
-              Lưu địa chỉ
+              {t("save_address", "Lưu địa chỉ")}
             </Button>
           </DialogActions>
         </Dialog>

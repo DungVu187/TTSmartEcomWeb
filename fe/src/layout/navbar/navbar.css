@@ -146,6 +146,45 @@
   color: white;
 }
 
+.language-selector {
+  position: relative;
+}
+
+.language-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: white;
+  border: 1px solid rgb(220, 220, 220);
+  border-radius: 5px;
+  padding: 5px;
+  z-index: 10;
+  font-size: 12px;
+}
+
+.language-selector:hover .language-dropdown {
+  display: block;
+  white-space: nowrap;
+  width: auto;
+}
+
+.language-dropdown p {
+  margin: 0;
+  padding: 5px 15px;
+  cursor: pointer;
+  border-radius: 5px;
+  text-align: center;
+  color: black;
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.language-dropdown p:hover {
+  background-color: rgb(50, 50, 50);
+  color: white;
+}
+
 .cart-item-count {
   margin-top: -26px;
   margin-left: -19px;
@@ -159,13 +198,18 @@
 }
 
 @media (max-width: 888px) {
-  .location{
+  .location {
     display: none;
+  }
+  .station,
+  .language-selector {
+    display: none !important;
   }
   .account-text p,
   .cart-text p,
   .phone p,
-  .station p {
+  .station p,
+  .language-text p {
     display: none;
   }
   .tab {
@@ -174,8 +218,11 @@
   .tab:hover {
     border: none;
   }
-  .account-dropdown {
-    transform: translateX(-50%);
+  .account-dropdown,
+  .language-dropdown {
+    left: auto;
+    right: 0;
+    transform: none;
   }
   .hamburger-menu {
     display: block;
@@ -183,7 +230,12 @@
   .navbar-bot {
     display: none;
   }
-  /* Keep cart icon visible on mobile */
+}
+
+@media (max-width: 480px) {
+  .navbar-top-content img {
+    height: 2.2rem;
+  }
 }
 
 .hamburger-menu-dropdown {

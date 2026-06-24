@@ -53,8 +53,8 @@ const Orders = () => {
     phone: "",
     name: "",
     id: location.state?.orderId || "",
-    startDate: "",
-    endDate: "",
+    startDate: moment().subtract(30, "days").format("YYYY-MM-DD"),
+    endDate: moment().format("YYYY-MM-DD"),
   });
   const { setOrderChanged } = useOrderContext();
 

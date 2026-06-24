@@ -7,10 +7,12 @@ import "swiper/css/pagination";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Pagination, Autoplay, FreeMode } from "swiper/modules";
 import { Box, Typography, Container } from "@mui/material";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 function Dashboard() {
+  const { t } = useLanguage();
   const [manageData, setManageData] = useState(null);
   const [products, setProducts] = useState([]);
   const [overViewImg, setOverViewImg] = useState([]);
@@ -109,7 +111,7 @@ function Dashboard() {
     fetchManageData();
   }, [location.pathname]);
 
-  if (error) return <p>Lỗi: {error}</p>;
+  if (error) return <p>{t("error_prefix")}{error}</p>;
 
   const SectionDisplayComponent = ({ sectionData, sectionName }) => {
     // Không hiển thị nếu display: false hoặc số lượng sản phẩm < 5
@@ -123,7 +125,7 @@ function Dashboard() {
       <div className="dashboard-best-selling-display">
         <div className="dashboard-best-selling-header">
           <span className="line" />
-          <p>{sectionData.name || sectionName}</p>
+          <p>{t(sectionData.name || sectionName)}</p>
           <span className="line" />
         </div>
         <div className="dashboard-best-selling-container">
@@ -188,7 +190,7 @@ function Dashboard() {
                   >
                     {product.variant?.length > 0
                       ? Number(product.variant[0].price).toLocaleString("vi-VN") + " vnđ"
-                      : "Giá không có sẵn"}
+                      : t("price_unavailable")}
                   </small>
                 </div>
               </SwiperSlide>
@@ -204,7 +206,7 @@ function Dashboard() {
       <div style={{ maxWidth: "1920px", margin: "0 auto" }}>
         {/* Banner với Swiper */}
         {loadingOverViewImg ? (
-          <p>Đang tải banner...</p>
+          <p>{t("loading_banner")}</p>
         ) : (
           <Swiper
             modules={[Pagination, Autoplay]}
@@ -247,7 +249,7 @@ function Dashboard() {
 
         <div className="dashboard-main-container">
           {loadingManageData ? (
-            <p>Đang tải sections...</p>
+            <p>{t("loading_sections")}</p>
           ) : manageData ? (
             <>
               <SectionDisplayComponent sectionData={manageData.section1} sectionName="Section 1" />
@@ -267,7 +269,7 @@ function Dashboard() {
 
           {/* Đối tác */}
           {loadingPartners ? (
-            <p>Đang tải đối tác...</p>
+            <p>{t("loading_partners")}</p>
           ) : partners.length > 0 ? (
             <Container
               maxWidth="lg"
@@ -285,7 +287,7 @@ function Dashboard() {
                 gutterBottom
                 sx={{ fontWeight: "bold", color: "#06295a" }}
               >
-                Đối tác
+                {t("partners")}
               </Typography>
               <Box sx={{ mt: 2 }}>
                 <Swiper

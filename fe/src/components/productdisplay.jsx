@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from "react";
+import { useLanguage } from "../context/languagecontext.jsx";
 import { useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { ShopContext } from "../context/shopcontext";
@@ -22,6 +23,7 @@ import BeenhereIcon from "@mui/icons-material/Beenhere";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 
 const ProductDisplay = () => {
+  const { t } = useLanguage();
   const { productId } = useParams();
   const { addToCart } = useContext(ShopContext);
   const [product, setProduct] = useState(null);
@@ -179,18 +181,18 @@ const ProductDisplay = () => {
   }, [fetchReviews]);
 
   if (loading) {
-    return <p>Loading product details...</p>;
+    return <p>{t("loading_product_details")}</p>;
   }
 
   if (!product) {
-    return <p>Product not found.</p>;
+    return <p>{t("product_not_found")}</p>;
   }
 
   const activeValues = getActiveValues();
 
   const handleAddToCart = () => {
     if (!isLoggedIn) {
-      toast.error("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!");
+      toast.error(t("login_to_add_cart"));
       setTimeout(() => {
         window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
       }, 1000);
@@ -206,7 +208,7 @@ const ProductDisplay = () => {
     setIsSubmitting(true);
     try {
       if (!isLoggedIn) {
-        toast.error("Vui lòng đăng nhập để đánh giá sản phẩm!");
+        toast.error(t("login_to_review"));
         setTimeout(() => {
           window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
         }, 1000);
@@ -230,7 +232,7 @@ const ProductDisplay = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          toast.error(t("session_expired"));
           setTimeout(() => {
             window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
           }, 1000);
@@ -245,17 +247,17 @@ const ProductDisplay = () => {
         setReviews((prevReviews) =>
           prevReviews.map((r) => (r._id === userReview._id ? review : r))
         );
-        toast.success("Đã cập nhật đánh giá");
+        toast.success(t("review_updated"));
       } else {
         setReviews((prevReviews) => [...prevReviews, review]);
-        toast.success("Đánh giá sản phẩm thành công");
+        toast.success(t("review_submitted"));
       }
 
       setUserReview(review);
       fetchProduct();
     } catch (error) {
       console.error("Error submitting review:", error);
-      toast.error("Không thể gửi đánh giá");
+      toast.error(t("failed_to_submit_review"));
     } finally {
       setIsSubmitting(false);
     }
@@ -278,7 +280,7 @@ const ProductDisplay = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          toast.error(t("session_expired"));
           setTimeout(() => {
             window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
           }, 1000);
@@ -291,10 +293,10 @@ const ProductDisplay = () => {
       );
       setUserReview(null);
       setNewReview({ comment: "", rating: 0 });
-      toast.success("Đánh giá đã được xóa!");
+      toast.success(t("review_deleted"));
     } catch (error) {
       console.error("Error deleting review:", error);
-      toast.error("Không thể xóa đánh giá");
+      toast.error(t("failed_to_delete_review"));
     } finally {
       setIsSubmitting(false);
     }
@@ -326,7 +328,7 @@ const ProductDisplay = () => {
             <div>
               <img
                 src={selectedVariant?.imgUrl}
-                alt="Ảnh sản phẩm"
+                alt={t("image")}
                 style={{
                   width: "450px",
                   aspectRatio: 3 / 2,
@@ -388,7 +390,7 @@ const ProductDisplay = () => {
                 {(selectedVariant?.quantityForSale || 0) <= 0 ? (
                   <>
                     <p style={{ color: "#d32f2f", fontWeight: "bold", margin: "5px 0 0 0" }}>
-                      Trạng thái: Hết hàng
+                      {t("out_of_stock")}
                     </p>
                     {/* Nút liên hệ cuộc gọi (Chỉ hiển thị khi hết hàng) */}
                     <Button
@@ -409,7 +411,7 @@ const ProductDisplay = () => {
                   </>
                 ) : (
                   <p style={{ margin: "5px 0 0 0", color: "#333", fontSize: "0.95rem", fontWeight: "bold" }}>
-                    Số lượng đang còn: {selectedVariant.quantityForSale}
+                    {t("quantity_left")}{selectedVariant.quantityForSale}
                   </p>
                 )}
                 <p style={{ margin: "5px 0" }}>{product.type}</p>
@@ -427,7 +429,7 @@ const ProductDisplay = () => {
                 }}
               >
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  Số lượng:
+                  {t("quantity")}:
                 </Typography>
                 <Box
                   sx={{
@@ -480,14 +482,14 @@ const ProductDisplay = () => {
                   margin: "0 auto 10px",
                 }}
               >
-                Thêm vào giỏ hàng
+                {t("add_to_cart")}
               </Button>
             </div>
           </div>
           {product?.description && (
             <Box className="box">
               <Typography variant="h6" gutterBottom>
-                Mô tả sản phẩm
+                {t("product_description")}
               </Typography>
               <Typography>{product.description}</Typography>
             </Box>
@@ -504,8 +506,8 @@ const ProductDisplay = () => {
                     borderTopRightRadius: "5px",
                   }}
                 >
-                  {hasSpecifications && <Tab label="Thông số kỹ thuật" />}
-                  {hasInfoDoc && <Tab label="Tài liệu tham khảo" />}
+                  {hasSpecifications && <Tab label={t("specifications")} />}
+                  {hasInfoDoc && <Tab label={t("reference_documents")} />}
                 </Tabs>
                 {selectedTab === 0 && hasSpecifications && (
                   <Box className="box">
@@ -561,7 +563,7 @@ const ProductDisplay = () => {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Tài liệu khác
+                          {t("other_documents")}
                         </a>
                       </Typography>
                     )}
@@ -573,7 +575,7 @@ const ProductDisplay = () => {
           {product?.features && (
             <Box className="box">
               <Typography variant="h6" gutterBottom>
-                Tính năng
+                {t("features")}
               </Typography>
               <Typography>{product.features}</Typography>
             </Box>
@@ -581,7 +583,7 @@ const ProductDisplay = () => {
           {product?.operatingMethod && (
             <Box className="box">
               <Typography variant="h6" gutterBottom>
-                Cách hoạt động
+                {t("operating_method")}
               </Typography>
               <Typography>{product.operatingMethod}</Typography>
             </Box>
@@ -589,14 +591,14 @@ const ProductDisplay = () => {
           {product?.advantages && (
             <Box className="box">
               <Typography variant="h6" gutterBottom>
-                Ưu điểm
+                {t("advantages")}
               </Typography>
               <Typography>{product.advantages}</Typography>
             </Box>
           )}
           <Box className="box" sx={{ margin: "1rem 0" }}>
             <Typography variant="h6" gutterBottom>
-              Đánh giá
+              {t("rating")}
             </Typography>
             {reviews.filter((review) => review.email !== userEmail).length > 0 ? (
               reviews
@@ -619,7 +621,7 @@ const ProductDisplay = () => {
                   </Paper>
                 ))
             ) : (
-              <Typography>Chưa có đánh giá nào</Typography>
+              <Typography>{t("no_reviews_yet")}</Typography>
             )}
             <Box
               component="form"
@@ -635,7 +637,7 @@ const ProductDisplay = () => {
               }}
             >
               <Box>
-                <Typography gutterBottom>Rating:</Typography>
+                <Typography gutterBottom>{t("rating")}:</Typography>
                 <Rating
                   name="rating"
                   value={newReview.rating}
@@ -647,7 +649,7 @@ const ProductDisplay = () => {
                 />
               </Box>
               <TextField
-                label="Bình luận"
+                label={t("comment")}
                 multiline
                 rows={4}
                 value={newReview.comment}
@@ -663,10 +665,10 @@ const ProductDisplay = () => {
                 disabled={isSubmitting}
               >
                 {isSubmitting
-                  ? "Đang xử lý..."
+                  ? t("processing")
                   : userReview
-                    ? "Cập nhật đánh giá"
-                    : "Gửi đánh giá"}
+                    ? t("update_review")
+                    : t("submit_review")}
               </Button>
               {userReview && (
                 <Button
@@ -675,7 +677,7 @@ const ProductDisplay = () => {
                   onClick={handleDeleteReview}
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Đang xử lý..." : "Xóa đánh giá"}
+                  {isSubmitting ? t("processing") : t("delete_review")}
                 </Button>
               )}
             </Box>
@@ -685,7 +687,7 @@ const ProductDisplay = () => {
           <div className="sidebox-container">
             <div className="sidebox">
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Chăm sóc khách hàng
+                {t("customer_support")}
               </Typography>
               <Typography
                 variant="body2"
@@ -697,7 +699,7 @@ const ProductDisplay = () => {
                   href="tel:+8413158383"
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
-                  Đường dây nóng
+                  {t("hotline")}
                 </a>
               </Typography>
               <Typography
@@ -706,7 +708,7 @@ const ProductDisplay = () => {
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
                 <img src="/icons8-zalo.svg" alt="Zalo" width={15} height={15} />
-                Liên hệ qua Zalo
+                {t("contact_zalo")}
               </Typography>
               <Typography
                 variant="body2"
@@ -714,7 +716,7 @@ const ProductDisplay = () => {
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
                 <MailOutlineIcon sx={{ width: 15, height: 15 }} />
-                Gửi Email
+                {t("send_email")}
               </Typography>
               <Typography
                 variant="body2"
@@ -722,12 +724,12 @@ const ProductDisplay = () => {
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
                 <HelpOutlineIcon sx={{ width: 15, height: 15 }} />
-                Vấn đề thường gặp
+                {t("faqs")}
               </Typography>
             </div>
             <div className="sidebox">
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Đổi trả & Bảo hành
+                {t("return_warranty")}
               </Typography>
               <Typography
                 variant="body2"
@@ -735,7 +737,7 @@ const ProductDisplay = () => {
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
                 <VerifiedIcon sx={{ width: 15, height: 15 }} />
-                100% Chính hãng
+                {t("genuine_100")}
               </Typography>
               <Typography
                 variant="body2"
@@ -743,14 +745,13 @@ const ProductDisplay = () => {
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
                 <BeenhereIcon sx={{ width: 15, height: 15 }} />
-                Tem bảo hành chính hãng
+                {t("genuine_warranty_label")}
               </Typography>
               <Typography
                 variant="body2"
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
-                <UndoOutlinedIcon sx={{ width: 15, height: 15 }} />3 ngày đổi
-                trả
+                <UndoOutlinedIcon sx={{ width: 15, height: 15 }} />{t("return_3_days")}
               </Typography>
             </div>
           </div>

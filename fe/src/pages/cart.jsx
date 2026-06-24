@@ -22,8 +22,10 @@ import {
 import { Delete, Add, Remove } from "@mui/icons-material";
 import "./styles/cart.css";
 import { toast } from "react-hot-toast";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 function Cart() {
+  const { t } = useLanguage();
   const {
     cartItems,
     fetchCart,
@@ -90,7 +92,7 @@ function Cart() {
 
     try {
       if (!isLoggedIn) {
-        toast.error("Bạn cần phải đăng nhập để đặt hàng");
+        toast.error(t("login_to_order"));
         setTimeout(() => {
           window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
         }, 1000);
@@ -99,7 +101,7 @@ function Cart() {
 
       const selectedItems = cartItems.filter((item) => item.status);
       if (selectedItems.length === 0) {
-        toast.error("Bạn chưa chọn sản phẩm nào để đặt hàng!");
+        toast.error(t("no_items_selected"));
         return;
       }
 
@@ -115,7 +117,9 @@ function Cart() {
         const variant = productData.variant[item.variantIndex];
         if (variant.quantityForSale < item.quantity) {
           toast.error(
-            `Không đủ hàng cho sản phẩm ${productData.name}, chỉ còn ${variant.quantityForSale} sản phẩm.`
+            t("insufficient_stock")
+              .replace("{name}", productData.name)
+              .replace("{qty}", variant.quantityForSale)
           );
           return;
         }
@@ -154,22 +158,22 @@ function Cart() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          toast.error(t("session_expired"));
           setTimeout(() => {
             window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
           }, 1000);
           return;
         }
-        throw new Error(data.message || "Đặt hàng thất bại!");
+        throw new Error(data.message || t("cancel_order_failed"));
       }
 
-      toast.success("Đặt hàng thành công");
+      toast.success(t("order_success"));
       sessionStorage.removeItem("activeStationCode"); // Xóa trạm hoạt động sau khi đặt thành công
       await fetchProducts(); // Cập nhật lại danh sách sản phẩm
       await fetchCart(); // Đồng bộ giỏ hàng mới từ database (các sản phẩm đã đặt đã được server xóa)
     } catch (error) {
       console.error("Lỗi khi đặt hàng:", error);
-      toast.error(error.message || "Có lỗi xảy ra. Vui lòng thử lại sau!");
+      toast.error(error.message || t("error_occurred"));
     } finally {
       setIsCreatingOrder(false);
     }
@@ -193,7 +197,7 @@ function Cart() {
       setProducts(fetchedProducts.filter((product) => product !== null));
     } catch (error) {
       console.error("Error fetching products:", error);
-      toast.error("Không thể tải thông tin sản phẩm");
+      toast.error(t("failed_to_load_product"));
     } finally {
       setLoading(false);
     }
@@ -219,16 +223,16 @@ function Cart() {
   return (
     <div style={{ width: '100%', backgroundColor: 'rgb(235, 246, 254)', padding: '3rem 16px', minHeight: '100vh', boxSizing: 'border-box' }}>
       <Container sx={{ backgroundColor: 'white', margin: 'auto', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)', py: '2rem' }}>
-        <h1>Giỏ hàng</h1>
+        <h1>{t("cart")}</h1>
         {cartItems.length === 0 ? (
           <Typography variant="body1">
-            Giỏ hàng của bạn hiện tại trống.
+            {t("cart_empty")}
           </Typography>
         ) : (
           <List>
             <ListItem
               sx={{
-                display: "flex",
+                display: { xs: "none", md: "flex" },
                 alignItems: "center",
                 fontWeight: "bold",
                 bgcolor: "grey.100",
@@ -241,7 +245,7 @@ function Cart() {
                 sx={{
                   flexGrow: 1,
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gridTemplateColumns: "1.2fr 1fr 1fr",
                   gap: 2,
                   marginLeft: "2rem",
                 }}
@@ -250,26 +254,26 @@ function Cart() {
                   variant="body2"
                   sx={{ fontWeight: "bold", gridColumn: "1 / 2" }}
                 >
-                  Sản phẩm
+                  {t("product_name")}
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{ fontWeight: "bold", gridColumn: "2 / 3" }}
                 >
-                  Giá
+                  {t("price")}
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{ fontWeight: "bold", gridColumn: "3 / 4" }}
                 >
-                  Thuộc tính
+                  {t("attributes")}
                 </Typography>
               </Box>
               <Typography
                 variant="body2"
-                sx={{ fontWeight: "bold", width: 120, margin: "0 -1rem 0 2rem" }}
+                sx={{ fontWeight: "bold", width: 140, margin: "0 -1rem 0 2rem", textAlign: "center" }}
               >
-                Số lượng
+                {t("quantity")}
               </Typography>
               <Box sx={{ width: 40 }} />
             </ListItem>
@@ -279,7 +283,7 @@ function Cart() {
               if (!product) {
                 return (
                   <ListItem key={`${item.productId}-${item.variantIndex}`}>
-                    <ListItemText primary="Không tìm thấy thông tin sản phẩm." />
+                    <ListItemText primary={t("no_product_info")} />
                   </ListItem>
                 );
               }
@@ -291,151 +295,194 @@ function Cart() {
                   key={`${product._id}-${item.variantIndex}`}
                   sx={{
                     display: "flex",
-                    alignItems: "center",
+                    flexDirection: { xs: "column", md: "row" },
+                    alignItems: { xs: "stretch", md: "center" },
                     opacity: item.status ? 1 : 0.5,
                     transition: "opacity 0.3s ease",
+                    borderBottom: "1px solid #eee",
+                    py: 2,
+                    px: { xs: 1, sm: 2 },
                   }}
                 >
-                  <Checkbox
-                    checked={item.status}
-                    onChange={() => {
-                      updateCartItemStatus(
-                        item.productId,
-                        item.variantIndex,
-                        !item.status
-                      );
-                    }}
-                  />
-                  <ListItemAvatar>
-                    <Avatar
-                      src={variant?.imgUrl || "placeholder.jpg"}
-                      alt={product.name}
-                      sx={{ width: 56, height: 56 }}
+                  {/* Top content row (Checkbox + Image + Name/Price/Attrs) */}
+                  <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}>
+                    <Checkbox
+                      checked={item.status}
+                      onChange={() => {
+                        updateCartItemStatus(
+                          item.productId,
+                          item.variantIndex,
+                          !item.status
+                        );
+                      }}
+                      sx={{ p: { xs: 0.5, sm: 1 } }}
                     />
-                  </ListItemAvatar>
+                    <ListItemAvatar sx={{ minWidth: { xs: 48, sm: 56 }, ml: 1 }}>
+                      <Avatar
+                        src={variant?.imgUrl || "placeholder.jpg"}
+                        alt={product.name}
+                        sx={{ width: { xs: 48, sm: 56 }, height: { xs: 48, sm: 56 } }}
+                      />
+                    </ListItemAvatar>
+
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: { xs: "column", md: "row" },
+                        flexGrow: 1,
+                        gap: { xs: 0.5, md: 2 },
+                        marginLeft: { xs: "1rem", md: "2rem" },
+                        minWidth: 0,
+                      }}
+                    >
+                      <Typography
+                        variant="body1"
+                        sx={{ 
+                          fontWeight: "bold", 
+                          width: { xs: "100%", md: "40%" },
+                          wordBreak: "break-word"
+                        }}
+                      >
+                        {product.name}
+                      </Typography>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          width: { xs: "100%", md: "30%" },
+                          color: "rgb(255, 123, 0)",
+                          fontWeight: "600"
+                        }}
+                      >
+                        {Number(variant?.price).toLocaleString("vi-VN")} vnđ
+                      </Typography>
+                      <Typography 
+                        variant="body2" 
+                        color="text.secondary"
+                        sx={{ 
+                          width: { xs: "100%", md: "30%" },
+                          fontSize: "13px"
+                        }}
+                      >
+                        {[
+                          variant?.color,
+                          variant?.shape,
+                          variant?.frame,
+                          variant?.buttonCount,
+                        ]
+                          .filter(Boolean)
+                          .join(" + ")}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Quantity and Delete row */}
                   <Box
                     sx={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 2,
+                      display: "flex",
                       alignItems: "center",
-                      flexGrow: 1,
-                      margin: "0 0 0 2rem",
+                      justifyContent: { xs: "space-between", md: "flex-end" },
+                      mt: { xs: 2, md: 0 },
+                      pl: { xs: "110px", md: 0 }, // align with text detail start on mobile
+                      width: { xs: "auto", md: "auto" }
                     }}
                   >
-                    <Typography
-                      variant="body1"
-                      sx={{ fontWeight: "bold", gridColumn: "1 / 2" }}
-                    >
-                      {product.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ gridColumn: "2 / 3" }}>
-                      {Number(variant?.price).toLocaleString("vi-VN")} vnđ
-                    </Typography>
-                    <Typography sx={{ gridColumn: "3 / 4", display: "grid" }}>
-                      {[
-                        variant?.color,
-                        variant?.shape,
-                        variant?.frame,
-                        variant?.buttonCount,
-                      ]
-                        .filter(Boolean)
-                        .join(" + ")}
-                    </Typography>
-                  </Box>
-                  <div style={{ display: "flex", alignItems: "center" }}>
-                    <IconButton
-                      onClick={() => {
-                        const newQuantity = item.quantity - 1;
-                        if (newQuantity >= 1) {
-                          updateCartItem(
-                            item.productId,
-                            item.variantIndex,
-                            newQuantity
+                    <Box sx={{ display: "flex", alignItems: "center", mr: { xs: 0, md: 2 } }}>
+                      <IconButton
+                        onClick={() => {
+                          const newQuantity = item.quantity - 1;
+                          if (newQuantity >= 1) {
+                            updateCartItem(
+                              item.productId,
+                              item.variantIndex,
+                              newQuantity
+                            );
+                          }
+                        }}
+                        disabled={item.quantity <= 1}
+                        size="small"
+                      >
+                        <Remove />
+                      </IconButton>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newValue = parseInt(e.target.value, 10);
+                          if (!isNaN(newValue) && newValue >= 1) {
+                            updateCartItem(
+                              item.productId,
+                              item.variantIndex,
+                              newValue
+                            );
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const parsedValue = parseInt(e.target.value, 10);
+                          const product = products.find(
+                            (p) => p._id === item.productId
                           );
-                        }
-                      }}
-                      disabled={item.quantity <= 1}
-                    >
-                      <Remove />
-                    </IconButton>
-                    <TextField
-                      size="small"
-                      type="number" value={item.quantity}
-                      onChange={(e) => {
-                        const newValue = parseInt(e.target.value, 10);
-                        if (!isNaN(newValue) && newValue >= 1) {
-                          updateCartItem(
-                            item.productId,
-                            item.variantIndex,
-                            newValue
-                          );
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const parsedValue = parseInt(e.target.value, 10);
-                        const product = products.find(
-                          (p) => p._id === item.productId
-                        );
-                        const variant = product?.variant[item.variantIndex];
+                          const variant = product?.variant[item.variantIndex];
 
-                        if (!parsedValue || parsedValue < 1) {
-                          updateCartItem(item.productId, item.variantIndex, 1);
-                          toast.error("Số lượng tối thiểu là 1!");
-                        } else if (parsedValue > variant?.quantityForSale) {
-                          updateCartItem(
-                            item.productId,
-                            item.variantIndex,
-                            variant.quantityForSale
+                          if (!parsedValue || parsedValue < 1) {
+                            updateCartItem(item.productId, item.variantIndex, 1);
+                            toast.error(t("min_qty_warning"));
+                          } else if (parsedValue > variant?.quantityForSale) {
+                            updateCartItem(
+                              item.productId,
+                              item.variantIndex,
+                              variant.quantityForSale
+                            );
+                            toast.error(
+                              t("max_qty_warning") + variant?.quantityForSale
+                            );
+                          }
+                        }}
+                        inputProps={{
+                          min: 1,
+                          style: { textAlign: "center", width: 30, padding: "4px" },
+                        }}
+                        sx={{
+                          mx: 0.5,
+                          "& input[type=number]::-webkit-inner-spin-button": {
+                            display: "none",
+                          },
+                          "& input[type=number]::-webkit-outer-spin-button": {
+                            display: "none",
+                          },
+                          "& input[type=number]": { MozAppearance: "textfield" },
+                        }}
+                      />
+                      <IconButton
+                        onClick={() => {
+                          const product = products.find(
+                            (p) => p._id === item.productId
                           );
-                          toast.error(
-                            `Số lượng tối đa là ${variant?.quantityForSale}`
-                          );
-                        }
-                      }}
-                      inputProps={{
-                        min: 1,
-                        style: { textAlign: "center", width: 20 },
-                      }}
-                      sx={{
-                        mx: 1,
-                        "& input[type=number]::-webkit-inner-spin-button": {
-                          display: "none",
-                        },
-                        "& input[type=number]::-webkit-outer-spin-button": {
-                          display: "none",
-                        },
-                        "& input[type=number]": { MozAppearance: "textfield" },
-                      }}
-                    />
+                          const variant = product?.variant[item.variantIndex];
+                          if (variant && item.quantity < variant.quantityForSale) {
+                            updateCartItem(
+                              item.productId,
+                              item.variantIndex,
+                              item.quantity + 1
+                            );
+                          } else {
+                            toast.error(t("insufficient_stock_general"));
+                          }
+                        }}
+                        size="small"
+                      >
+                        <Add />
+                      </IconButton>
+                    </Box>
                     <IconButton
-                      onClick={() => {
-                        const product = products.find(
-                          (p) => p._id === item.productId
-                        );
-                        const variant = product?.variant[item.variantIndex];
-                        if (variant && item.quantity < variant.quantityForSale) {
-                          updateCartItem(
-                            item.productId,
-                            item.variantIndex,
-                            item.quantity + 1
-                          );
-                        } else {
-                          toast.error(`Không còn đủ số lượng hàng để đặt thêm`);
-                        }
-                      }}
+                      edge="end"
+                      aria-label="delete"
+                      onClick={() => removeFromCart(item.productId, item.variantIndex)}
+                      sx={{ color: "error.main", ml: 2 }}
                     >
-                      <Add />
+                      <Delete />
                     </IconButton>
-                  </div>
-                  <IconButton
-                    color="error"
-                    onClick={() =>
-                      removeFromCart(item.productId, item.variantIndex)
-                    }
-                  >
-                    <Delete />
-                  </IconButton>
+                  </Box>
                 </ListItem>
               );
             })}
@@ -449,7 +496,7 @@ function Cart() {
             color: "#555",
           }}
         >
-          <h2>Tổng:</h2>
+          <h2>{t("total")}</h2>
           <p style={{ fontWeight: "600", marginLeft: "10px" }}>
             {totalPrice.toLocaleString("vi-VN")} VND
           </p>
@@ -463,7 +510,7 @@ function Cart() {
             onClick={handleClearItems}
             disabled={cartItems.length === 0}
           >
-            Xóa giỏ hàng
+            {t("clear_cart")}
           </Button>
           <Button
             variant="contained"
@@ -472,27 +519,27 @@ function Cart() {
             onClick={createOrder}
             disabled={isCreatingOrder || cartItems.length === 0}
           >
-            {isCreatingOrder ? "Đang xử lý..." : "Đặt hàng"}
+            {isCreatingOrder ? t("processing") : t("place_order")}
           </Button>
         </div>
 
         <Dialog open={openClearDialog} onClose={cancelClearItems}>
-          <DialogTitle>Xác nhận xóa giỏ hàng</DialogTitle>
+          <DialogTitle>{t("confirm_clear_cart")}</DialogTitle>
           <DialogContent>
             <Typography>
-              Bạn có chắc chắn muốn xóa toàn bộ giỏ hàng không?
+              {t("confirm_clear_cart_msg")}
             </Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={cancelClearItems} color="primary">
-              Hủy
+              {t("cancel")}
             </Button>
             <Button
               onClick={confirmClearItems}
               color="error"
               variant="contained"
             >
-              Xóa
+              {t("clear")}
             </Button>
           </DialogActions>
         </Dialog>

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Table,
   TableBody,
@@ -46,6 +46,11 @@ const SoldProducts = () => {
     productName: "",
   });
 
+  const filtersRef = useRef(filters);
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
   // Hàm gọi API chung
   const apiFetch = async (url, options = {}) => {
     try {
@@ -81,17 +86,18 @@ const SoldProducts = () => {
     async (currentPage = 1) => {
       setLoading(true);
       try {
+        const activeFilters = filtersRef.current;
         const queryParams = {
           page: currentPage,
           limit: rowsPerPage,
-          search: filters.productName,
+          search: activeFilters.productName,
           status: "Completed", // Chỉ lấy các đơn hàng đã giao thành công (Completed)
           state: "Processing", // Chỉ lấy các đơn hàng đang hoạt động (không bị hủy)
         };
 
-        if (filters.payment !== "Tất cả") queryParams.payment = filters.payment;
-        if (filters.startDate) queryParams.startDate = filters.startDate;
-        if (filters.endDate) queryParams.endDate = filters.endDate;
+        if (activeFilters.payment !== "Tất cả") queryParams.payment = activeFilters.payment;
+        if (activeFilters.startDate) queryParams.startDate = activeFilters.startDate;
+        if (activeFilters.endDate) queryParams.endDate = activeFilters.endDate;
 
         const query = new URLSearchParams(queryParams).toString();
         const data = await apiFetch(`${apiUrl}/orders?${query}`);
@@ -108,6 +114,7 @@ const SoldProducts = () => {
               productMap.get(key).quantity += item.quantity;
               productMap.get(key).orders.push({
                 orderId: order._id,
+                orderCode: order.orderCode,
                 phone: order.userPhone,
                 quantity: item.quantity,
                 createdAt: order.createdAt,
@@ -120,6 +127,7 @@ const SoldProducts = () => {
                 orders: [
                   {
                     orderId: order._id,
+                    orderCode: order.orderCode,
                     phone: order.userPhone,
                     quantity: item.quantity,
                     createdAt: order.createdAt,
@@ -169,7 +177,7 @@ const SoldProducts = () => {
         setLoading(false);
       }
     },
-    [filters, rowsPerPage, navigate]
+    [rowsPerPage, navigate]
   );
 
   // Debounce tìm kiếm productName
@@ -379,7 +387,7 @@ const SoldProducts = () => {
               <TableBody>
                 {selectedProductOrders.map((order, index) => (
                   <TableRow key={index}>
-                    <TableCell align="center">{order.orderId}</TableCell>
+                    <TableCell align="center">{order.orderCode || order.orderId}</TableCell>
                     <TableCell align="center">{order.phone}</TableCell>
                     <TableCell align="center">{order.quantity}</TableCell>
                     <TableCell align="center">{order.createdAt}</TableCell>

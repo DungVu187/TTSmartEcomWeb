@@ -24,7 +24,9 @@ import {
   TableHead,
   TableRow,
   Paper,
+  TextField,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -56,7 +58,12 @@ const Account = () => {
   const [permissions, setPermissions] = useState([]);
   const [error, setError] = useState(null);
 
-  const availableRoles = ["admin", "staff", "customer"];
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+
+  const availableRoles = ["admin", "staff"];
   const availableFunctions = ["order_management", "product_management", "iporder_management", "eporder_management"];
   const availablePermissions = {
     order_management: ["read_order", "update_order", "delete_order"],
@@ -78,7 +85,8 @@ const Account = () => {
           throw new Error(errorData.message || `Lỗi ${response.status}: Lấy danh sách người dùng thất bại`);
         }
         const data = await response.json();
-        setUsers(data);
+        const adminStaffUsers = data.filter((u) => u.role === "admin" || u.role === "staff");
+        setUsers(adminStaffUsers);
       } catch (error) {
         console.error("Lỗi khi lấy danh sách người dùng:", error);
         setError(error.message);
@@ -89,15 +97,35 @@ const Account = () => {
 
   const handleEdit = (user) => {
     setSelectedUser(user);
+    setName(user.name || "");
+    setEmail(user.email || "");
+    setPhone(user.phone || "");
+    setPassword("");
     setRole(user.role);
     setFunctions(user.functions || []);
     setPermissions(user.permissions || []);
     setOpen(true);
   };
 
+  const handleOpenAdd = () => {
+    setSelectedUser(null);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setPassword("");
+    setRole("staff");
+    setFunctions([]);
+    setPermissions([]);
+    setOpen(true);
+  };
+
   const handleClose = () => {
     setOpen(false);
     setSelectedUser(null);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setPassword("");
     setRole("");
     setFunctions([]);
     setPermissions([]);
@@ -105,23 +133,48 @@ const Account = () => {
 
   const handleSave = async () => {
     try {
-      const url = `${apiUrl}/users/${selectedUser._id}/permissions`;
-      const body = role === "staff" ? { role, functions, permissions } : { role };
+      if (!phone) {
+        throw new Error("Số điện thoại không được để trống");
+      }
+      if (!selectedUser && !password) {
+        throw new Error("Mật khẩu không được để trống");
+      }
+
+      const url = selectedUser
+        ? `${apiUrl}/users/${selectedUser._id}/permissions`
+        : `${apiUrl}/users/admin-create`;
+      const method = selectedUser ? "PUT" : "POST";
+      const body = {
+        name,
+        email,
+        phone,
+        role,
+        functions: role === "staff" ? functions : [],
+        permissions: role === "staff" ? permissions : [],
+      };
+      if (password) {
+        body.password = password;
+      }
+
       const response = await fetch(url, {
-        method: "PUT",
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Lỗi ${response.status}: Cập nhật quyền thất bại`);
+        throw new Error(errorData.message || `Lỗi ${response.status}: Thao tác thất bại`);
       }
-      const updatedUser = await response.json();
-      setUsers(users.map((user) => (user._id === selectedUser._id ? updatedUser.user : user)));
+      const data = await response.json();
+      if (selectedUser) {
+        setUsers(users.map((user) => (user._id === selectedUser._id ? data.user : user)));
+      } else {
+        setUsers([...users, data.user]);
+      }
       handleClose();
     } catch (error) {
-      console.error("Lỗi khi cập nhật quyền:", error);
+      console.error("Lỗi khi lưu người dùng:", error);
       setError(error.message);
     }
   };
@@ -171,9 +224,19 @@ const Account = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Quản lý quyền người dùng
-      </Typography>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Typography variant="h4" gutterBottom sx={{ mb: 0 }}>
+          Quản lý quyền người dùng
+        </Typography>
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<AddIcon />}
+          onClick={handleOpenAdd}
+        >
+          Thêm tài khoản
+        </Button>
+      </Box>
 
       <Box sx={{ height: 600, width: "100%" }}>
         <DataGrid
@@ -188,64 +251,106 @@ const Account = () => {
         />
       </Box>
 
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Chỉnh sửa quyền người dùng</DialogTitle>
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {selectedUser ? "Chỉnh sửa tài khoản" : "Thêm tài khoản mới"}
+        </DialogTitle>
         <DialogContent>
-          <FormControl component="fieldset" sx={{ mt: 2 }}>
-            <Typography variant="subtitle1">Vai trò</Typography>
-            <RadioGroup
-              value={role}
-              onChange={(e) => {
-                setRole(e.target.value);
-                if (e.target.value !== "staff") {
-                  setFunctions([]);
-                  setPermissions([]);
-                }
-              }}
-            >
-              {availableRoles.map((r) => (
-                <FormControlLabel
-                  key={r}
-                  value={r}
-                  control={<Radio />}
-                  label={r.charAt(0).toUpperCase() + r.slice(1)}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
+            <TextField
+              label="Họ và tên"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+              variant="outlined"
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              fullWidth
+              variant="outlined"
+            />
+            <TextField
+              label="Số điện thoại"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              fullWidth
+              variant="outlined"
+              required
+            />
+            <TextField
+              label={selectedUser ? "Mật khẩu mới (để trống nếu không đổi)" : "Mật khẩu"}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              fullWidth
+              variant="outlined"
+              required={!selectedUser}
+            />
+
+            <FormControl component="fieldset">
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                Vai trò
+              </Typography>
+              <RadioGroup
+                row
+                value={role}
+                onChange={(e) => {
+                  setRole(e.target.value);
+                  if (e.target.value !== "staff") {
+                    setFunctions([]);
+                    setPermissions([]);
+                  }
+                }}
+              >
+                {availableRoles.map((r) => (
+                  <FormControlLabel
+                    key={r}
+                    value={r}
+                    control={<Radio />}
+                    label={r.charAt(0).toUpperCase() + r.slice(1)}
+                  />
+                ))}
+              </RadioGroup>
+            </FormControl>
+          </Box>
 
           {role === "staff" && (
             <>
-              <Typography variant="subtitle1" sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ mt: 3, fontWeight: 'bold' }}>
                 Chức năng
               </Typography>
-              {availableFunctions.map((func) => (
-                <FormControlLabel
-                  key={func}
-                  control={
-                    <Checkbox
-                      checked={functions.includes(func)}
-                      onChange={(e) => {
-                        const newFunctions = e.target.checked
-                          ? [...functions, func]
-                          : functions.filter((f) => f !== func);
-                        setFunctions(newFunctions);
-                        if (!e.target.checked) {
-                          const relatedPermissions = availablePermissions[func] || [];
-                          setPermissions(permissions.filter((p) => !relatedPermissions.includes(p)));
-                        }
-                      }}
-                    />
-                  }
-                  label={vietnameseMapping[func] || func}
-                />
-              ))}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                {availableFunctions.map((func) => (
+                  <FormControlLabel
+                    key={func}
+                    control={
+                      <Checkbox
+                        checked={functions.includes(func)}
+                        onChange={(e) => {
+                          const newFunctions = e.target.checked
+                            ? [...functions, func]
+                            : functions.filter((f) => f !== func);
+                          setFunctions(newFunctions);
+                          if (!e.target.checked) {
+                            const relatedPermissions = availablePermissions[func] || [];
+                            setPermissions(permissions.filter((p) => !relatedPermissions.includes(p)));
+                          }
+                        }}
+                      />
+                    }
+                    label={vietnameseMapping[func] || func}
+                  />
+                ))}
+              </Box>
 
-              <Typography variant="subtitle1" sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ mt: 3, fontWeight: 'bold', mb: 1 }}>
                 Quyền
               </Typography>
               {functions.length > 0 && (
-                <TableContainer component={Paper}>
+                <TableContainer component={Paper} variant="outlined">
                   <Table sx={{ minWidth: 400 }} size="small">
                     <TableHead>
                       <TableRow>

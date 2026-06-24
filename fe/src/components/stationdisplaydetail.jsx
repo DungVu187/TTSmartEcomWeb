@@ -19,10 +19,12 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import InfoIcon from '@mui/icons-material/Info';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { ShopContext } from '../context/shopcontext';
+import { useLanguage } from '../context/languagecontext.jsx';
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const StationDisplayDetail = () => {
+  const { t } = useLanguage();
   const { code, section } = useParams();
   const [values, setValues] = useState([]);
   const [productsByValue, setProductsByValue] = useState({});
@@ -43,7 +45,7 @@ const StationDisplayDetail = () => {
       try {
         // Lấy toàn bộ sản phẩm của trạm
         const resStation = await fetch(`${apiUrl}/stations/public/${code}`);
-        if (!resStation.ok) throw new Error("Không tìm thấy trạm");
+        if (!resStation.ok) throw new Error(t("station_not_found"));
         const station = await resStation.json();
         setStationName(station.stationName || "");
         const productIds = station.productId || [];
@@ -125,7 +127,7 @@ const StationDisplayDetail = () => {
             fontFamily: "'Outfit', 'Roboto', sans-serif"
           }}
         >
-          {section}
+          {t(section)}
         </Typography>
 
         {values.map((value) => {
@@ -140,13 +142,13 @@ const StationDisplayDetail = () => {
                   gutterBottom
                   sx={{ margin: '10px 0 0 20px' }}
                 >
-                  {value}
+                  {t(value)}
                 </Typography>
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell align="center">Ảnh</TableCell>
-                      <TableCell>Tên sản phẩm</TableCell>
+                      <TableCell align="center">{t("image")}</TableCell>
+                      <TableCell>{t("product_name")}</TableCell>
                       <TableCell align="right"></TableCell>
                     </TableRow>
                   </TableHead>
@@ -172,11 +174,11 @@ const StationDisplayDetail = () => {
                           </Typography>
                           {(product.variant?.[0]?.quantityForSale ?? 0) > 0 ? (
                             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              Còn lại: {product.variant[0].quantityForSale}
+                              {t("quantity_left")} {product.variant[0].quantityForSale}
                             </Typography>
                           ) : (
                             <Typography variant="body2" color="error" sx={{ mt: 0.5, fontWeight: "bold" }}>
-                              Hết hàng
+                              {t("out_of_stock")}
                             </Typography>
                           )}
                         </TableCell>
@@ -228,7 +230,7 @@ const StationDisplayDetail = () => {
                               {isSmallScreen ? (
                                 <ShoppingCartIcon />
                               ) : (
-                                'Thêm vào giỏ'
+                                t("add_to_cart")
                               )}
                             </Button>
                             <Button
@@ -245,7 +247,7 @@ const StationDisplayDetail = () => {
                                 gap: 1,
                               }}
                             >
-                              {isSmallScreen ? <InfoIcon /> : 'Chi tiết'}
+                              {isSmallScreen ? <InfoIcon /> : t("details", "Chi tiết")}
                             </Button>
                           </Box>
                         </TableCell>

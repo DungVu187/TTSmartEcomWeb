@@ -111,6 +111,12 @@ const userSchema = new mongoose.Schema({
   ],
   logInString: {
     type: String
+  },
+  resetOtp: {
+    type: String
+  },
+  resetOtpExpires: {
+    type: Date
   }
 });
 
@@ -232,7 +238,12 @@ router.post("/register", authLimiter, (req, res, next) => {
 }, async (req, res) => {
   try {
     const { email, phone, name, password, role, functions, permissions, logInString, stationCode, inviteCode } = req.body;
-    const existingUser = await User.findOne({ phone });
+    const existingUser = await User.findOne({
+      $or: [
+        { phone },
+        ...(email ? [{ email: email.toLowerCase() }] : [])
+      ]
+    });
     if (existingUser) {
       return res.status(400).json({ message: "Email hoặc số điện thoại đã tồn tại" });
     }
@@ -300,11 +311,23 @@ router.post("/register", authLimiter, (req, res, next) => {
   }
 });
 
-// Đăng nhập người dùng (sử dụng cookie)
+// Đăng nhập người dùng (sử dụng cookie) - hỗ trợ đăng nhập bằng email hoặc SĐT
 router.post("/login", authLimiter, async (req, res) => {
   try {
-    const { phone, password } = req.body;
-    const user = await User.findOne({ phone });
+    const { phone, email, password, inviteCode } = req.body;
+    const identifier = phone || email;
+    if (!identifier) {
+      return res.status(400).json({ message: "Vui lòng nhập số điện thoại hoặc email" });
+    }
+
+    // Tìm user theo SĐT hoặc Email
+    let user;
+    if (phone) {
+      user = await User.findOne({ phone });
+    } else if (email) {
+      user = await User.findOne({ email: email.toLowerCase() });
+    }
+
     if (!user) {
       return res.status(400).json({ message: "Thông tin đăng nhập không hợp lệ" });
     }
@@ -312,6 +335,20 @@ router.post("/login", authLimiter, async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: "Thông tin đăng nhập không hợp lệ" });
     }
+
+    // Tự động gán trạm cho user hiện có khi họ đăng nhập từ link trạm
+    if (inviteCode) {
+      const { findStationByInviteCode } = require('./station');
+      const station = await findStationByInviteCode(inviteCode);
+      if (station) {
+        const stationIdStr = station._id.toString();
+        if (!user.station.includes(stationIdStr)) {
+          user.station.push(stationIdStr);
+          await user.save();
+        }
+      }
+    }
+
     const token = jwt.sign(
       {
         userId: user._id,
@@ -399,6 +436,97 @@ router.put("/change-password", authLimiter, authenticateUser, async (req, res) =
     res.json({ message: "Đổi mật khẩu thành công" });
   } catch (error) {
     console.error("Lỗi khi đổi mật khẩu:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Yêu cầu OTP khôi phục mật khẩu qua Số Điện Thoại hoặc Email
+router.post("/forgot-password", authLimiter, async (req, res) => {
+  try {
+    const { phone, email, identifier } = req.body;
+    // Hỗ trợ nhận trường identifier (SĐT hoặc Email) hoặc riêng lẻ phone/email
+    const input = identifier || phone || email;
+    if (!input) {
+      return res.status(400).json({ message: "Vui lòng cung cấp số điện thoại hoặc email" });
+    }
+
+    // Phát hiện xem input là email hay SĐT
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+    let user;
+    if (isEmail) {
+      user = await User.findOne({ email: input.toLowerCase() });
+    } else {
+      user = await User.findOne({ phone: input });
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy tài khoản với thông tin đã cung cấp" });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ message: "Tài khoản của bạn chưa được cập nhật email liên kết. Vui lòng liên hệ Admin để được hỗ trợ." });
+    }
+
+    // Sinh mã OTP 6 chữ số ngẫu nhiên
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Lưu OTP và thời gian hết hạn (5 phút)
+    user.resetOtp = otp;
+    user.resetOtpExpires = Date.now() + 5 * 60 * 1000;
+    await user.save();
+
+    // Gửi email chứa OTP tới địa chỉ email của khách
+    const { sendResetOtpEmail } = require("../mailer");
+    await sendResetOtpEmail(user.email, otp, user.name);
+
+    // Ẩn bớt email cho bảo mật, ví dụ: ab***@gmail.com
+    const emailParts = user.email.split("@");
+    const maskedEmail = emailParts[0].substring(0, 2) + "***@" + emailParts[1];
+
+    res.json({ message: `Mã OTP đã được gửi về email ${maskedEmail}`, phone: user.phone });
+  } catch (error) {
+    console.error("Lỗi khi yêu cầu OTP quên mật khẩu:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Đặt lại mật khẩu mới bằng OTP - hỗ trợ tìm user bằng phone hoặc email
+router.post("/reset-password", authLimiter, async (req, res) => {
+  try {
+    const { phone, email, identifier, otp, newPassword, logInString } = req.body;
+    const input = identifier || phone || email;
+    if (!input || !otp || !newPassword || !logInString) {
+      return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin yêu cầu" });
+    }
+
+    // Tìm user theo SĐT hoặc Email
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+    let user;
+    if (isEmail) {
+      user = await User.findOne({ email: input.toLowerCase() });
+    } else {
+      user = await User.findOne({ phone: input });
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy tài khoản" });
+    }
+
+    // Kiểm tra OTP
+    if (!user.resetOtp || user.resetOtp !== otp || !user.resetOtpExpires || user.resetOtpExpires < Date.now()) {
+      return res.status(400).json({ message: "Mã OTP không chính xác hoặc đã hết hạn" });
+    }
+
+    // Đặt mật khẩu mới
+    user.password = newPassword;
+    user.logInString = logInString;
+    user.resetOtp = undefined;
+    user.resetOtpExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới." });
+  } catch (error) {
+    console.error("Lỗi khi đặt lại mật khẩu bằng OTP:", error.message);
     res.status(500).json({ message: error.message });
   }
 });
@@ -560,28 +688,102 @@ router.put("/profile/addresses/:addressId/default", authenticateUser, async (req
 router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, functions, permissions } = req.body;
+    const { role, functions, permissions, name, email, phone, password } = req.body;
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
     }
+
+    // Kiểm tra trùng lặp Số điện thoại (nếu thay đổi)
+    if (phone && phone !== user.phone) {
+      const phoneExists = await User.findOne({ phone });
+      if (phoneExists) {
+        return res.status(400).json({ message: "Số điện thoại đã tồn tại ở tài khoản khác" });
+      }
+      user.phone = phone;
+    }
+
+    // Kiểm tra trùng lặp Email (nếu thay đổi và không rỗng)
+    if (email && email.trim() !== "") {
+      const emailLower = email.toLowerCase();
+      if (!user.email || emailLower !== user.email.toLowerCase()) {
+        const emailExists = await User.findOne({ email: emailLower });
+        if (emailExists) {
+          return res.status(400).json({ message: "Email đã tồn tại ở tài khoản khác" });
+        }
+      }
+      user.email = emailLower;
+    } else if (email === "") {
+      user.email = undefined;
+    }
+
+    if (name !== undefined) {
+      user.name = name;
+    }
+
+    if (password) {
+      user.password = password; // Sẽ được mã hóa tự động bằng pre-save hook của userSchema
+    }
+
     if (role) {
       user.role = role;
     }
-    if (role === "staff" && functions) {
-      user.functions = functions;
-      user.permissions = permissions || assignPermissionsForFunctions(functions);
-    } else if (role === "admin") {
-      user.functions = [];
-      user.permissions = [];
-    } else if (role === "customer") {
+    if (role === "staff") {
+      if (functions) {
+        user.functions = functions;
+        user.permissions = permissions || assignPermissionsForFunctions(functions);
+      }
+    } else {
       user.functions = [];
       user.permissions = [];
     }
+
     await user.save();
-    res.json({ message: "Cập nhật quyền thành công", user });
+    res.json({ message: "Cập nhật tài khoản thành công", user });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Thêm tài khoản mới thủ công từ admin
+router.post("/admin-create", authenticateAdmin, async (req, res) => {
+  try {
+    const { email, phone, name, password, role, functions, permissions } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({ message: "Số điện thoại và mật khẩu là bắt buộc" });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [
+        { phone },
+        ...(email ? [{ email: email.toLowerCase() }] : [])
+      ]
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email hoặc số điện thoại đã tồn tại" });
+    }
+
+    const finalRole = role || "customer";
+    const finalPermissions = finalRole === "staff" && functions
+      ? permissions || assignPermissionsForFunctions(functions)
+      : [];
+
+    const newUser = new User({
+      email: email ? email.toLowerCase() : undefined,
+      phone,
+      name,
+      password,
+      role: finalRole,
+      functions: finalRole === "staff" ? functions || [] : [],
+      permissions: finalPermissions,
+    });
+
+    await newUser.save();
+    res.status(201).json({ message: "Tạo tài khoản thành công", user: newUser });
+  } catch (error) {
+    console.error("Lỗi khi admin tạo tài khoản:", error.message);
+    res.status(500).json({ message: error.message });
   }
 });
 

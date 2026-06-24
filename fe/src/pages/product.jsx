@@ -16,10 +16,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import "./styles/product.css";
 import Item from "../components/item";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 function Product() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
@@ -268,12 +270,12 @@ function Product() {
 
   const filterForm = (
     <form onSubmit={handleSubmit} className="filter-product-string">
-      <Typography variant="h6">Tìm kiếm sản phẩm</Typography>
+      <Typography variant="h6">{t("search_products")}</Typography>
       
       {/* Chọn trạm trộn (Chỉ hiển thị cho khách hàng đã đăng nhập và có trạm) */}
       {isLoggedIn && userStations.length > 0 && (
         <Box sx={{ mb: 2 }}>
-          <InputLabel sx={{ fontWeight: "bold", mb: 0.5 }}>Chọn trạm trộn</InputLabel>
+          <InputLabel sx={{ fontWeight: "bold", mb: 0.5 }}>{t("select_mixing_station")}</InputLabel>
           <Select
             value={selectedStation}
             onChange={handleStationChange}
@@ -281,7 +283,7 @@ function Product() {
             fullWidth
             sx={{ backgroundColor: "white" }}
           >
-            <MenuItem value="Tất cả">Tất cả trạm của tôi</MenuItem>
+            <MenuItem value="Tất cả">{t("all_my_stations")}</MenuItem>
             {userStations.map((station, index) => (
               <MenuItem key={index} value={station._id}>
                 {station.stationName || station.stationCode} ({station.stationCode})
@@ -292,7 +294,7 @@ function Product() {
       )}
 
       <TextField
-        label="Tìm kiếm theo tên"
+        label={t("search_by_name")}
         variant="outlined"
         name="search"
         value={filters.search}
@@ -301,7 +303,7 @@ function Product() {
         size="small"
         margin="normal"
       />
-      <InputLabel>Tìm kiếm thương hiệu</InputLabel>
+      <InputLabel>{t("search_by_brand")}</InputLabel>
       <Select
         value={filters.brand || "Tất cả"}
         onChange={(e) =>
@@ -313,14 +315,14 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">Tất cả thương hiệu</MenuItem>
+        <MenuItem value="Tất cả">{t("all_brands")}</MenuItem>
         {brands.map((brand, index) => (
           <MenuItem key={index} value={brand.Brand}>
-            {brand.Brand}
+            {t(brand.Brand)}
           </MenuItem>
         ))}
       </Select>
-      <InputLabel>Tìm kiếm loại sản phẩm</InputLabel>
+      <InputLabel>{t("search_by_type")}</InputLabel>
       <Select
         value={filters.type || "Tất cả"}
         onChange={(e) =>
@@ -332,14 +334,14 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">Tất cả loại sản phẩm</MenuItem>
+        <MenuItem value="Tất cả">{t("all_types")}</MenuItem>
         {types.map((type, index) => (
           <MenuItem key={index} value={type.Type}>
-            {type.Type}
+            {t(type.Type)}
           </MenuItem>
         ))}
       </Select>
-      <InputLabel>Tìm kiếm theo mục</InputLabel>
+      <InputLabel>{t("search_by_section")}</InputLabel>
       <Select
         value={filters.section || "Tất cả"}
         onChange={handleFilterChange}
@@ -348,14 +350,14 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">Tất cả mục</MenuItem>
+        <MenuItem value="Tất cả">{t("all_sections")}</MenuItem>
         {sections.map((section, index) => (
           <MenuItem key={index} value={section}>
-            {section}
+            {t(section)}
           </MenuItem>
         ))}
       </Select>
-      <InputLabel>Tìm kiếm theo thiết bị</InputLabel>
+      <InputLabel>{t("search_by_equipment")}</InputLabel>
       <Select
         value={filters.value || "Tất cả"}
         onChange={(e) =>
@@ -368,14 +370,14 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">Tất cả thiết bị</MenuItem>
+        <MenuItem value="Tất cả">{t("all_equipment")}</MenuItem>
         {values.map((value, index) => (
           <MenuItem key={index} value={value}>
-            {value}
+            {t(value)}
           </MenuItem>
         ))}
       </Select>
-      <Typography variant="h6">Sắp xếp theo</Typography>
+      <Typography variant="h6">{t("sort_by")}</Typography>
       <Select
         value={filters.sortBy || "purchaseCount"}
         onChange={(e) =>
@@ -387,9 +389,9 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="createdAt">Ngày tạo</MenuItem>
-        <MenuItem value="averageReviews">Đánh giá</MenuItem>
-        <MenuItem value="purchaseCount">Lượt mua</MenuItem>
+        <MenuItem value="createdAt">{t("created_date")}</MenuItem>
+        <MenuItem value="averageReviews">{t("rating")}</MenuItem>
+        <MenuItem value="purchaseCount">{t("purchases")}</MenuItem>
       </Select>
       <Select
         value={filters.sortOrder || "desc"}
@@ -402,8 +404,8 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="desc">Giảm dần</MenuItem>
-        <MenuItem value="asc">Tăng dần</MenuItem>
+        <MenuItem value="desc">{t("descending")}</MenuItem>
+        <MenuItem value="asc">{t("ascending")}</MenuItem>
       </Select>
       <div
         style={{
@@ -414,7 +416,7 @@ function Product() {
         }}
       >
         <Button type="submit" variant="contained" color="primary" fullWidth>
-          Tìm kiếm
+          {t("search")}
         </Button>
       </div>
     </form>
@@ -433,7 +435,7 @@ function Product() {
           color="primary"
           startIcon={<FilterListIcon />}
         >
-          Bộ lọc
+          {t("filters")}
         </Button>
         <div className="product-filter-main-container">
           <div className="filter-desktop">{filterForm}</div>
@@ -444,7 +446,7 @@ function Product() {
             fullWidth
             maxWidth="sm"
           >
-            <DialogTitle>Bộ lọc sản phẩm</DialogTitle>
+            <DialogTitle>{t("product_filters")}</DialogTitle>
             <DialogContent>{filterForm}</DialogContent>
           </Dialog>
 
@@ -468,23 +470,23 @@ function Product() {
                 {!isLoggedIn ? (
                   <Box>
                     <Typography variant="h6" sx={{ color: "text.secondary", mb: 2 }}>
-                      Vui lòng đăng nhập để xem các thiết bị / vật liệu thuộc trạm trộn của bạn.
+                      {t("login_to_view_station_items")}
                     </Typography>
                     <Button
                       variant="contained"
                       color="primary"
                       onClick={() => navigate("/login")}
                     >
-                      Đăng nhập ngay
+                      {t("login_now")}
                     </Button>
                   </Box>
                 ) : userStations.length === 0 ? (
                   <Typography variant="h6" sx={{ color: "text.secondary" }}>
-                    Tài khoản của bạn chưa được cấp trạm trộn nào. Vui lòng liên hệ Admin để được cấu hình trạm.
+                    {t("no_stations_configured")}
                   </Typography>
                 ) : (
                   <Typography variant="h6" sx={{ color: "text.secondary" }}>
-                    Trạm trộn của bạn chưa được cấu hình thiết bị nào, hoặc bộ lọc không tìm thấy sản phẩm phù hợp.
+                    {t("no_items_configured")}
                   </Typography>
                 )}
               </Box>

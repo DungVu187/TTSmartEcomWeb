@@ -58,6 +58,13 @@ const StationUser = () => {
   const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [encryptedString, setEncryptedString] = useState("");
+  const encryptedInputRef = useRef(null);
+
+  // Sửa thông tin khách hàng
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [editFormData, setEditFormData] = useState({ name: "", phone: "", email: "" });
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -223,35 +230,123 @@ const StationUser = () => {
     setSelectedUserPhone(user.phone);
     setOpenPasswordDialog(true);
   };
-  const copyToClipboard = (text) => {
-    if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text);
-    } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-999999px";
-      textArea.style.top = "-999999px";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      return new Promise((resolve, reject) => {
-        if (document.execCommand("copy")) {
-          resolve();
-        } else {
-          reject(new Error("Không thể sao chép"));
-        }
-        document.body.removeChild(textArea);
-      });
+  const copyToClipboard = async (text) => {
+    // Thử navigator.clipboard trước (cần HTTPS)
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+    } catch (e) {
+      // Fallback bên dưới
+    }
+    // Fallback cho HTTP: dùng textarea + execCommand
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    // Đặt style để không nhìn thấy nhưng vẫn selectable
+    textArea.style.position = "fixed";
+    textArea.style.left = "0";
+    textArea.style.top = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand("copy");
+    } catch (e) {
+      document.body.removeChild(textArea);
+      throw new Error("Không thể sao chép");
+    }
+    document.body.removeChild(textArea);
+  };
+
+  const handleCopy = () => {
+    try {
+      const input = encryptedInputRef.current;
+      if (input) {
+        input.select();
+        document.execCommand("copy");
+        toast.success("Đã sao chép vào bộ nhớ tạm");
+      } else {
+        toast.error("Không tìm thấy nội dung để sao chép");
+      }
+    } catch (err) {
+      toast.error("Không thể sao chép!");
     }
   };
 
-  const handleCopy = async () => {
+  // Mở dialog sửa thông tin
+  const handleOpenEditDialog = (user) => {
+    setEditUser(user);
+    setEditFormData({
+      name: user.name || "",
+      phone: user.phone || "",
+      email: user.email || "",
+    });
+    setOpenEditDialog(true);
+  };
+
+  // Lưu thông tin đã sửa
+  const handleSaveEdit = async () => {
+    if (!editUser) return;
+    setEditLoading(true);
     try {
-      await copyToClipboard(encryptedString);
-      toast.success("Đã sao chép vào bộ nhớ tạm");
+      const res = await fetch(`${apiUrl}/users/${editUser._id}/permissions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: editFormData.name,
+          phone: editFormData.phone,
+          email: editFormData.email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Cập nhật thất bại");
+      toast.success("Cập nhật thông tin thành công");
+      setOpenEditDialog(false);
+      fetchUsers();
     } catch (err) {
-      toast.error("Không thể sao chép!");
+      toast.error(err.message || "Lỗi khi cập nhật");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Reset mật khẩu về 123456
+  const handleResetPassword = async () => {
+    if (!editUser) return;
+    if (!window.confirm(`Bạn có chắc muốn reset mật khẩu của ${editUser.name || editUser.phone} về 123456?`)) return;
+    setEditLoading(true);
+    try {
+      const raw = `${editUser.phone}+++123456`;
+      const encrypted = AES.encrypt(raw, AES_KEY).toString();
+      const logInString = encodeURIComponent(encrypted);
+
+      const res = await fetch(`${apiUrl}/users/${editUser._id}/permissions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          password: "123456",
+          logInString,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Reset thất bại");
+      toast.success("Đã reset mật khẩu về 123456");
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.message || "Lỗi khi reset mật khẩu");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -277,6 +372,7 @@ const StationUser = () => {
               <TableCell />
               <TableCell>Tên</TableCell>
               <TableCell>SĐT</TableCell>
+              <TableCell>Email</TableCell>
               <TableCell>Số trạm</TableCell>
               <TableCell>Tác vụ</TableCell>
             </TableRow>
@@ -295,9 +391,18 @@ const StationUser = () => {
                   </TableCell>
                   <TableCell>{user.name}</TableCell>
                   <TableCell>{user.phone}</TableCell>
+                  <TableCell>{user.email || "-"}</TableCell>
                   <TableCell>{user.station?.length || 0}</TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        color="info"
+                        onClick={() => handleOpenEditDialog(user)}
+                      >
+                        Sửa
+                      </Button>
                       <Button
                         variant="contained"
                         size="small"
@@ -329,7 +434,7 @@ const StationUser = () => {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={5} sx={{ p: 0 }}>
+                  <TableCell colSpan={6} sx={{ p: 0 }}>
                     <Collapse
                       in={openRows[user._id]}
                       timeout="auto"
@@ -507,6 +612,7 @@ const StationUser = () => {
           <TextField
             label="Chuỗi đăng nhập"
             value={encryptedString}
+            inputRef={encryptedInputRef}
             fullWidth
             size="small"
             multiline
@@ -526,6 +632,55 @@ const StationUser = () => {
           </Button>
           <Button variant="contained" color="primary" onClick={handleCopy}>
             Sao chép
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog sửa thông tin khách hàng */}
+      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)}>
+        <DialogTitle>Sửa thông tin khách hàng</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ minWidth: 300, mt: 1 }}>
+            <TextField
+              label="Tên"
+              value={editFormData.name}
+              onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="SĐT"
+              value={editFormData.phone}
+              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Email"
+              value={editFormData.email}
+              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+              size="small"
+              fullWidth
+            />
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={handleResetPassword}
+              disabled={editLoading}
+              sx={{ textTransform: "none" }}
+            >
+              Reset mật khẩu về 123456
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditDialog(false)}>Hủy</Button>
+          <Button
+            onClick={handleSaveEdit}
+            variant="contained"
+            disabled={editLoading}
+          >
+            {editLoading ? "Đang lưu..." : "Lưu"}
           </Button>
         </DialogActions>
       </Dialog>

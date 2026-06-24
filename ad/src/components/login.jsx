@@ -13,6 +13,7 @@ import Stack from "@mui/joy/Stack";
 import Link from "@mui/joy/Link";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import ArrowBack from "@mui/icons-material/ArrowBack";
 import toast from "react-hot-toast";
 import logo from "../assets/logo.png";
 
@@ -38,6 +39,17 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Quên mật khẩu state
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1 = nhập SĐT/Email, 2 = nhập OTP & mật khẩu mới
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const validatePhone = (phone) => {
     return /^[0-9]{10,11}$/.test(phone);
@@ -100,6 +112,208 @@ export default function SignInPage() {
     setShowPassword((prev) => !prev);
   };
 
+  // Gửi OTP quên mật khẩu
+  const handleRequestOtp = async (e) => {
+    e.preventDefault();
+    if (!forgotIdentifier) {
+      toast.error("Vui lòng nhập số điện thoại hoặc email");
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/users/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: forgotIdentifier }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        toast.success(data.message || "Mã OTP đã được gửi");
+        setForgotStep(2);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau!");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Đặt lại mật khẩu bằng OTP
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmNewPassword) {
+      toast.error("Mật khẩu không khớp");
+      return;
+    }
+    if (!otp || otp.length < 6) {
+      toast.error("Vui lòng nhập mã OTP gồm 6 chữ số");
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/users/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: forgotIdentifier,
+          otp,
+          newPassword,
+          logInString: "admin-reset", // Admin không cần logInString phức tạp
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        toast.success(data.message || "Đặt lại mật khẩu thành công");
+        // Reset state và quay về form đăng nhập
+        setIsForgotPassword(false);
+        setForgotStep(1);
+        setForgotIdentifier("");
+        setOtp("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau!");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Render form quên mật khẩu bước 1: nhập SĐT/Email
+  const renderForgotStep1 = () => (
+    <form onSubmit={handleRequestOtp}>
+      <Stack spacing={2}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Button
+            variant="plain"
+            size="sm"
+            onClick={() => {
+              setIsForgotPassword(false);
+              setForgotStep(1);
+            }}
+            sx={{ minWidth: "auto", p: 0.5 }}
+          >
+            <ArrowBack />
+          </Button>
+          <Typography component="h1" level="h3">
+            Quên mật khẩu
+          </Typography>
+        </Box>
+        <Typography level="body-sm" sx={{ color: "text.tertiary" }}>
+          Nhập số điện thoại hoặc email của bạn để nhận mã OTP khôi phục mật khẩu.
+        </Typography>
+        <FormControl required>
+          <FormLabel>Số điện thoại hoặc Email</FormLabel>
+          <Input
+            type="text"
+            value={forgotIdentifier}
+            onChange={(e) => setForgotIdentifier(e.target.value)}
+            placeholder="Nhập số điện thoại hoặc email"
+          />
+        </FormControl>
+        <Typography level="body-xs" sx={{ color: "danger.500", fontStyle: "italic" }}>
+          Lưu ý: Mã OTP sẽ gửi về email đăng ký của tài khoản. OTP có hiệu lực trong vòng 5 phút!
+        </Typography>
+        <Button
+          type="submit"
+          fullWidth
+          disabled={forgotLoading}
+          loading={forgotLoading}
+          sx={{ transition: "all 0.3s ease" }}
+        >
+          {forgotLoading ? "Đang gửi..." : "Gửi mã OTP"}
+        </Button>
+      </Stack>
+    </form>
+  );
+
+  // Render form quên mật khẩu bước 2: nhập OTP + mật khẩu mới
+  const renderForgotStep2 = () => (
+    <form onSubmit={handleResetPassword}>
+      <Stack spacing={2}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Button
+            variant="plain"
+            size="sm"
+            onClick={() => setForgotStep(1)}
+            sx={{ minWidth: "auto", p: 0.5 }}
+          >
+            <ArrowBack />
+          </Button>
+          <Typography component="h1" level="h3">
+            Đặt lại mật khẩu
+          </Typography>
+        </Box>
+        <Typography level="body-sm" sx={{ color: "text.tertiary" }}>
+          Mã OTP đã được gửi đến email liên kết của tài khoản: <strong>{forgotIdentifier}</strong>
+        </Typography>
+        <FormControl required>
+          <FormLabel>Mã OTP</FormLabel>
+          <Input
+            type="text"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            placeholder="Nhập mã OTP 6 số"
+            slotProps={{ input: { maxLength: 6 } }}
+          />
+        </FormControl>
+        <FormControl required>
+          <FormLabel>Mật khẩu mới</FormLabel>
+          <Input
+            type={showNewPassword ? "text" : "password"}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Nhập mật khẩu mới"
+            endDecorator={
+              <Button
+                variant="plain"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                sx={{ minWidth: "auto", p: 1 }}
+              >
+                {showNewPassword ? <VisibilityOff /> : <Visibility />}
+              </Button>
+            }
+          />
+        </FormControl>
+        <FormControl required>
+          <FormLabel>Nhập lại mật khẩu mới</FormLabel>
+          <Input
+            type={showConfirmNewPassword ? "text" : "password"}
+            value={confirmNewPassword}
+            onChange={(e) => setConfirmNewPassword(e.target.value)}
+            placeholder="Nhập lại mật khẩu mới"
+            endDecorator={
+              <Button
+                variant="plain"
+                onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                sx={{ minWidth: "auto", p: 1 }}
+              >
+                {showConfirmNewPassword ? <VisibilityOff /> : <Visibility />}
+              </Button>
+            }
+          />
+        </FormControl>
+        <Button
+          type="submit"
+          fullWidth
+          disabled={forgotLoading}
+          loading={forgotLoading}
+          sx={{ transition: "all 0.3s ease" }}
+        >
+          {forgotLoading ? "Đang xử lý..." : "Xác nhận"}
+        </Button>
+      </Stack>
+    </form>
+  );
+
   return (
     <CssVarsProvider theme={customTheme}>
       <CssBaseline />
@@ -138,82 +352,93 @@ export default function SignInPage() {
               }}
             />
           </Box>
-          <Typography component="h1" level="h3" gutterBottom>
-            Đăng nhập Admin
-          </Typography>
-          {error && <Typography color="danger">{error}</Typography>}
 
-          <form onSubmit={handleLogin} autoComplete="on">
-            {/* Input ẩn để Chrome nhận diện username/password */}
-            <input
-              type="text"
-              name="username"
-              autoComplete="username"
-              style={{ display: "none" }}
-            />
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              style={{ display: "none" }}
-            />
+          {isForgotPassword ? (
+            forgotStep === 1 ? renderForgotStep1() : renderForgotStep2()
+          ) : (
+            <>
+              <Typography component="h1" level="h3" gutterBottom>
+                Đăng nhập Admin
+              </Typography>
+              {error && <Typography color="danger">{error}</Typography>}
 
-            <Stack spacing={2}>
-              <FormControl required>
-                <FormLabel>Số điện thoại</FormLabel>
-                <Input
+              <form onSubmit={handleLogin} autoComplete="on">
+                {/* Input ẩn để Chrome nhận diện username/password */}
+                <input
                   type="text"
                   name="username"
                   autoComplete="username"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Nhập số điện thoại"
+                  style={{ display: "none" }}
                 />
-              </FormControl>
-              <FormControl required>
-                <FormLabel>Mật khẩu</FormLabel>
-                <Input
-                  type={showPassword ? "text" : "password"}
+                <input
+                  type="password"
                   name="password"
                   autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu"
-                  endDecorator={
-                    <Button
-                      variant="plain"
-                      onClick={togglePasswordVisibility}
-                      sx={{ minWidth: "auto", p: 1 }}
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </Button>
-                  }
+                  style={{ display: "none" }}
                 />
-              </FormControl>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Link
-                  onClick={() => toast.info("Chức năng quên mật khẩu đang được phát triển!")}
-                >
-                  Quên mật khẩu?
-                </Link>
-              </Box>
-              <Button
-                type="submit"
-                fullWidth
-                disabled={isLoading}
-                loading={isLoading}
-                sx={{ transition: "all 0.3s ease" }}
-              >
-                {isLoading ? "Đang xử lý..." : "Đăng nhập"}
-              </Button>
-            </Stack>
-          </form>
+
+                <Stack spacing={2}>
+                  <FormControl required>
+                    <FormLabel>Số điện thoại</FormLabel>
+                    <Input
+                      type="text"
+                      name="username"
+                      autoComplete="username"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Nhập số điện thoại"
+                    />
+                  </FormControl>
+                  <FormControl required>
+                    <FormLabel>Mật khẩu</FormLabel>
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Nhập mật khẩu"
+                      endDecorator={
+                        <Button
+                          variant="plain"
+                          onClick={togglePasswordVisibility}
+                          sx={{ minWidth: "auto", p: 1 }}
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </Button>
+                      }
+                    />
+                  </FormControl>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Link
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setForgotStep(1);
+                        setForgotIdentifier(phone); // auto fill nếu đã nhập SĐT
+                      }}
+                    >
+                      Quên mật khẩu?
+                    </Link>
+                  </Box>
+                  <Button
+                    type="submit"
+                    fullWidth
+                    disabled={isLoading}
+                    loading={isLoading}
+                    sx={{ transition: "all 0.3s ease" }}
+                  >
+                    {isLoading ? "Đang xử lý..." : "Đăng nhập"}
+                  </Button>
+                </Stack>
+              </form>
+            </>
+          )}
         </Box>
         <Typography level="body-xs" sx={{ textAlign: "center", mt: 2 }}>
           © TTSmart {new Date().getFullYear()}
@@ -221,4 +446,4 @@ export default function SignInPage() {
       </Box>
     </CssVarsProvider>
   );
-}
+}

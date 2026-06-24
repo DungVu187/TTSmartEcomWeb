@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Box, CircularProgress, Alert, Grid, Card, CardContent, Typography } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const StationDisplay = () => {
+  const { t } = useLanguage();
   const { code } = useParams();
   const navigate = useNavigate();
 
@@ -24,7 +26,7 @@ const StationDisplay = () => {
       try {
         // Gọi sản phẩm để lấy danh sách section có trong trạm
         const res = await fetch(`${apiUrl}/stations/public/${code}`);
-        if (!res.ok) throw new Error("Không tìm thấy trạm");
+        if (!res.ok) throw new Error(t("station_not_found"));
         const data = await res.json();
         setStationName(data.stationName || "");
         const productIds = data.productId || [];
@@ -84,7 +86,7 @@ const StationDisplay = () => {
   };
 
   if (loading) return <Box mt={4} textAlign="center"><CircularProgress /></Box>;
-  if (error) return <Alert severity="error">{error}</Alert>;
+  if (error) return <Alert severity="error">{t(error)}</Alert>;
 
   return (
     <Box sx={{ backgroundColor: "#ebf6fe", padding: 3, minHeight: "100vh" }}>
@@ -144,7 +146,7 @@ const StationDisplay = () => {
                   }}
                 >
                   <Typography variant="h5" align="center" color="#fff">
-                    {section.name}
+                    {t(section.name)}
                   </Typography>
                 </CardContent>
               </Card>

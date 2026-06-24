@@ -69,6 +69,7 @@
     flex-direction: column;
     padding: 0 40px;
     height: 100%;
+    width: 100%;
 }
 
 .login-container input{
@@ -129,7 +130,7 @@
     position: absolute;
     top: 0;
     left: 50%;
-    width: 60%;
+    width: 50%;
     height: 100%;
     overflow: hidden;
     transition: all 0.6s ease-in-out;
@@ -189,4 +190,58 @@
 
 .login-container.active .login-toggle-right{
     transform: translateX(200%);
+}
+
+.mobile-toggle-text {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .login-main-container {
+        padding: 20px 10px;
+    }
+    .login-container {
+        width: 100%;
+        max-width: 420px;
+        min-height: auto;
+        padding: 30px 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .form-container {
+        position: relative !important;
+        width: 100% !important;
+        height: auto !important;
+        opacity: 0 !important;
+        display: none !important;
+        transform: none !important;
+        transition: none !important;
+    }
+    .login-container:not(.active) .sign-in {
+        display: block !important;
+        opacity: 1 !important;
+        z-index: 3 !important;
+    }
+    .login-container.active .sign-up {
+        display: block !important;
+        opacity: 1 !important;
+        z-index: 3 !important;
+        animation: none !important;
+    }
+    .login-toggle-container {
+        display: none !important;
+    }
+    .mobile-toggle-text {
+        display: block !important;
+        margin-top: 20px;
+        color: #0052ab;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: color 0.3s ease;
+    }
+    .mobile-toggle-text:hover {
+        color: #007bff;
+        text-decoration: underline;
+    }
 }

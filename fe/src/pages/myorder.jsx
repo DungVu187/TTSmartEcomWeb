@@ -24,10 +24,12 @@ import {
 } from "@mui/material";
 import toast from "react-hot-toast";
 import moment from "moment";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const MyOrder = () => {
+  const { t } = useLanguage();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -54,12 +56,12 @@ const MyOrder = () => {
           setIsLoggedIn(true);
         } else {
           setIsLoggedIn(false);
-          toast.error("Bạn chưa đăng nhập! Vui lòng đăng nhập để xem đơn hàng.");
+          toast.error(t("login_to_view_orders"));
           setLoading(false);
         }
       } catch (error) {
         setIsLoggedIn(false);
-        toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
+        toast.error(t("error_occurred"));
         setLoading(false);
       }
     };
@@ -94,7 +96,7 @@ const MyOrder = () => {
         const data = await response.json();
         if (!response.ok) {
           if (response.status === 401) {
-            toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+            toast.error(t("session_expired"));
             setTimeout(() => {
               window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
             }, 1000);
@@ -152,7 +154,7 @@ const MyOrder = () => {
         setTotalPages(calculatedTotalPages);
       } catch (err) {
         setError(err.message);
-        toast.error(`Lỗi khi tải đơn hàng: ${err.message}`);
+        toast.error(`${t("error_loading_orders")}${err.message}`);
         setTotalPages(1); // Đặt mặc định để tránh NaN
       } finally {
         setLoading(false);
@@ -178,23 +180,23 @@ const MyOrder = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          toast.error(t("session_expired"));
           setTimeout(() => {
             window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
           }, 1000);
           return;
         }
-        throw new Error(data.message || "Hủy đơn hàng thất bại!");
+        throw new Error(data.message || t("cancel_order_failed"));
       }
 
-      toast.success("Hủy đơn hàng thành công!");
+      toast.success(t("cancel_order_success"));
       setOrders((prevOrders) =>
         prevOrders.filter((order) => order._id !== orderId)
       );
       setOpenDialog(false);
       setOpenCancelDialog(false);
     } catch (error) {
-      toast.error(`Lỗi khi hủy đơn hàng: ${error.message}`);
+      toast.error(`${t("cancel_order_failed")} ${error.message}`);
     } finally {
       setIsCancelling(false);
     }
@@ -225,15 +227,15 @@ const MyOrder = () => {
   const getStatusLabel = (order) => {
     if (!order) return "";
     if (order.state === "Cancelled") {
-      return "Đã hủy";
+      return t("cancelled");
     }
     switch (order.status) {
       case "Processing":
-        return "Đang xử lý";
+        return t("state_processing");
       case "Delivering":
-        return "Đang giao hàng";
+        return t("delivering");
       case "Completed":
-        return "Hoàn thành";
+        return t("completed");
       default:
         return order.status;
     }
@@ -259,15 +261,15 @@ const MyOrder = () => {
   const getEmptyMessage = () => {
     switch (selectedState) {
       case "Processing":
-        return "Không có đơn hàng nào đang xử lý.";
+        return t("no_processing_orders");
       case "Delivering":
-        return "Không có đơn hàng nào đang được giao.";
+        return t("no_delivering_orders");
       case "Completed":
-        return "Không có đơn hàng nào đã hoàn thành.";
+        return t("no_completed_orders");
       case "Cancelled":
-        return "Không có đơn hàng nào bị hủy.";
+        return t("no_cancelled_orders");
       default:
-        return "Bạn chưa có đơn hàng nào.";
+        return t("no_orders_yet");
     }
   };
 
@@ -275,7 +277,7 @@ const MyOrder = () => {
     <div style={{ backgroundColor: 'rgb(235, 246, 254)', width: '100%', padding: '2rem 16px', minHeight: '100vh', boxSizing: 'border-box' }}>
       <Container sx={{ minHeight: "80vh", textAlign: "center", width: '100%' }}>
         <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
-          Danh sách đơn hàng
+          {t("orders_list")}
         </Typography>
 
         {isLoggedIn && (
@@ -298,11 +300,11 @@ const MyOrder = () => {
                 }
               }}
             >
-              <Tab label="Tất cả" value="" />
-              <Tab label="Đang xử lý" value="Processing" />
-              <Tab label="Đang giao hàng" value="Delivering" />
-              <Tab label="Hoàn thành" value="Completed" />
-              <Tab label="Đã hủy" value="Cancelled" />
+              <Tab label={t("all")} value="" />
+              <Tab label={t("state_processing")} value="Processing" />
+              <Tab label={t("delivering")} value="Delivering" />
+              <Tab label={t("completed")} value="Completed" />
+              <Tab label={t("cancelled")} value="Cancelled" />
             </Tabs>
           </Box>
         )}
@@ -310,7 +312,7 @@ const MyOrder = () => {
         {loading && <CircularProgress />}
         {error && <Typography color="error">{error}</Typography>}
         {!loading && !isLoggedIn && (
-          <Typography>Đăng nhập để xem danh sách đơn hàng.</Typography>
+          <Typography>{t("login_to_view_orders_table")}</Typography>
         )}
         {!loading && isLoggedIn && orders.length === 0 && (
           <Typography sx={{ my: 4, color: "text.secondary" }}>{getEmptyMessage()}</Typography>
@@ -323,22 +325,22 @@ const MyOrder = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell align="center">
-                      <strong>Mã đơn</strong>
+                      <strong>{t("order_code")}</strong>
                     </TableCell>
                     <TableCell align="center">
-                      <strong>Ngày đặt</strong>
+                      <strong>{t("order_date")}</strong>
                     </TableCell>
                     <TableCell align="center">
-                      <strong>Sản phẩm</strong>
+                      <strong>{t("product_name")}</strong>
                     </TableCell>
                     <TableCell align="center">
-                      <strong>Tổng tiền</strong>
+                      <strong>{t("total_money")}</strong>
                     </TableCell>
                     <TableCell align="center">
-                      <strong>Thanh toán</strong>
+                      <strong>{t("payment")}</strong>
                     </TableCell>
                     <TableCell align="center">
-                      <strong>Trạng thái</strong>
+                      <strong>{t("status")}</strong>
                     </TableCell>
                   </TableRow>
                 </TableHead>
@@ -378,7 +380,7 @@ const MyOrder = () => {
                                 <strong>{item.productName}</strong>
                               </Typography>
                               <Typography variant="body2">
-                                Số lượng: {item.quantity}
+                                {t("quantity")}: {item.quantity}
                               </Typography>
                             </div>
                           </div>
@@ -390,7 +392,7 @@ const MyOrder = () => {
                       <TableCell align="center">
                         <Chip
                           label={
-                            order.payment ? "Đã thanh toán" : "Chưa thanh toán"
+                            order.payment ? t("paid") : t("unpaid")
                           }
                           color={order.payment ? "success" : "error"}
                         />
@@ -420,27 +422,27 @@ const MyOrder = () => {
         )}
 
         <Dialog open={openDialog} onClose={handleCloseDialog} fullWidth>
-          <DialogTitle>Chi tiết đơn hàng</DialogTitle>
+          <DialogTitle>{t("order_details")}</DialogTitle>
           <DialogContent>
             {selectedOrder && (
               <>
                 <Typography>
-                  <strong>Mã đơn hàng:</strong> {selectedOrder._id}
+                  <strong>{t("order_code_label")}</strong> {selectedOrder._id}
                 </Typography>
                 <Typography>
-                  <strong>Ngày đặt:</strong>{" "}
+                  <strong>{t("order_date")}:</strong>{" "}
                   {moment(selectedOrder.createdAt).format("DD/MM/YYYY HH:mm")}
                 </Typography>
                 <Typography>
-                  <strong>Tổng tiền:</strong>{" "}
+                  <strong>{t("total_money")}:</strong>{" "}
                   {selectedOrder.total.toLocaleString()} VND
                 </Typography>
                 <Typography>
-                  <strong>Trạng thái:</strong> {getStatusLabel(selectedOrder)}
+                  <strong>{t("status")}:</strong> {getStatusLabel(selectedOrder)}
                 </Typography>
 
                 <Typography variant="h6" gutterBottom>
-                  Danh sách sản phẩm:
+                  {t("product_list")}
                 </Typography>
 
                 <TableContainer component={Paper}>
@@ -448,16 +450,16 @@ const MyOrder = () => {
                     <TableHead>
                       <TableRow>
                         <TableCell align="center">
-                          <strong>Hình ảnh</strong>
+                          <strong>{t("image")}</strong>
                         </TableCell>
                         <TableCell align="center">
-                          <strong>Tên sản phẩm</strong>
+                          <strong>{t("product_name")}</strong>
                         </TableCell>
                         <TableCell align="center">
-                          <strong>Thuộc tính</strong>
+                          <strong>{t("attributes")}</strong>
                         </TableCell>
                         <TableCell align="center">
-                          <strong>Số lượng</strong>
+                          <strong>{t("quantity")}</strong>
                         </TableCell>
                       </TableRow>
                     </TableHead>
@@ -503,25 +505,24 @@ const MyOrder = () => {
                 selectedOrder?.status === "Delivering"
               }
             >
-              Hủy đơn hàng
+              {t("cancel_order")}
             </Button>
             <Button onClick={handleCloseDialog} color="primary">
-              Đóng
+              {t("close")}
             </Button>
           </DialogActions>
         </Dialog>
 
         <Dialog open={openCancelDialog} onClose={handleCloseCancelDialog}>
-          <DialogTitle>Xác nhận hủy đơn hàng</DialogTitle>
+          <DialogTitle>{t("confirm_cancel_order")}</DialogTitle>
           <DialogContent>
             <Typography>
-              Bạn có chắc chắn muốn hủy đơn hàng{" "}
-              <strong>{selectedOrder?._id}</strong> không?
+              {t("confirm_cancel_order_msg").replace("{id}", selectedOrder?._id || "")}
             </Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseCancelDialog} color="primary">
-              Không
+              {t("no")}
             </Button>
             <Button
               onClick={() => cancelOrder(selectedOrder._id)}
@@ -529,7 +530,7 @@ const MyOrder = () => {
               variant="contained"
               disabled={isCancelling}
             >
-              {isCancelling ? "Đang xử lý..." : "Hủy đơn hàng"}
+              {isCancelling ? t("processing") : t("cancel_order")}
             </Button>
           </DialogActions>
         </Dialog>

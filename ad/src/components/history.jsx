@@ -78,9 +78,11 @@ const History = () => {
 
   return (
     <Box p={2}>
-      <Typography variant="h5" gutterBottom>
-        Lịch sử nhập/xuất kho
-      </Typography>
+      <div className="sticky-header">
+        <Typography variant="h5" gutterBottom>
+          Lịch sử nhập/xuất kho
+        </Typography>
+      </div>
 
       {/* Bộ lọc */}
       <Box display="flex" flexWrap="wrap" gap={2} mb={2}>

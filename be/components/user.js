@@ -688,7 +688,7 @@ router.put("/profile/addresses/:addressId/default", authenticateUser, async (req
 router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, functions, permissions, name, email, phone, password } = req.body;
+    const { role, functions, permissions, name, email, phone, password, logInString } = req.body;
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
@@ -725,17 +725,21 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
       user.password = password; // Sẽ được mã hóa tự động bằng pre-save hook của userSchema
     }
 
+    if (logInString !== undefined) {
+      user.logInString = logInString;
+    }
+
     if (role) {
       user.role = role;
-    }
-    if (role === "staff") {
-      if (functions) {
-        user.functions = functions;
-        user.permissions = permissions || assignPermissionsForFunctions(functions);
+      if (role === "staff") {
+        if (functions) {
+          user.functions = functions;
+          user.permissions = permissions || assignPermissionsForFunctions(functions);
+        }
+      } else {
+        user.functions = [];
+        user.permissions = [];
       }
-    } else {
-      user.functions = [];
-      user.permissions = [];
     }
 
     await user.save();

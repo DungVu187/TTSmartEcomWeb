@@ -225,47 +225,49 @@ const OrderedProducts = () => {
 
   return (
     <Box p={2}>
-      <h2>Danh sách sản phẩm đã đặt</h2>
+      <div className="sticky-header">
+        <h2>Danh sách sản phẩm đã đặt</h2>
 
-      {/* Bộ lọc */}
-      <Box display="flex" gap={2} mb={2}>
-        <TextField
-          name="productName"
-          label="Tên sản phẩm"
-          value={filters.productName}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-        />
-        <TextField
-          name="startDate"
-          label="Từ ngày"
-          type="date"
-          value={filters.startDate}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          InputLabelProps={{ shrink: true }}
-        />
-        <TextField
-          name="endDate"
-          label="Đến ngày"
-          type="date"
-          value={filters.endDate}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          InputLabelProps={{ shrink: true }}
-        />
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleSearch}
-          size="small"
-        >
-          Tìm kiếm
-        </Button>
-      </Box>
+        {/* Bộ lọc */}
+        <Box display="flex" gap={2} mb={2}>
+          <TextField
+            name="productName"
+            label="Tên sản phẩm"
+            value={filters.productName}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+          />
+          <TextField
+            name="startDate"
+            label="Từ ngày"
+            type="date"
+            value={filters.startDate}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            name="endDate"
+            label="Đến ngày"
+            type="date"
+            value={filters.endDate}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSearch}
+            size="small"
+          >
+            Tìm kiếm
+          </Button>
+        </Box>
+      </div>
 
       {/* Loading */}
       {loading && (
@@ -294,15 +296,15 @@ const OrderedProducts = () => {
                   products.map((product) => (
                     <TableRow key={product.productId}>
                       <TableCell align="center">
-                        {product.variant?.[0]?.imgUrl ? (
-  <img
-    src={product.variant?.[0]?.imgUrl}
-    alt={product.name || "Sản phẩm"}
-    style={{ width: 50, height: 50, objectFit: "cover" }}
-  />
-) : (
-  "N/A"
-)}
+                        {product.variant?.imgUrl ? (
+                          <img
+                            src={product.variant?.imgUrl}
+                            alt={product.name || "Sản phẩm"}
+                            style={{ width: 50, height: 50, objectFit: "cover" }}
+                          />
+                        ) : (
+                          "N/A"
+                        )}
                       </TableCell>
                       <TableCell align="center">{product.name}</TableCell>
                       <TableCell align="center">{product.code}</TableCell>

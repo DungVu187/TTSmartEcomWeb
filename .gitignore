@@ -32,3 +32,7 @@ Thumbs.db
 
 # Backend uploads
 be/upload/
+
+# Backups and data archives
+backups/
+wdata/*.archive

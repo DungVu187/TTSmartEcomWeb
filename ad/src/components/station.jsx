@@ -222,14 +222,16 @@ const Station = () => {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Button
-        variant="contained"
-        color="primary"
-        sx={{ mb: 2 }}
-        onClick={() => setOpenDialog(true)}
-      >
-        Thêm trạm
-      </Button>
+      <div className="sticky-header">
+        <h2>Quản lý danh sách trạm trộn</h2>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setOpenDialog(true)}
+        >
+          Thêm trạm
+        </Button>
+      </div>
 
       <Box sx={{ width: "100%" }}>
         <DataGrid

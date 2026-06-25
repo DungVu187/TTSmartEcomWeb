@@ -181,7 +181,6 @@ const Sidebar = () => {
 
   const menuItems = [
     { text: "Sản phẩm", path: "/product", icon: <ProductIcon /> },
-    { text: "Chips", path: "/chip", icon: <ChipIcon /> },
     canView("order_management") && {
       text: "Đơn bán hàng",
       icon: (
@@ -312,10 +311,13 @@ const Sidebar = () => {
                     "&:hover": { backgroundColor: "#333333" },
                   }}
                 >
-                  <ListItemIcon sx={{ color: "white", minWidth: "40px" }}>
+                  <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
                     {item.icon}
                   </ListItemIcon>
-                  <ListItemText primary={item.text} />
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{ fontSize: "15px", fontWeight: 500 }}
+                  />
                 </ListItemButton>
               ) : item.action === "logout" ? (
                 <ListItemButton
@@ -329,10 +331,13 @@ const Sidebar = () => {
                     "&:hover": { backgroundColor: "#333333" },
                   }}
                 >
-                  <ListItemIcon sx={{ color: "white", minWidth: "40px" }}>
+                  <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
                     {item.icon}
                   </ListItemIcon>
-                  <ListItemText primary={item.text} />
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{ fontSize: "15px", fontWeight: 500 }}
+                  />
                 </ListItemButton>
               ) : (
                 <ListItemButton
@@ -343,10 +348,13 @@ const Sidebar = () => {
                     "&:hover": { backgroundColor: "#333333" },
                   }}
                 >
-                  <ListItemIcon sx={{ color: "white", minWidth: "40px" }}>
+                  <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
                     {item.icon}
                   </ListItemIcon>
-                  <ListItemText primary={item.text} />
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{ fontSize: "15px", fontWeight: 500 }}
+                  />
                   {openItems[index] ? <ExpandLess /> : <ExpandMore />}
                 </ListItemButton>
               )}
@@ -355,7 +363,7 @@ const Sidebar = () => {
               <Collapse in={openItems[index]} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
                   {item.subItems.map((subItem, subIndex) => (
-                    <ListItem key={subIndex} disablePadding sx={{ pl: 3 }}>
+                    <ListItem key={subIndex} disablePadding sx={{ pl: 2 }}>
                       <ListItemButton
                         component={Link}
                         to={subItem.path}
@@ -366,10 +374,13 @@ const Sidebar = () => {
                           "&:hover": { backgroundColor: "#333333" },
                         }}
                       >
-                        <ListItemIcon sx={{ color: "white", minWidth: "40px" }}>
+                        <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
                           {subItem.icon}
                         </ListItemIcon>
-                        <ListItemText primary={subItem.text} />
+                        <ListItemText
+                          primary={subItem.text}
+                          primaryTypographyProps={{ fontSize: "14px" }}
+                        />
                       </ListItemButton>
                     </ListItem>
                   ))}

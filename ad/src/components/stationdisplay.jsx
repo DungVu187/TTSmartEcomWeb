@@ -20,6 +20,8 @@ import {
   ListItemText,
   FormControlLabel,
   Switch,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import ExcelJS from "exceljs";
@@ -44,7 +46,82 @@ const StationDisplay = () => {
   const fileExcelRef = useRef();
   const [isImportingExcel, setIsImportingExcel] = useState(false);
 
+  const [openOrderDialog, setOpenOrderDialog] = useState(false);
   const [openProductDialog, setOpenProductDialog] = useState(false);
+  const [orderType, setOrderType] = useState("ep"); // "ep" or "ip"
+  const [orderSearchText, setOrderSearchText] = useState("");
+  const [ordersList, setOrdersList] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const orderDebounceRef = useRef(null);
+
+  const fetchOrders = async (type, search) => {
+    setOrdersLoading(true);
+    try {
+      const endpoint = type === "ep" ? "eporders" : "iporders";
+      const url = new URL(`${apiUrl}/${endpoint}/orders`);
+      url.searchParams.set("limit", "50");
+      if (search) {
+        url.searchParams.set("orderName", search);
+      }
+      const res = await fetch(url.toString(), {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Không thể tải danh sách đơn hàng");
+      const data = await res.json();
+      setOrdersList(data.orders || []);
+    } catch (err) {
+      console.error("Lỗi khi tải đơn hàng:", err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!openOrderDialog) return;
+    if (orderDebounceRef.current) clearTimeout(orderDebounceRef.current);
+    orderDebounceRef.current = setTimeout(() => {
+      fetchOrders(orderType, orderSearchText);
+    }, 300);
+    return () => clearTimeout(orderDebounceRef.current);
+  }, [orderType, orderSearchText, openOrderDialog]);
+
+  const handleOpenOrderDialog = () => {
+    setOrderType("ep");
+    setOrderSearchText("");
+    setOrdersList([]);
+    setOpenOrderDialog(true);
+  };
+
+  const handleImportFromOrder = async (order) => {
+    if (!station?._id || !order) return;
+    try {
+      const idsFromOrder = (order.productList || []).map((p) => p.productId).filter(Boolean);
+      if (!idsFromOrder.length) {
+        alert("Đơn hàng này không có sản phẩm nào hợp lệ.");
+        return;
+      }
+      const currentIds = station.productId || [];
+      const newIds = Array.from(new Set([...currentIds, ...idsFromOrder]));
+
+      const updateRes = await fetch(`${apiUrl}/stations/${station._id}/products`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ productId: newIds }),
+      });
+
+      if (!updateRes.ok) throw new Error("Cập nhật sản phẩm vào trạm thất bại");
+
+      const updatedStation = await updateRes.json();
+      setStation(updatedStation);
+      setOpenOrderDialog(false);
+      alert("Đã nhập sản phẩm từ đơn hàng thành công");
+    } catch (err) {
+      console.error("Lỗi nhập sản phẩm từ đơn hàng:", err);
+      alert("Lỗi khi nhập sản phẩm: " + err.message);
+    }
+  };
+
   const [searchInput, setSearchInput] = useState({ name: "", code: "" });
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -170,7 +247,7 @@ const StationDisplay = () => {
         throw new Error(err.error || "Không thể xóa trạm");
       }
       alert("Xóa trạm thành công!");
-      navigate("/admin/station");
+      navigate("/station");
     } catch (err) {
       alert("Lỗi khi xóa trạm: " + err.message);
     }
@@ -206,6 +283,25 @@ const StationDisplay = () => {
 
     const data = await res.json();
     setStation(data);
+  };
+
+  const handleRemoveAllProducts = async () => {
+    if (!station?._id) return;
+    if (!window.confirm("Bạn có chắc chắn muốn xóa toàn bộ sản phẩm khỏi trạm này?")) return;
+    try {
+      const res = await fetch(`${apiUrl}/stations/${station._id}/products`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ productId: [] }),
+      });
+      if (!res.ok) throw new Error("Không thể xóa sản phẩm");
+      const data = await res.json();
+      setStation(data);
+      alert("Đã xóa toàn bộ sản phẩm khỏi trạm thành công");
+    } catch (err) {
+      alert("Lỗi khi xóa toàn bộ sản phẩm: " + err.message);
+    }
   };
 
   const handleUploadImage = () => {
@@ -402,6 +498,12 @@ const StationDisplay = () => {
         <Button variant="outlined" onClick={() => fileExcelRef.current?.click()} disabled={isImportingExcel}>
           Nhập Excel
         </Button>
+        <Button variant="outlined" onClick={handleOpenOrderDialog}>
+          Nhập Từ Đơn Hàng
+        </Button>
+        <Button variant="outlined" color="error" onClick={handleRemoveAllProducts}>
+          Xóa Toàn Bộ Sản Phẩm
+        </Button>
         <input
           type="file"
           accept=".xlsx"
@@ -439,6 +541,66 @@ const StationDisplay = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenProductDialog(false)}>Đóng</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openOrderDialog} onClose={() => setOpenOrderDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Chọn đơn hàng nhập/xuất để nhập sản phẩm</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+          <Tabs
+            value={orderType}
+            onChange={(e, val) => setOrderType(val)}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="fullWidth"
+          >
+            <Tab value="ep" label="Đơn hàng xuất" />
+            <Tab value="ip" label="Đơn hàng nhập" />
+          </Tabs>
+
+          <TextField
+            label="Tìm kiếm theo tên đơn hàng..."
+            variant="outlined"
+            size="small"
+            fullWidth
+            value={orderSearchText}
+            onChange={(e) => setOrderSearchText(e.target.value)}
+          />
+
+          <Box sx={{ height: 350, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {ordersLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexGrow: 1 }}>
+                <CircularProgress />
+              </Box>
+            ) : ordersList.length === 0 ? (
+              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexGrow: 1 }}>
+                <Typography>Không tìm thấy đơn hàng nào.</Typography>
+              </Box>
+            ) : (
+              <List sx={{ height: "100%", overflowY: "auto", border: "1px solid #ddd", borderRadius: 1 }}>
+                {ordersList.map((order) => (
+                  <ListItem
+                    key={order._id}
+                    button
+                    onClick={() => handleImportFromOrder(order)}
+                    sx={{
+                      borderBottom: "1px solid #eee",
+                      "&:hover": { backgroundColor: "#f5f5f5" }
+                    }}
+                  >
+                    <ListItemText
+                      primary={order.orderName || `Đơn hàng #${order._id.slice(-6)}`}
+                      secondary={`Người tạo: ${order.userName} - Số sản phẩm: ${order.productList?.length || 0} - Ngày tạo: ${new Date(order.createdAt).toLocaleDateString("vi-VN")}`}
+                    />
+                    <Button variant="contained" size="small">Chọn</Button>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenOrderDialog(false)}>Đóng</Button>
         </DialogActions>
       </Dialog>
     </Box>

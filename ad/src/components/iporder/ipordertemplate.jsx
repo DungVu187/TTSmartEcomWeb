@@ -302,14 +302,14 @@ const IpOrderTemplate = () => {
                   </TableCell>
                   <TableCell>
                     {productDetails[product.productId]?.variant?.[0]?.imgUrl ? (
-  <img
-    src={product.variant?.[0]?.imgUrl}
-    alt={productDetails[product.productId]?.name || "Sản phẩm"}
-    style={{ width: "50px", height: "50px", objectFit: "cover" }}
-  />
-) : (
-  "N/A"
-)}
+                      <img
+                        src={productDetails[product.productId]?.variant?.[0]?.imgUrl}
+                        alt={productDetails[product.productId]?.name || "Sản phẩm"}
+                        style={{ width: "50px", height: "50px", objectFit: "cover" }}
+                      />
+                    ) : (
+                      "N/A"
+                    )}
                   </TableCell>
                   <TableCell>
                     <Typography>{productDetails[product.productId]?.code || 'N/A'}</Typography>

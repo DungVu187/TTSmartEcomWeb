@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Autocomplete,
   Button,
@@ -23,7 +24,11 @@ import "./style/chips.css";
 import toast from "react-hot-toast";
 const apiUrl = import.meta.env.VITE_API_URL;
 
-const Chips = () => {
+const Chips = ({ onlySection = false }) => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const showOnlySection = onlySection || searchParams.get("onlySection") === "true";
+
   const [colorRows, setColorRows] = useState([]);
   const [shapeRows, setShapeRows] = useState([]);
   const [frameRows, setFrameRows] = useState([]);
@@ -555,172 +560,178 @@ const fetchSectionDevices = async (sectionName) => {
 
   return (
     <div className="chip-main-container">
-      <h2>Quản lý cụm thiết bị</h2>
-      <div style={{ display: "flex", gap: "30px" }}>
-        <Autocomplete
-          options={sections}
-          getOptionLabel={(option) => option}
-          value={selectedSection}
-          onChange={handleSectionChange}
-          size="small"
-          sx={{ width: 200 }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Chọn cụm"
-              variant="outlined"
-              sx={{ margin: 2 }}
-            />
-          )}
-        />
-        <Button
-          sx={{ height: "40px", margin: "auto 0", justifyContent: "center" }}
-          variant="contained"
-          disabled={!selectedSection}
-          onClick={handleOpenValueDialog}
-        >
-          Thêm thiết bị
-        </Button>
-      </div>
-        {selectedSection && (
-          <div style={{ marginLeft: 20 }}>
-            {sectionDevices.length > 0 && sectionImageUrl ? (
-              <img
-                src={sectionImageUrl}
-                alt="section"
-                style={{
-                  width: 100,
-                  height: 100,
-                  objectFit: "cover",
-                  cursor: "pointer",
-                }}
-                onClick={() => fileInputRef.current?.click()}
-              />
-            ) : (
-              <Button
+      <div className="sticky-header">
+        <h2>Quản lý cụm thiết bị</h2>
+        <div style={{ display: "flex", gap: "30px", alignItems: "center" }}>
+          <Autocomplete
+            options={sections}
+            getOptionLabel={(option) => option}
+            value={selectedSection}
+            onChange={handleSectionChange}
+            size="small"
+            sx={{ width: 200 }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Chọn cụm"
                 variant="outlined"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Thêm ảnh
-              </Button>
+                sx={{ margin: 2 }}
+              />
             )}
-            <input
-              type="file"
-              accept="image/*"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              onChange={handleImageUpload}
-            />
-          </div>
-        )}
+          />
+          <Button
+            sx={{ height: "40px", margin: "auto 0", justifyContent: "center" }}
+            variant="contained"
+            disabled={!selectedSection}
+            onClick={handleOpenValueDialog}
+          >
+            Thêm thiết bị
+          </Button>
+          {selectedSection && (
+            <div style={{ marginLeft: 20 }}>
+              {sectionDevices.length > 0 && sectionImageUrl ? (
+                <img
+                  src={sectionImageUrl}
+                  alt="section"
+                  style={{
+                    width: 100,
+                    height: 100,
+                    objectFit: "cover",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                />
+              ) : (
+                <Button
+                  variant="outlined"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Thêm ảnh
+                </Button>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                onChange={handleImageUpload}
+              />
+            </div>
+          )}
+        </div>
+      </div>
       {renderDeviceTable()}
 
-      <h2>Danh mục Chip</h2>
-      <Button
-        variant="contained"
-        sx={{ width: 200, margin: 2 }}
-        onClick={handleOpenDialog}
-      >
-        Thêm Chip
-      </Button>
-      <div className="chip-content-container">
-        {renderTable(
-          colorRows,
-          "Màu sắc",
-          colorPagination,
-          handleColorPageChange,
-          handleColorRowsPerPageChange
-        )}
-        {renderTable(
-          shapeRows,
-          "Hình dáng",
-          shapePagination,
-          handleShapePageChange,
-          handleShapeRowsPerPageChange
-        )}
-        {renderTable(
-          frameRows,
-          "Viền",
-          framePagination,
-          handleFramePageChange,
-          handleFrameRowsPerPageChange
-        )}
-        {renderTable(
-          buttonRows,
-          "Số nút",
-          buttonPagination,
-          handleButtonPageChange,
-          handleButtonRowsPerPageChange
-        )}
-      </div>
-
-      <Dialog open={openDialog} onClose={handleCloseDialog}>
-        <DialogTitle>Thêm Chip</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth sx={{ marginTop: 2 }}>
-            <InputLabel size="small">Loại Chip</InputLabel>
-            <Select
-              value={chipType}
-              onChange={handleChipTypeChange}
-              label="Loại Chip"
-              size="small"
-            >
-              <MenuItem value="Color">Màu</MenuItem>
-              <MenuItem value="Shapes">Dáng</MenuItem>
-              <MenuItem value="Frames">Viền</MenuItem>
-              <MenuItem value="ButtonCount">Số nút</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Giá trị"
-            fullWidth
-            variant="outlined"
-            value={chipValue}
-            onChange={handleChipValueChange}
-            size="small"
-            sx={{ marginTop: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleAddChip} color="success" variant="contained">
-            Thêm
-          </Button>
+      {!showOnlySection && (
+        <>
+          <h2>Danh mục Chip</h2>
           <Button
-            onClick={handleCloseDialog}
-            color="secondary"
-            variant="outlined"
+            variant="contained"
+            sx={{ width: 200, margin: 2 }}
+            onClick={handleOpenDialog}
           >
-            Đóng
+            Thêm Chip
           </Button>
-        </DialogActions>
-      </Dialog>
+          <div className="chip-content-container">
+            {renderTable(
+              colorRows,
+              "Màu sắc",
+              colorPagination,
+              handleColorPageChange,
+              handleColorRowsPerPageChange
+            )}
+            {renderTable(
+              shapeRows,
+              "Hình dáng",
+              shapePagination,
+              handleShapePageChange,
+              handleShapeRowsPerPageChange
+            )}
+            {renderTable(
+              frameRows,
+              "Viền",
+              framePagination,
+              handleFramePageChange,
+              handleFrameRowsPerPageChange
+            )}
+            {renderTable(
+              buttonRows,
+              "Số nút",
+              buttonPagination,
+              handleButtonPageChange,
+              handleButtonRowsPerPageChange
+            )}
+          </div>
 
-      <Dialog
-        open={openDeleteDialog}
-        onClose={() => setOpenDeleteDialog(false)}
-      >
-        <DialogTitle>Xác nhận xóa</DialogTitle>
-        <DialogContent>
-          <p>Bạn có chắc chắn muốn xóa chip này?</p>
-          <p>
-            <strong>{selectedChip ? selectedChip.value : ""}</strong>
-          </p>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDeleteChip} color="error" variant="contained">
-            Có
-          </Button>
-          <Button
-            onClick={() => setOpenDeleteDialog(false)}
-            color="secondary"
-            variant="outlined"
+          <Dialog open={openDialog} onClose={handleCloseDialog}>
+            <DialogTitle>Thêm Chip</DialogTitle>
+            <DialogContent>
+              <FormControl fullWidth sx={{ marginTop: 2 }}>
+                <InputLabel size="small">Loại Chip</InputLabel>
+                <Select
+                  value={chipType}
+                  onChange={handleChipTypeChange}
+                  label="Loại Chip"
+                  size="small"
+                >
+                  <MenuItem value="Color">Màu</MenuItem>
+                  <MenuItem value="Shapes">Dáng</MenuItem>
+                  <MenuItem value="Frames">Viền</MenuItem>
+                  <MenuItem value="ButtonCount">Số nút</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Giá trị"
+                fullWidth
+                variant="outlined"
+                value={chipValue}
+                onChange={handleChipValueChange}
+                size="small"
+                sx={{ marginTop: 2 }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleAddChip} color="success" variant="contained">
+                Thêm
+              </Button>
+              <Button
+                onClick={handleCloseDialog}
+                color="secondary"
+                variant="outlined"
+              >
+                Đóng
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog
+            open={openDeleteDialog}
+            onClose={() => setOpenDeleteDialog(false)}
           >
-            Hủy
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <DialogTitle>Xác nhận xóa</DialogTitle>
+            <DialogContent>
+              <p>Bạn có chắc chắn muốn xóa chip này?</p>
+              <p>
+                <strong>{selectedChip ? selectedChip.value : ""}</strong>
+              </p>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleDeleteChip} color="error" variant="contained">
+                Có
+              </Button>
+              <Button
+                onClick={() => setOpenDeleteDialog(false)}
+                color="secondary"
+                variant="outlined"
+              >
+                Hủy
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
+      )}
 
       {/* Dialog thêm thiết bị */}
       <Dialog open={openValueDialog} onClose={handleCloseValueDialog}>

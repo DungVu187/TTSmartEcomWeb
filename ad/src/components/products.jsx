@@ -709,63 +709,73 @@ const Products = () => {
 
   return (
     <div className="main-product-add-container">
-      <h2>Danh mục sản phẩm</h2>
-      <div className="product-add-functions">
-        <div className="product-add-button-add">
-          <Button
-            variant="contained"
-            color="primary"
-            className="open-product-add-dialog"
-            onClick={openDialog}
-          >
-            Thêm sản phẩm
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            className="open-product-add-dialog"
-            onClick={openBrandDialog}
-            sx={{ marginLeft: 2 }}
-          >
-            Thêm hãng
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            className="open-product-add-dialog"
-            onClick={openTypeDialog}
-            sx={{ marginLeft: 2 }}
-          >
-            Thêm loại sản phẩm
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            className="open-product-add-dialog"
-            sx={{ marginLeft: 2 }}
-            onClick={handleOpenSectionDialog}
-          >
-            Thêm cụm
-          </Button>
-        </div>
-        <div className="filter-desktop">
-          <TextField
-            label="Tìm kiếm nhanh..."
-            variant="outlined"
-            size="small"
-            value={quickSearch}
-            onChange={(e) => setQuickSearch(e.target.value)}
-            placeholder="Tìm theo tên, mã, hãng..."
-            sx={{ width: 250, mr: 2, bgcolor: "white" }}
-          />
-          <Button
-            className="filter-button"
-            onClick={() => setOpenSearchDialog(true)}
-            variant="contained"
-            color="primary"
-          >
-            Bộ lọc
-          </Button>
+      <div className="sticky-header">
+        <h2>Danh mục sản phẩm</h2>
+        <div className="product-add-functions">
+          <div className="product-add-button-add">
+            <Button
+              variant="contained"
+              color="primary"
+              className="open-product-add-dialog"
+              onClick={openDialog}
+            >
+              Thêm sản phẩm
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              className="open-product-add-dialog"
+              onClick={openBrandDialog}
+              sx={{ marginLeft: 2 }}
+            >
+              Thêm hãng
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              className="open-product-add-dialog"
+              onClick={openTypeDialog}
+              sx={{ marginLeft: 2 }}
+            >
+              Thêm loại sản phẩm
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              className="open-product-add-dialog"
+              sx={{ marginLeft: 2 }}
+              onClick={handleOpenSectionDialog}
+            >
+              Thêm cụm
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              sx={{ marginLeft: 2 }}
+              onClick={() => navigate("/cluster")}
+            >
+              Quản lý cụm thiết bị
+            </Button>
+          </div>
+          <div className="filter-desktop">
+            <TextField
+              label="Tìm kiếm nhanh..."
+              variant="outlined"
+              size="small"
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+              placeholder="Tìm theo tên, mã, hãng..."
+              sx={{ width: 250, mr: 2, bgcolor: "white" }}
+            />
+            <Button
+              className="filter-button"
+              onClick={() => setOpenSearchDialog(true)}
+              variant="contained"
+              color="primary"
+            >
+              Bộ lọc
+            </Button>
+          </div>
         </div>
       </div>
 

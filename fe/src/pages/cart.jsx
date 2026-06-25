@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/shopcontext";
 import {
   Box,
@@ -26,6 +27,7 @@ import { useLanguage } from "../context/languagecontext.jsx";
 
 function Cart() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const {
     cartItems,
     fetchCart,
@@ -171,6 +173,9 @@ function Cart() {
       sessionStorage.removeItem("activeStationCode"); // Xóa trạm hoạt động sau khi đặt thành công
       await fetchProducts(); // Cập nhật lại danh sách sản phẩm
       await fetchCart(); // Đồng bộ giỏ hàng mới từ database (các sản phẩm đã đặt đã được server xóa)
+      if (data.order && data.order._id) {
+        navigate("/myorder", { state: { autoOpenOrderId: data.order._id } });
+      }
     } catch (error) {
       console.error("Lỗi khi đặt hàng:", error);
       toast.error(error.message || t("error_occurred"));

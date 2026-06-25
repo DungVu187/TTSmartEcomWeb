@@ -373,104 +373,106 @@ const IpOrders = () => {
 
   return (
     <Box p={2}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 2,
-          mb: 2,
-        }}
-      >
-        <Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
-          Quản lý đơn nhập
-        </Typography>
-        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleOpenDialog}
+      <div className="sticky-header">
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 2,
+            mb: 2,
+          }}
+        >
+          <Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
+            Quản lý đơn nhập
+          </Typography>
+          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleOpenDialog}
+            >
+              Mẫu hóa đơn
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleOpenCreateDialog}
+            >
+              Tạo đơn mới
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Bộ lọc */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1.5,
+            mb: 0,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <TextField
+            label="Tên hóa đơn"
+            value={filterOrderName}
+            onChange={(e) => setFilterOrderName(e.target.value)}
+            size="small"
+            sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
+          />
+          <TextField
+            label="Tên người tạo"
+            value={filterUserName}
+            onChange={(e) => setFilterUserName(e.target.value)}
+            size="small"
+            sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
+          />
+          <TextField
+            select
+            label="Trạng thái"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            size="small"
+            sx={{ width: "150px", minWidth: "110px", flex: { xs: "1 1 120px", sm: "none" } }}
+            SelectProps={{ native: true }}
           >
-            Mẫu hóa đơn
-          </Button>
+            <option value="all">Tất cả</option>
+            <option value="true">Hoàn thành</option>
+            <option value="false">Chưa hoàn thành</option>
+          </TextField>
+          <TextField
+            label="Từ ngày"
+            type="date"
+            value={filterStartDate}
+            onChange={(e) => setFilterStartDate(e.target.value)}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
+          />
+          <TextField
+            label="Đến ngày"
+            type="date"
+            value={filterEndDate}
+            onChange={(e) => setFilterEndDate(e.target.value)}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
+          />
           <Button
             variant="contained"
             color="primary"
-            onClick={handleOpenCreateDialog}
+            onClick={() => {
+              setCurrentPage(1);
+              fetchOrders(1);
+            }}
+            sx={{ height: "40px", minWidth: "80px", flexShrink: 0 }}
           >
-            Tạo đơn mới
+            Lọc
           </Button>
         </Box>
-      </Box>
-
-      {/* Bộ lọc */}
-      <Box
-        sx={{
-          display: "flex",
-          gap: 1.5,
-          mb: 2,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <TextField
-          label="Tên hóa đơn"
-          value={filterOrderName}
-          onChange={(e) => setFilterOrderName(e.target.value)}
-          size="small"
-          sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
-        />
-        <TextField
-          label="Tên người tạo"
-          value={filterUserName}
-          onChange={(e) => setFilterUserName(e.target.value)}
-          size="small"
-          sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
-        />
-        <TextField
-          select
-          label="Trạng thái"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          size="small"
-          sx={{ width: "150px", minWidth: "110px", flex: { xs: "1 1 120px", sm: "none" } }}
-          SelectProps={{ native: true }}
-        >
-          <option value="all">Tất cả</option>
-          <option value="true">Hoàn thành</option>
-          <option value="false">Chưa hoàn thành</option>
-        </TextField>
-        <TextField
-          label="Từ ngày"
-          type="date"
-          value={filterStartDate}
-          onChange={(e) => setFilterStartDate(e.target.value)}
-          size="small"
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
-        />
-        <TextField
-          label="Đến ngày"
-          type="date"
-          value={filterEndDate}
-          onChange={(e) => setFilterEndDate(e.target.value)}
-          size="small"
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
-        />
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => {
-            setCurrentPage(1);
-            fetchOrders(1);
-          }}
-          sx={{ height: "40px", minWidth: "80px", flexShrink: 0 }}
-        >
-          Lọc
-        </Button>
-      </Box>
+      </div>
 
       {/* Dialog danh sách mẫu hóa đơn (chỉnh sửa mẫu) */}
       <Dialog open={openDialog} onClose={handleCloseDialog}>
@@ -548,17 +550,17 @@ const IpOrders = () => {
         </Box>
       ) : (
         <TableContainer component={Paper}>
-          <Table>
+          <Table style={{ tableLayout: "fixed", width: "100%" }}>
             <TableHead>
               <TableRow>
-                <TableCell align="center"></TableCell>
-                <TableCell align="center">Tên hóa đơn</TableCell>
-                <TableCell align="center">Tên người tạo</TableCell>
-                <TableCell align="center">Số lượng sản phẩm</TableCell>
-                <TableCell align="center">Tổng giá</TableCell>
-                <TableCell align="center">Trạng thái</TableCell>
-                <TableCell align="center">Ngày tạo</TableCell>
-                <TableCell align="center"></TableCell>
+                <TableCell align="center" style={{ width: "50px" }}></TableCell>
+                <TableCell align="center" style={{ width: "30%" }}>Tên hóa đơn</TableCell>
+                <TableCell align="center" style={{ width: "15%" }}>Tên người tạo</TableCell>
+                <TableCell align="center" style={{ width: "15%" }}>Số lượng sản phẩm</TableCell>
+                <TableCell align="center" style={{ width: "15%" }}>Tổng giá</TableCell>
+                <TableCell align="center" style={{ width: "10%" }}>Trạng thái</TableCell>
+                <TableCell align="center" style={{ width: "15%" }}>Ngày tạo</TableCell>
+                <TableCell align="center" style={{ width: "100px" }}></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -635,9 +637,7 @@ const IpOrders = () => {
                           >
                             <Box
                               sx={{
-                                margin: 1,
-                                width: "90%",
-                                marginLeft: "auto",
+                                margin: 2,
                               }}
                             >
                               <Table size="small">

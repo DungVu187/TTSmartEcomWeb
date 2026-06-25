@@ -332,9 +332,11 @@ const SectionDisplay = () => {
 
   return (
     <Box p={3}>
-      <Typography variant="h4" mb={3}>
-        Quản lý hiển thị mục sản phẩm
-      </Typography>
+      <div className="sticky-header">
+        <Typography variant="h4" mb={3}>
+          Quản lý hiển thị mục sản phẩm
+        </Typography>
+      </div>
       {manageData ? (
         <>
           <SectionComponent section="section1" displayName="Mục 1" />

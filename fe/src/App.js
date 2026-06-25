@@ -1,6 +1,6 @@
 import './App.css';
 import Navbar from './layout/navbar/navbar.jsx';
-// import Footer from './layout/footer/footer.jsx';
+import Footer from './layout/footer/footer.jsx';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Dashboard from './pages/dashboard.jsx';
 import Product from './pages/product.jsx';
@@ -32,25 +32,27 @@ function App() {
           <Navbar />
           <div className="main-content">
             <ScrollRestoration>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/dashboard" element={<MainPage />} />
-                <Route path="/product" element={<Product />} />
-                <Route path="/product/:productId" element={<ProductDisplay />} />
-                <Route path="/login" element={<LogIn />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/myorder" element={<MyOrder />} />
-                <Route path="/introduction" element={<Intro />} />
-                <Route path="/policy" element={<Policy />} />
-                <Route path="/section/:sectionName" element={<ValueList />} />
-                <Route path="/station" element={<Station />} />
-                <Route path="/station/:code" element={<StationDisplay />} />
-                <Route path="/station/:code/:section" element={<StationDisplayDetail />} />
-                <Route path="/:code" element={<AutoLog />} />
-                <Route path="/change-password" element={<ChangePassword />} />
-                <Route path="/profile" element={<Profile />} />
-              </Routes>
-              {/* <Footer /> */}
+              <div className="page-container">
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<MainPage />} />
+                  <Route path="/product" element={<Product />} />
+                  <Route path="/product/:productId" element={<ProductDisplay />} />
+                  <Route path="/login" element={<LogIn />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/myorder" element={<MyOrder />} />
+                  <Route path="/introduction" element={<Intro />} />
+                  <Route path="/policy" element={<Policy />} />
+                  <Route path="/section/:sectionName" element={<ValueList />} />
+                  <Route path="/station" element={<Station />} />
+                  <Route path="/station/:code" element={<StationDisplay />} />
+                  <Route path="/station/:code/:section" element={<StationDisplayDetail />} />
+                  <Route path="/:code" element={<AutoLog />} />
+                  <Route path="/change-password" element={<ChangePassword />} />
+                  <Route path="/profile" element={<Profile />} />
+                </Routes>
+              </div>
+              <Footer />
             </ScrollRestoration>
           </div>
 

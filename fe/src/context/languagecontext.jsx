@@ -23,6 +23,9 @@ const translations = {
     "purchase_policy": "Chính sách mua hàng",
     "contact_us": "Liên hệ",
     "dashboard": "Cụm thiết bị",
+    "quick_links": "Liên kết nhanh",
+    "policies": "Chính sách",
+    "copyright": "Bản quyền thuộc về TTSmart. Bảo lưu mọi quyền.",
 
     // Dashboard
     "loading_banner": "Đang tải banner...",
@@ -223,6 +226,9 @@ const translations = {
     "purchase_policy": "采购政策",
     "contact_us": "联系我们",
     "dashboard": "设备组",
+    "quick_links": "快速链接",
+    "policies": "政策法规",
+    "copyright": "版权所有 © TTSmart. 保留所有权利。",
 
     // Dashboard
     "loading_banner": "正在加载轮播图...",
@@ -423,6 +429,9 @@ const translations = {
     "purchase_policy": "Purchase Policy",
     "contact_us": "Contact Us",
     "dashboard": "Equipment Group",
+    "quick_links": "Quick Links",
+    "policies": "Policies",
+    "copyright": "Copyright © TTSmart. All rights reserved.",
 
     // Dashboard
     "loading_banner": "Loading banners...",

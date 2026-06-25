@@ -342,6 +342,7 @@ const StationUser = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Reset thất bại");
       toast.success("Đã reset mật khẩu về 123456");
+      setOpenEditDialog(false);
       fetchUsers();
     } catch (err) {
       toast.error(err.message || "Lỗi khi reset mật khẩu");
@@ -352,18 +353,18 @@ const StationUser = () => {
 
   return (
     <Box p={3}>
-      <Typography variant="h4" gutterBottom>
-        Quản lý người dùng và trạm
-      </Typography>
-
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={() => setOpenDialog(true)}
-        sx={{ mb: 2 }}
-      >
-        Thêm người dùng mới
-      </Button>
+      <div className="sticky-header">
+        <Typography variant="h4" gutterBottom>
+          Quản lý người dùng và trạm
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setOpenDialog(true)}
+        >
+          Thêm người dùng mới
+        </Button>
+      </div>
 
       <TableContainer component={Paper}>
         <Table>

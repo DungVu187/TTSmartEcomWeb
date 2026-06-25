@@ -155,8 +155,7 @@ const Orders = () => {
             )
           );
           toast.success(
-            `Cập nhật ${
-              field === "status" ? "trạng thái" : "thanh toán"
+            `Cập nhật ${field === "status" ? "trạng thái" : "thanh toán"
             } thành công`
           );
 
@@ -363,110 +362,112 @@ const Orders = () => {
 
   return (
     <Box p={3}>
-      <Typography variant="h4" mb={3}>
-        Quản lý đơn hàng
-      </Typography>
+      <div className="sticky-header">
+        <Typography variant="h4" mb={3}>
+          Quản lý đơn hàng bán
+        </Typography>
 
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap">
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>Trạng thái</InputLabel>
-          <Select
-            name="status"
-            value={filters.status}
+        <Box display="flex" gap={2} mb={2} flexWrap="wrap">
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>Trạng thái</InputLabel>
+            <Select
+              name="status"
+              value={filters.status}
+              onChange={handleFilterChange}
+              label="Trạng thái"
+              size="small"
+            >
+              <MenuItem value="Tất cả">Tất cả</MenuItem>
+              <MenuItem value="Processing">Đang xử lý</MenuItem>
+              <MenuItem value="Delivering">Đang giao</MenuItem>
+              <MenuItem value="Completed">Hoàn thành</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>Thanh toán</InputLabel>
+            <Select
+              name="payment"
+              value={filters.payment}
+              onChange={handleFilterChange}
+              label="Thanh toán"
+              size="small"
+            >
+              <MenuItem value="Tất cả">Tất cả</MenuItem>
+              <MenuItem value="true">Đã thanh toán</MenuItem>
+              <MenuItem value="false">Chưa thanh toán</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>Tình trạng</InputLabel>
+            <Select
+              name="state"
+              value={filters.state}
+              onChange={handleFilterChange}
+              label="Tình trạng"
+              size="small"
+            >
+              <MenuItem value="Processing">Đang chờ</MenuItem>
+              <MenuItem value="Cancelled">Đã hủy</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            name="phone"
+            label="Số điện thoại"
+            value={filters.phone}
             onChange={handleFilterChange}
-            label="Trạng thái"
+            variant="outlined"
             size="small"
-          >
-            <MenuItem value="Tất cả">Tất cả</MenuItem>
-            <MenuItem value="Processing">Đang xử lý</MenuItem>
-            <MenuItem value="Delivering">Đang giao</MenuItem>
-            <MenuItem value="Completed">Hoàn thành</MenuItem>
-          </Select>
-        </FormControl>
+            sx={{ width: 200 }}
+          />
 
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>Thanh toán</InputLabel>
-          <Select
-            name="payment"
-            value={filters.payment}
+          <TextField
+            name="name"
+            label="Tên người dùng"
+            value={filters.name}
             onChange={handleFilterChange}
-            label="Thanh toán"
+            variant="outlined"
             size="small"
-          >
-            <MenuItem value="Tất cả">Tất cả</MenuItem>
-            <MenuItem value="true">Đã thanh toán</MenuItem>
-            <MenuItem value="false">Chưa thanh toán</MenuItem>
-          </Select>
-        </FormControl>
+            sx={{ width: 200 }}
+          />
 
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>Tình trạng</InputLabel>
-          <Select
-            name="state"
-            value={filters.state}
+          <TextField
+            name="id"
+            label="Mã đơn hàng"
+            value={filters.id}
             onChange={handleFilterChange}
-            label="Tình trạng"
+            variant="outlined"
             size="small"
-          >
-            <MenuItem value="Processing">Đang chờ</MenuItem>
-            <MenuItem value="Cancelled">Đã hủy</MenuItem>
-          </Select>
-        </FormControl>
+            sx={{ width: 235 }}
+          />
 
-        <TextField
-          name="phone"
-          label="Số điện thoại"
-          value={filters.phone}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          sx={{ width: 200 }}
-        />
+          <TextField
+            name="startDate"
+            label="Từ ngày"
+            type="date"
+            value={filters.startDate}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
 
-        <TextField
-          name="name"
-          label="Tên người dùng"
-          value={filters.name}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          sx={{ width: 200 }}
-        />
-
-        <TextField
-          name="id"
-          label="Mã đơn hàng"
-          value={filters.id}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          sx={{ width: 235 }}
-        />
-
-        <TextField
-          name="startDate"
-          label="Từ ngày"
-          type="date"
-          value={filters.startDate}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 150 }}
-        />
-
-        <TextField
-          name="endDate"
-          label="Đến ngày"
-          type="date"
-          value={filters.endDate}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 150 }}
-        />
-      </Box>
+          <TextField
+            name="endDate"
+            label="Đến ngày"
+            type="date"
+            value={filters.endDate}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
+        </Box>
+      </div>
 
       <TableContainer component={Paper}>
         <Table>
@@ -635,11 +636,10 @@ const Orders = () => {
             Bạn có chắc chắn muốn{" "}
             {confirmAction?.type === "cancel"
               ? "hủy đơn hàng này"
-              : `cập nhật ${
-                  confirmAction?.field === "status"
-                    ? "trạng thái"
-                    : "thanh toán"
-                }`}
+              : `cập nhật ${confirmAction?.field === "status"
+                ? "trạng thái"
+                : "thanh toán"
+              }`}
             ?
           </Typography>
         </DialogContent>

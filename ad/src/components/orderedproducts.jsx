@@ -266,10 +266,10 @@ const OrderedProducts = () => {
                   <TableCell align="center">
                     {product.variant?.imgUrl ? (
                       <img
-  src={product.variant?.[0]?.imgUrl}
-  alt={product.name || "Sản phẩm"}
-  style={{ width: 50, height: 50, objectFit: "cover" }}
-/>
+                        src={product.variant?.imgUrl}
+                        alt={product.name || "Sản phẩm"}
+                        style={{ width: 50, height: 50, objectFit: "cover" }}
+                      />
                     ) : (
                       "N/A"
                     )}

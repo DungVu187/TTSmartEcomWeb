@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Container,
   Typography,
@@ -30,6 +31,7 @@ const apiUrl = process.env.REACT_APP_BACK_END;
 
 const MyOrder = () => {
   const { t } = useLanguage();
+  const location = useLocation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -162,6 +164,19 @@ const MyOrder = () => {
     };
     fetchOrders();
   }, [page, isLoggedIn, selectedState]);
+
+  useEffect(() => {
+    if (orders.length > 0 && location.state?.autoOpenOrderId) {
+      const foundOrder = orders.find(
+        (order) => order._id === location.state.autoOpenOrderId
+      );
+      if (foundOrder) {
+        handleOpenDialog(foundOrder);
+        // Clear state to prevent dialog reopening on tab changes or browser back
+        window.history.replaceState(null, "");
+      }
+    }
+  }, [orders, location.state]);
 
   const cancelOrder = async (orderId) => {
     if (isCancelling) return;

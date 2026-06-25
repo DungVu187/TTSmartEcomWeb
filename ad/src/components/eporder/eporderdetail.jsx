@@ -1232,77 +1232,79 @@ const ExportOrderDetail = () => {
 
   return (
     <Box p={2}>
-      <Typography variant="h5" gutterBottom>
-        Chi tiết đơn hàng #{id}
-      </Typography>
+      <Box className="sticky-header">
+        <Typography variant="h5" gutterBottom>
+          Chi tiết đơn hàng #{id}
+        </Typography>
 
-      <Box display="flex" alignItems="center" gap={2} mb={2}>
-        <TextField
-          label="Tên đơn hàng"
-          value={order?.orderName || ""}
-          onChange={(e) =>
-            setOrder((prev) => ({ ...prev, orderName: e.target.value }))
-          }
-          sx={{ width: "300px" }}
-          size="small"
-        />
-        <Button
-          variant="contained"
-          color="success"
-          onClick={() => handleUpdateOrderName(order?.orderName || "")}
-        >
-          Lưu tên
-        </Button>
-      </Box>
-
-      <Box display="flex" gap={2} mb={2}>
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={() => setOpenAddDialog(true)}
-        >
-          Thêm sản phẩm
-        </Button>
-        <Button variant="contained" color="primary" onClick={handleCopyOrder}>
-          Sao chép đơn
-        </Button>
-        <Button variant="contained" color="error" onClick={handleDeleteOrder}>
-          Xóa đơn
-        </Button>
-        <Button
-          variant="contained"
-          color="secondary"
-          onClick={handleCreateImportOrder}
-        >
-          Nhập đơn
-        </Button>
-        <Button
-          variant="contained"
-          color="info"
-          onClick={handleExportToExcel}
-          startIcon={<CloudDownloadIcon />}
-        >
-          Xuất Excel
-        </Button>
-        <Button
-          component="label"
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          color="warning"
-          disabled={isProcessingExcel}
-        >
-          Nhập Excel
-          <VisuallyHiddenInput
-            type="file"
-            accept=".xlsx, .xls"
-            onChange={handleFileUpload}
+        <Box display="flex" alignItems="center" gap={2} mb={2}>
+          <TextField
+            label="Tên đơn hàng"
+            value={order?.orderName || ""}
+            onChange={(e) =>
+              setOrder((prev) => ({ ...prev, orderName: e.target.value }))
+            }
+            sx={{ width: "300px" }}
+            size="small"
           />
-        </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => handleUpdateOrderName(order?.orderName || "")}
+          >
+            Lưu tên
+          </Button>
+        </Box>
+
+        <Box display="flex" gap={2} mb={2}>
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => setOpenAddDialog(true)}
+          >
+            Thêm sản phẩm
+          </Button>
+          <Button variant="contained" color="primary" onClick={handleCopyOrder}>
+            Sao chép đơn
+          </Button>
+          <Button variant="contained" color="error" onClick={handleDeleteOrder}>
+            Xóa đơn
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleCreateImportOrder}
+          >
+            Nhập đơn
+          </Button>
+          <Button
+            variant="contained"
+            color="info"
+            onClick={handleExportToExcel}
+            startIcon={<CloudDownloadIcon />}
+          >
+            Xuất Excel
+          </Button>
+          <Button
+            component="label"
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            color="warning"
+            disabled={isProcessingExcel}
+          >
+            Nhập Excel
+            <VisuallyHiddenInput
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleFileUpload}
+            />
+          </Button>
+        </Box>
+        <Typography variant="body1" className="total-summary-text">
+          Tổng cộng: {Number(enrichedOrder?.total || 0).toLocaleString("vi-VN")}{" "}
+          VNĐ
+        </Typography>
       </Box>
-      <Typography variant="body1">
-        Tổng cộng: {Number(enrichedOrder?.total || 0).toLocaleString("vi-VN")}{" "}
-        VNĐ
-      </Typography>
 
       <DndContext
         sensors={sensors}

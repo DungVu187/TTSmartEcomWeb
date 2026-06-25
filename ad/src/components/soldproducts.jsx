@@ -253,61 +253,73 @@ const SoldProducts = () => {
 
   return (
     <Box p={3}>
-      <Typography variant="h4" mb={3}>
-        Quản lý sản phẩm đã bán
-      </Typography>
+      <div className="sticky-header">
+        <Typography variant="h4" mb={3}>
+          Quản lý sản phẩm đã bán
+        </Typography>
 
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap">
-        <TextField
-          name="productName"
-          label="Tên sản phẩm"
-          value={filters.productName}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          sx={{ width: 200 }}
-        />
-
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>Thanh toán</InputLabel>
-          <Select
-            name="payment"
-            value={filters.payment}
+        <Box display="flex" gap={2} mb={2} flexWrap="wrap">
+          <TextField
+            name="productName"
+            label="Tên sản phẩm"
+            value={filters.productName}
             onChange={handleFilterChange}
-            label="Thanh toán"
+            variant="outlined"
             size="small"
-          >
-            <MenuItem value="Tất cả">Tất cả</MenuItem>
-            <MenuItem value="true">Đã thanh toán</MenuItem>
-            <MenuItem value="false">Chưa thanh toán</MenuItem>
-          </Select>
-        </FormControl>
-        <TextField
-          name="startDate"
-          label="Từ ngày"
-          type="date"
-          value={filters.startDate}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 150 }}
-        />
-        <TextField
-          name="endDate"
-          label="Đến ngày"
-          type="date"
-          value={filters.endDate}
-          onChange={handleFilterChange}
-          variant="outlined"
-          size="small"
-          InputLabelProps={{ shrink: true }}
-          sx={{ width: 150 }}
-        />
-        <Button variant="contained" color="primary" onClick={handleSearch}>
-          Tìm kiếm
-        </Button>
-      </Box>
+            sx={{ width: 200 }}
+          />
+
+          <TextField
+            name="productCode"
+            label="Mã sản phẩm"
+            value={filters.productCode}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            sx={{ width: 200 }}
+          />
+
+          <FormControl sx={{ minWidth: 150 }}>
+            <InputLabel>Thanh toán</InputLabel>
+            <Select
+              name="payment"
+              value={filters.payment}
+              onChange={handleFilterChange}
+              label="Thanh toán"
+              size="small"
+            >
+              <MenuItem value="Tất cả">Tất cả</MenuItem>
+              <MenuItem value="true">Đã thanh toán</MenuItem>
+              <MenuItem value="false">Chưa thanh toán</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            name="startDate"
+            label="Từ ngày"
+            type="date"
+            value={filters.startDate}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
+          <TextField
+            name="endDate"
+            label="Đến ngày"
+            type="date"
+            value={filters.endDate}
+            onChange={handleFilterChange}
+            variant="outlined"
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }}
+          />
+          <Button variant="contained" color="primary" onClick={handleSearch}>
+            Tìm kiếm
+          </Button>
+        </Box>
+      </div>
 
       <TableContainer component={Paper}>
         <Table>
@@ -327,15 +339,15 @@ const SoldProducts = () => {
             {soldProducts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((product, index) => (
               <TableRow key={index}>
                 <TableCell align="center">
-                  {product.variant?.[0]?.imgUrl ? (
-  <img
-    src={product.variant?.[0]?.imgUrl}
-    alt={product.name || "Sản phẩm"}
-    style={{ width: 50, height: 50, objectFit: "cover" }}
-  />
-) : (
-  "N/A"
-)}
+                  {product.variant?.imgUrl ? (
+                    <img
+                      src={product.variant?.imgUrl}
+                      alt={product.name || "Sản phẩm"}
+                      style={{ width: 50, height: 50, objectFit: "cover" }}
+                    />
+                  ) : (
+                    "N/A"
+                  )}
                 </TableCell>
                 <TableCell align="center">{product.name}</TableCell>
                 <TableCell align="center">{product.code}</TableCell>

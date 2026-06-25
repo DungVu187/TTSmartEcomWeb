@@ -258,9 +258,11 @@ const Manage = () => {
 
   return (
     <Box sx={{ padding: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Quản lý nội dung
-      </Typography>
+      <div className="sticky-header">
+        <Typography variant="h4" gutterBottom>
+          Quản lý nội dung
+        </Typography>
+      </div>
 
       {/* Ảnh bìa (overViewImg) */}
       <Box sx={{ mb: 4, width: "900px" }}>

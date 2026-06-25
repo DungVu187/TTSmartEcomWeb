@@ -1,11 +1,89 @@
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%; /* Đảm bảo toàn bộ màn hình được chiếm */
-  }
-  
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  /* Đảm bảo toàn bộ màn hình được chiếm */
+}
+
 #root {
-  display: flex; /* Sử dụng Flexbox để bố trí ngang */
-  height: 100%; /* Chiếm toàn bộ chiều cao màn hình */
+  display: flex;
+  /* Sử dụng Flexbox để bố trí ngang */
+  height: 100%;
+  /* Chiếm toàn bộ chiều cao màn hình */
   width: 100%;
+}
+
+/* Remove top padding of the page content wrapper when it has a sticky header inside */
+.admin-content-wrapper:has(.sticky-header) {
+  padding-top: 0 !important;
+}
+
+/* Force direct child elements (page root wrappers) of the admin-content-wrapper to have no padding
+   when they contain a sticky header. This ensures the sticky header negative margins align perfectly 
+   with the container edges, and page content (tables, etc.) is perfectly aligned horizontally. */
+.admin-content-wrapper > div:has(.sticky-header),
+.admin-content-wrapper > .MuiBox-root:has(.sticky-header) {
+  padding: 0 !important;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  background-color: #fff;
+  z-index: 100;
+  will-change: transform;
+  transform: translateZ(0);
+  /* Enable hardware acceleration to prevent jittering/sliding when scrolling */
+  padding-top: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+
+  /* Extend to left and right screen edges to hide scrolling content on sides */
+  margin-left: -20px;
+  margin-right: -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+@media (max-width: 900px) {
+  .sticky-header {
+    padding-top: 70px;
+  }
+}
+
+/* Uniform Page Title Styles */
+.sticky-header h2,
+.sticky-header .MuiTypography-h4,
+.sticky-header .MuiTypography-h5,
+.MuiBox-root>h2:first-of-type,
+.MuiBox-root>.MuiTypography-h4:first-of-type,
+.MuiBox-root>.MuiTypography-h5:first-of-type,
+.MuiBox-root>div>.MuiTypography-h4:first-of-type,
+.sticky-header .MuiTypography-root:not(.total-summary-text) {
+  font-family: 'Arial', 'Outfit', 'Inter', 'Segoe UI', sans-serif !important;
+  font-size: 36px !important;
+  font-weight: 500 !important;
+  /* Medium weight, less heavy */
+  color: #000000 !important;
+  /* Softer dark charcoal */
+  margin-top: 0 !important;
+  margin-bottom: 12px !important;
+  letter-spacing: -0.02em !important;
+  /* Tightened tracking for a premium feel */
+}
+
+/* Global Table Top Margin Reset */
+table {
+  margin-top: 0 !important;
+}
+
+/* Total Amount Style in Order Details */
+.total-summary-text {
+  font-size: 24px !important;
+  font-weight: 500 !important;
+  color: #000000 !important;
+  margin-top: 10px !important;
+  margin-bottom: 0 !important;
 }

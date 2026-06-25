@@ -37,11 +37,12 @@ const App = () => {
             <ProtectedRoute>
               <Box sx={{ display: 'flex', width: "100%", minHeight: "100vh" }}>
                 <Sidebar />
-                <Box sx={{ flex: 1, padding: '20px', pt: { xs: '70px', md: '20px' }, minWidth: 0 }}>
+                <Box className="admin-content-wrapper" sx={{ flex: 1, padding: '20px', pt: { xs: '70px', md: '20px' }, minWidth: 0 }}>
                   <Routes>
                     <Route path="/account" element={<Account />} />
                     <Route path="/product" element={<Products />} />
                     <Route path="/chip" element={<Chips />} />
+                    <Route path="/cluster" element={<Chips onlySection={true} />} />
                     <Route path="/product/:productId" element={<ProductDisplay />} />
                     <Route path="/order" element={<Orders />} />
                     <Route path="/manage" element={<Manage />} />

@@ -731,11 +731,15 @@ const ImportOrderDetail = () => {
               <TableRow key={index}>
                 <TableCell align="center">{product.name || "N/A"}</TableCell>
                 <TableCell align="center">
-                  <img
-  src={product.variant?.[0]?.imgUrl}
-  alt=""
-  style={{ width: "50px", height: "50px" }}
-/>
+                  {product.imgUrl ? (
+                    <img
+                      src={product.imgUrl}
+                      alt=""
+                      style={{ width: "50px", height: "50px" }}
+                    />
+                  ) : (
+                    "N/A"
+                  )}
                 </TableCell>
                 <TableCell align="center">{product.code || "N/A"}</TableCell>
                 <TableCell align="center">{product.brand || "N/A"}</TableCell>

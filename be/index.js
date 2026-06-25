@@ -205,6 +205,7 @@ const adminDistPath = path.join(__dirname, '../ad/dist');
 app.use('/admin', express.static(adminDistPath));
 
 app.get('/admin/*', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.sendFile(path.join(adminDistPath, 'index.html'));
 });
 
@@ -225,6 +226,7 @@ app.get('*', (req, res, next) => {
   if (isApi || isStaticFile) {
     return next();
   }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.sendFile(path.join(feBuildPath, 'index.html'));
 });
 

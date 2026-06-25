@@ -31,7 +31,7 @@ import AddIcon from "@mui/icons-material/Add";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const vietnameseMapping = {
-  order_management: "Quản lý đơn hàng",
+  order_management: "Quản lý đơn hàng bán",
   product_management: "Quản lý sản phẩm",
   iporder_management: "Quản lý đơn nhập",
   eporder_management: "Quản lý đơn xuất",
@@ -195,8 +195,8 @@ const Account = () => {
       renderCell: (params) =>
         params.value && params.value.length > 0
           ? params.value.map((func) => (
-              <Chip key={func} label={vietnameseMapping[func] || func} sx={{ m: 0.5 }} />
-            ))
+            <Chip key={func} label={vietnameseMapping[func] || func} sx={{ m: 0.5 }} />
+          ))
           : "Không có",
     },
     {
@@ -206,8 +206,8 @@ const Account = () => {
       renderCell: (params) =>
         params.value && params.value.length > 0
           ? params.value.map((perm) => (
-              <Chip key={perm} label={vietnameseMapping[perm] || perm} sx={{ m: 0.5 }} />
-            ))
+            <Chip key={perm} label={vietnameseMapping[perm] || perm} sx={{ m: 0.5 }} />
+          ))
           : "Không có",
     },
     {
@@ -224,7 +224,7 @@ const Account = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+      <div className="sticky-header">
         <Typography variant="h4" gutterBottom sx={{ mb: 0 }}>
           Quản lý quyền người dùng
         </Typography>
@@ -236,7 +236,7 @@ const Account = () => {
         >
           Thêm tài khoản
         </Button>
-      </Box>
+      </div>
 
       <Box sx={{ height: 600, width: "100%" }}>
         <DataGrid

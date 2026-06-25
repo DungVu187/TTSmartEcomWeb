@@ -229,8 +229,8 @@ function Navbar() {
             </Link>
           </li>
           <li className="hamburger-filter">
-            <Link to="/cart" onClick={closeMenu} style={linkStyle}>
-              {t("cart")} ({getCartItemCount()})
+            <Link to="/product" onClick={closeMenu} style={linkStyle}>
+              {t("products")}
             </Link>
           </li>
           <li className="hamburger-filter">
@@ -239,49 +239,25 @@ function Navbar() {
             </Link>
           </li>
           <li className="hamburger-filter">
-            <Link to="/product" onClick={closeMenu} style={linkStyle}>
-              {t("products")}
-            </Link>
-          </li>
-          <li className="hamburger-filter">
             <Link to="/dashboard" onClick={closeMenu} style={linkStyle}>
               {t("equipment_group")}
             </Link>
           </li>
           <li className="hamburger-filter">
-            <Link to="/introduction" onClick={closeMenu} style={linkStyle}>
-              {t("introduction")}
+            <Link to="/myorder" onClick={closeMenu} style={linkStyle}>
+              {t("my_orders")}
             </Link>
           </li>
           <li className="hamburger-filter">
-            <Link to="/policy" onClick={closeMenu} style={linkStyle}>
-              {t("purchase_policy")}
-            </Link>
-          </li>
-          <li className="hamburger-filter">
-            <a href="tel:+8413158383" style={linkStyle}>
-              {t("contact_us")}
+            <a href="tel:0813158383" style={linkStyle}>
+              Hotline: 0813158383
             </a>
           </li>
-          {isLoggedIn && (
-            <>
-              <li className="hamburger-filter">
-                <Link to="/profile" onClick={closeMenu} style={linkStyle}>
-                  {t("personal_info")}
-                </Link>
-              </li>
-              <li className="hamburger-filter">
-                <Link to="/myorder" onClick={closeMenu} style={linkStyle}>
-                  {t("my_orders")}
-                </Link>
-              </li>
-            </>
-          )}
           <li className="hamburger-filter">
             {isLoggedIn ? (
               <p
                 onClick={handleLogout}
-                style={{ cursor: isLoading ? "not-allowed" : "pointer" }}
+                style={{ cursor: isLoading ? "not-allowed" : "pointer", margin: 0 }}
               >
                 {isLoading ? t("logging_out") : t("logout")}
               </p>

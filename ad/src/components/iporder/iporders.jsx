@@ -549,17 +549,18 @@ const IpOrders = () => {
           <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table style={{ tableLayout: "fixed", width: "100%" }}>
+        <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
+          <Table style={{ minWidth: "1000px", tableLayout: "fixed" }}>
             <TableHead>
               <TableRow>
                 <TableCell align="center" style={{ width: "50px" }}></TableCell>
-                <TableCell align="center" style={{ width: "30%" }}>Tên hóa đơn</TableCell>
-                <TableCell align="center" style={{ width: "15%" }}>Tên người tạo</TableCell>
-                <TableCell align="center" style={{ width: "15%" }}>Số lượng sản phẩm</TableCell>
-                <TableCell align="center" style={{ width: "15%" }}>Tổng giá</TableCell>
+                <TableCell align="center" style={{ width: "25%" }}>Tên hóa đơn</TableCell>
+                <TableCell align="center" style={{ width: "12%" }}>Tên người tạo</TableCell>
+                <TableCell align="center" style={{ width: "13%" }}>Số lượng sản phẩm</TableCell>
+                <TableCell align="center" style={{ width: "13%" }}>Tổng giá</TableCell>
                 <TableCell align="center" style={{ width: "10%" }}>Trạng thái</TableCell>
-                <TableCell align="center" style={{ width: "15%" }}>Ngày tạo</TableCell>
+                <TableCell align="center" style={{ width: "13%" }}>Ngày tạo</TableCell>
+                <TableCell align="center" style={{ width: "14%" }}>Ngày nhập</TableCell>
                 <TableCell align="center" style={{ width: "100px" }}></TableCell>
               </TableRow>
             </TableHead>
@@ -614,6 +615,11 @@ const IpOrders = () => {
                         {moment(order.createdAt).format("DD/MM/YYYY HH:mm")}
                       </TableCell>
                       <TableCell align="center">
+                        {order.completedAt 
+                          ? moment(order.completedAt).format("DD/MM/YYYY HH:mm") 
+                          : (order.status === true ? moment(order.createdAt).format("DD/MM/YYYY HH:mm") : "")}
+                      </TableCell>
+                      <TableCell align="center">
                         <Button
                           variant="contained"
                           color="primary"
@@ -628,7 +634,7 @@ const IpOrders = () => {
                       <TableRow>
                         <TableCell
                           style={{ paddingBottom: 0, paddingTop: 0 }}
-                          colSpan={8}
+                          colSpan={9}
                         >
                           <Collapse
                             in={expandedRows[order._id]}

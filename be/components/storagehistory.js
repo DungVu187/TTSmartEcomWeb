@@ -44,8 +44,16 @@ router.get("/", authenticateAdmin, async (req, res) => {
         const filter = {};
         if (startDate || endDate) {
             filter.createdAt = {};
-            if (startDate) filter.createdAt.$gte = new Date(startDate);
-            if (endDate) filter.createdAt.$lte = new Date(endDate);
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setUTCHours(0 - 7, 0, 0, 0);
+                filter.createdAt.$gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setUTCHours(23 - 7, 59, 59, 999);
+                filter.createdAt.$lte = end;
+            }
         }
 
         if (orderName) {
@@ -107,8 +115,16 @@ router.get("/:id", [authenticateAdmin, checkPermission('update_product')], async
         const filter = { productId: id };
         if (startDate || endDate) {
             filter.createdAt = {};
-            if (startDate) filter.createdAt.$gte = new Date(startDate);
-            if (endDate) filter.createdAt.$lte = new Date(endDate);
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setUTCHours(0 - 7, 0, 0, 0);
+                filter.createdAt.$gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setUTCHours(23 - 7, 59, 59, 999);
+                filter.createdAt.$lte = end;
+            }
         }
 
         const [history, total] = await Promise.all([

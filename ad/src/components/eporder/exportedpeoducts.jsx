@@ -80,6 +80,8 @@ const ExportedProducts = () => {
       const queryParams = new URLSearchParams({
         page: currentPage,
         limit: rowsPerPage,
+        status: "true",
+        byCompletedDate: "true",
         ...(customFilters.startDate && { startDate: customFilters.startDate }),
         ...(customFilters.endDate && { endDate: customFilters.endDate }),
       }).toString();
@@ -111,6 +113,7 @@ const ExportedProducts = () => {
                 quantityEx: item.quantityEx,
                 status: item.status,
                 createdAt: order.createdAt,
+                completedAt: order.completedAt,
               });
             } else {
               productMap.set(key, {
@@ -124,6 +127,7 @@ const ExportedProducts = () => {
                     quantityEx: item.quantityEx,
                     status: item.status,
                     createdAt: order.createdAt,
+                    completedAt: order.completedAt,
                   },
                 ],
               });
@@ -143,6 +147,17 @@ const ExportedProducts = () => {
 
         productsWithDetails = Array.from(productMap.entries()).map(([key, product]) => {
           const productData = productDetails?.products.find((p) => p._id === key) || {};
+
+          const latestCreatedAt = product.orders.reduce((latest, o) => {
+            if (!o.createdAt) return latest;
+            return !latest || new Date(o.createdAt) > new Date(latest) ? o.createdAt : latest;
+          }, null);
+
+          const latestCompletedAt = product.orders.reduce((latest, o) => {
+            if (!o.completedAt) return latest;
+            return !latest || new Date(o.completedAt) > new Date(latest) ? o.completedAt : latest;
+          }, null);
+
           return {
             productId: product.productId,
             name: productData.name || "N/A",
@@ -151,6 +166,8 @@ const ExportedProducts = () => {
             quantityEx: product.quantityEx,
             orders: product.orders,
             variant: productData.variant?.[0] || {},
+            createdAt: latestCreatedAt,
+            completedAt: latestCompletedAt,
           };
         });
       }
@@ -363,6 +380,7 @@ const ExportedProducts = () => {
                   <TableCell align="center">Số lượng đã xuất</TableCell>
                   <TableCell align="center">Trạng thái</TableCell>
                   <TableCell align="center">Ngày tạo</TableCell>
+                  <TableCell align="center">Ngày xuất</TableCell>
                   <TableCell align="center">Hành động</TableCell>
                 </TableRow>
               </TableHead>
@@ -381,6 +399,11 @@ const ExportedProducts = () => {
                     </TableCell>
                     <TableCell align="center">
                       {moment(order.createdAt).format("HH:mm [ngày] DD-MM-YYYY")}
+                    </TableCell>
+                    <TableCell align="center">
+                      {order.completedAt 
+                        ? moment(order.completedAt).format("HH:mm [ngày] DD-MM-YYYY") 
+                        : (order.status === true ? moment(order.createdAt).format("HH:mm [ngày] DD-MM-YYYY") : "")}
                     </TableCell>
                     <TableCell align="center">
                       <Button

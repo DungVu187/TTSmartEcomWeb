@@ -984,6 +984,128 @@ router.post('/by-codes', async (req, res) => {
     }
 });
 
+// Khởi tạo multer memory storage cho việc upload ảnh quét hóa đơn tạm thời
+const uploadMemory = multer({ storage: multer.memoryStorage() });
+
+// API quét ảnh hóa đơn bằng AI
+router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')], async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            return res.status(400).json({ 
+                success: 0, 
+                message: 'Vui lòng cấu hình GEMINI_API_KEY hợp lệ trong file be/.env trước khi sử dụng tính năng này.' 
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: 0, message: 'Không có file ảnh được tải lên.' });
+        }
+
+        // 1. Lấy toàn bộ sản phẩm hiển thị trong DB để Gemini làm dữ liệu đối khớp
+        const activeProducts = await Product.find({ display: true }).select('_id name code brand variant');
+        
+        // Rút gọn thông tin truyền cho Gemini để tiết kiệm token
+        const productContext = activeProducts.map(p => ({
+            id: p._id.toString(),
+            name: p.name,
+            code: p.code || '',
+            brand: p.brand || '',
+            price: p.variant?.[0]?.price || ''
+        }));
+
+        // 2. Chuyển ảnh sang base64
+        const base64Image = req.file.buffer.toString('base64');
+        const mimeType = req.file.mimetype;
+
+        // 3. Chuẩn bị prompt hướng dẫn chi tiết cho Gemini
+        const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn chuyên nghiệp.
+Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số lượng (quantity), đơn giá (price), đơn vị tính (unit), và ghi chú (note).
+
+Đồng thời, bạn được cung cấp danh sách sản phẩm hiện có trong cơ sở dữ liệu (Database) dưới dạng mảng JSON. Với mỗi mặt hàng quét được từ hóa đơn, hãy tìm sản phẩm khớp nhất trong Database dựa trên so khớp tên sản phẩm (name), mã sản phẩm (code) hoặc hãng sản xuất (brand).
+
+Danh sách sản phẩm trong Database:
+${JSON.stringify(productContext)}
+
+Hướng dẫn khớp sản phẩm:
+- Hãy so sánh tên sản phẩm trên hóa đơn với trường \`name\` và \`code\` trong Database.
+- Nếu thấy khớp mờ (fuzzy match) hoặc viết tắt hợp lý, hãy gán trường \`matchedProductId\` là \`id\` của sản phẩm đó trong Database.
+- Nếu không tìm thấy sản phẩm nào tương đồng trong Database, hãy đặt \`matchedProductId\` là null.
+- Trường \`price\` và \`quantity\` phải là kiểu số nguyên dương (hãy loại bỏ các ký tự dấu chấm, dấu phẩy hoặc đơn vị VND).
+- Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...).
+
+Định dạng phản hồi BẮT BUỘC là một mảng JSON trực tiếp (không nằm trong thẻ markdown \`\`\`json và không có văn bản giải thích đi kèm):
+[
+  {
+    "matchedProductId": "ID của sản phẩm khớp trong Database hoặc null",
+    "rawScannedName": "Tên sản phẩm đọc được từ ảnh hóa đơn",
+    "code": "Mã sản phẩm đọc được từ ảnh hóa đơn (nếu có)",
+    "quantity": 10,
+    "price": 150000,
+    "unit": "cái",
+    "note": "Ghi chú nếu có"
+  }
+]`;
+
+        // 4. Gọi API Gemini bằng fetch (Sử dụng Gemini 3.5 Flash)
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+        const geminiRes = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            { text: systemPrompt },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Image
+                                }
+                            }
+                        ]
+                    }
+                ]
+            })
+        });
+
+        if (!geminiRes.ok) {
+            const errorText = await geminiRes.text();
+            throw new Error(`Lỗi từ Gemini API: ${errorText}`);
+        }
+
+        const geminiData = await geminiRes.json();
+        
+        // Lấy text phản hồi và parse sang JSON
+        let textResult = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResult) {
+            throw new Error('Không nhận được dữ liệu phân tích từ Gemini.');
+        }
+
+        // Đảm bảo không bị bọc bởi markdown block ```json ... ``` hoặc ``` ... ```
+        textResult = textResult.trim();
+        textResult = textResult.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+        const items = JSON.parse(textResult);
+
+        res.json({
+            success: 1,
+            total: items.length,
+            items: items
+        });
+
+    } catch (error) {
+        console.error('Lỗi khi quét hóa đơn bằng AI:', error);
+        res.status(500).json({ 
+            success: 0, 
+            message: `Đã xảy ra lỗi khi phân tích hóa đơn bằng AI: ${error.message}`, 
+            error: error.message 
+        });
+    }
+});
+
 // Export router
 module.exports = {
     Product,

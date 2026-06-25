@@ -93,6 +93,7 @@ const SoldProducts = () => {
           search: activeFilters.productName,
           status: "Completed", // Chỉ lấy các đơn hàng đã giao thành công (Completed)
           state: "Processing", // Chỉ lấy các đơn hàng đang hoạt động (không bị hủy)
+          byCompletedDate: "true",
         };
 
         if (activeFilters.payment !== "Tất cả") queryParams.payment = activeFilters.payment;
@@ -118,6 +119,7 @@ const SoldProducts = () => {
                 phone: order.userPhone,
                 quantity: item.quantity,
                 createdAt: order.createdAt,
+                completedAt: order.completedAt,
               });
             } else {
               productMap.set(key, {
@@ -131,6 +133,7 @@ const SoldProducts = () => {
                     phone: order.userPhone,
                     quantity: item.quantity,
                     createdAt: order.createdAt,
+                    completedAt: order.completedAt,
                   },
                 ],
               });
@@ -160,6 +163,9 @@ const SoldProducts = () => {
             orders: product.orders.map((order) => ({
               ...order,
               createdAt: moment(order.createdAt).format("HH:mm [ngày] DD-MM-YYYY"),
+              completedAt: order.completedAt 
+                ? moment(order.completedAt).format("HH:mm [ngày] DD-MM-YYYY") 
+                : moment(order.createdAt).format("HH:mm [ngày] DD-MM-YYYY"),
             })),
             variant: {
               buttonCount: variant.buttonCount || 0,
@@ -393,6 +399,7 @@ const SoldProducts = () => {
                   <TableCell align="center">Số điện thoại</TableCell>
                   <TableCell align="center">Số lượng</TableCell>
                   <TableCell align="center">Ngày đặt</TableCell>
+                  <TableCell align="center">Ngày hoàn thành</TableCell>
                   <TableCell align="center">Hành động</TableCell>
                 </TableRow>
               </TableHead>
@@ -403,6 +410,7 @@ const SoldProducts = () => {
                     <TableCell align="center">{order.phone}</TableCell>
                     <TableCell align="center">{order.quantity}</TableCell>
                     <TableCell align="center">{order.createdAt}</TableCell>
+                    <TableCell align="center">{order.completedAt || ""}</TableCell>
                     <TableCell align="center">
                       <Button
                         variant="outlined"

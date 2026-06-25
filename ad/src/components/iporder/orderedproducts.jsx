@@ -75,6 +75,8 @@ const OrderedProducts = () => {
       const queryParams = {
         page: currentPage,
         limit: rowsPerPage,
+        status: "true",
+        byCompletedDate: "true",
         startDate: customFilters.startDate,
         endDate: customFilters.endDate,
         productName: customFilters.productName || undefined,
@@ -110,6 +112,7 @@ const OrderedProducts = () => {
               quantity: item.quantity,
               status: item.status,
               createdAt: order.createdAt,
+              completedAt: order.completedAt,
             });
           } else {
             productMap.set(key, {
@@ -123,6 +126,7 @@ const OrderedProducts = () => {
                   quantity: item.quantity,
                   status: item.status,
                   createdAt: order.createdAt,
+                  completedAt: order.completedAt,
                 },
               ],
             });
@@ -139,6 +143,16 @@ const OrderedProducts = () => {
 
           if (!productData) return null;
 
+          const latestCreatedAt = product.orders.reduce((latest, o) => {
+            if (!o.createdAt) return latest;
+            return !latest || new Date(o.createdAt) > new Date(latest) ? o.createdAt : latest;
+          }, null);
+
+          const latestCompletedAt = product.orders.reduce((latest, o) => {
+            if (!o.completedAt) return latest;
+            return !latest || new Date(o.completedAt) > new Date(latest) ? o.completedAt : latest;
+          }, null);
+
           return {
             productId: product.productId,
             name: productData.name || "N/A",
@@ -147,6 +161,8 @@ const OrderedProducts = () => {
             quantity: product.quantity,
             orders: product.orders,
             variant: productData.variant?.[0] || {},
+            createdAt: latestCreatedAt,
+            completedAt: latestCompletedAt,
           };
         })
       );
@@ -358,6 +374,7 @@ const OrderedProducts = () => {
                   <TableCell align="center">Số lượng</TableCell>
                   <TableCell align="center">Trạng thái</TableCell>
                   <TableCell align="center">Ngày tạo</TableCell>
+                  <TableCell align="center">Ngày nhập</TableCell>
                   <TableCell align="center">Hành động</TableCell>
                 </TableRow>
               </TableHead>
@@ -378,6 +395,11 @@ const OrderedProducts = () => {
                     </TableCell>
                     <TableCell align="center">
                       {formatDate(order.createdAt)}
+                    </TableCell>
+                    <TableCell align="center">
+                      {order.completedAt 
+                        ? formatDate(order.completedAt) 
+                        : (order.status === true ? formatDate(order.createdAt) : "")}
                     </TableCell>
                     <TableCell align="center">
                       <Button

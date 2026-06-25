@@ -20,12 +20,12 @@ function Footer() {
                         <img src={logo} alt="TTSmart logo" className="footer-logo" />
                     </div>
                     <p className="footer-brand-desc">
-                        TTSmart - Giải pháp tự động hóa, thiết bị đo lường và vật tư trạm trộn bê tông hàng đầu.
+                        {t("footer_brand_desc")}
                     </p>
                     <div className="footer-contact-info">
                         <div className="footer-contact-item">
                             <i className="fa-solid fa-location-dot footer-icon"></i>
-                            <span>Số 28/29 Vũ Đức Thận, Việt Hưng, Long Biên, Hà Nội</span>
+                            <span>{t("footer_address")}</span>
                         </div>
                         <div className="footer-contact-item">
                             <i className="fa-solid fa-phone footer-icon"></i>
@@ -106,7 +106,7 @@ function Footer() {
                         </li>
                     </ul>
                     <div className="footer-social-wrapper">
-                        <p className="footer-social-title">Kết nối với chúng tôi</p>
+                        <p className="footer-social-title">{t("connect_with_us")}</p>
                         <div className="footer-social-icons">
                             <a href="https://zalo.me/0813158383" target="_blank" rel="noopener noreferrer" className="social-icon-btn zalo" title="Zalo">
                                 <i className="fa-solid fa-comment-dots"></i>

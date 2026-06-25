@@ -44,7 +44,7 @@ function LogIn() {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error(t("passwords_do_not_match", "Mật khẩu không khớp"));
+      toast.error(t("passwords_do_not_match_signup", "Mật khẩu không khớp"));
       return;
     }
     if (!validatePhone(phone)) {
@@ -205,7 +205,7 @@ function LogIn() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmNewPassword) {
-      toast.error(t("passwords_do_not_match", "Mật khẩu không khớp"));
+      toast.error(t("passwords_do_not_match_signup", "Mật khẩu không khớp"));
       return;
     }
     if (!otp || otp.length < 6) {

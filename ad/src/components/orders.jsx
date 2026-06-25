@@ -121,6 +121,9 @@ const Orders = () => {
         const formattedOrders = data.orders.map((order) => ({
           ...order,
           createdAt: moment(order.createdAt).format("HH:mm [ngày] DD-MM-YYYY"),
+          completedAt: order.completedAt 
+            ? moment(order.completedAt).format("HH:mm [ngày] DD-MM-YYYY") 
+            : (order.status === "Completed" ? moment(order.createdAt).format("HH:mm [ngày] DD-MM-YYYY") : ""),
         }));
         setOrders(formattedOrders);
         setTotalOrders(data.total);
@@ -480,6 +483,7 @@ const Orders = () => {
               <TableCell align="center">Trạng thái</TableCell>
               <TableCell align="center">Thanh toán</TableCell>
               <TableCell align="center">Tạo lúc</TableCell>
+              <TableCell align="center">Hoàn thành lúc</TableCell>
               <TableCell align="center">Hành động</TableCell>
             </TableRow>
           </TableHead>
@@ -522,6 +526,7 @@ const Orders = () => {
                   />
                 </TableCell>
                 <TableCell align="center">{order.createdAt}</TableCell>
+                <TableCell align="center">{order.completedAt || ""}</TableCell>
                 <TableCell align="center">
                   <Button
                     variant="contained"

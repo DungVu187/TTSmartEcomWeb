@@ -19,10 +19,12 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import InfoIcon from "@mui/icons-material/Info";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { ShopContext } from "../context/shopcontext";
+import { useLanguage } from "../context/languagecontext";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const ValueList = () => {
+  const { t } = useLanguage();
   const { sectionName } = useParams();
   const [values, setValues] = useState([]);
   const [productsByValue, setProductsByValue] = useState({});
@@ -111,8 +113,8 @@ const ValueList = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell align="center">Ảnh</TableCell>
-                      <TableCell>Tên sản phẩm</TableCell>
+                      <TableCell align="center">{t("image", "Ảnh")}</TableCell>
+                      <TableCell>{t("product_name", "Tên sản phẩm")}</TableCell>
                       <TableCell align="right"></TableCell>
                     </TableRow>
                   </TableHead>
@@ -138,11 +140,11 @@ const ValueList = () => {
                           </Typography>
                           {(product.variant?.[0]?.quantityForSale ?? 0) > 0 ? (
                             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              Còn lại: {product.variant[0].quantityForSale}
+                              {t("quantity_left_val", "Còn lại: ")}{product.variant[0].quantityForSale}
                             </Typography>
                           ) : (
                             <Typography variant="body2" color="error" sx={{ mt: 0.5, fontWeight: "bold" }}>
-                              Hết hàng
+                              {t("out_of_stock_val", "Hết hàng")}
                             </Typography>
                           )}
                         </TableCell>
@@ -159,7 +161,7 @@ const ValueList = () => {
                               variant="contained"
                               color="success"
                               size="small"
-                              href="tel:0913158383"
+                              href="tel:0813158383"
                               sx={{
                                 minWidth: "40px",
                                 padding: "6px 12px",
@@ -170,10 +172,10 @@ const ValueList = () => {
                                 whiteSpace: "nowrap",
                               }}
                             >
-                              {isSmallScreen ? <PhoneIcon /> : (
+                               {isSmallScreen ? <PhoneIcon /> : (
                                 <>
                                   <PhoneIcon sx={{ fontSize: 16 }} />
-                                  Liên hệ: 0913 158 383
+                                  {t("contact_phone", "Liên hệ: 0913 158 383")}
                                 </>
                               )}
                             </Button>
@@ -194,7 +196,7 @@ const ValueList = () => {
                               {isSmallScreen ? (
                                 <ShoppingCartIcon />
                               ) : (
-                                "Thêm vào giỏ"
+                                t("add_to_cart_short", "Thêm vào giỏ")
                               )}
                             </Button>
                             <Button
@@ -213,7 +215,7 @@ const ValueList = () => {
                                 gap: 1,
                               }}
                             >
-                              {isSmallScreen ? <InfoIcon /> : "Chi tiết"}
+                              {isSmallScreen ? <InfoIcon /> : t("details", "Chi tiết")}
                             </Button>
 
                           </Box>

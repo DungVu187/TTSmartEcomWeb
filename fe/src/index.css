@@ -44,3 +44,10 @@ html {
   flex-direction: column;
   padding-bottom: 4rem; /* Spacing before footer */
 }
+
+.page-transition {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+}

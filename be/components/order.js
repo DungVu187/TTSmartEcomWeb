@@ -70,6 +70,10 @@ const orderSchema = new mongoose.Schema(
       required: true,
       default: "Processing",
       enum: ["Processing", "Cancelled"]
+    },
+    completedAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }
@@ -90,7 +94,8 @@ router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, 
       name,
       startDate, 
       endDate, 
-      id
+      id,
+      byCompletedDate,
     } = req.query;
     const filter = {};
 
@@ -102,24 +107,45 @@ router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, 
       }
     }
 
-    if (status) filter.status = status;
+    if (byCompletedDate === "true") {
+      filter.status = "Completed";
+    } else if (status) {
+      filter.status = status;
+    }
+
     if (payment) filter.payment = payment === "true";
     if (state) filter.state = state;
     if (phone) filter.userPhone = new RegExp(phone, "i");
     if (name) filter.userName = new RegExp(name, "i");
 
     if (startDate || endDate) {
-      filter.createdAt = {};
+      const dateFilter = {};
       if (startDate) {
-        filter.createdAt.$gte = new Date(startDate);
+        const start = new Date(startDate);
+        start.setUTCHours(0 - 7, 0, 0, 0);
+        dateFilter.$gte = start;
       }
       if (endDate) {
-        filter.createdAt.$lte = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+        const end = new Date(endDate);
+        end.setUTCHours(23 - 7, 59, 59, 999);
+        dateFilter.$lte = end;
+      }
+
+      if (byCompletedDate === "true") {
+        filter.$or = [
+          { completedAt: dateFilter },
+          { completedAt: { $exists: false }, createdAt: dateFilter },
+          { completedAt: null, createdAt: dateFilter }
+        ];
+      } else {
+        filter.createdAt = dateFilter;
       }
     }
 
+    const sortField = byCompletedDate === "true" ? "completedAt" : "createdAt";
+
     const orders = await Order.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ [sortField]: -1 })
       .skip((page - 1) * parseInt(limit, 10))
       .limit(parseInt(limit, 10));
 
@@ -156,6 +182,12 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
     if (field === 'status') {
       if (!["Processing", "Delivering", "Completed"].includes(value)) {
         return res.status(400).json({ success: false, message: 'Invalid status value' });
+      }
+
+      if (value === "Completed") {
+        order.completedAt = new Date();
+      } else {
+        order.completedAt = null;
       }
 
       if (order.status !== value && value === "Completed") {

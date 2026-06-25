@@ -22,10 +22,12 @@ import {
   DialogContent,
   DialogActions,
   styled,
+  Autocomplete,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import toast from "react-hot-toast";
 import { NumericFormat } from "react-number-format";
 import ExcelJS from "exceljs";
@@ -263,6 +265,13 @@ const ImportOrderDetail = () => {
   const [receiveInput, setReceiveInput] = useState({});
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
 
+  // States phục vụ tính năng quét hóa đơn bằng AI
+  const [allProducts, setAllProducts] = useState([]);
+  const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResults, setScanResults] = useState([]);
+  const [selectedScanImage, setSelectedScanImage] = useState(null);
+
   // Cấu hình sensors cho @dnd-kit
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -275,12 +284,13 @@ const ImportOrderDetail = () => {
   // Hàm gọi API chung với xử lý lỗi
   const apiFetch = async (url, options = {}) => {
     try {
+      const headers = { ...(options.headers || {}) };
+      if (!(options.body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+      }
       const response = await fetch(url, {
         ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
+        headers,
         credentials: "include",
       });
 
@@ -290,16 +300,260 @@ const ImportOrderDetail = () => {
         return null;
       }
 
+      const contentType = response.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Yêu cầu thất bại");
+        if (isJson) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Yêu cầu thất bại");
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Yêu cầu thất bại (HTTP ${response.status}): ${errorText.substring(0, 150)}`);
+        }
       }
 
-      return await response.json();
+      if (isJson) {
+        return await response.json();
+      } else {
+        throw new Error("Server phản hồi định dạng không hợp lệ (không phải JSON).");
+      }
     } catch (err) {
       toast.error(err.message);
       setError(err.message);
       return null;
+    }
+  };
+
+  // Hàm tải toàn bộ sản phẩm từ DB để chọn khi đổi khớp
+  const loadAllProductsForScan = async () => {
+    const res = await apiFetch(`${apiUrl}/products/?limit=9999`);
+    if (res && Array.isArray(res.products)) {
+      setAllProducts(res.products);
+    }
+  };
+
+  // Hàm nén ảnh ngay tại client trước khi upload
+  const compressImage = (file, maxWidth = 1280, maxHeight = 1280, quality = 0.7) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              const compressedFile = new File([blob], file.name, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+      };
+    });
+  };
+
+  // Hàm xử lý chọn ảnh hóa đơn và gửi lên AI quét
+  const handleScanInvoiceSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Hiển thị ảnh xem trước
+    setSelectedScanImage(URL.createObjectURL(file));
+    setIsScanDialogOpen(true);
+    setIsScanning(true);
+    setScanResults([]);
+
+    try {
+      // Tải danh sách sản phẩm trước để lát khớp thủ công
+      await loadAllProductsForScan();
+
+      // Nén ảnh tại client
+      const compressedFile = await compressImage(file);
+
+      // Tạo FormData và gọi API gửi lên backend
+      const formData = new FormData();
+      formData.append("invoice", compressedFile);
+
+      const res = await apiFetch(`${apiUrl}/products/scan-invoice`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res && res.success) {
+        setScanResults(res.items || []);
+        toast.success("AI đã phân tích hóa đơn xong!");
+      } else {
+        toast.error(res?.message || "Không thể phân tích hóa đơn");
+        setIsScanDialogOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Lỗi khi tải ảnh và phân tích hóa đơn");
+      setIsScanDialogOpen(false);
+    } finally {
+      setIsScanning(false);
+      // Reset input file để có thể chọn lại cùng 1 file
+      event.target.value = "";
+    }
+  };
+
+  // Hàm xác nhận nhập sản phẩm đã quét AI vào đơn hàng
+  const handleConfirmScanImport = async () => {
+    // Lọc ra các dòng đã được chọn sản phẩm khớp
+    const validItems = scanResults.filter((row) => row.matchedProductId);
+    if (validItems.length === 0) {
+      toast.error("Vui lòng đối khớp ít nhất một sản phẩm hợp lệ!");
+      return;
+    }
+
+    setIsScanning(true);
+    let addedCount = 0;
+    let hasError = false;
+    let updatedOrder = order;
+
+    try {
+      // Đầu tiên, lấy chi tiết các sản phẩm được chọn để có đầy đủ cấu trúc
+      const matchedIds = validItems.map(item => item.matchedProductId);
+      const productDetails = await fetchProductDetails(matchedIds);
+      const productDetailsMap = productDetails.reduce((map, p) => {
+        map[p._id] = p;
+        return map;
+      }, {});
+
+      for (const row of validItems) {
+        const productId = row.matchedProductId;
+        const details = productDetailsMap[productId];
+        if (!details) continue;
+
+        // Tìm xem sản phẩm đã có sẵn trong đơn hàng hay chưa
+        const existingProductIndex = tempProductList.findIndex(
+          (p) => p.productId === productId
+        );
+
+        if (existingProductIndex !== -1) {
+          const existingProduct = tempProductList[existingProductIndex];
+          if (existingProduct.status) {
+            // Đã hoàn thành thì bỏ qua không update đè
+            continue;
+          }
+
+          // Cập nhật số lượng và đơn giá mới
+          const updatedProduct = {
+            ...existingProduct,
+            price: row.price.toString(),
+            quantity: row.quantity,
+            note: row.note || existingProduct.note || "",
+          };
+
+          const putUrl = `${apiUrl}/iporders/orders/${id}/products/${existingProductIndex}`;
+          const resOrder = await apiFetch(putUrl, {
+            method: "PUT",
+            body: JSON.stringify(updatedProduct),
+          });
+
+          if (resOrder) {
+            updatedOrder = resOrder;
+            addedCount++;
+          } else {
+            hasError = true;
+          }
+        } else {
+          // Thêm mới sản phẩm vào đơn hàng
+          const newProduct = {
+            productId,
+            price: row.price.toString(),
+            unit: row.unit || "cái",
+            quantity: row.quantity,
+            note: row.note || "",
+            quantityEx: 0,
+            status: false,
+          };
+
+          const postUrl = `${apiUrl}/iporders/orders/${id}/products`;
+          const resOrder = await apiFetch(postUrl, {
+            method: "POST",
+            body: JSON.stringify(newProduct),
+          });
+
+          if (resOrder) {
+            updatedOrder = resOrder;
+            addedCount++;
+          } else {
+            hasError = true;
+          }
+        }
+      }
+
+      // Cập nhật lại state đơn hàng cục bộ để hiển thị danh sách mới
+      if (updatedOrder) {
+        setOrder(updatedOrder);
+        setTempProductList(updatedOrder.productList || []);
+        
+        // Cập nhật lại state productDetails để giao diện hiển thị tên, hình ảnh, mã, hãng... lập tức không bị N/A
+        setProductDetails((prevDetails) => {
+          const merged = [...prevDetails];
+          productDetails.forEach((newP) => {
+            if (!merged.some((p) => p._id === newP._id)) {
+              merged.push(newP);
+            }
+          });
+          return merged;
+        });
+        
+        // Cập nhật trạng thái tổng thể đơn hàng nếu cần
+        const allCompleted = updatedOrder.productList.every((p) => p.status);
+        if (updatedOrder.status && !allCompleted) {
+          const statusUpdate = await apiFetch(
+            `${apiUrl}/iporders/orders/${id}/status`,
+            {
+              method: "PUT",
+              body: JSON.stringify({ status: false }),
+            }
+          );
+          if (statusUpdate) {
+            setOrder((prev) => ({ ...prev, status: false }));
+          }
+        }
+      }
+
+      if (hasError) {
+        toast.error("Có lỗi xảy ra khi nhập một số sản phẩm.");
+      } else {
+        toast.success(`Đã tự động nhập/cập nhật thành công ${addedCount} sản phẩm từ hóa đơn!`);
+      }
+      setIsScanDialogOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Có lỗi xảy ra khi nhập sản phẩm vào đơn hàng.");
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -1251,6 +1505,23 @@ const ImportOrderDetail = () => {
               onChange={handleFileUpload}
             />
           </Button>
+          <Button
+            component="label"
+            variant="contained"
+            startIcon={<AutoAwesomeIcon />}
+            sx={{
+              backgroundColor: "#673ab7",
+              "&:hover": { backgroundColor: "#512da8" },
+            }}
+            disabled={isScanning}
+          >
+            Quét hóa đơn (AI)
+            <VisuallyHiddenInput
+              type="file"
+              accept="image/*"
+              onChange={handleScanInvoiceSelect}
+            />
+          </Button>
         </Box>
         <Typography variant="body1" className="total-summary-text">
           Tổng cộng: {Number(enrichedOrder?.total || 0).toLocaleString("vi-VN")}{" "}
@@ -1390,6 +1661,193 @@ const ImportOrderDetail = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenAddDialog(false)}>Hủy</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog Preview và Đối khớp hóa đơn AI */}
+      <Dialog
+        open={isScanDialogOpen}
+        onClose={() => !isScanning && setIsScanDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#512da8', 
+          color: '#fff', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1.5,
+          py: 2 
+        }}>
+          <AutoAwesomeIcon />
+          <Typography variant="h6" fontWeight="bold">AI Trích xuất & Đối khớp Hóa đơn</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Box sx={{ display: "flex", gap: 3, mt: 2, flexDirection: { xs: "column", md: "row" } }}>
+            
+            {/* Cột trái: Ảnh hóa đơn gốc */}
+            <Box sx={{ 
+              flex: 1, 
+              minWidth: "300px", 
+              border: "1px solid rgba(0,0,0,0.12)", 
+              borderRadius: "12px", 
+              overflow: "hidden", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center", 
+              bgcolor: "#fafafa",
+              boxShadow: "inset 0 0 10px rgba(0,0,0,0.03)",
+              p: 1
+            }}>
+              {selectedScanImage ? (
+                <img
+                  src={selectedScanImage}
+                  alt="Invoice Preview"
+                  style={{ maxWidth: "100%", maxHeight: "550px", objectFit: "contain", borderRadius: "8px" }}
+                />
+              ) : (
+                <Typography color="text.secondary">Chưa chọn ảnh</Typography>
+              )}
+            </Box>
+
+            {/* Cột phải: Danh sách kết quả từ AI */}
+            <Box sx={{ flex: 2, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              {isScanning ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
+                  <CircularProgress size={50} thickness={4} sx={{ color: '#512da8' }} />
+                  <Typography variant="body1" fontWeight="bold" color="text.primary" sx={{ 
+                    animation: 'pulse 1.5s infinite ease-in-out',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 0.6 },
+                      '50%': { opacity: 1 }
+                    }
+                  }}>
+                    AI đang phân tích hình ảnh và đối khớp với Database...
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Quá trình này có thể mất từ 5 - 15 giây.</Typography>
+                </Box>
+              ) : scanResults.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "12px", maxHeight: "550px" }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Sản phẩm khớp (DB)</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Tên trên hóa đơn</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '100px' }}>Số lượng</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '150px' }}>Đơn giá</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '80px' }}>Xóa</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {scanResults.map((row, index) => (
+                        <TableRow key={index} hover>
+                          <TableCell>
+                            <Autocomplete
+                              options={allProducts}
+                              getOptionLabel={(option) => {
+                                if (!option) return "";
+                                const brandStr = option.brand ? ` [${option.brand}]` : "";
+                                const codeStr = option.code ? ` (${option.code})` : "";
+                                return `${option.name}${codeStr}${brandStr}`;
+                              }}
+                              value={allProducts.find((p) => p._id === row.matchedProductId) || null}
+                              onChange={(event, newValue) => {
+                                const updated = [...scanResults];
+                                updated[index].matchedProductId = newValue ? newValue._id : null;
+                                setScanResults(updated);
+                              }}
+                              renderInput={(params) => (
+                                <TextField {...params} label="Chọn sản phẩm" size="small" variant="outlined" />
+                              )}
+                              size="small"
+                              sx={{ minWidth: "220px" }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary" fontWeight="medium">
+                              {row.rawScannedName}
+                            </Typography>
+                            {row.code && (
+                              <Typography variant="caption" display="block" color="primary.main">
+                                Code: {row.code}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="center">
+                            <TextField
+                              value={row.quantity}
+                              type="number"
+                              size="small"
+                              onChange={(e) => {
+                                const updated = [...scanResults];
+                                updated[index].quantity = Math.max(1, parseInt(e.target.value) || 1);
+                                setScanResults(updated);
+                              }}
+                              inputProps={{ min: 1, style: { textAlign: 'center' } }}
+                              sx={{ width: "80px" }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <NumericFormat
+                              value={row.price}
+                              customInput={TextField}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              size="small"
+                              onValueChange={(values) => {
+                                const updated = [...scanResults];
+                                updated[index].price = parseInt(values.value) || 0;
+                                setScanResults(updated);
+                              }}
+                              sx={{ width: "120px" }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton
+                              color="error"
+                              size="small"
+                              onClick={() => {
+                                const updated = scanResults.filter((_, idx) => idx !== index);
+                                setScanResults(updated);
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <Typography color="text.secondary">Không tìm thấy hoặc không đọc được sản phẩm nào từ hóa đơn.</Typography>
+                </Box>
+              )}
+            </Box>
+
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          <Button 
+            onClick={() => setIsScanDialogOpen(false)} 
+            disabled={isScanning}
+            variant="outlined" 
+            color="inherit"
+          >
+            Hủy bỏ
+          </Button>
+          <Button 
+            onClick={handleConfirmScanImport} 
+            disabled={isScanning || scanResults.filter(r => r.matchedProductId).length === 0}
+            variant="contained" 
+            sx={{
+              bgcolor: '#512da8',
+              "&:hover": { bgcolor: '#311b92' }
+            }}
+          >
+            Xác nhận nhập
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

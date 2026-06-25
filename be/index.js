@@ -177,7 +177,51 @@ if (process.env.NODE_ENV !== 'test') {
   const password = process.env.DB_PASSWORD;
   const uri = `mongodb://localhost:27017/`;
   mongoose.connect(uri)
-    .then(() => console.log('Connected to MongoDB!'))
+    .then(async () => {
+      console.log('Connected to MongoDB!');
+      
+      // Tự động quét và đồng bộ lại tổng tiền cho các đơn hàng cũ
+      try {
+        const { IpOrder } = require('./components/iporder');
+        const { EpOrder } = require('./components/eporder');
+
+        console.log('🔄 Đang đồng bộ hóa tổng tiền các đơn hàng trong Database...');
+
+        const ipOrders = await IpOrder.find({});
+        let ipUpdatedCount = 0;
+        for (const order of ipOrders) {
+          const calculatedTotal = (order.productList || []).reduce((sum, item) => {
+            const priceNum = parseFloat(item.price?.replace(/\./g, "").replace(",", ".") || 0);
+            return sum + priceNum * (item.quantity || 0);
+          }, 0).toString();
+          
+          if (order.total !== calculatedTotal) {
+            order.total = calculatedTotal;
+            await order.save();
+            ipUpdatedCount++;
+          }
+        }
+
+        const epOrders = await EpOrder.find({});
+        let epUpdatedCount = 0;
+        for (const order of epOrders) {
+          const calculatedTotal = (order.productList || []).reduce((sum, item) => {
+            const priceNum = parseFloat(item.price?.replace(/\./g, "").replace(",", ".") || 0);
+            return sum + priceNum * (item.quantity || 0);
+          }, 0).toString();
+          
+          if (order.total !== calculatedTotal) {
+            order.total = calculatedTotal;
+            await order.save();
+            epUpdatedCount++;
+          }
+        }
+
+        console.log(`✅ Hoàn tất đồng bộ: Đã cập nhật ${ipUpdatedCount} đơn nhập, ${epUpdatedCount} đơn xuất.`);
+      } catch (err) {
+        console.error('⚠️ Lỗi khi đồng bộ tổng tiền đơn hàng:', err.message);
+      }
+    })
     .catch(err => console.error('MongoDB connection error:', err));
 }
 

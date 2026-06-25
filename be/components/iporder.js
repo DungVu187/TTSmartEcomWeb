@@ -21,9 +21,26 @@ const ipOrderSchema = new mongoose.Schema(
     ],
     total: { type: String, default: "0" },
     status: { type: Boolean, default: 0 },
+    completedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+ipOrderSchema.pre("save", function (next) {
+  if (this.productList && this.productList.length > 0) {
+    this.total = this.productList
+      .reduce((sum, item) => {
+        const priceNum = parseFloat(
+          item.price?.replace(/\./g, "").replace(",", ".") || 0
+        );
+        return sum + priceNum * (item.quantity || 0);
+      }, 0)
+      .toString();
+  } else {
+    this.total = "0";
+  }
+  next();
+});
 
 const IpOrder = mongoose.model("IpOrder", ipOrderSchema);
 
@@ -39,6 +56,7 @@ router.get(
         status,
         startDate,
         endDate,
+        byCompletedDate,
       } = req.query;
       const limit = 10;
       const skip = (page - 1) * limit;
@@ -46,18 +64,43 @@ router.get(
       let query = {};
       if (orderName) query.orderName = { $regex: orderName, $options: "i" };
       if (userName) query.userName = { $regex: userName, $options: "i" };
-      if (status) query.status = status === "true";
+      
+      if (byCompletedDate === "true") {
+        query.status = true;
+      } else if (status) {
+        query.status = status === "true";
+      }
+
       if (startDate || endDate) {
-        query.createdAt = {};
-        if (startDate) query.createdAt.$gte = new Date(startDate);
-        if (endDate) query.createdAt.$lte = new Date(endDate);
+        const dateFilter = {};
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setUTCHours(0 - 7, 0, 0, 0);
+          dateFilter.$gte = start;
+        }
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setUTCHours(23 - 7, 59, 59, 999);
+          dateFilter.$lte = end;
+        }
+
+        if (byCompletedDate === "true") {
+          query.$or = [
+            { completedAt: dateFilter },
+            { completedAt: { $exists: false }, createdAt: dateFilter },
+            { completedAt: null, createdAt: dateFilter }
+          ];
+        } else {
+          query.createdAt = dateFilter;
+        }
       }
 
       const totalOrders = await IpOrder.countDocuments(query);
+      const sortField = byCompletedDate === "true" ? "completedAt" : "createdAt";
       const orders = await IpOrder.find(query)
         .skip(skip)
         .limit(limit)
-        .sort({ createdAt: -1 });
+        .sort({ [sortField]: -1 });
 
       res.json({
         orders,
@@ -115,6 +158,17 @@ router.post(
 
       const newProduct = req.body;
       order.productList.push(newProduct);
+
+      // Tính toán lại tổng tiền của đơn hàng
+      order.total = order.productList
+        .reduce((sum, item) => {
+          const priceNum = parseFloat(
+            item.price?.replace(/\./g, "").replace(",", ".") || 0
+          );
+          return sum + priceNum * (item.quantity || 0);
+        }, 0)
+        .toString();
+
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
@@ -136,9 +190,10 @@ router.delete(
 
       order.total = order.productList
         .reduce((sum, item) => {
-          const priceNum =
-            parseFloat(item.price.replace(/\./g, "").replace(",", ".")) || 0;
-          return sum + priceNum * item.quantity;
+          const priceNum = parseFloat(
+            item.price?.replace(/\./g, "").replace(",", ".") || 0
+          );
+          return sum + priceNum * (item.quantity || 0);
         }, 0)
         .toString();
 
@@ -161,9 +216,10 @@ router.put(
       Object.assign(order, req.body);
       order.total = order.productList
         .reduce((sum, item) => {
-          const priceNum =
-            parseFloat(item.price.replace(/\./g, "").replace(",", ".")) || 0;
-          return sum + priceNum * item.quantity;
+          const priceNum = parseFloat(
+            item.price?.replace(/\./g, "").replace(",", ".") || 0
+          );
+          return sum + priceNum * (item.quantity || 0);
         }, 0)
         .toString();
 
@@ -201,6 +257,7 @@ router.put(
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       order.status = status;
+      order.completedAt = status ? new Date() : null;
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
@@ -220,6 +277,7 @@ router.put(
 
       // Cập nhật status của order
       order.status = status;
+      order.completedAt = status ? new Date() : null;
 
       // Nếu status = true thì set quantityRe = quantity cho tất cả sản phẩm
       if (status === true) {

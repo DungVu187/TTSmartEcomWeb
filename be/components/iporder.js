@@ -17,6 +17,7 @@ const ipOrderSchema = new mongoose.Schema(
         quantity: { type: Number },
         quantityRe: { type: Number, default: 0 },
         note: { type: String },
+        vat: { type: String, default: "" },
       },
     ],
     total: { type: String, default: "0" },

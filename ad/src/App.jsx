@@ -23,6 +23,7 @@ import StationUser from './components/stationuser';
 import Station from './components/station';
 import StationDisplay from './components/stationdisplay';
 import History from './components/history';
+import ActivityLog from './components/activitylog';
 import Chat from './components/chat';
 import ZaloSettings from './components/ZaloSettings';
 
@@ -59,6 +60,7 @@ const App = () => {
                     <Route path="/station" element={<Station />} />
                     <Route path="/station/:code" element={<StationDisplay />} />
                     <Route path="/history" element={<History />} />
+                    <Route path="/activity-log" element={<ActivityLog />} />
                     <Route path="/chat" element={<Chat />} />
                     <Route path="/zalo" element={<ZaloSettings />} />
                   </Routes>

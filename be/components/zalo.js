@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const { authenticateAdmin } = require("./user");
+const { ActivityLog } = require("./activitylog");
 require("dotenv").config();
 
 const router = express.Router();
@@ -60,6 +61,16 @@ router.post("/settings", authenticateAdmin, async (req, res) => {
     if (recipientUserId !== undefined) config.recipientUserId = recipientUserId;
 
     await config.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "update_zalo_settings",
+        productName: "Cấu hình Zalo OA",
+        details: [{ field: "Zalo Config", oldValue: "", newValue: `Cập nhật các thông số Zalo OA (AppID: ${config.appId || ""})` }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in zalo settings:", logErr.message); }
 
     res.json({
       success: true,

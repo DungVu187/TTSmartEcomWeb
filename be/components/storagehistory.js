@@ -25,6 +25,10 @@ const storageHistorySchema = new mongoose.Schema({
     },
     orderName: {
         type: String
+    },
+    isAIScan: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 
@@ -68,15 +72,25 @@ router.get("/", authenticateAdmin, async (req, res) => {
             if (noteType === 'nhap_don') {
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $nin: [null, ""] };
+                filter.isAIScan = { $ne: true };
             } else if (noteType === 'xuat_don') {
                 filter.quantity = { $lt: 0 };
                 filter.orderName = { $nin: [null, ""] };
+                filter.isAIScan = { $ne: true };
             } else if (noteType === 'nhap_thu_cong') {
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $in: [null, ""] };
+                filter.isAIScan = { $ne: true };
             } else if (noteType === 'xuat_thu_cong') {
                 filter.quantity = { $lt: 0 };
                 filter.orderName = { $in: [null, ""] };
+                filter.isAIScan = { $ne: true };
+            } else if (noteType === 'nhap_ai') {
+                filter.quantity = { $gt: 0 };
+                filter.isAIScan = true;
+            } else if (noteType === 'xuat_ai') {
+                filter.quantity = { $lt: 0 };
+                filter.isAIScan = true;
             }
         }
 

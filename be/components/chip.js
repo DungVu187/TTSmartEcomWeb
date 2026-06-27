@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const { authenticateAdmin } = require("./user");
+const { ActivityLog } = require("./activitylog");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -189,6 +190,17 @@ router.post("/brands", authenticateAdmin, async (req, res) => {
   });
   try {
     const newBrand = await brand.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "create_brand",
+        productName: newBrand.Brand,
+        details: [{ field: "Brand", oldValue: "", newValue: newBrand.Brand }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in create_brand:", logErr.message); }
+
     res.status(201).json(newBrand);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -199,6 +211,16 @@ router.delete("/brands/:id", authenticateAdmin, async (req, res) => {
   try {
     const brand = await Brand.findByIdAndDelete(req.params.id);
     if (!brand) return res.status(404).json({ message: "Brand not found" });
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "delete_brand",
+        productName: brand.Brand,
+        details: [{ field: "Brand", oldValue: brand.Brand, newValue: "" }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in delete_brand:", logErr.message); }
 
     res.status(200).json({ message: "Brand deleted" });
   } catch (err) {
@@ -223,6 +245,17 @@ router.post("/types", authenticateAdmin, async (req, res) => {
 
   try {
     const newType = await type.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "create_type",
+        productName: newType.Type,
+        details: [{ field: "Type", oldValue: "", newValue: newType.Type }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in create_type:", logErr.message); }
+
     res.status(201).json(newType);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -233,6 +266,16 @@ router.delete("/types/:id", authenticateAdmin, async (req, res) => {
   try {
     const type = await Type.findByIdAndDelete(req.params.id);
     if (!type) return res.status(404).json({ message: "Type not found" });
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "delete_type",
+        productName: type.Type,
+        details: [{ field: "Type", oldValue: type.Type, newValue: "" }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in delete_type:", logErr.message); }
 
     res.status(200).json({ message: "Type deleted" });
   } catch (err) {
@@ -306,6 +349,17 @@ router.post("/section", authenticateAdmin, async (req, res) => {
     }
 
     await doc.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "create_section",
+        productName: name,
+        details: [{ field: "Phân loại", oldValue: "", newValue: name }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in create_section:", logErr.message); }
+
     res.status(201).json(doc);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -337,6 +391,17 @@ router.put("/section/:oldName", authenticateAdmin, async (req, res) => {
 
     section.name = name;
     await doc.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "update_section",
+        productName: name,
+        details: [{ field: "Phân loại", oldValue: oldName, newValue: name }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in update_section:", logErr.message); }
+
     res.json(doc);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -352,6 +417,17 @@ router.delete("/section/:name", authenticateAdmin, async (req, res) => {
 
     doc.Section = doc.Section.filter((sec) => sec.name !== name);
     await doc.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "delete_section",
+        productName: name,
+        details: [{ field: "Phân loại", oldValue: name, newValue: "" }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in delete_section:", logErr.message); }
+
     res.json(doc);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -410,6 +486,17 @@ router.post("/:name/value", async (req, res) => {
 
     section.value.push(value);
     await doc.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user ? req.user.name : "Hệ thống / Admin",
+        action: "create_section_value",
+        productName: `${name}: ${value}`,
+        details: [{ field: "Giá trị", oldValue: "", newValue: value }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in create_section_value:", logErr.message); }
+
     res.json(doc);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -430,12 +517,28 @@ router.put("/:name/value", authenticateAdmin, async (req, res) => {
     const valueIndex = section.value.indexOf(oldValue);
     if (valueIndex === -1) return res.status(404).json({ message: "Không tìm thấy value" });
 
+    const oldImg = section.imgUrl;
     section.value[valueIndex] = newValue;
     if (imgUrl) {
       section.imgUrl = imgUrl; // cập nhật imgUrl cho section
     }
 
     await doc.save();
+
+    // Ghi log hoạt động
+    try {
+      const details = [{ field: "value", oldValue, newValue }];
+      if (imgUrl && oldImg !== imgUrl) {
+        details.push({ field: "imgUrl", oldValue: oldImg || "", newValue: imgUrl });
+      }
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "update_section_value",
+        productName: `${name}: ${newValue}`,
+        details
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in update_section_value:", logErr.message); }
+
     res.json(doc);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -457,6 +560,17 @@ router.delete("/:name/value", authenticateAdmin, async (req, res) => {
 
     section.value = section.value.filter((val) => val !== value);
     await doc.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "delete_section_value",
+        productName: `${name}: ${value}`,
+        details: [{ field: "Giá trị", oldValue: value, newValue: "" }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in delete_section_value:", logErr.message); }
+
     res.json(doc);
   } catch (error) {
     res.status(500).json({ error: error.message });

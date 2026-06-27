@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 const router = express.Router();
 const { authenticateAdmin } = require('./user');
+const { ActivityLog } = require("./activitylog");
 require("dotenv").config();
 const multer = require("multer");
 const path = require("path");
@@ -162,6 +163,17 @@ router.post("/", authenticateAdmin, async (req, res) => {
         });
 
         const savedStation = await newStation.save();
+
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: "create_station",
+                productName: savedStation.stationName,
+                details: [{ field: "Tạo trạm", oldValue: "", newValue: `Mã trạm: ${savedStation.stationCode}, Địa điểm: ${savedStation.location || ""}` }]
+            }).save();
+        } catch (logErr) { console.error("ActivityLog error in create_station:", logErr.message); }
+
         res.status(201).json(savedStation);
     } catch (error) {
         res.status(500).json({ error: "Không thể tạo station", details: error.message });
@@ -179,15 +191,27 @@ router.put("/:id/products", authenticateAdmin, async (req, res) => {
             return res.status(400).json({ error: "productId phải là một mảng" });
         }
 
+        const oldStation = await Station.findById(stationId);
+        if (!oldStation) {
+            return res.status(404).json({ error: "Không tìm thấy station" });
+        }
+        const oldProducts = [...(oldStation.productId || [])];
+
         const station = await Station.findByIdAndUpdate(
             stationId,
             { $set: { productId } },
             { new: true }
         );
 
-        if (!station) {
-            return res.status(404).json({ error: "Không tìm thấy station" });
-        }
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: "update_station_products",
+                productName: station.stationName,
+                details: [{ field: "productId", oldValue: oldProducts.join(", "), newValue: productId.join(", ") }]
+            }).save();
+        } catch (logErr) { console.error("ActivityLog error in update_station_products:", logErr.message); }
 
         res.json(station);
     } catch (error) {
@@ -200,6 +224,18 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
     try {
         const { stationName, stationCode, location, allowPublicSignup } = req.body;
         const stationId = req.params.id;
+
+        const oldStation = await Station.findById(stationId);
+        if (!oldStation) {
+            return res.status(404).json({ error: "Không tìm thấy station" });
+        }
+        const oldData = {
+            stationName: oldStation.stationName,
+            stationCode: oldStation.stationCode,
+            location: oldStation.location,
+            allowPublicSignup: oldStation.allowPublicSignup
+        };
+
         const update = { stationName, stationCode, location };
         if (allowPublicSignup !== undefined) {
             update.allowPublicSignup = allowPublicSignup;
@@ -211,9 +247,25 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
             { new: true }
         );
 
-        if (!station) {
-            return res.status(404).json({ error: "Không tìm thấy station" });
-        }
+        // Ghi log hoạt động
+        try {
+            const details = [];
+            if (oldData.stationName !== station.stationName) details.push({ field: "stationName", oldValue: oldData.stationName || "", newValue: station.stationName || "" });
+            if (oldData.stationCode !== station.stationCode) details.push({ field: "stationCode", oldValue: oldData.stationCode || "", newValue: station.stationCode || "" });
+            if (oldData.location !== station.location) details.push({ field: "location", oldValue: oldData.location || "", newValue: station.location || "" });
+            if (oldData.allowPublicSignup !== station.allowPublicSignup) {
+                details.push({ field: "allowPublicSignup", oldValue: oldData.allowPublicSignup ? "Cho phép" : "Không", newValue: station.allowPublicSignup ? "Cho phép" : "Không" });
+            }
+
+            if (details.length > 0) {
+                await new ActivityLog({
+                    userName: req.user.name,
+                    action: "update_station",
+                    productName: station.stationName,
+                    details
+                }).save();
+            }
+        } catch (logErr) { console.error("ActivityLog error in update_station:", logErr.message); }
 
         res.json(station);
     } catch (error) {
@@ -231,23 +283,22 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
             return res.status(404).json({ error: "Không tìm thấy station" });
         }
 
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: "delete_station",
+                productName: station.stationName,
+                details: [{ field: "Xóa trạm", oldValue: `Mã trạm: ${station.stationCode}`, newValue: "" }]
+            }).save();
+        } catch (logErr) { console.error("ActivityLog error in delete_station:", logErr.message); }
+
         res.json({ message: "Xóa station thành công" });
     } catch (error) {
         res.status(500).json({ error: "Không thể xóa station", details: error.message });
     }
 });
 
-router.post("/:id/rotate-invite", authenticateAdmin, async (req, res) => {
-    try {
-        const station = await Station.findById(req.params.id);
-        if (!station) {
-            return res.status(404).json({ error: "Không tìm thấy station" });
-        }
-        res.json(station);
-    } catch (error) {
-        res.status(500).json({ error: "Không thể đổi mã link", details: error.message });
-    }
-});
 
 router.get("/public/:inviteCode", async (req, res) => {
     try {

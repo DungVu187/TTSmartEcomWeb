@@ -17,6 +17,7 @@ const { router: iporderRoutes } = require('./components/iporder');
 const { router: eporderRoutes } = require('./components/eporder');
 const { router: stationRoutes } = require('./components/station');
 const { router: historyRoutes } = require('./components/storagehistory');
+const { router: activityLogRoutes } = require('./components/activitylog');
 const { router: chatRoutes, ChatMessage } = require('./components/chat');
 const { router: zaloRoutes } = require('./components/zalo');
 
@@ -184,8 +185,15 @@ if (process.env.NODE_ENV !== 'test') {
       try {
         const { IpOrder } = require('./components/iporder');
         const { EpOrder } = require('./components/eporder');
+        const { Product } = require('./components/product');
 
-        console.log('🔄 Đang đồng bộ hóa tổng tiền các đơn hàng trong Database...');
+        console.log('🔄 Đang đồng bộ hóa tổng tiền các đơn hàng và trường adjusted trong Database...');
+
+        // Đồng bộ trường adjusted cho sản phẩm cũ
+        await Product.updateMany(
+          { adjusted: { $exists: false } },
+          { $set: { adjusted: true } }
+        );
 
         const ipOrders = await IpOrder.find({});
         let ipUpdatedCount = 0;
@@ -236,6 +244,7 @@ app.use('/iporders', iporderRoutes);
 app.use('/eporders', eporderRoutes);
 app.use('/stations', stationRoutes);
 app.use('/histories', historyRoutes);
+app.use('/activity-logs', activityLogRoutes);
 app.use('/chat', chatRoutes);
 app.use('/zalo', zaloRoutes);
 

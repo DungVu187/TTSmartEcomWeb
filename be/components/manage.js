@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require("./user");
+const { ActivityLog } = require("./activitylog");
 const fs = require('fs').promises;
 const multer = require('multer');
 const path = require('path');
@@ -223,8 +224,38 @@ router.get("/", async (req, res) => {
     }
 });
 
+const logManageRoute = (action, targetName) => {
+    return (req, res, next) => {
+        const oldJson = res.json;
+        res.json = function (data) {
+            res.json = oldJson;
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+                let details = [];
+                if (req.body) {
+                    const keys = Object.keys(req.body).filter(k => k !== 'password');
+                    if (keys.length > 0) {
+                        details.push({
+                            field: "Thay đổi",
+                            oldValue: "",
+                            newValue: `Cập nhật các trường: ${keys.join(", ")}`
+                        });
+                    }
+                }
+                new ActivityLog({
+                    userName: req.user ? req.user.name : "Admin",
+                    action: action,
+                    productName: targetName,
+                    details: details.length > 0 ? details : [{ field: "Cập nhật", oldValue: "", newValue: "Thành công" }]
+                }).save().catch(err => console.error("ActivityLog error in route:", err.message));
+            }
+            return oldJson.apply(res, arguments);
+        };
+        next();
+    };
+};
+
 // PUT: Cập nhật ảnh cho topPurchaseUrl, highestRatingUrl, hoặc newProductUrl
-router.put("/update", [authenticateAdmin, checkPermission('update_product')], upload.array('manage', 1), async (req, res) => {
+router.put("/update", [authenticateAdmin, checkPermission('update_product')], logManageRoute("update_settings", "Cấu hình chung"), upload.array('manage', 1), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({
@@ -457,7 +488,7 @@ router.delete("/delete-image", [authenticateAdmin, checkPermission('update_produ
 });
 
 // PUT: Cập nhật introduction
-router.put("/update-introduction", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-introduction", [authenticateAdmin, checkPermission('update_product')], logManageRoute("update_introduction", "Trang Giới thiệu"), async (req, res) => {
     try {
         const { introduction } = req.body;
 
@@ -496,7 +527,7 @@ router.put("/update-introduction", [authenticateAdmin, checkPermission('update_p
 });
 
 // PUT: Cập nhật mainPolicy
-router.put("/update-policy", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-policy", [authenticateAdmin, checkPermission('update_product')], logManageRoute("update_policy", "Trang Chính sách"), async (req, res) => {
     try {
         const { mainPolicy } = req.body;
 

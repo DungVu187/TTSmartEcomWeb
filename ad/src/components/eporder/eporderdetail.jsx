@@ -383,6 +383,131 @@ const ExportOrderDetail = () => {
     });
   };
 
+  // Hàm đối khớp Level 1 - ưu tiên so khớp các sản phẩm đang có sẵn trong đơn hàng
+  const performLevel1Matching = (scanItem, currentTempList, currentProductDetails) => {
+    const tokenizeSpec = (text) => {
+      if (!text) return new Set();
+      const regexModel = /(?=\d+[a-zA-Z]|[a-zA-Z]+\d)[a-zA-Z0-9\-\/]+/gi;
+      const regexPureNum = /\b\d{3,}\b/g;
+
+      const tokens = new Set();
+      let match;
+
+      regexModel.lastIndex = 0;
+      while ((match = regexModel.exec(text)) !== null) {
+        tokens.add(match[0].toLowerCase());
+      }
+
+      regexPureNum.lastIndex = 0;
+      while ((match = regexPureNum.exec(text)) !== null) {
+        tokens.add(match[0].toLowerCase());
+      }
+
+      return tokens;
+    };
+
+    const tokenizeTypeWords = (text) => {
+      if (!text) return new Set();
+      const out = new Set();
+      const words = removeVietnameseTones(text).toLowerCase().split(/[\s,.\-\/()]+/);
+      for (const w of words) {
+        // từ chữ: có chữ cái, KHÔNG chứa số, độ dài > 1 (lớn hơn hoặc bằng 2)
+        if (w.length > 1 && /[a-z]/.test(w) && !/\d/.test(w)) {
+          out.add(w);
+        }
+      }
+      return out;
+    };
+
+    const codeKind = (code) => {
+      if (!code || !code.trim()) return 'none';
+      return /^\d+$/.test(code.trim()) ? 'supplier' : 'model';
+    };
+
+    const cleanCode = (code) => {
+      return code ? code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+    };
+
+    const removeVietnameseTones = (str) => {
+      if (!str) return '';
+      return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D');
+    };
+
+    const scanName = scanItem.rawScannedName || '';
+    const scanCodeKind = codeKind(scanItem.code);
+    const scanSpec = tokenizeSpec(`${scanName} ${scanCodeKind === 'model' ? scanItem.code : ''}`);
+    const scanType = tokenizeTypeWords(scanName);
+    const hasScanSpec = scanSpec.size > 0;
+
+    const ctx = {
+      scanCodeKind,
+      scanSpec,
+      scanType,
+      hasScanSpec
+    };
+
+    const fuzzyScore = (p, scanName) => {
+      const a = removeVietnameseTones(scanName).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
+      const b = removeVietnameseTones(p.name).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
+      return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
+    };
+
+    // Lọc các ứng viên trong đơn hàng vượt qua các cổng kiểm soát (gates)
+    let candidates = [];
+    for (const item of currentTempList) {
+      const product = currentProductDetails.find((p) => p._id === item.productId);
+      if (!product) continue;
+
+      // Cổng 1: Code conflict
+      if (ctx.scanCodeKind === 'model' && codeKind(product.code) === 'model'
+          && cleanCode(scanItem.code) !== cleanCode(product.code)) {
+        continue;
+      }
+
+      // Cổng 2: Spec subset (Set membership)
+      if (ctx.hasScanSpec) {
+        const pSpec = tokenizeSpec(`${product.name || ''} ${product.code || ''}`);
+        let specMatch = true;
+        for (const t of ctx.scanSpec) {
+          if (!pSpec.has(t)) {
+            specMatch = false;
+            break;
+          }
+        }
+        if (!specMatch) continue;
+      }
+
+      // Cổng 3: Type word match
+      const pType = tokenizeTypeWords(product.name || '');
+      let typeHit = false;
+      for (const t of ctx.scanType) {
+        if (pType.has(t)) {
+          typeHit = true;
+          break;
+        }
+      }
+      if (!typeHit) continue;
+
+      candidates.push(product);
+    }
+
+    if (candidates.length > 0) {
+      // Fuzzy score tie-breaker
+      const best = candidates.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
+      const pSpec = tokenizeSpec(`${best.name || ''} ${best.code || ''}`);
+      const confidence = !ctx.hasScanSpec ? 'low'
+                       : pSpec.size === ctx.scanSpec.size ? 'high'
+                       : 'medium';
+      return { productId: best._id, confidence };
+    }
+
+    return null;
+  };
+
   // Hàm xử lý chọn ảnh hóa đơn và gửi lên AI quét
   const handleScanInvoiceSelect = async (event) => {
     const file = event.target.files[0];
@@ -411,7 +536,20 @@ const ExportOrderDetail = () => {
       });
 
       if (res && res.success) {
-        setScanResults(res.items || []);
+        // Áp dụng Level 1 Matching trên Frontend
+        const items = res.items || [];
+        const processedItems = items.map(item => {
+          const l1Match = performLevel1Matching(item, tempProductList, productDetails);
+          if (l1Match) {
+            return {
+              ...item,
+              matchedProductId: l1Match.productId,
+              confidence: l1Match.confidence
+            };
+          }
+          return item;
+        });
+        setScanResults(processedItems);
         toast.success("AI đã phân tích hóa đơn xong!");
       } else {
         toast.error(res?.message || "Không thể phân tích hóa đơn");
@@ -443,18 +581,108 @@ const ExportOrderDetail = () => {
     let updatedOrder = order;
 
     try {
-      // Đầu tiên, lấy chi tiết các sản phẩm được chọn để có đầy đủ cấu trúc
-      const matchedIds = validItems.map(item => item.matchedProductId);
-      const productDetails = await fetchProductDetails(matchedIds);
-      const productDetailsMap = productDetails.reduce((map, p) => {
+      // Lấy chi tiết các sản phẩm đã có sẵn để cập nhật giá (loại trừ NEW_PRODUCT)
+      const matchedIds = validItems
+        .map((item) => item.matchedProductId)
+        .filter((id) => id && id !== "NEW_PRODUCT");
+
+      const productDetailsList = await fetchProductDetails(matchedIds);
+      const productDetailsMap = productDetailsList.reduce((map, p) => {
         map[p._id] = p;
         return map;
       }, {});
 
       for (const row of validItems) {
-        const productId = row.matchedProductId;
-        const details = productDetailsMap[productId];
-        if (!details) continue;
+        let productId = row.matchedProductId;
+        let details = null;
+        const isNewProduct = row.matchedProductId === "NEW_PRODUCT";
+
+        if (productId === "NEW_PRODUCT") {
+          // Tạo sản phẩm mới
+          const importPriceNum = Number(row.price) || 0;
+          const earnVal = 20;
+          const calculatedRetailPrice = Math.ceil((importPriceNum * (1 + earnVal / 100)) / 1000) * 1000;
+
+          const newProductPayload = {
+            type: "Chưa phân loại",
+            name: row.rawScannedName || "Sản phẩm mới AI quét",
+            code: row.code || "",
+            brand: "Chưa rõ",
+            section: "Chưa phân loại",
+            value: "Chưa rõ",
+            vat: row.vat ? row.vat.toString() : "",
+            warranty: "12 tháng",
+            adjusted: false,
+            variant: [
+              {
+                price: calculatedRetailPrice.toString(),
+                importPrice: importPriceNum.toString(),
+                earn: earnVal,
+                quantityForSale: 0,
+                quantityInStorage: 0,
+                imgUrl: "",
+                note: row.note || "",
+              },
+            ],
+          };
+
+          try {
+            const createRes = await apiFetch(`${apiUrl}/products/create`, {
+              method: "POST",
+              body: JSON.stringify(newProductPayload),
+            });
+
+            if (createRes && createRes.product) {
+              productId = createRes.product._id;
+              details = createRes.product;
+              // Thêm sản phẩm mới vào danh sách allProducts ở client
+              setAllProducts((prev) => [createRes.product, ...prev]);
+            } else {
+              console.error("Không tạo được sản phẩm mới:", row.rawScannedName);
+              hasError = true;
+              continue;
+            }
+          } catch (err) {
+            console.error("Lỗi khi tạo sản phẩm mới:", err);
+            hasError = true;
+            continue;
+          }
+        } else {
+          details = productDetailsMap[productId];
+          if (!details) continue;
+
+          // Cập nhật giá sản phẩm cũ
+          const importPriceNum = Number(row.price) || 0;
+          const currentEarn = details.variant?.[0]?.earn !== undefined ? details.variant[0].earn : 0;
+          const calculatedRetailPrice = Math.ceil((importPriceNum * (1 + currentEarn / 100)) / 1000) * 1000;
+
+          const updatedVariant = [
+            {
+              ...(details.variant?.[0] || {}),
+              importPrice: importPriceNum.toString(),
+              price: calculatedRetailPrice.toString(),
+            },
+          ];
+
+          const updatePayload = {
+            variant: updatedVariant,
+          };
+          if (row.vat !== undefined && row.vat !== null) {
+            updatePayload.vat = row.vat.toString();
+          }
+
+          try {
+            const updateRes = await apiFetch(`${apiUrl}/products/${productId}`, {
+              method: "PUT",
+              body: JSON.stringify(updatePayload),
+            });
+            if (updateRes) {
+              details = updateRes;
+            }
+          } catch (err) {
+            console.error(`Không thể cập nhật giá cho sản phẩm cũ ${productId}:`, err);
+          }
+        }
 
         // Tìm xem sản phẩm đã có sẵn trong đơn hàng hay chưa
         const existingProductIndex = tempProductList.findIndex(
@@ -468,12 +696,34 @@ const ExportOrderDetail = () => {
             continue;
           }
 
+          const scannedQty = Number(row.quantity) || 0;
+          const targetQty = Number(existingProduct.quantity) || 0;
+          const finalQtyEx = Math.min(scannedQty, targetQty);
+          const newQuantityEx = Math.max(existingProduct.quantityEx || 0, finalQtyEx);
+          const delta = newQuantityEx - (existingProduct.quantityEx || 0);
+
+          // Kiểm tra tồn kho trước khi xuất thêm (bỏ qua nếu là sản phẩm mới được tạo tự động)
+          if (delta > 0 && !isNewProduct) {
+            const currentInventory = details.variant?.[0]?.quantityInStorage || 0;
+            const currentForSale = details.variant?.[0]?.quantityForSale || 0;
+
+            if (currentInventory < delta || currentForSale < delta) {
+              toast.error(
+                `Số lượng không đủ để xuất thêm cho sản phẩm: ${details.name} (Cần thêm: ${delta}, Tồn kho: ${currentInventory}, Có thể bán: ${currentForSale})`
+              );
+              hasError = true;
+              continue;
+            }
+          }
+
           // Cập nhật số lượng và đơn giá mới
           const updatedProduct = {
             ...existingProduct,
             price: row.price.toString(),
-            quantity: row.quantity,
+            quantityEx: newQuantityEx,
+            status: newQuantityEx === targetQty,
             note: row.note || existingProduct.note || "",
+            vat: row.vat || existingProduct.vat || "",
           };
 
           const putUrl = `${apiUrl}/eporders/orders/${id}/products/${existingProductIndex}`;
@@ -485,19 +735,53 @@ const ExportOrderDetail = () => {
           if (resOrder) {
             updatedOrder = resOrder;
             addedCount++;
+
+            // Trừ kho
+            if (delta > 0) {
+              try {
+                await apiFetch(`${apiUrl}/products/${productId}/0`, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    quantity: -delta,
+                    orderId: id,
+                    orderName: order.orderName,
+                    isAIScan: true,
+                  }),
+                });
+              } catch (err) {
+                console.error(`Lỗi cập nhật tồn kho cho sản phẩm ${productId}:`, err);
+              }
+            }
           } else {
             hasError = true;
           }
         } else {
           // Thêm mới sản phẩm vào đơn hàng
+          const scannedQty = Number(row.quantity) || 0;
+
+          // Kiểm tra tồn kho trước khi xuất sản phẩm mới (bỏ qua nếu là sản phẩm mới được tạo tự động)
+          if (!isNewProduct) {
+            const currentInventory = details.variant?.[0]?.quantityInStorage || 0;
+            const currentForSale = details.variant?.[0]?.quantityForSale || 0;
+
+            if (currentInventory < scannedQty || currentForSale < scannedQty) {
+              toast.error(
+                `Số lượng không đủ để xuất sản phẩm mới: ${details.name} (Cần xuất: ${scannedQty}, Tồn kho: ${currentInventory}, Có thể bán: ${currentForSale})`
+              );
+              hasError = true;
+              continue;
+            }
+          }
+
           const newProduct = {
             productId,
             price: row.price.toString(),
             unit: row.unit || "cái",
-            quantity: row.quantity,
+            quantity: scannedQty,
+            quantityEx: scannedQty,
             note: row.note || "",
-            quantityEx: 0,
-            status: false,
+            vat: row.vat || "",
+            status: true,
           };
 
           const postUrl = `${apiUrl}/eporders/orders/${id}/products`;
@@ -509,6 +793,23 @@ const ExportOrderDetail = () => {
           if (resOrder) {
             updatedOrder = resOrder;
             addedCount++;
+
+            // Trừ kho (bỏ qua nếu là sản phẩm mới được tạo tự động)
+            if (scannedQty > 0 && !isNewProduct) {
+              try {
+                await apiFetch(`${apiUrl}/products/${productId}/0`, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    quantity: -scannedQty,
+                    orderId: id,
+                    orderName: order.orderName,
+                    isAIScan: true,
+                  }),
+                });
+              } catch (err) {
+                console.error(`Lỗi cập nhật tồn kho cho sản phẩm ${productId}:`, err);
+              }
+            }
           } else {
             hasError = true;
           }
@@ -519,21 +820,26 @@ const ExportOrderDetail = () => {
       if (updatedOrder) {
         setOrder(updatedOrder);
         setTempProductList(updatedOrder.productList || []);
-        
-        // Cập nhật lại state productDetails để giao diện hiển thị tên, hình ảnh, mã, hãng... lập tức không bị N/A
-        setProductDetails((prevDetails) => {
-          const merged = [...prevDetails];
-          productDetails.forEach((newP) => {
-            if (!merged.some((p) => p._id === newP._id)) {
-              merged.push(newP);
-            }
-          });
-          return merged;
-        });
-        
+
+        // Cập nhật lại list chi tiết sản phẩm cho tất cả sản phẩm trong đơn hàng
+        const allIds = updatedOrder.productList.map((p) => p.productId);
+        const latestDetails = await fetchProductDetails(allIds);
+        setProductDetails(latestDetails);
+
         // Cập nhật trạng thái tổng thể đơn hàng nếu cần
         const allCompleted = updatedOrder.productList.every((p) => p.status);
-        if (updatedOrder.status && !allCompleted) {
+        if (allCompleted && !updatedOrder.status) {
+          const statusUpdate = await apiFetch(
+            `${apiUrl}/eporders/orders/${id}/status`,
+            {
+              method: "PUT",
+              body: JSON.stringify({ status: true }),
+            }
+          );
+          if (statusUpdate) {
+            setOrder((prev) => ({ ...prev, status: true }));
+          }
+        } else if (!allCompleted && updatedOrder.status) {
           const statusUpdate = await apiFetch(
             `${apiUrl}/eporders/orders/${id}/status`,
             {
@@ -1784,91 +2090,146 @@ const ExportOrderDetail = () => {
                   <Table stickyHeader>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Sản phẩm khớp (DB)</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '60px' }}>STT</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', minWidth: '220px' }}>Sản phẩm khớp (DB)</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Tên trên hóa đơn</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '100px' }}>Số lượng</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '150px' }}>Đơn giá</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '80px' }}>Xóa</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '90px' }}>Số lượng</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Đơn giá</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '80px' }}>VAT</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '60px' }}>Xóa</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {scanResults.map((row, index) => (
-                        <TableRow key={index} hover>
-                          <TableCell>
-                            <Autocomplete
-                              options={allProducts}
-                              getOptionLabel={(option) => {
-                                if (!option) return "";
-                                const brandStr = option.brand ? ` [${option.brand}]` : "";
-                                const codeStr = option.code ? ` (${option.code})` : "";
-                                return `${option.name}${codeStr}${brandStr}`;
-                              }}
-                              value={allProducts.find((p) => p._id === row.matchedProductId) || null}
-                              onChange={(event, newValue) => {
-                                const updated = [...scanResults];
-                                updated[index].matchedProductId = newValue ? newValue._id : null;
-                                setScanResults(updated);
-                              }}
-                              renderInput={(params) => (
-                                <TextField {...params} label="Chọn sản phẩm" size="small" variant="outlined" />
+                      {scanResults.map((row, index) => {
+                        const NEW_PRODUCT_OPTION = {
+                          _id: "NEW_PRODUCT",
+                          name: "[NEW] Tạo sản phẩm mới",
+                          brand: "",
+                          code: ""
+                        };
+                        const matchedProduct = row.matchedProductId === "NEW_PRODUCT"
+                          ? NEW_PRODUCT_OPTION
+                          : allProducts.find((p) => p._id === row.matchedProductId);
+                        return (
+                          <TableRow key={index} hover>
+                            <TableCell align="center">
+                              <TextField
+                                value={row.stt || ""}
+                                size="small"
+                                onChange={(e) => {
+                                  const updated = [...scanResults];
+                                  updated[index].stt = e.target.value;
+                                  setScanResults(updated);
+                                }}
+                                inputProps={{ style: { textAlign: 'center', padding: '6px 4px' } }}
+                                sx={{ width: "50px" }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Autocomplete
+                                options={[NEW_PRODUCT_OPTION, ...allProducts]}
+                                getOptionLabel={(option) => {
+                                  if (!option) return "";
+                                  if (option._id === "NEW_PRODUCT") return option.name;
+                                  const brandStr = option.brand ? ` [${option.brand}]` : "";
+                                  const codeStr = option.code ? ` (${option.code})` : "";
+                                  return `${option.name}${codeStr}${brandStr}`;
+                                }}
+                                value={matchedProduct || null}
+                                onChange={(event, newValue) => {
+                                  const updated = [...scanResults];
+                                  updated[index].matchedProductId = newValue ? newValue._id : null;
+                                  if (newValue && newValue.vat) {
+                                    updated[index].vat = newValue.vat;
+                                  }
+                                  setScanResults(updated);
+                                }}
+                                renderInput={(params) => (
+                                  <TextField {...params} label="Chọn sản phẩm" size="small" variant="outlined" />
+                                )}
+                                size="small"
+                                sx={{ minWidth: "220px" }}
+                              />
+                              {matchedProduct && (
+                                <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'text.secondary', wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                                  {matchedProduct._id === "NEW_PRODUCT" 
+                                    ? matchedProduct.name 
+                                    : `${matchedProduct.name}${matchedProduct.code ? ` (${matchedProduct.code})` : ""}${matchedProduct.brand ? ` [${matchedProduct.brand}]` : ""}`}
+                                </Typography>
                               )}
-                              size="small"
-                              sx={{ minWidth: "220px" }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="text.secondary" fontWeight="medium">
-                              {row.rawScannedName}
-                            </Typography>
-                            {row.code && (
-                              <Typography variant="caption" display="block" color="primary.main">
-                                Code: {row.code}
+                              {row.confidence === 'low' && (
+                                <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5, fontWeight: 'bold' }}>
+                                  ⚠️ Độ tin cậy thấp (Không có thông số kỹ thuật)
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary" fontWeight="medium">
+                                {row.rawScannedName}
                               </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell align="center">
-                            <TextField
-                              value={row.quantity}
-                              type="number"
-                              size="small"
-                              onChange={(e) => {
-                                const updated = [...scanResults];
-                                updated[index].quantity = Math.max(1, parseInt(e.target.value) || 1);
-                                setScanResults(updated);
-                              }}
-                              inputProps={{ min: 1, style: { textAlign: 'center' } }}
-                              sx={{ width: "80px" }}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <NumericFormat
-                              value={row.price}
-                              customInput={TextField}
-                              thousandSeparator="."
-                              decimalSeparator=","
-                              size="small"
-                              onValueChange={(values) => {
-                                const updated = [...scanResults];
-                                updated[index].price = parseInt(values.value) || 0;
-                                setScanResults(updated);
-                              }}
-                              sx={{ width: "120px" }}
-                            />
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton
-                              color="error"
-                              size="small"
-                              onClick={() => {
-                                const updated = scanResults.filter((_, idx) => idx !== index);
-                                setScanResults(updated);
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              {row.code && (
+                                <Typography variant="caption" display="block" color="primary.main">
+                                  Code: {row.code}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell align="center">
+                              <TextField
+                                value={row.quantity}
+                                type="number"
+                                size="small"
+                                onChange={(e) => {
+                                  const updated = [...scanResults];
+                                  updated[index].quantity = Math.max(1, parseInt(e.target.value) || 1);
+                                  setScanResults(updated);
+                                }}
+                                inputProps={{ min: 1, style: { textAlign: 'center' } }}
+                                sx={{ width: "80px" }}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <NumericFormat
+                                value={row.price}
+                                customInput={TextField}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                size="small"
+                                onValueChange={(values) => {
+                                  const updated = [...scanResults];
+                                  updated[index].price = parseInt(values.value) || 0;
+                                  setScanResults(updated);
+                                }}
+                                sx={{ width: "120px" }}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <TextField
+                                value={row.vat || ""}
+                                size="small"
+                                onChange={(e) => {
+                                  const updated = [...scanResults];
+                                  updated[index].vat = e.target.value;
+                                  setScanResults(updated);
+                                }}
+                                inputProps={{ style: { textAlign: 'center', padding: '6px 4px' } }}
+                                sx={{ width: "70px" }}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <IconButton
+                                color="error"
+                                size="small"
+                                onClick={() => {
+                                  const updated = scanResults.filter((_, idx) => idx !== index);
+                                  setScanResults(updated);
+                                }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </TableContainer>

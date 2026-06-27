@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const router = express.Router();
+const { ActivityLog } = require("./activitylog");
 
 // Rate limiting configuration
 const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
@@ -694,6 +695,16 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
     }
 
+    // Lưu thông tin cũ để so sánh
+    const oldUserData = {
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      functions: [...(user.functions || [])],
+      permissions: [...(user.permissions || [])]
+    };
+
     // Kiểm tra trùng lặp Số điện thoại (nếu thay đổi)
     if (phone && phone !== user.phone) {
       const phoneExists = await User.findOne({ phone });
@@ -743,6 +754,39 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
     }
 
     await user.save();
+
+    // Ghi log hoạt động
+    try {
+      const details = [];
+      if (oldUserData.name !== user.name) {
+        details.push({ field: "name", oldValue: oldUserData.name || "", newValue: user.name || "" });
+      }
+      if (oldUserData.email !== user.email) {
+        details.push({ field: "email", oldValue: oldUserData.email || "", newValue: user.email || "" });
+      }
+      if (oldUserData.phone !== user.phone) {
+        details.push({ field: "phone", oldValue: oldUserData.phone || "", newValue: user.phone || "" });
+      }
+      if (oldUserData.role !== user.role) {
+        details.push({ field: "role", oldValue: oldUserData.role || "", newValue: user.role || "" });
+      }
+      if (JSON.stringify(oldUserData.functions) !== JSON.stringify(user.functions)) {
+        details.push({ field: "functions", oldValue: oldUserData.functions.join(", "), newValue: user.functions.join(", ") });
+      }
+      if (JSON.stringify(oldUserData.permissions) !== JSON.stringify(user.permissions)) {
+        details.push({ field: "permissions", oldValue: oldUserData.permissions.join(", "), newValue: user.permissions.join(", ") });
+      }
+
+      if (details.length > 0) {
+        await new ActivityLog({
+          userName: req.user.name,
+          action: "update_user_permissions",
+          productName: user.name || user.phone,
+          details
+        }).save();
+      }
+    } catch (logErr) { console.error("ActivityLog error in permissions:", logErr.message); }
+
     res.json({ message: "Cập nhật tài khoản thành công", user });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -784,6 +828,19 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
     });
 
     await newUser.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "create_user",
+        productName: newUser.name || newUser.phone,
+        details: [
+          { field: "Tạo tài khoản", oldValue: "", newValue: `${newUser.name || ""}, SĐT: ${newUser.phone}, Vai trò: ${newUser.role}` }
+        ]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in admin-create:", logErr.message); }
+
     res.status(201).json({ message: "Tạo tài khoản thành công", user: newUser });
   } catch (error) {
     console.error("Lỗi khi admin tạo tài khoản:", error.message);
@@ -914,8 +971,19 @@ router.put("/stations", authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy người dùng với số điện thoại đã cung cấp" });
     }
 
+    const oldStations = [...(user.station || [])];
     user.station = stations;
     await user.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "assign_user_stations",
+        productName: user.name || user.phone,
+        details: [{ field: "station", oldValue: oldStations.join(", "), newValue: stations.join(", ") }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in assign_user_stations:", logErr.message); }
 
     res.json({
       message: "Cập nhật danh sách trạm thành công",
@@ -944,6 +1012,16 @@ router.post("/:id/stations", authenticateAdmin, async (req, res) => {
     user.station.push(stationId);
     await user.save();
 
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "assign_user_stations",
+        productName: user.name || user.phone,
+        details: [{ field: "station", oldValue: "", newValue: `Đã gán thêm trạm: ${stationId}` }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in assign_user_stations post:", logErr.message); }
+
     res.status(200).json({ message: "Đã thêm trạm", user });
   } catch (err) {
     console.error("Lỗi thêm trạm:", err.message);
@@ -959,6 +1037,17 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
     if (!deletedUser) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
     }
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "delete_user",
+        productName: deletedUser.name || deletedUser.phone,
+        details: [{ field: "Xóa tài khoản", oldValue: `${deletedUser.name || ""}, SĐT: ${deletedUser.phone}, Vai trò: ${deletedUser.role}`, newValue: "" }]
+      }).save();
+    } catch (logErr) { console.error("ActivityLog error in delete_user:", logErr.message); }
+
     res.json({ message: "Xóa người dùng thành công" });
   } catch (error) {
     console.error("Lỗi khi xóa người dùng:", error.message);
@@ -975,11 +1064,30 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
 
+    const oldUserData = { name: user.name, email: user.email, phone: user.phone };
+
     if (name !== undefined) user.name = name;
     if (email !== undefined) user.email = email;
     if (phone !== undefined) user.phone = phone;
 
     await user.save();
+
+    // Ghi log hoạt động
+    try {
+      const details = [];
+      if (oldUserData.name !== user.name) details.push({ field: "name", oldValue: oldUserData.name || "", newValue: user.name || "" });
+      if (oldUserData.email !== user.email) details.push({ field: "email", oldValue: oldUserData.email || "", newValue: user.email || "" });
+      if (oldUserData.phone !== user.phone) details.push({ field: "phone", oldValue: oldUserData.phone || "", newValue: user.phone || "" });
+      if (details.length > 0) {
+        await new ActivityLog({
+          userName: req.user.name,
+          action: "update_user",
+          productName: user.name || user.phone,
+          details
+        }).save();
+      }
+    } catch (logErr) { console.error("ActivityLog error in update_user:", logErr.message); }
+
     res.json({ message: "Cập nhật thông tin người dùng thành công", user });
   } catch (error) {
     console.error("Lỗi khi cập nhật thông tin người dùng:", error.message);

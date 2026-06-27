@@ -8,6 +8,7 @@ const path = require('path');
 require('dotenv').config();
 const fs = require('fs').promises;
 const { StorageHistory } = require("./storagehistory");
+const { ActivityLog } = require("./activitylog");
 
 function removeVietnameseTones(str) {
     if (!str) return '';
@@ -42,6 +43,15 @@ const productSchema = new mongoose.Schema({
     code: {
         type: String,
         trim: true
+    },
+    vat: {
+        type: String,
+        trim: true,
+        default: ""
+    },
+    adjusted: {
+        type: Boolean,
+        default: true
     },
     brand: {
         type: String,
@@ -254,11 +264,23 @@ router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('u
 // API tạo sản phẩm mới
 router.post('/create', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     try {
-        const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc } = req.body;
+        const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted } = req.body;
         const newProduct = new Product({
-            type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc
+            type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted
         });
         await newProduct.save();
+
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'create_product',
+                productId: newProduct._id,
+                productName: newProduct.name,
+                details: [{ field: 'Tạo mới', oldValue: '', newValue: newProduct.name }]
+            }).save();
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         res.status(201).json({ message: 'Product created successfully', product: newProduct });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -280,7 +302,8 @@ router.get("/", async (req, res) => {
             sortBy = "purchaseCount",
             sortOrder = "desc",
             display,
-            stationId
+            stationId,
+            adjusted
         } = req.query;
 
         // Chuyển đổi và đảm bảo page, limit hợp lệ
@@ -305,6 +328,7 @@ router.get("/", async (req, res) => {
         if (section && section !== "") filter.section = section;
         if (value && value !== "") filter.value = value;
         if (display !== undefined) filter.display = display === "true"; 
+        if (adjusted !== undefined && adjusted !== "") filter.adjusted = adjusted === "true";
 
         // Kiểm tra cookie authToken để thực hiện lọc theo trạm trộn của khách hàng
         const token = req.cookies?.authToken;
@@ -517,6 +541,14 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
     try {
         console.log('[PUT /products/:_id] id =', req.params._id);
         console.log('[PUT /products/:_id] name in body =', req.body.name);
+
+        // Lấy dữ liệu cũ trước khi cập nhật để so sánh
+        const oldProduct = await Product.findById(req.params._id);
+        if (!oldProduct) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        const oldData = oldProduct.toJSON();
+
         if (req.body.name !== undefined) {
             req.body.nameUnsigned = removeVietnameseTones(req.body.name);
         }
@@ -530,6 +562,53 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
         if (!updatedProduct) {
             return res.status(404).json({ message: 'Product not found' });
         }
+
+        // So sánh và ghi log các trường thay đổi
+        try {
+            const fieldsToTrack = ['name', 'code', 'brand', 'type', 'section', 'value', 'warranty', 'vat', 'solution', 'description', 'features', 'operatingMethod', 'advantages', 'specifications'];
+            const details = [];
+            const newData = updatedProduct.toJSON();
+
+            for (const field of fieldsToTrack) {
+                if (req.body[field] !== undefined) {
+                    const oldVal = (oldData[field] || '').toString();
+                    const newVal = (newData[field] || '').toString();
+                    if (oldVal !== newVal) {
+                        details.push({ field, oldValue: oldVal, newValue: newVal });
+                    }
+                }
+            }
+
+            // So sánh variant nếu có trong body
+            if (req.body.variant && Array.isArray(req.body.variant)) {
+                const oldVariants = oldData.variant || [];
+                const newVariants = newData.variant || [];
+                const variantFields = ['price', 'importPrice', 'earn', 'note', 'color', 'shape', 'buttonCount', 'frame'];
+                const maxLen = Math.max(oldVariants.length, newVariants.length);
+                for (let i = 0; i < maxLen; i++) {
+                    const ov = oldVariants[i] || {};
+                    const nv = newVariants[i] || {};
+                    for (const vf of variantFields) {
+                        const oldVal = (ov[vf] !== undefined ? ov[vf] : '').toString();
+                        const newVal = (nv[vf] !== undefined ? nv[vf] : '').toString();
+                        if (oldVal !== newVal) {
+                            details.push({ field: `variant[${i}].${vf}`, oldValue: oldVal, newValue: newVal });
+                        }
+                    }
+                }
+            }
+
+            if (details.length > 0) {
+                await new ActivityLog({
+                    userName: req.user.name,
+                    action: 'update_product',
+                    productId: updatedProduct._id,
+                    productName: updatedProduct.name,
+                    details
+                }).save();
+            }
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         res.json(updatedProduct);
     } catch (error) {
         console.error('[PUT /products/:_id] error =', error.message);
@@ -573,6 +652,18 @@ router.delete('/:_id', [authenticateAdmin, checkPermission('delete_product')], a
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
+
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'delete_product',
+                productId: product._id,
+                productName: product.name,
+                details: [{ field: 'Xóa sản phẩm', oldValue: product.name, newValue: '' }]
+            }).save();
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         res.json({ message: 'Product deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -590,6 +681,19 @@ router.post('/:id/variant', [authenticateAdmin, checkPermission('update_product'
         }
         product.variant.push(newVariant);
         await product.save();
+
+        // Ghi log hoạt động
+        try {
+            const idx = product.variant.length - 1;
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'add_variant',
+                productId: product._id,
+                productName: product.name,
+                details: [{ field: `variant[${idx}]`, oldValue: '', newValue: `Giá: ${newVariant.price || '0'}, Giá nhập: ${newVariant.importPrice || '0'}` }]
+            }).save();
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         return res.status(201).json({
             message: 'Variant added successfully',
             product,
@@ -609,8 +713,20 @@ router.put('/:_id/toggle-display', [authenticateAdmin, checkPermission('update_p
             return res.status(404).json({ message: 'Product not found' });
         }
 
+        const oldDisplay = product.display;
         product.display = !product.display;
         await product.save();
+
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'toggle_display',
+                productId: product._id,
+                productName: product.name,
+                details: [{ field: 'display', oldValue: oldDisplay ? 'Hiển thị' : 'Ẩn', newValue: product.display ? 'Hiển thị' : 'Ẩn' }]
+            }).save();
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
 
         res.status(200).json({ 
             message: `Thay đổi hiển thị thành công`, 
@@ -628,7 +744,7 @@ router.put('/:_id/toggle-display', [authenticateAdmin, checkPermission('update_p
 // API để cập nhật số lượng bằng variantIndex
 router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     const { id, variantIndex } = req.params;
-    const { quantity, orderId, orderName } = req.body;
+    const { quantity, orderId, orderName, isAIScan } = req.body;
     const userName = req.user.name;
 
     try {
@@ -668,7 +784,8 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('update_pr
             quantity: change,
             userName: userName,
             orderId: orderId,
-            orderName: orderName
+            orderName: orderName,
+            isAIScan: !!isAIScan
         });
         await history.save();
 
@@ -696,11 +813,40 @@ router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('update_pro
         if (isNaN(index) || index < 0 || index >= product.variant.length) {
             return res.status(404).json({ message: 'Variant not found' });
         }
+
+        // Lưu dữ liệu cũ để so sánh
+        const oldVariant = { ...product.variant[index].toJSON() };
+
         product.variant[index] = {
             ...product.variant[index],
             ...variantData,
         };
         await product.save();
+
+        // Ghi log hoạt động
+        try {
+            const variantFields = ['price', 'importPrice', 'earn', 'note', 'color', 'shape', 'buttonCount', 'frame'];
+            const details = [];
+            for (const vf of variantFields) {
+                if (variantData[vf] !== undefined) {
+                    const oldVal = (oldVariant[vf] !== undefined ? oldVariant[vf] : '').toString();
+                    const newVal = (variantData[vf] !== undefined ? variantData[vf] : '').toString();
+                    if (oldVal !== newVal) {
+                        details.push({ field: `variant[${index}].${vf}`, oldValue: oldVal, newValue: newVal });
+                    }
+                }
+            }
+            if (details.length > 0) {
+                await new ActivityLog({
+                    userName: req.user.name,
+                    action: 'update_variant',
+                    productId: product._id,
+                    productName: product.name,
+                    details
+                }).save();
+            }
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         return res.status(200).json({
             message: 'Variant updated successfully',
             product,
@@ -723,8 +869,22 @@ router.delete('/:id/:variantIndex', [authenticateAdmin, checkPermission('update_
         if (isNaN(index) || index < 0 || index >= product.variant.length) {
             return res.status(404).json({ message: 'Variant not found' });
         }
+
+        const deletedVariant = product.variant[index];
         product.variant.splice(index, 1);
         await product.save();
+
+        // Ghi log hoạt động
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'delete_variant',
+                productId: product._id,
+                productName: product.name,
+                details: [{ field: `variant[${index}]`, oldValue: `Giá: ${deletedVariant.price || '0'}, Giá nhập: ${deletedVariant.importPrice || '0'}`, newValue: '' }]
+            }).save();
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         return res.status(200).json({
             message: 'Variant deleted successfully',
             product,
@@ -865,6 +1025,8 @@ router.put('/:id/:variantIndex/update-earn', [authenticateAdmin, checkPermission
         }
 
         const variant = product.variant[index];
+        const oldEarn = variant.earn;
+        const oldPrice = variant.price;
         const importPriceStr = variant.importPrice || "0";
         const importPriceNum = parseFloat(importPriceStr.replace(/\./g, '').replace(',', '.')) || 0;
 
@@ -876,7 +1038,29 @@ router.put('/:id/:variantIndex/update-earn', [authenticateAdmin, checkPermission
         const rawPrice = importPriceNum * (1 + variant.earn / 100);
         const roundedPrice = Math.ceil(rawPrice / 1000) * 1000;
         variant.price = roundedPrice.toString();
+        product.adjusted = true;
         await product.save();
+
+        // Ghi log hoạt động
+        try {
+            const details = [];
+            if (oldEarn.toString() !== earn.toString()) {
+                details.push({ field: `variant[${index}].earn`, oldValue: oldEarn.toString() + '%', newValue: earn.toString() + '%' });
+            }
+            if (oldPrice !== variant.price) {
+                details.push({ field: `variant[${index}].price`, oldValue: oldPrice, newValue: variant.price });
+            }
+            if (details.length > 0) {
+                await new ActivityLog({
+                    userName: req.user.name,
+                    action: 'update_earn',
+                    productId: product._id,
+                    productName: product.name,
+                    details
+                }).save();
+            }
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
+
         return res.status(200).json({
             message: 'Earn and price updated successfully',
             variant: {
@@ -916,6 +1100,8 @@ router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPe
 
         // Lấy variant cần cập nhật
         const variant = product.variant[index];
+        const oldImportPrice = variant.importPrice;
+        const oldPrice = variant.price;
 
         // Lưu importPrice dưới dạng chuỗi thô
         variant.importPrice = importPrice;
@@ -931,8 +1117,29 @@ router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPe
         const roundedPrice = Math.ceil(rawPrice / 1000) * 1000;
         variant.price = roundedPrice.toString(); // Lưu dưới dạng chuỗi thô
 
+        product.adjusted = true;
         // Lưu thay đổi vào database
         await product.save();
+
+        // Ghi log hoạt động
+        try {
+            const details = [];
+            if (oldImportPrice !== importPrice) {
+                details.push({ field: `variant[${index}].importPrice`, oldValue: oldImportPrice || '0', newValue: importPrice });
+            }
+            if (oldPrice !== variant.price) {
+                details.push({ field: `variant[${index}].price`, oldValue: oldPrice, newValue: variant.price });
+            }
+            if (details.length > 0) {
+                await new ActivityLog({
+                    userName: req.user.name,
+                    action: 'update_import_price',
+                    productId: product._id,
+                    productName: product.name,
+                    details
+                }).save();
+            }
+        } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
 
         return res.status(200).json({
             message: 'Import price and price updated successfully',
@@ -1002,78 +1209,111 @@ router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')]
             return res.status(400).json({ success: 0, message: 'Không có file ảnh được tải lên.' });
         }
 
-        // 1. Lấy toàn bộ sản phẩm hiển thị trong DB để Gemini làm dữ liệu đối khớp
-        const activeProducts = await Product.find({ display: true }).select('_id name code brand variant');
+        // 1. Lấy toàn bộ sản phẩm hiển thị trong DB để tự động đối khớp ở Backend
+        const activeProducts = await Product.find({ display: true }).select('_id name code brand variant vat');
         
-        // Rút gọn thông tin truyền cho Gemini để tiết kiệm token
-        const productContext = activeProducts.map(p => ({
-            id: p._id.toString(),
-            name: p.name,
-            code: p.code || '',
-            brand: p.brand || '',
-            price: p.variant?.[0]?.price || ''
-        }));
-
         // 2. Chuyển ảnh sang base64
         const base64Image = req.file.buffer.toString('base64');
         const mimeType = req.file.mimetype;
 
-        // 3. Chuẩn bị prompt hướng dẫn chi tiết cho Gemini
+        // 3. Chuẩn bị prompt trích xuất thông tin từ ảnh (Cực kỳ ngắn gọn để giảm thiểu token và tăng tốc độ)
         const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn chuyên nghiệp.
-Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số lượng (quantity), đơn giá (price), đơn vị tính (unit), và ghi chú (note).
+Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat) và ghi chú (note).
 
-Đồng thời, bạn được cung cấp danh sách sản phẩm hiện có trong cơ sở dữ liệu (Database) dưới dạng mảng JSON. Với mỗi mặt hàng quét được từ hóa đơn, hãy tìm sản phẩm khớp nhất trong Database dựa trên so khớp tên sản phẩm (name), mã sản phẩm (code) hoặc hãng sản xuất (brand).
-
-Danh sách sản phẩm trong Database:
-${JSON.stringify(productContext)}
-
-Hướng dẫn khớp sản phẩm:
-- Hãy so sánh tên sản phẩm trên hóa đơn với trường \`name\` và \`code\` trong Database.
-- Nếu thấy khớp mờ (fuzzy match) hoặc viết tắt hợp lý, hãy gán trường \`matchedProductId\` là \`id\` của sản phẩm đó trong Database.
-- Nếu không tìm thấy sản phẩm nào tương đồng trong Database, hãy đặt \`matchedProductId\` là null.
+Hướng dẫn trích xuất:
+- Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Tuyệt đối không tự ý đánh số thứ tự tuần tự 1, 2, 3, 4... nếu trên hóa đơn đã có ghi cột số thứ tự. Chỉ tự đánh số từ 1 tăng dần khi hóa đơn hoàn toàn không có cột số thứ tự.
+- Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "S-T25 AC200V 2A2B"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order), mã đơn mua hàng, mã số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này.
+- Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được).
 - Trường \`price\` và \`quantity\` phải là kiểu số nguyên dương (hãy loại bỏ các ký tự dấu chấm, dấu phẩy hoặc đơn vị VND).
 - Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...).
 
 Định dạng phản hồi BẮT BUỘC là một mảng JSON trực tiếp (không nằm trong thẻ markdown \`\`\`json và không có văn bản giải thích đi kèm):
 [
   {
-    "matchedProductId": "ID của sản phẩm khớp trong Database hoặc null",
+    "stt": "1",
     "rawScannedName": "Tên sản phẩm đọc được từ ảnh hóa đơn",
     "code": "Mã sản phẩm đọc được từ ảnh hóa đơn (nếu có)",
     "quantity": 10,
     "price": 150000,
     "unit": "cái",
+    "vat": "10%",
     "note": "Ghi chú nếu có"
   }
 ]`;
 
-        // 4. Gọi API Gemini bằng fetch (Sử dụng Gemini 3.5 Flash)
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-        const geminiRes = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [
-                    {
-                        parts: [
-                            { text: systemPrompt },
+        // 4. Gọi API Gemini bằng fetch có hỗ trợ Fallback tự động khi quá tải (503)
+        const modelsToTry = [
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash'
+        ];
+
+        const callGeminiWithModel = async (modelName) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+            const startGemini = Date.now();
+            console.log(`[scan-invoice] Bắt đầu gọi Gemini API (${modelName}) để trích xuất chữ từ ảnh...`);
+
+            try {
+                const res = await fetch(geminiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        contents: [
                             {
-                                inlineData: {
-                                    mimeType: mimeType,
-                                    data: base64Image
-                                }
+                                parts: [
+                                    { text: systemPrompt },
+                                    {
+                                        inlineData: {
+                                            mimeType: mimeType,
+                                            data: base64Image
+                                        }
+                                    }
+                                ]
                             }
                         ]
-                    }
-                ]
-            })
-        });
+                    })
+                });
 
-        if (!geminiRes.ok) {
-            const errorText = await geminiRes.text();
-            throw new Error(`Lỗi từ Gemini API: ${errorText}`);
+                const duration = ((Date.now() - startGemini) / 1000).toFixed(2);
+                console.log(`[scan-invoice] Gemini API (${modelName}) đã phản hồi sau ${duration} giây.`);
+                return res;
+            } catch (fetchErr) {
+                if (fetchErr.name === 'AbortError') {
+                    throw new Error(`Kết nối tới Gemini API (${modelName}) bị quá thời gian (Timeout 25s).`);
+                }
+                throw fetchErr;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+
+        let geminiRes = null;
+        let lastError = null;
+
+        for (const model of modelsToTry) {
+            try {
+                const res = await callGeminiWithModel(model);
+                if (res.ok) {
+                    geminiRes = res;
+                    break; // Thành công thì dừng lại và dùng kết quả này
+                } else {
+                    const errText = await res.text();
+                    console.warn(`[scan-invoice] Model ${model} trả về mã lỗi HTTP ${res.status}:`, errText);
+                    lastError = new Error(`Lỗi từ Gemini API (${model}): ${errText}`);
+                }
+            } catch (err) {
+                console.warn(`[scan-invoice] Lỗi khi thực hiện cuộc gọi bằng model ${model}:`, err.message);
+                lastError = err;
+            }
+        }
+
+        if (!geminiRes) {
+            throw lastError || new Error("Không thể kết nối đến bất kỳ model Gemini nào.");
         }
 
         const geminiData = await geminiRes.json();
@@ -1090,10 +1330,155 @@ Hướng dẫn khớp sản phẩm:
 
         const items = JSON.parse(textResult);
 
+        // ===== Helpers =====
+        const tokenizeSpec = (text) => {
+            if (!text) return new Set();
+            const regexModel = /(?=\d+[a-zA-Z]|[a-zA-Z]+\d)[a-zA-Z0-9\-\/]+/gi;
+            const regexPureNum = /\b\d{3,}\b/g;
+
+            const tokens = new Set();
+            let match;
+
+            regexModel.lastIndex = 0;
+            while ((match = regexModel.exec(text)) !== null) {
+                tokens.add(match[0].toLowerCase());
+            }
+
+            regexPureNum.lastIndex = 0;
+            while ((match = regexPureNum.exec(text)) !== null) {
+                tokens.add(match[0].toLowerCase());
+            }
+
+            return tokens;
+        };
+
+        const tokenizeTypeWords = (text) => {
+            if (!text) return new Set();
+            const out = new Set();
+            const words = removeVietnameseTones(text).toLowerCase().split(/[\s,.\-\/()]+/);
+            for (const w of words) {
+                // từ chữ: có chữ cái, KHÔNG chứa số, độ dài > 1 (lớn hơn hoặc bằng 2)
+                if (w.length > 1 && /[a-z]/.test(w) && !/\d/.test(w)) {
+                    out.add(w);
+                }
+            }
+            return out;
+        };
+
+        const codeKind = (code) => {
+            if (!code || !code.trim()) return 'none';
+            return /^\d+$/.test(code.trim()) ? 'supplier' : 'model';
+        };
+
+        const cleanCode = (code) => {
+            return code ? code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+        };
+
+        // Gate chung: code không xung đột + spec subset (Set) + type-word hit
+        const passGates = (p, ctx, item) => {
+            // R: code conflict - cả 2 là model mà khác mã -> reject
+            if (ctx.scanCodeKind === 'model' && codeKind(p.code) === 'model'
+                && cleanCode(item.code) !== cleanCode(p.code)) {
+                return false;
+            }
+            // R4: spec subset bằng SET membership (không dùng includes để tránh trượt 100/1000)
+            if (ctx.hasScanSpec) {
+                const pSpec = tokenizeSpec(`${p.name || ''} ${p.code || ''}`);
+                for (const t of ctx.scanSpec) {
+                    if (!pSpec.has(t)) {
+                        return false; // thiếu 1 spec -> reject (R2)
+                    }
+                }
+            }
+            // R5: bắt buộc trùng >= 1 từ loại sản phẩm (chặn Van vs Xy lanh)
+            const pType = tokenizeTypeWords(p.name || '');
+            let typeHit = false;
+            for (const t of ctx.scanType) {
+                if (pType.has(t)) {
+                    typeHit = true;
+                    break;
+                }
+            }
+            if (!typeHit) {
+                return false;
+            }
+            return true;
+        };
+
+        const fuzzyScore = (p, scanName) => {
+            const a = removeVietnameseTones(scanName).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
+            const b = removeVietnameseTones(p.name).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
+            return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
+        };
+
+        // 5. Tự động so khớp sản phẩm trong Database bằng Javascript (Nhanh và chính xác)
+        const matchedItems = items.map(item => {
+            const scanName = item.rawScannedName || '';
+            const scanCodeKind = codeKind(item.code);
+            const scanSpec = tokenizeSpec(`${scanName} ${scanCodeKind === 'model' ? item.code : ''}`);
+            const scanType = tokenizeTypeWords(scanName);
+            const hasScanSpec = scanSpec.size > 0;
+
+            const ctx = {
+                scanCodeKind,
+                scanSpec,
+                scanType,
+                hasScanSpec
+            };
+
+            let matchedProductId = null;
+            let confidence = 'high';
+
+            // Bước 5.1: Đối khớp theo mã model (filter tất cả, không find)
+            if (item.code && scanCodeKind === 'model') {
+                const cc = cleanCode(item.code);
+                const byCode = activeProducts.filter(p => codeKind(p.code) === 'model' && cleanCode(p.code) === cc);
+                const passed = byCode.filter(p => passGates(p, ctx, item)); // R3: lọc spec/type giữa các biến thể trùng mã
+                
+                if (passed.length === 1) {
+                    matchedProductId = passed[0]._id.toString();
+                    confidence = ctx.hasScanSpec ? 'high' : 'low';
+                    if (!item.vat && passed[0].vat) {
+                        item.vat = passed[0].vat;
+                    }
+                } else if (passed.length > 1) { // nhiều biến thể trùng mã -> fuzzy tie-breaker, medium
+                    const best = passed.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
+                    matchedProductId = best._id.toString();
+                    confidence = 'medium';
+                    if (!item.vat && best.vat) {
+                        item.vat = best.vat;
+                    }
+                }
+            }
+
+            // Bước 5.2: Fuzzy tên toàn DB
+            if (!matchedProductId) {
+                const candidates = activeProducts.filter(p => passGates(p, ctx, item));
+                if (candidates.length > 0) {
+                    const best = candidates.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
+                    matchedProductId = best._id.toString();
+                    const pSpec = tokenizeSpec(`${best.name || ''} ${best.code || ''}`);
+                    
+                    confidence = !ctx.hasScanSpec ? 'low'                      // R6: không spec -> low
+                               : pSpec.size === ctx.scanSpec.size ? 'high'      // spec bằng nhau -> high
+                               : 'medium';                                      // R7: candidate dư thừa spec -> medium
+                    if (!item.vat && best.vat) {
+                        item.vat = best.vat;
+                    }
+                }
+            }
+
+            return {
+                ...item,
+                matchedProductId: matchedProductId || "NEW_PRODUCT",
+                confidence: matchedProductId ? confidence : 'high'
+            };
+        });
+
         res.json({
             success: 1,
-            total: items.length,
-            items: items
+            total: matchedItems.length,
+            items: matchedItems
         });
 
     } catch (error) {

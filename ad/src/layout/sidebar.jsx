@@ -33,6 +33,7 @@ import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import PersonIcon from "@mui/icons-material/Person";
 import CabinIcon from "@mui/icons-material/Cabin";
 import TocIcon from '@mui/icons-material/Toc';
+import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import ShoppingCartCheckoutIcon from "@mui/icons-material/ShoppingCartCheckout";
 import toast from "react-hot-toast";
 import { useOrderContext } from "../context/ordercontext";
@@ -273,7 +274,8 @@ const Sidebar = () => {
       path: "/zalo",
       icon: <ManageIcon />,
     },
-    { text: "Lịch sử", path: "/history", icon: <TocIcon /> },
+    { text: "Lịch sử kho", path: "/history", icon: <TocIcon /> },
+    { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },
     { text: "Chat hỗ trợ", path: "/chat", icon: <ChatIcon /> },
     { text: "Đăng xuất", icon: <LogoutIcon />, action: "logout" },
   ].filter(Boolean);

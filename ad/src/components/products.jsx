@@ -35,6 +35,7 @@ const Products = () => {
     type: "",
     name: "",
     code: "",
+    vat: "",
     brand: "",
     section: "",
     value: "",
@@ -95,9 +96,11 @@ const Products = () => {
     sortBy: filters.sortBy || "createdAt",
     sortOrder: filters.sortOrder || "desc",
     code: filters.code || "",
+    adjusted: showUnadjustedOnly ? "false" : "",
   });
 
   const [filters, setFilters] = useState(getInitialFilters);
+  const [showUnadjustedOnly, setShowUnadjustedOnly] = useState(false);
   const [quickSearch, setQuickSearch] = useState(() => {
     const initFilters = getInitialFilters();
     return initFilters.search || "";
@@ -130,11 +133,11 @@ const Products = () => {
     navigate(`/product/${_id}`);
   };
 
-  const fetchProducts = async (page = currentPage) => {
+  const fetchProducts = async (page = currentPage, limit = rowsPerPage) => {
     try {
       const query = new URLSearchParams({
         page,
-        limit: rowsPerPage,
+        limit,
         ...normalizeFilters(filters),
       }).toString();
       const response = await fetch(`${apiUrl}/products?${query}`, {
@@ -142,7 +145,7 @@ const Products = () => {
       });
       const data = await response.json();
       setProducts(data.products);
-      setTotalPages(Math.ceil(data.total / rowsPerPage));
+      setTotalPages(Math.ceil(data.total / limit));
     } catch (error) {
       console.error("Error fetching products:", error);
     }
@@ -243,7 +246,7 @@ const Products = () => {
     const newRowsPerPage = parseInt(event.target.value, 10);
     setRowsPerPage(newRowsPerPage);
     setCurrentPage(1);
-    fetchProducts(1);
+    fetchProducts(1, newRowsPerPage);
   };
 
   useEffect(() => {
@@ -261,6 +264,11 @@ const Products = () => {
       setValues([]);
     }
   }, [filters, newProduct.section]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchProducts(1);
+  }, [showUnadjustedOnly]);
 
   const openDialog = () => setIsDialogOpen(true);
   const closeDialog = () => setIsDialogOpen(false);
@@ -322,6 +330,7 @@ const Products = () => {
           type: "",
           name: "",
           code: "",
+          vat: "",
           brand: "",
           section: "",
           value: "",
@@ -756,6 +765,14 @@ const Products = () => {
             >
               Quản lý cụm thiết bị
             </Button>
+            <Button
+              variant={showUnadjustedOnly ? "contained" : "outlined"}
+              color="warning"
+              sx={{ marginLeft: 2 }}
+              onClick={() => setShowUnadjustedOnly(!showUnadjustedOnly)}
+            >
+              {showUnadjustedOnly ? "Hiển thị tất cả" : "Sản phẩm chưa điều chỉnh"}
+            </Button>
           </div>
           <div className="filter-desktop">
             <TextField
@@ -788,6 +805,7 @@ const Products = () => {
                 <TableCell align="center" sx={{ minWidth: 100 }}>Loại</TableCell>
                 <TableCell align="center" sx={{ minWidth: 200 }}>Tên</TableCell>
                 <TableCell align="center" sx={{ minWidth: 130 }}>Mã sản phẩm</TableCell>
+                <TableCell align="center" sx={{ minWidth: 80 }}>VAT</TableCell>
                 <TableCell align="center">Ảnh</TableCell>
                 <TableCell align="center" sx={{ minWidth: 110 }}>Giá</TableCell>
                 <TableCell align="center">Hãng</TableCell>
@@ -819,8 +837,29 @@ const Products = () => {
                     />
                   </TableCell>
                   <TableCell align="center">{product.type}</TableCell>
-                  <TableCell align="center">{product.name}</TableCell>
+                  <TableCell align="center">
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                      <div>{product.name}</div>
+                      {product.adjusted === false && (
+                        <div style={{ marginTop: "4px" }}>
+                          <span style={{
+                            display: "inline-block",
+                            backgroundColor: "#ffebee",
+                            color: "#c62828",
+                            border: "1px solid #ef9a9a",
+                            borderRadius: "4px",
+                            padding: "2px 6px",
+                            fontSize: "0.75rem",
+                            fontWeight: "bold"
+                          }}>
+                            Chưa điều chỉnh
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell align="center">{product.code}</TableCell>
+                  <TableCell align="center">{product.vat || "N/A"}</TableCell>
                   <TableCell align="center">
 {product.variant?.[0]?.imgUrl ? (
   <img
@@ -904,6 +943,15 @@ const Products = () => {
               label="Mã sản phẩm"
               name="code"
               value={newProduct.code}
+              onChange={handleInputChange}
+              fullWidth
+              margin="normal"
+              size="small"
+            />
+            <TextField
+              label="VAT"
+              name="vat"
+              value={newProduct.vat}
               onChange={handleInputChange}
               fullWidth
               margin="normal"

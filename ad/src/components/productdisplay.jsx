@@ -120,8 +120,10 @@ const ProductDisplay = () => {
       const productData = {
         name: updatedProduct.name || "",
         code: updatedProduct.code || "",
+        vat: updatedProduct.vat || "",
         type: updatedProduct.type || "",
         brand: updatedProduct.brand || "",
+        adjusted: true,
         section: updatedProduct.section || "",
         value: updatedProduct.value || "",
         warranty: updatedProduct.warranty || "",
@@ -761,6 +763,14 @@ const url = await QRCode.toDataURL(qrContent);
             size="small"
             value={product.code || ""}
             onChange={(e) => setProduct({ ...product, code: e.target.value })}
+          />
+          <TextField
+            label="VAT"
+            fullWidth
+            margin="normal"
+            size="small"
+            value={product.vat || ""}
+            onChange={(e) => setProduct({ ...product, vat: e.target.value })}
           />
           <TextField
             label="Bảo hành"

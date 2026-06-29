@@ -28,10 +28,8 @@ import {
 import { ExpandMore, ExpandLess } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-import AES from "crypto-js/aes";
 
 const apiUrl = import.meta.env.VITE_API_URL;
-const AES_KEY = import.meta.env.VITE_AES_KEY;
 
 const StationUser = () => {
   const [users, setUsers] = useState([]);
@@ -120,10 +118,6 @@ const StationUser = () => {
       return;
     }
 
-    const raw = `${formData.phone}+++${formData.password}`;
-    const encrypted = AES.encrypt(raw, AES_KEY).toString();
-    const logInString = encodeURIComponent(encrypted);
-
     try {
       const res = await fetch(`${apiUrl}/users/register`, {
         method: "POST",
@@ -133,7 +127,6 @@ const StationUser = () => {
           name: formData.name,
           phone: formData.phone,
           password: formData.password,
-          logInString,
         }),
       });
       const data = await res.json();
@@ -326,17 +319,12 @@ const StationUser = () => {
     if (!window.confirm(`Bạn có chắc muốn reset mật khẩu của ${editUser.name || editUser.phone} về 123456?`)) return;
     setEditLoading(true);
     try {
-      const raw = `${editUser.phone}+++123456`;
-      const encrypted = AES.encrypt(raw, AES_KEY).toString();
-      const logInString = encodeURIComponent(encrypted);
-
       const res = await fetch(`${apiUrl}/users/${editUser._id}/permissions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           password: "123456",
-          logInString,
         }),
       });
       const data = await res.json();
@@ -346,6 +334,38 @@ const StationUser = () => {
       fetchUsers();
     } catch (err) {
       toast.error(err.message || "Lỗi khi reset mật khẩu");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Xoay mã đăng nhập tự động
+  const handleRotateToken = async () => {
+    if (!editUser) return;
+    if (
+      !window.confirm(
+        `Bạn có chắc muốn xoay mã đăng nhập tự động của ${
+          editUser.name || editUser.phone
+        }? Link QR/NFC cũ sẽ lập tức vô hiệu hóa.`
+      )
+    )
+      return;
+    setEditLoading(true);
+    try {
+      const res = await fetch(`${apiUrl}/users/${editUser._id}/rotate-autologin-token`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Xoay mã thất bại");
+      toast.success("Đã xoay mã đăng nhập tự động thành công!");
+      setOpenEditDialog(false);
+      setSelectedUserPhone(editUser.phone);
+      setEncryptedString(data.logInString);
+      setOpenPasswordDialog(true);
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.message || "Lỗi khi xoay mã");
     } finally {
       setEditLoading(false);
     }
@@ -607,17 +627,27 @@ const StationUser = () => {
       <Dialog
         open={openPasswordDialog}
         onClose={() => setOpenPasswordDialog(false)}
+        maxWidth="sm"
+        fullWidth
       >
-        <DialogTitle>Chuỗi mã hóa</DialogTitle>
-        <DialogContent sx={{ minWidth: 300 }}>
+        <DialogTitle>Mã đăng nhập tự động</DialogTitle>
+        <DialogContent sx={{ minWidth: 350, display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField
-            label="Chuỗi đăng nhập"
+            label="Token đăng nhập"
             value={encryptedString}
+            fullWidth
+            size="small"
+            InputProps={{ readOnly: true }}
+            sx={{ mt: 1 }}
+          />
+          <TextField
+            label="Đường dẫn tự động đăng nhập (QR/NFC Link)"
+            value={encryptedString ? `${window.location.origin.replace(":5173", ":3000")}/${encryptedString}` : ""}
             inputRef={encryptedInputRef}
             fullWidth
             size="small"
             multiline
-            sx={{ mt: 1 }}
+            InputProps={{ readOnly: true }}
           />
         </DialogContent>
         <DialogActions>
@@ -632,7 +662,7 @@ const StationUser = () => {
             Đóng
           </Button>
           <Button variant="contained" color="primary" onClick={handleCopy}>
-            Sao chép
+            Sao chép liên kết
           </Button>
         </DialogActions>
       </Dialog>
@@ -671,6 +701,15 @@ const StationUser = () => {
               sx={{ textTransform: "none" }}
             >
               Reset mật khẩu về 123456
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={handleRotateToken}
+              disabled={editLoading}
+              sx={{ textTransform: "none" }}
+            >
+              Xoay mã đăng nhập tự động
             </Button>
           </Stack>
         </DialogContent>

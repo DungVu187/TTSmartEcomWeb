@@ -1,7 +1,5 @@
 import React, { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import AES from "crypto-js/aes";
-import Utf8 from "crypto-js/enc-utf8";
 import { toast } from "react-hot-toast";
 
 const AutoLog = () => {
@@ -13,31 +11,19 @@ const AutoLog = () => {
       try {
         if (!code) throw new Error("Không có mã đăng nhập.");
 
-        const key = process.env.REACT_APP_AES_KEY;
-        if (!key) throw new Error("Thiếu biến môi trường REACT_APP_AES_KEY");
-
-        const bytes = AES.decrypt(code, key);
-        const decrypted = bytes.toString(Utf8);
-
-        if (!decrypted.includes("+++")) {
-          throw new Error("Mã không hợp lệ hoặc sai định dạng.");
-        }
-
-        const [phone, password] = decrypted.split("+++");
-
         const response = await fetch(
-          `${process.env.REACT_APP_BACK_END}/users/login`,
+          `${process.env.REACT_APP_BACK_END}/users/autologin`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({ phone, password }),
+            body: JSON.stringify({ token: code }),
           }
         );
 
         if (!response.ok) {
-          toast.error("Đăng nhập tự động thất bại.");
-          return;
+          const data = await response.json();
+          throw new Error(data.message || "Đăng nhập tự động thất bại.");
         }
 
         const queryParams = new URLSearchParams(window.location.search);

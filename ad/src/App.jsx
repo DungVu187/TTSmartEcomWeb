@@ -26,6 +26,7 @@ import History from './components/history';
 import ActivityLog from './components/activitylog';
 import Chat from './components/chat';
 import ZaloSettings from './components/ZaloSettings';
+import VoiceSearchFAB from './components/VoiceSearchFAB';
 
 const App = () => {
   return (
@@ -65,6 +66,7 @@ const App = () => {
                     <Route path="/zalo" element={<ZaloSettings />} />
                   </Routes>
                 </Box>
+                <VoiceSearchFAB />
               </Box>
             </ProtectedRoute>
           }

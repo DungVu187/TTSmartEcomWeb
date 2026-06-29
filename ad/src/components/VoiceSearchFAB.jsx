@@ -1,0 +1,248 @@
+import React, { useState, useRef, useEffect } from "react";
+import { Fab, Tooltip, CircularProgress, Box } from "@mui/material";
+import MicIcon from "@mui/icons-material/Mic";
+import GraphicEqIcon from "@mui/icons-material/GraphicEq";
+import { useNavigate, useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
+
+const apiUrl = import.meta.env.VITE_API_URL;
+
+const VoiceSearchFAB = () => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimeoutRef = useRef(null);
+  const lastTriggerRef = useRef(0);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Request permission early or check if available
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      setPermissionGranted(true);
+    }
+  }, []);
+
+  const startRecording = async (e) => {
+    if (e) {
+      e.preventDefault();
+    }
+    const now = Date.now();
+    if (now - lastTriggerRef.current < 500) {
+      return; // Chặn nhấp đúp / sự kiện chạm + chuột đồng thời
+    }
+    lastTriggerRef.current = now;
+
+    if (isProcessing) return;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error("Trình duyệt yêu cầu kết nối bảo mật HTTPS hoặc Localhost để sử dụng Micro!", {
+        duration: 5000
+      });
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setIsRecording(true);
+      audioChunksRef.current = [];
+
+      // Choose a mimeType supported by browser
+      let options = { mimeType: "audio/webm" };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: "audio/ogg" };
+      }
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: "" }; // default fallback
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Stop all track nodes
+        stream.getTracks().forEach((track) => track.stop());
+
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType || "audio/webm",
+        });
+
+        if (audioBlob.size < 1000) {
+          toast.error("Vui lòng giữ lâu hơn để nói!");
+          setIsProcessing(false);
+          return;
+        }
+
+        await sendAudioToAPI(audioBlob);
+      };
+
+      mediaRecorder.start();
+      toast.success("Đang lắng nghe... Hãy nói rồi thả nút ra!", {
+        id: "voice-status",
+        duration: 3000,
+      });
+
+      // Auto-stop after 15 seconds to prevent runaway recording
+      recordingTimeoutRef.current = setTimeout(() => {
+        stopRecording();
+      }, 15000);
+
+    } catch (err) {
+      console.error("Lỗi truy cập micro:", err);
+      toast.error("Không thể mở micro. Vui lòng cấp quyền micro cho trang web.");
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      setIsProcessing(true);
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const sendAudioToAPI = async (audioBlob) => {
+    toast.loading("Đang xử lý giọng nói...", { id: "voice-status" });
+    try {
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "query.webm");
+
+      const response = await fetch(`${apiUrl}/products/voice-query`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const keyword = data.keyword || "";
+        const filters = data.filters || {};
+        
+        toast.success(`Tìm kiếm: "${keyword || data.transcript}"`, {
+          id: "voice-status",
+          duration: 3000,
+        });
+
+        // Save new filters to session storage
+        const savedFiltersStr = sessionStorage.getItem("productFilters");
+        const currentFilters = savedFiltersStr ? JSON.parse(savedFiltersStr) : {
+          search: "",
+          code: "",
+          brand: "Tất cả",
+          type: "Tất cả",
+          section: "Tất cả",
+          value: "Tất cả",
+          sortBy: "createdAt",
+          sortOrder: "desc",
+        };
+
+        const updatedFilters = {
+          ...currentFilters,
+          search: keyword || currentFilters.search,
+          brand: filters.brand || currentFilters.brand,
+          type: filters.type || currentFilters.type,
+          code: filters.code || currentFilters.code || "",
+        };
+
+        sessionStorage.setItem("productFilters", JSON.stringify(updatedFilters));
+
+        // Dispatch window event so products.jsx updates its state instantly
+        window.dispatchEvent(new Event("voiceSearchQuery"));
+
+        // If not on product list page, redirect there
+        if (location.pathname !== "/product") {
+          navigate("/product");
+        }
+      } else {
+        throw new Error(data.message || "Không phân tích được âm thanh.");
+      }
+    } catch (err) {
+      console.error("Lỗi voice-query API:", err);
+      toast.error(err.message || "Gặp lỗi khi xử lý giọng nói.", {
+        id: "voice-status",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        position: "fixed",
+        bottom: 24,
+        right: 24,
+        zIndex: 9999,
+      }}
+    >
+      <Tooltip
+        title={
+          isRecording
+            ? "Thả ra để gửi tìm kiếm"
+            : isProcessing
+            ? "Đang xử lý..."
+            : "Nhấn giữ để tìm kiếm bằng giọng nói"
+        }
+        placement="top"
+        arrow
+      >
+        <Fab
+          color={isRecording ? "error" : "primary"}
+          onMouseDown={startRecording}
+          onMouseUp={stopRecording}
+          onTouchStart={startRecording}
+          onTouchEnd={stopRecording}
+          onContextMenu={(e) => e.preventDefault()} // Ngăn chặn menu chuột phải / nhấn giữ trên điện thoại
+          sx={{
+            width: 56,
+            height: 56,
+            boxShadow: isRecording
+              ? "0 0 20px #d32f2f, 0 0 40px #d32f2f"
+              : "0 4px 10px rgba(0,0,0,0.3)",
+            transition: "all 0.3s ease",
+            transform: isRecording ? "scale(1.15)" : "scale(1)",
+            "&::after": isRecording
+              ? {
+                  content: '""',
+                  position: "absolute",
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "50%",
+                  border: "2px solid #d32f2f",
+                  animation: "pulse 1.2s infinite ease-in-out",
+                }
+              : {},
+            "@keyframes pulse": {
+              "0%": { transform: "scale(1)", opacity: 1 },
+              "100%": { transform: "scale(1.8)", opacity: 0 },
+            },
+          }}
+        >
+          {isProcessing ? (
+            <CircularProgress size={24} color="inherit" />
+          ) : isRecording ? (
+            <GraphicEqIcon />
+          ) : (
+            <MicIcon />
+          )}
+        </Fab>
+      </Tooltip>
+    </Box>
+  );
+};
+
+export default VoiceSearchFAB;

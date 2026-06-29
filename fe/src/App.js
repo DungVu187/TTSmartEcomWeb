@@ -21,6 +21,7 @@ import StationDisplay from './components/stationdisplay.jsx';
 import StationDisplayDetail from './components/stationdisplaydetail.jsx';
 import ChangePassword from './pages/changepassword.jsx';
 import Profile from './pages/profile.jsx';
+import VoiceSearchFAB from './components/VoiceSearchFAB.jsx';
 
 import { LanguageProvider } from './context/languagecontext.jsx';
 
@@ -56,6 +57,7 @@ function App() {
             </ScrollRestoration>
           </div>
 
+          <VoiceSearchFAB />
           <Toaster position="top-center" />
         </BrowserRouter>
       </ShopContextProvider>

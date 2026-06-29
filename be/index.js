@@ -249,9 +249,16 @@ app.use('/chat', chatRoutes);
 app.use('/zalo', zaloRoutes);
 
 // Static files
+const fs = require('fs');
+const uploadInvoicesDir = path.join(__dirname, 'upload', 'invoices');
+if (!fs.existsSync(uploadInvoicesDir)) {
+  fs.mkdirSync(uploadInvoicesDir, { recursive: true });
+}
+
 app.use('/images', express.static(path.join(__dirname, 'upload', 'images')));
 app.use('/section-images', express.static(path.join(__dirname, 'upload', 'sections')));
 app.use('/station', express.static(path.join(__dirname, 'upload', 'stations')));
+app.use('/invoice-images', express.static(uploadInvoicesDir));
 
 // Serve admin dashboard static files
 const adminDistPath = path.join(__dirname, '../ad/dist');

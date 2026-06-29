@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require("./user");
 const router = express.Router();
 const { Product } = require("./product");
+const path = require("path");
+const multer = require("multer");
 
 const epOrderSchema = new mongoose.Schema(
   {
@@ -20,6 +22,7 @@ const epOrderSchema = new mongoose.Schema(
         vat: { type: String, default: "" },
       },
     ],
+    images: [{ type: String }],
     total: { type: String, default: "0" },
     status: { type: Boolean, default: 0 },
     completedAt: { type: Date, default: null },
@@ -203,7 +206,16 @@ router.put(
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
-      Object.assign(order, req.body);
+      // Whitelist fields to prevent Mass Assignment
+      const { orderName, productList, images, status } = req.body;
+      if (orderName !== undefined) order.orderName = orderName;
+      if (productList !== undefined) order.productList = productList;
+      if (images !== undefined) order.images = images;
+      if (status !== undefined) {
+        order.status = status;
+        order.completedAt = status ? new Date() : null;
+      }
+
       order.total = order.productList
         .reduce((sum, item) => {
           const priceNum = parseFloat(
@@ -577,6 +589,71 @@ router.get(
       });
     } catch (error) {
       res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+const invoiceStorage = multer.diskStorage({
+  destination: "./upload/invoices",
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || ".webp";
+    cb(null, `invoice-manual-${uniqueSuffix}${ext}`);
+  }
+});
+const uploadInvoice = multer({ 
+  storage: invoiceStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Tối đa 5MB
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(jpe?g|png|webp)$/.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Chỉ chấp nhận file ảnh (jpg, png, webp)."));
+    }
+  }
+});
+
+router.post(
+  "/upload-image",
+  [authenticateAdmin, uploadInvoice.single("invoice")],
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: 0, message: "Không có file được tải lên" });
+      }
+      const imageUrl = `/invoice-images/${req.file.filename}`;
+      res.json({ success: 1, imageUrl });
+    } catch (error) {
+      res.status(500).json({ message: "Lỗi upload ảnh", error: error.message });
+    }
+  }
+);
+
+router.delete(
+  "/delete-image",
+  authenticateAdmin,
+  async (req, res) => {
+    try {
+      const { imageUrl } = req.query;
+      if (!imageUrl) {
+        return res.status(400).json({ success: 0, message: "Thiếu thông tin imageUrl." });
+      }
+
+      // Tránh lỗi Path Traversal
+      const filename = path.basename(imageUrl);
+      const filePath = path.join(__dirname, "../upload/invoices", filename);
+
+      try {
+        const fs = require("fs").promises;
+        await fs.stat(filePath);
+        await fs.unlink(filePath);
+        console.log(`[eporder] Đã xóa thành công tệp ảnh hóa đơn vật lý: ${filename}`);
+        return res.json({ success: 1, message: "Đã xóa ảnh vật lý thành công." });
+      } catch (statErr) {
+        return res.json({ success: 1, message: "File không tồn tại trên ổ cứng hoặc đã được xóa." });
+      }
+    } catch (error) {
+      res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh vật lý", error: error.message });
     }
   }
 );

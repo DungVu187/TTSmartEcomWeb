@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+
 import {
   Table,
   TableBody,
@@ -144,6 +145,10 @@ const SortableTableRow = ({
             const { value } = values;
             handleTempUpdateProduct(index, "price", value, false);
           }}
+          onBlur={() => {
+            const value = tempProductList[index]?.price || "";
+            handleTempUpdateProduct(index, "price", value, true);
+          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = tempProductList[index]?.price || "";
@@ -160,6 +165,10 @@ const SortableTableRow = ({
           onChange={(e) =>
             handleTempUpdateProduct(index, "unit", e.target.value, false)
           }
+          onBlur={(e) => {
+            const value = e.target.value || "";
+            handleTempUpdateProduct(index, "unit", value, true);
+          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = e.target.value || "";
@@ -179,6 +188,10 @@ const SortableTableRow = ({
           onValueChange={(values) => {
             const { value } = values;
             handleTempUpdateProduct(index, "quantity", value, false);
+          }}
+          onBlur={() => {
+            const value = tempProductList[index]?.quantity || "";
+            handleTempUpdateProduct(index, "quantity", value, true);
           }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
@@ -218,6 +231,10 @@ const SortableTableRow = ({
           onChange={(e) =>
             handleTempUpdateProduct(index, "note", e.target.value, false)
           }
+          onBlur={(e) => {
+            const value = e.target.value || "";
+            handleTempUpdateProduct(index, "note", value, true);
+          }}
           onKeyPress={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               const value = e.target.value || "";
@@ -271,6 +288,199 @@ const ImportOrderDetail = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState([]);
   const [selectedScanImage, setSelectedScanImage] = useState(null);
+  const [scannedImages, setScannedImages] = useState([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentImgIndex, setCurrentImgIndex] = useState(0);
+  const [tempScanImageUrl, setTempScanImageUrl] = useState(null);
+
+  // States phục vụ Zoom + Xoay + Drag ảnh giống Zalo
+  const [rotation, setRotation] = useState(0);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+  const activeListenerRef = useRef(null);
+  const activeTouchStartRef = useRef(null);
+  const activeTouchMoveRef = useRef(null);
+  const activeTouchEndRef = useRef(null);
+
+  // States phục vụ chạm/pinch zoom trên điện thoại
+  const [touchStartDist, setTouchStartDist] = useState(null);
+  const [touchStartScale, setTouchStartScale] = useState(1);
+
+  const stateRef = useRef({ zoomScale, position, isDragging, dragStart, touchStartDist, touchStartScale });
+  useEffect(() => {
+    stateRef.current = { zoomScale, position, isDragging, dragStart, touchStartDist, touchStartScale };
+  }, [zoomScale, position, isDragging, dragStart, touchStartDist, touchStartScale]);
+
+  const getDistance = (t1, t2) => {
+    return Math.sqrt(
+      Math.pow(t1.clientX - t2.clientX, 2) +
+      Math.pow(t1.clientY - t2.clientY, 2)
+    );
+  };
+
+  const containerCallbackRef = (node) => {
+    if (containerRef.current) {
+      if (activeListenerRef.current) {
+        containerRef.current.removeEventListener("wheel", activeListenerRef.current);
+        activeListenerRef.current = null;
+      }
+      if (activeTouchStartRef.current) {
+        containerRef.current.removeEventListener("touchstart", activeTouchStartRef.current);
+        activeTouchStartRef.current = null;
+      }
+      if (activeTouchMoveRef.current) {
+        containerRef.current.removeEventListener("touchmove", activeTouchMoveRef.current);
+        activeTouchMoveRef.current = null;
+      }
+      if (activeTouchEndRef.current) {
+        containerRef.current.removeEventListener("touchend", activeTouchEndRef.current);
+        activeTouchEndRef.current = null;
+      }
+    }
+
+    containerRef.current = node;
+
+    if (node) {
+      // 1. Wheel zoom
+      const handleNativeWheel = (e) => {
+        e.preventDefault();
+        const zoomFactor = 0.15;
+        setZoomScale((prev) => {
+          let nextScale = prev + (e.deltaY < 0 ? zoomFactor : -zoomFactor);
+          return Math.min(Math.max(nextScale, 0.5), 5); // Zoom từ 0.5x đến 5x
+        });
+      };
+      node.addEventListener("wheel", handleNativeWheel, { passive: false });
+      activeListenerRef.current = handleNativeWheel;
+
+      // 2. Touch Start
+      const handleNativeTouchStart = (e) => {
+        const currentScale = stateRef.current.zoomScale;
+        const currentPos = stateRef.current.position;
+
+        if (e.touches.length === 1) {
+          if (currentScale > 1) {
+            setIsDragging(true);
+            const touch = e.touches[0];
+            setDragStart({ x: touch.clientX - currentPos.x, y: touch.clientY - currentPos.y });
+          }
+        } else if (e.touches.length === 2) {
+          setIsDragging(false);
+          const dist = getDistance(e.touches[0], e.touches[1]);
+          setTouchStartDist(dist);
+          setTouchStartScale(currentScale);
+        }
+      };
+      node.addEventListener("touchstart", handleNativeTouchStart, { passive: true });
+      activeTouchStartRef.current = handleNativeTouchStart;
+
+      // 3. Touch Move
+      const handleNativeTouchMove = (e) => {
+        const currentScale = stateRef.current.zoomScale;
+        const currentIsDragging = stateRef.current.isDragging;
+        const currentDragStart = stateRef.current.dragStart;
+        const currentTouchStartDist = stateRef.current.touchStartDist;
+        const currentTouchStartScale = stateRef.current.touchStartScale;
+
+        if (e.touches.length === 1 && currentIsDragging && currentScale > 1) {
+          e.preventDefault(); // Chặn cuộn trang web
+          const touch = e.touches[0];
+          setPosition({
+            x: touch.clientX - currentDragStart.x,
+            y: touch.clientY - currentDragStart.y,
+          });
+        } else if (e.touches.length === 2 && currentTouchStartDist) {
+          e.preventDefault(); // Chặn zoom mặc định của trình duyệt
+          const currentDist = getDistance(e.touches[0], e.touches[1]);
+          const ratio = currentDist / currentTouchStartDist;
+          let nextScale = currentTouchStartScale * ratio;
+          nextScale = Math.min(Math.max(nextScale, 0.5), 5);
+          setZoomScale(nextScale);
+        }
+      };
+      node.addEventListener("touchmove", handleNativeTouchMove, { passive: false }); // PASSIVE: FALSE để e.preventDefault() chạy được
+      activeTouchMoveRef.current = handleNativeTouchMove;
+
+      // 4. Touch End
+      const handleNativeTouchEnd = () => {
+        setIsDragging(false);
+        setTouchStartDist(null);
+      };
+      node.addEventListener("touchend", handleNativeTouchEnd, { passive: true });
+      activeTouchEndRef.current = handleNativeTouchEnd;
+    }
+  };
+
+  // Tự động đưa ảnh về trung tâm khi thu nhỏ về nhỏ hơn hoặc bằng kích thước gốc
+  useEffect(() => {
+    if (zoomScale <= 1) {
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [zoomScale]);
+
+  // Khôi phục góc xoay từ localStorage và reset zoom khi mở hoặc chuyển ảnh
+  useEffect(() => {
+    if (lightboxOpen && scannedImages[currentImgIndex]) {
+      const savedRot = parseInt(localStorage.getItem(`rotation_${scannedImages[currentImgIndex]}`)) || 0;
+      setRotation(savedRot);
+      setZoomScale(1);
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [currentImgIndex, lightboxOpen, scannedImages]);
+
+  const handleRotate = () => {
+    const nextRot = (rotation + 90) % 360;
+    setRotation(nextRot);
+    localStorage.setItem(`rotation_${scannedImages[currentImgIndex]}`, nextRot.toString());
+  };
+
+  const handleResetZoom = () => {
+    setZoomScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || zoomScale <= 1) return;
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleOpenLightbox = (index) => {
+    setCurrentImgIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const handleCancelScanDialog = async () => {
+    if (isScanning) return;
+    setIsScanDialogOpen(false);
+    if (tempScanImageUrl) {
+      const urlToDelete = tempScanImageUrl;
+      setTempScanImageUrl(null);
+      try {
+        await apiFetch(`${apiUrl}/products/clean-temp-image?imageUrl=${encodeURIComponent(urlToDelete)}`, {
+          method: "DELETE"
+        });
+      } catch (err) {
+        console.error("Lỗi khi xóa ảnh tạm mồ côi:", err);
+      }
+    }
+  };
+
 
   // Cấu hình sensors cho @dnd-kit
   const sensors = useSensors(
@@ -334,7 +544,7 @@ const ImportOrderDetail = () => {
   };
 
   // Hàm nén ảnh ngay tại client trước khi upload
-  const compressImage = (file, maxWidth = 1280, maxHeight = 1280, quality = 0.7) => {
+  const compressImage = (file, maxWidth = 1600, maxHeight = 1600, quality = 0.8) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -365,13 +575,31 @@ const ImportOrderDetail = () => {
 
           canvas.toBlob(
             (blob) => {
-              const compressedFile = new File([blob], file.name, {
-                type: "image/jpeg",
+              if (!blob) {
+                // Fallback sang JPEG nếu trình duyệt cũ không hỗ trợ WebP
+                canvas.toBlob(
+                  (jpegBlob) => {
+                    const jpegName = file.name.substring(0, file.name.lastIndexOf('.')) + ".jpg";
+                    const compressedFile = new File([jpegBlob], jpegName, {
+                      type: "image/jpeg",
+                      lastModified: Date.now(),
+                    });
+                    resolve(compressedFile);
+                  },
+                  "image/jpeg",
+                  quality
+                );
+                return;
+              }
+              // Đổi phần mở rộng thành .webp
+              const webpName = file.name.substring(0, file.name.lastIndexOf('.')) + ".webp";
+              const compressedFile = new File([blob], webpName, {
+                type: "image/webp",
                 lastModified: Date.now(),
               });
               resolve(compressedFile);
             },
-            "image/jpeg",
+            "image/webp",
             quality
           );
         };
@@ -412,6 +640,48 @@ const ImportOrderDetail = () => {
           out.add(w);
         }
       }
+
+      // Đồng bộ nhóm từ đồng nghĩa tiếng Anh <-> tiếng Việt cho thiết bị điện
+      // 1. Contactor / Công tắc tơ / Khởi động từ
+      if (
+        (out.has('cong') && out.has('to')) || 
+        (out.has('cong') && out.has('tac') && out.has('to')) || 
+        (out.has('cong') && out.has('tac') && out.has('tor')) || 
+        (out.has('khoi') && out.has('dong') && out.has('tu'))
+      ) {
+        out.add('contactor');
+      }
+      if (out.has('contactor')) {
+        out.add('cong');
+        out.add('tac');
+        out.add('to');
+        out.add('contactor');
+      }
+
+      // 2. Rơ le / Rơle <-> Relay
+      if (out.has('ro') && out.has('le')) {
+        out.add('role');
+        out.add('relay');
+      }
+      if (out.has('role') || out.has('relay')) {
+        out.add('ro');
+        out.add('le');
+        out.add('role');
+        out.add('relay');
+      }
+
+      // 3. Aptomat / Cầu dao / CB <-> Breaker / MCB / MCCB
+      if (out.has('aptomat') || (out.has('cau') && out.has('dao'))) {
+        out.add('cb');
+        out.add('mcb');
+        out.add('mccb');
+      }
+      if (out.has('cb') || out.has('mcb') || out.has('mccb')) {
+        out.add('cau');
+        out.add('dao');
+        out.add('aptomat');
+      }
+
       return out;
     };
 
@@ -532,6 +802,9 @@ const ImportOrderDetail = () => {
       });
 
       if (res && res.success) {
+        if (res.imageUrl) {
+          setTempScanImageUrl(res.imageUrl);
+        }
         // Áp dụng Level 1 Matching trên Frontend
         const items = res.items || [];
         const processedItems = items.map(item => {
@@ -559,6 +832,86 @@ const ImportOrderDetail = () => {
       setIsScanning(false);
       // Reset input file để có thể chọn lại cùng 1 file
       event.target.value = "";
+    }
+  };
+
+  // Hàm xử lý upload ảnh hóa đơn thủ công
+  const handleManualUploadSelect = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    setIsScanning(true);
+    const uploadedUrls = [];
+
+    try {
+      for (const file of files) {
+        // Nén ảnh tại client thành WebP
+        const compressedFile = await compressImage(file);
+
+        // Gửi lên API upload-image
+        const formData = new FormData();
+        formData.append("invoice", compressedFile);
+
+        const res = await apiFetch(`${apiUrl}/iporders/upload-image`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res && res.success && res.imageUrl) {
+          uploadedUrls.push(res.imageUrl);
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        // Sử dụng functional update để tránh Race Condition và closure state
+        setScannedImages((prev) => {
+          const updated = [...prev, ...uploadedUrls];
+          apiFetch(`${apiUrl}/iporders/orders/${id}`, {
+            method: "PUT",
+            body: JSON.stringify({ images: updated }),
+          }).catch(err => console.error("Lỗi cập nhật ảnh hóa đơn:", err));
+          return updated;
+        });
+        toast.success(`Đã đính kèm thành công ${uploadedUrls.length} ảnh hóa đơn!`);
+      }
+    } catch (err) {
+      console.error("Lỗi khi đính kèm ảnh hóa đơn thủ công:", err);
+      toast.error("Lỗi khi đính kèm ảnh hóa đơn");
+    } finally {
+      setIsScanning(false);
+      event.target.value = "";
+    }
+  };
+
+  // Hàm xóa ảnh hóa đơn đính kèm
+  const handleDeleteScannedImage = async (indexToDelete) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa ảnh hóa đơn này?")) return;
+    
+    const imageUrlToDelete = scannedImages[indexToDelete];
+    const newImages = scannedImages.filter((_, idx) => idx !== indexToDelete);
+    
+    try {
+      await apiFetch(`${apiUrl}/iporders/orders/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ images: newImages }),
+      });
+      
+      setScannedImages(newImages);
+
+      if (imageUrlToDelete) {
+        try {
+          await apiFetch(`${apiUrl}/iporders/delete-image?imageUrl=${encodeURIComponent(imageUrlToDelete)}`, {
+            method: "DELETE"
+          });
+        } catch (delErr) {
+          console.error("Lỗi khi xóa file vật lý ảnh hóa đơn:", delErr);
+        }
+      }
+
+      toast.success("Xóa ảnh hóa đơn thành công");
+    } catch (err) {
+      console.error("Lỗi khi cập nhật ảnh hóa đơn sau khi xóa:", err);
+      toast.error("Lỗi khi cập nhật đơn hàng");
     }
   };
 
@@ -700,7 +1053,7 @@ const ImportOrderDetail = () => {
           // Cập nhật số lượng và đơn giá mới
           const updatedProduct = {
             ...existingProduct,
-            price: row.price.toString(),
+            price: (row.price ?? "0").toString(),
             quantityRe: newQuantityRe,
             status: newQuantityRe === targetQty,
             note: row.note || existingProduct.note || "",
@@ -741,7 +1094,7 @@ const ImportOrderDetail = () => {
           const scannedQty = Number(row.quantity) || 0;
           const newProduct = {
             productId,
-            price: row.price.toString(),
+            price: (row.price ?? "0").toString(),
             unit: row.unit || "cái",
             quantity: scannedQty,
             quantityRe: scannedQty,
@@ -784,8 +1137,24 @@ const ImportOrderDetail = () => {
 
       // Cập nhật lại state đơn hàng cục bộ để hiển thị danh sách mới
       if (updatedOrder) {
-        setOrder(updatedOrder);
-        setTempProductList(updatedOrder.productList || []);
+        let finalOrder = updatedOrder;
+        if (tempScanImageUrl) {
+          const newImages = [...scannedImages, tempScanImageUrl];
+          setScannedImages(newImages);
+          setTempScanImageUrl(null);
+
+          // Cập nhật trường images vào DB của đơn nhập hiện tại
+          const imageUpdateRes = await apiFetch(`${apiUrl}/iporders/orders/${id}`, {
+            method: "PUT",
+            body: JSON.stringify({ images: newImages }),
+          });
+          if (imageUpdateRes) {
+            finalOrder = imageUpdateRes;
+          }
+        }
+
+        setOrder(finalOrder);
+        setTempProductList(finalOrder.productList || []);
 
         // Cập nhật lại list chi tiết sản phẩm cho tất cả sản phẩm trong đơn hàng
         const allIds = updatedOrder.productList.map((p) => p.productId);
@@ -852,6 +1221,7 @@ const ImportOrderDetail = () => {
 
     if (data) {
       setOrder(data);
+      setScannedImages(data.images || []);
       if (Array.isArray(data.productList) && data.productList.length > 0) {
         const productIds = data.productList.map((item) => item.productId);
         const productDetailsData = await fetchProductDetails(productIds);
@@ -1641,15 +2011,27 @@ const ImportOrderDetail = () => {
   const handleDeleteOrder = async () => {
     if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này?")) return;
 
-    const result = await apiFetch(`${apiUrl}/iporders/orders/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      const response = await fetch(`${apiUrl}/iporders/orders/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
 
-    if (result) {
-      toast.success("Xóa đơn hàng thành công");
-      setTimeout(() => {
-        navigate("/importorder");
-      }, 1000);
+      if (response.ok || response.status === 404) {
+        toast.success("Xóa đơn hàng thành công");
+        setTimeout(() => {
+          navigate("/importorder");
+        }, 1000);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || "Xóa đơn hàng thất bại");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Lỗi kết nối khi xóa đơn hàng");
     }
   };
 
@@ -1721,7 +2103,7 @@ const ImportOrderDetail = () => {
           Chi tiết đơn hàng #{id}
         </Typography>
 
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
+        <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
           <TextField
             label="Tên đơn hàng"
             value={order?.orderName || ""}
@@ -1738,7 +2120,7 @@ const ImportOrderDetail = () => {
           </Button>
         </Box>
 
-        <Box display="flex" gap={2} mb={2}>
+        <Box display="flex" gap={1.5} mb={2} flexWrap="wrap">
           <Button
             variant="outlined"
             color="primary"
@@ -1798,7 +2180,79 @@ const ImportOrderDetail = () => {
               onChange={handleScanInvoiceSelect}
             />
           </Button>
+          <Button
+            component="label"
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            color="primary"
+            disabled={isScanning}
+          >
+            Thêm ảnh thủ công
+            <VisuallyHiddenInput
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleManualUploadSelect}
+            />
+          </Button>
         </Box>
+
+        {/* Hiển thị danh sách ảnh hóa đơn đính kèm */}
+        {scannedImages.length > 0 && (
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: '#555' }}>
+              Ảnh hóa đơn đính kèm ({scannedImages.length} ảnh):
+            </Typography>
+            <Box 
+              sx={{ 
+                display: "flex", 
+                gap: 2, 
+                overflowX: "auto", 
+                pb: 1,
+                "&::-webkit-scrollbar": { height: 6 },
+                "&::-webkit-scrollbar-thumb": { bgcolor: "#ccc", borderRadius: 3 }
+              }}
+            >
+              {scannedImages.map((imgUrl, index) => (
+                <Box 
+                  key={index} 
+                  sx={{ 
+                    position: 'relative', 
+                    minWidth: 100, 
+                    width: 100, 
+                    height: 100, 
+                    border: '2px solid #e0e0e0', 
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <img 
+                    src={`${apiUrl}${imgUrl}`} 
+                    alt={`Invoice page ${index + 1}`} 
+                    loading="lazy"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                    onClick={() => handleOpenLightbox(index)}
+                  />
+                  <IconButton 
+                    size="small" 
+                    color="error"
+                    sx={{ 
+                      position: 'absolute', 
+                      top: 2, 
+                      right: 2, 
+                      bgcolor: 'rgba(255,255,255,0.9)', 
+                      '&:hover': { bgcolor: 'white' } 
+                    }}
+                    onClick={() => handleDeleteScannedImage(index)}
+                  >
+                    <DeleteIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
         <Typography variant="body1" className="total-summary-text">
           Tổng cộng: {Number(enrichedOrder?.total || 0).toLocaleString("vi-VN")}{" "}
           VNĐ
@@ -1810,7 +2264,7 @@ const ImportOrderDetail = () => {
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <TableContainer component={Paper} sx={{ userSelect: "none" }}>
+        <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "auto" }}>
           <Table>
             <TableHead>
               <TableRow>
@@ -1943,7 +2397,7 @@ const ImportOrderDetail = () => {
       {/* Dialog Preview và Đối khớp hóa đơn AI */}
       <Dialog
         open={isScanDialogOpen}
-        onClose={() => !isScanning && setIsScanDialogOpen(false)}
+        onClose={handleCancelScanDialog}
         maxWidth="lg"
         fullWidth
       >
@@ -2161,7 +2615,7 @@ const ImportOrderDetail = () => {
         </DialogContent>
         <DialogActions sx={{ p: 3, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
           <Button 
-            onClick={() => setIsScanDialogOpen(false)} 
+            onClick={handleCancelScanDialog} 
             disabled={isScanning}
             variant="outlined" 
             color="inherit"
@@ -2180,6 +2634,148 @@ const ImportOrderDetail = () => {
             Xác nhận nhập
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Dialog Xem ảnh hóa đơn Zoom đa điểm trực tiếp */}
+      <Dialog 
+        open={lightboxOpen} 
+        onClose={() => setLightboxOpen(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          style: { 
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            color: 'white', 
+            overflow: 'hidden',
+            margin: 16,
+            borderRadius: 12
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, py: 1.5, borderBottom: '1px solid #333' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+            Chi tiết ảnh hóa đơn đính kèm (Ảnh {currentImgIndex + 1}/{scannedImages.length})
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button 
+              variant="outlined" 
+              color="inherit" 
+              onClick={handleRotate}
+              sx={{ borderColor: '#555', color: '#fff', '&:hover': { borderColor: '#888' } }}
+            >
+              🔄 Quay ảnh 90°
+            </Button>
+            <Button 
+              variant="outlined" 
+              color="inherit" 
+              onClick={handleResetZoom}
+              sx={{ borderColor: '#555', color: '#fff', '&:hover': { borderColor: '#888' } }}
+            >
+              🔍 Reset Zoom
+            </Button>
+            <Button 
+              variant="contained" 
+              color="error" 
+              onClick={() => setLightboxOpen(false)}
+              sx={{ minWidth: 80 }}
+            >
+              Đóng [X]
+            </Button>
+          </Box>
+        </Box>
+
+        <DialogContent 
+          ref={containerCallbackRef}
+          sx={{ 
+            p: 0, 
+            bgcolor: '#000', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            position: 'relative',
+            height: '75vh',
+            overflow: 'hidden',
+            cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+          }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          {scannedImages.length > 0 && (
+            <>
+              {/* Nút Previous */}
+              {scannedImages.length > 1 && (
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImgIndex((prev) => (prev - 1 + scannedImages.length) % scannedImages.length);
+                  }}
+                  sx={{ 
+                    position: 'absolute', 
+                    left: 16, 
+                    zIndex: 10, 
+                    color: '#fff', 
+                    bgcolor: 'rgba(255,255,255,0.1)', 
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' } 
+                  }}
+                >
+                  ◀
+                </IconButton>
+              )}
+
+              {/* Ảnh chính */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: '100%',
+                  height: '100%',
+                  userSelect: 'none'
+                }}
+              >
+                <img 
+                  ref={containerRef}
+                  src={`${apiUrl}${scannedImages[currentImgIndex]}`} 
+                  alt={`Trang hóa đơn ${currentImgIndex + 1}`} 
+                  style={{
+                    transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoomScale})`,
+                    transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                    maxWidth: '100%',
+                    maxHeight: '75vh',
+                    objectFit: 'contain',
+                    pointerEvents: 'none'
+                  }}
+                />
+              </Box>
+
+              {/* Nút Next */}
+              {scannedImages.length > 1 && (
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImgIndex((prev) => (prev + 1) % scannedImages.length);
+                  }}
+                  sx={{ 
+                    position: 'absolute', 
+                    right: 16, 
+                    zIndex: 10, 
+                    color: '#fff', 
+                    bgcolor: 'rgba(255,255,255,0.1)', 
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' } 
+                  }}
+                >
+                  ▶
+                </IconButton>
+              )}
+            </>
+          )}
+        </DialogContent>
+
+        <Box sx={{ textAlign: 'center', py: 1.5, bgcolor: '#111', color: '#aaa', fontSize: 13 }}>
+          💡 Mẹo: Lăn chuột để phóng to/thu nhỏ. Giữ chuột trái và di chuyển để kéo ảnh. Đã tự động nhớ góc xoay cho từng ảnh.
+        </Box>
       </Dialog>
     </Box>
   );

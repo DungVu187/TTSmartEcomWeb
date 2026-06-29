@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import "./styles/login.css";
 import { toast } from "react-hot-toast";
-import AES from 'crypto-js/aes';
 import { useLanguage } from "../context/languagecontext.jsx";
-const AES_KEY = process.env.REACT_APP_AES_KEY;
 
 function LogIn() {
   const { t } = useLanguage();
@@ -60,10 +58,6 @@ function LogIn() {
       return;
     }
 
-    const raw = `${phone}+++${password}`;
-    const encrypted = AES.encrypt(raw, AES_KEY).toString();
-    const logInString = encodeURIComponent(encrypted);
-
     const queryParams = new URLSearchParams(window.location.search);
     const redirectUrl = queryParams.get("redirect") || "";
     const segments = redirectUrl.split("/");
@@ -73,7 +67,7 @@ function LogIn() {
       inviteCode = segments[stationIndex + 1];
     }
 
-    const user = { name, email, phone, password, logInString, inviteCode };
+    const user = { name, email, phone, password, inviteCode };
 
     try {
       const response = await fetch(
@@ -213,11 +207,6 @@ function LogIn() {
       return;
     }
 
-    const phoneForLogInString = forgotPhone || forgotIdentifier;
-    const raw = `${phoneForLogInString}+++${newPassword}`;
-    const encrypted = AES.encrypt(raw, AES_KEY).toString();
-    const logInString = encodeURIComponent(encrypted);
-
     setLoading(true);
     try {
       const response = await fetch(
@@ -231,7 +220,6 @@ function LogIn() {
             identifier: forgotIdentifier,
             otp,
             newPassword,
-            logInString,
           }),
         }
       );

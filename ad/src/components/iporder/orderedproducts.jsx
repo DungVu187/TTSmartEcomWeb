@@ -41,12 +41,13 @@ const OrderedProducts = () => {
 
   // Hàm gọi API chung với xử lý lỗi
   const apiFetch = async (url, options = {}) => {
+    const { suppressToast = false, ...fetchOptions } = options;
     try {
       const response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers: {
           "Content-Type": "application/json",
-          ...(options.headers || {}),
+          ...(fetchOptions.headers || {}),
         },
         credentials: "include", // Gửi cookie authToken
       });
@@ -64,7 +65,9 @@ const OrderedProducts = () => {
 
       return await response.json();
     } catch (err) {
-      toast.error(err.message);
+      if (!suppressToast) {
+        toast.error(err.message);
+      }
       return null;
     }
   };
@@ -138,7 +141,7 @@ const OrderedProducts = () => {
         Array.from(productMap.entries()).map(async ([key, product]) => {
           const productData = await apiFetch(
             `${apiUrl}/products/${product.productId}`,
-            { method: "GET" }
+            { method: "GET", suppressToast: true }
           );
 
           if (!productData) return null;

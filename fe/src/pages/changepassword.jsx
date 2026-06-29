@@ -12,10 +12,8 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import toast from 'react-hot-toast';
-import AES from 'crypto-js/aes';
 
 const apiUrl = process.env.REACT_APP_BACK_END;
-const AES_KEY = process.env.REACT_APP_AES_KEY;
 
 const ChangePassword = () => {
   const { t } = useLanguage();
@@ -63,13 +61,6 @@ const ChangePassword = () => {
       return;
     }
 
-    const raw = `${phone}+++${newPassword}`;
-    const encrypted = AES.encrypt(raw, AES_KEY).toString();
-    const logInString = encodeURIComponent(encrypted);
-
-    console.log(logInString);
-    
-
     setLoading(true);
     try {
       const response = await fetch(`${apiUrl}/users/change-password`, {
@@ -81,7 +72,6 @@ const ChangePassword = () => {
         body: JSON.stringify({
           currentPassword,
           newPassword,
-          logInString,
         }),
       });
 

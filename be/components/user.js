@@ -3,7 +3,13 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
+const CryptoJS = require("crypto-js");
 require("dotenv").config();
+
+const generateSecureToken = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
 
 const router = express.Router();
 const { ActivityLog } = require("./activitylog");
@@ -301,11 +307,16 @@ router.post("/register", authLimiter, (req, res, next) => {
       role: finalRole,
       functions: finalRole === "staff" ? functions || [] : [],
       permissions: finalPermissions,
-      logInString: logInString,
+      logInString: generateSecureToken(),
       station: userStations
     });
     await newUser.save();
-    res.status(201).json({ message: "User created successfully" });
+    const userObj = newUser.toObject();
+    delete userObj.password;
+    delete userObj.resetOtp;
+    delete userObj.resetOtpExpires;
+    delete userObj.logInString;
+    res.status(201).json({ message: "User created successfully", logInString: newUser.logInString, user: userObj });
   } catch (error) {
     console.error("Error in register:", error.message);
     res.status(500).json({ message: error.message });
@@ -413,11 +424,7 @@ router.post("/logout", (req, res) => {
 
 router.put("/change-password", authLimiter, authenticateUser, async (req, res) => {
   try {
-    const { currentPassword, newPassword, logInString } = req.body;
-
-    if (!logInString) {
-      return res.status(400).json({ message: "Thiếu logInString" });
-    }
+    const { currentPassword, newPassword } = req.body;
 
     const user = await User.findById(req.user.userId);
     if (!user) {
@@ -430,7 +437,7 @@ router.put("/change-password", authLimiter, authenticateUser, async (req, res) =
     }
 
     user.password = newPassword;
-    user.logInString = logInString;
+    user.logInString = generateSecureToken();
 
     await user.save();
 
@@ -494,9 +501,9 @@ router.post("/forgot-password", authLimiter, async (req, res) => {
 // Đặt lại mật khẩu mới bằng OTP - hỗ trợ tìm user bằng phone hoặc email
 router.post("/reset-password", authLimiter, async (req, res) => {
   try {
-    const { phone, email, identifier, otp, newPassword, logInString } = req.body;
+    const { phone, email, identifier, otp, newPassword } = req.body;
     const input = identifier || phone || email;
-    if (!input || !otp || !newPassword || !logInString) {
+    if (!input || !otp || !newPassword) {
       return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin yêu cầu" });
     }
 
@@ -520,7 +527,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
 
     // Đặt mật khẩu mới
     user.password = newPassword;
-    user.logInString = logInString;
+    user.logInString = generateSecureToken();
     user.resetOtp = undefined;
     user.resetOtpExpires = undefined;
     await user.save();
@@ -734,10 +741,7 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
 
     if (password) {
       user.password = password; // Sẽ được mã hóa tự động bằng pre-save hook của userSchema
-    }
-
-    if (logInString !== undefined) {
-      user.logInString = logInString;
+      user.logInString = generateSecureToken();
     }
 
     if (role) {
@@ -793,6 +797,42 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
   }
 });
 
+// 📌 Xoay token đăng nhập tự động (chỉ dành cho Admin)
+router.post("/:id/rotate-autologin-token", authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    const oldToken = user.logInString;
+    const newToken = generateSecureToken();
+    user.logInString = newToken;
+    await user.save();
+
+    // Ghi log hoạt động
+    try {
+      await new ActivityLog({
+        userName: req.user.name,
+        action: "rotate_autologin_token",
+        productName: user.name || user.phone,
+        details: [{ field: "logInString", oldValue: oldToken ? "Đã có token" : "Chưa có token", newValue: "Đã xoay token mới" }]
+      }).save();
+    } catch (logErr) {
+      console.error("ActivityLog error in rotate_autologin_token:", logErr.message);
+    }
+
+    res.json({
+      message: "Xoay mã đăng nhập tự động thành công",
+      logInString: newToken
+    });
+  } catch (error) {
+    console.error("Lỗi khi xoay mã đăng nhập tự động:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Thêm tài khoản mới thủ công từ admin
 router.post("/admin-create", authenticateAdmin, async (req, res) => {
   try {
@@ -825,6 +865,7 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       role: finalRole,
       functions: finalRole === "staff" ? functions || [] : [],
       permissions: finalPermissions,
+      logInString: generateSecureToken(),
     });
 
     await newUser.save();
@@ -841,7 +882,13 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       }).save();
     } catch (logErr) { console.error("ActivityLog error in admin-create:", logErr.message); }
 
-    res.status(201).json({ message: "Tạo tài khoản thành công", user: newUser });
+    const userObj = newUser.toObject();
+    delete userObj.password;
+    delete userObj.resetOtp;
+    delete userObj.resetOtpExpires;
+    delete userObj.logInString;
+
+    res.status(201).json({ message: "Tạo tài khoản thành công", logInString: newUser.logInString, user: userObj });
   } catch (error) {
     console.error("Lỗi khi admin tạo tài khoản:", error.message);
     res.status(500).json({ message: error.message });
@@ -1109,6 +1156,89 @@ router.get("/my-stations", authenticateUser, async (req, res) => {
   }
 });
 
+
+// 📌 Đăng nhập tự động qua Token (Bảo mật - Thay thế cơ chế mã hóa AES phía client)
+router.post("/autologin", authLimiter, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "Thiếu mã đăng nhập tự động" });
+    }
+
+    // 1. Thử tìm kiếm trực tiếp bằng token ngẫu nhiên mới (Cơ chế mới: 64 ký tự hex)
+    let user;
+    const isNewHexToken = typeof token === "string" && /^[0-9a-f]{64}$/i.test(token);
+
+    if (isNewHexToken) {
+      user = await User.findOne({ logInString: token });
+    }
+
+    // 2. Nếu không tìm thấy hoặc là token kiểu cũ (AES), giải mã và xác thực
+    if (!user) {
+      const aesKey = process.env.AES_KEY || process.env.REACT_APP_AES_KEY || process.env.VITE_AES_KEY;
+      if (aesKey) {
+        try {
+          const decodedToken = token.includes("%") ? decodeURIComponent(token) : token;
+          const bytes = CryptoJS.AES.decrypt(decodedToken, aesKey);
+          const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+          if (decrypted && decrypted.includes("+++")) {
+            const [phone, password] = decrypted.split("+++");
+            user = await User.findOne({ phone });
+            if (user) {
+              const isMatch = await user.comparePassword(password);
+              if (!isMatch) {
+                user = null; // Mật khẩu không đúng
+              } else {
+                // Tự động nâng cấp logInString của user này sang token ngẫu nhiên mới bảo mật hơn
+                user.logInString = generateSecureToken();
+                await user.save();
+                console.log(`Đã nâng cấp tự động logInString của user ${phone} sang token ngẫu nhiên bảo mật.`);
+              }
+            }
+          }
+        } catch (decryptErr) {
+          // Bỏ qua lỗi giải mã nếu không phải định dạng AES hợp lệ
+          console.warn("Không thể giải mã AES token cũ:", decryptErr.message);
+        }
+      }
+
+      // Dự phòng: Nếu giải mã thất bại nhưng token cũ thô được lưu trực tiếp trong DB (ví dụ user cũ chưa nâng cấp)
+      if (!user) {
+        user = await User.findOne({ logInString: token });
+        if (user) {
+          user.logInString = generateSecureToken();
+          await user.save();
+          console.log(`Đã tìm thấy và nâng cấp chuỗi logInString cũ trực tiếp của user ${user.phone}.`);
+        }
+      }
+    }
+
+    if (!user) {
+      return res.status(401).json({ message: "Mã đăng nhập tự động không hợp lệ hoặc đã hết hạn" });
+    }
+
+    // 3. Tạo JWT session token đăng nhập
+    const sessionToken = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+        functions: user.functions || [],
+        permissions: user.permissions || [],
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "12h" }
+    );
+
+    res.cookie("authToken", sessionToken, getCookieOptions(req, 12 * 60 * 60 * 1000));
+    res.json({ message: "Đăng nhập tự động thành công" });
+  } catch (error) {
+    console.error("Lỗi autologin backend:", error.message);
+    res.status(500).json({ message: "Lỗi hệ thống khi đăng nhập tự động" });
+  }
+});
 
 module.exports = {
   User,

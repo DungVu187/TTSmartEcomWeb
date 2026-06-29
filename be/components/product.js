@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
+const rateLimit = require("express-rate-limit");
 const { authenticateUser, authenticateAdmin, checkPermission, User } = require('./user');
 const { Station } = require('./station');
 const jwt = require('jsonwebtoken');
@@ -42,7 +43,9 @@ const productSchema = new mongoose.Schema({
     },
     code: {
         type: String,
-        trim: true
+        trim: true,
+        sparse: true,  // Cho phép nhiều sản phẩm không có mã (null/"") cùng tồn tại
+        unique: true   // Nhưng nếu có mã thì không được trùng nhau
     },
     vat: {
         type: String,
@@ -265,6 +268,18 @@ router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('u
 router.post('/create', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     try {
         const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted } = req.body;
+        
+        // Kiểm tra trùng lặp mã sản phẩm trước khi tạo mới để tránh trùng lặp
+        if (code && code.trim()) {
+            const existing = await Product.findOne({ code: code.trim() });
+            if (existing) {
+                console.log(`[create-product] Từ chối tạo: Mã sản phẩm "${code.trim()}" đã tồn tại (SP: ${existing.name}).`);
+                return res.status(409).json({
+                    message: `Mã sản phẩm "${code.trim()}" đã tồn tại (${existing.name}). Vui lòng dùng mã khác.`
+                });
+            }
+        }
+
         const newProduct = new Product({
             type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted
         });
@@ -283,6 +298,13 @@ router.post('/create', [authenticateAdmin, checkPermission('update_product')], a
 
         res.status(201).json({ message: 'Product created successfully', product: newProduct });
     } catch (error) {
+        // Bắt lỗi trùng unique index từ MongoDB (E11000)
+        if (error.code === 11000 && error.keyPattern?.code) {
+            const dupCode = error.keyValue?.code || '';
+            return res.status(409).json({
+                message: `Mã sản phẩm "${dupCode}" đã tồn tại trong hệ thống. Vui lòng dùng mã khác.`
+            });
+        }
         res.status(500).json({ message: error.message });
     }
 });
@@ -642,6 +664,34 @@ router.put("/purchase/:_id", async (req, res) => {
         res.json({ message: "Cập nhật thành công", purchaseCount: product.purchaseCount });
     } catch (error) {
         res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// API xóa ảnh tạm quét AI để tránh rác ổ cứng (Đặt trước API xóa sản phẩm có param /:_id)
+router.delete('/clean-temp-image', authenticateAdmin, async (req, res) => {
+    try {
+        const { imageUrl } = req.query;
+        if (!imageUrl) {
+            return res.status(400).json({ success: 0, message: "Thiếu thông tin imageUrl." });
+        }
+
+        // Đảm bảo chỉ được xóa file trong thư mục upload/invoices để bảo mật
+        const filename = path.basename(imageUrl);
+        const filePath = path.join(__dirname, '../upload/invoices', filename);
+
+        // Kiểm tra xem file có thực sự tồn tại trước khi xóa
+        try {
+            await fs.stat(filePath);
+            await fs.unlink(filePath);
+            console.log(`[scan-invoice] Đã xóa thành công tệp ảnh tạm: ${filename}`);
+            return res.json({ success: 1, message: "Đã xóa ảnh tạm thành công." });
+        } catch (statErr) {
+            // File không tồn tại hoặc đã bị xóa
+            return res.json({ success: 1, message: "File không tồn tại hoặc đã được xóa." });
+        }
+    } catch (error) {
+        console.error('Lỗi khi xóa ảnh tạm:', error);
+        res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh tạm.", error: error.message });
     }
 });
 
@@ -1191,8 +1241,18 @@ router.post('/by-codes', async (req, res) => {
     }
 });
 
-// Khởi tạo multer memory storage cho việc upload ảnh quét hóa đơn tạm thời
-const uploadMemory = multer({ storage: multer.memoryStorage() });
+// Khởi tạo multer memory storage cho việc upload ảnh quét hóa đơn tạm thời có giới hạn bảo mật
+const uploadMemory = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // Tối đa 5MB
+    fileFilter: (req, file, cb) => {
+        if (/^image\/(jpe?g|png|webp)$/.test(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error("Chỉ chấp nhận file ảnh (jpg, png, webp)."));
+        }
+    }
+});
 
 // API quét ảnh hóa đơn bằng AI
 router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')], async (req, res) => {
@@ -1212,9 +1272,20 @@ router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')]
         // 1. Lấy toàn bộ sản phẩm hiển thị trong DB để tự động đối khớp ở Backend
         const activeProducts = await Product.find({ display: true }).select('_id name code brand variant vat');
         
-        // 2. Chuyển ảnh sang base64
+        // 2. Chuyển ảnh sang base64 và lưu file xuống đĩa
         const base64Image = req.file.buffer.toString('base64');
         const mimeType = req.file.mimetype;
+
+        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        const fileName = `invoice-scan-${uniqueSuffix}.webp`;
+        const uploadDir = path.join(__dirname, '../upload/invoices');
+        try {
+            await fs.mkdir(uploadDir, { recursive: true });
+            await fs.writeFile(path.join(uploadDir, fileName), req.file.buffer);
+        } catch (fsErr) {
+            console.error('Lỗi khi lưu ảnh hóa đơn quét xuống đĩa:', fsErr);
+        }
+        const imageUrl = `/invoice-images/${fileName}`;
 
         // 3. Chuẩn bị prompt trích xuất thông tin từ ảnh (Cực kỳ ngắn gọn để giảm thiểu token và tăng tốc độ)
         const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn chuyên nghiệp.
@@ -1222,9 +1293,10 @@ Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên v
 
 Hướng dẫn trích xuất:
 - Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Tuyệt đối không tự ý đánh số thứ tự tuần tự 1, 2, 3, 4... nếu trên hóa đơn đã có ghi cột số thứ tự. Chỉ tự đánh số từ 1 tăng dần khi hóa đơn hoàn toàn không có cột số thứ tự.
-- Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "S-T25 AC200V 2A2B"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order), mã đơn mua hàng, mã số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này.
+- Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "GW1S-3E20", "NFO-40 500/5A"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order - ví dụ: "SOHL2606183B1D4B"), mã đơn mua hàng, số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này. Nếu phát hiện một mã PO/mã quản lý giống hệt nhau lặp đi lặp lại ở tất cả các dòng của hóa đơn, bạn phải LOẠI BỎ hoàn toàn phần mã lặp lại đó ra khỏi trường \`code\`, chỉ giữ lại phần model thực của sản phẩm ở phía sau.
 - Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được).
-- Trường \`price\` và \`quantity\` phải là kiểu số nguyên dương (hãy loại bỏ các ký tự dấu chấm, dấu phẩy hoặc đơn vị VND).
+- Trường \`price\` là đơn giá thực tế của sản phẩm. Nếu hóa đơn không có cột Đơn giá (hoặc các giá trị tương đương), bạn phải để trống hoặc gán null cho trường \`price\`. Tuyệt đối KHÔNG tự ý suy đoán đơn giá hoặc lấy các con số khác (ví dụ: số mét đầu/cuối của cuộn dây cáp ở cột Ghi chú như "1050 - 750", số thứ tự, số lượng, hoặc số điện thoại) để điền vào trường \`price\`.
+- Trường \`quantity\` phải là kiểu số nguyên dương (hãy loại bỏ các ký tự dấu chấm, dấu phẩy hoặc đơn vị VND).
 - Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...).
 
 Định dạng phản hồi BẮT BUỘC là một mảng JSON trực tiếp (không nằm trong thẻ markdown \`\`\`json và không có văn bản giải thích đi kèm):
@@ -1330,6 +1402,27 @@ Hướng dẫn trích xuất:
 
         const items = JSON.parse(textResult);
 
+        // Hậu xử lý (Post-processing): Loại bỏ tiền tố mã PO lặp đi lặp lại ở đầu trường 'code' của mọi dòng nếu có
+        if (Array.isArray(items) && items.length > 1) {
+            const validCodes = items.map(item => item.code ? String(item.code).trim() : '').filter(Boolean);
+            if (validCodes.length > 1) {
+                // Lấy từ đầu tiên (phân tách bằng khoảng trắng) của các mã
+                const firstWords = validCodes.map(c => c.split(/\s+/)[0]);
+                const firstWord = firstWords[0];
+                // Nếu từ đầu tiên có độ dài từ 6 ký tự trở lên và xuất hiện ở TẤT CẢ các mã hàng
+                if (firstWord && firstWord.length >= 6 && firstWords.every(w => w === firstWord)) {
+                    console.log(`[scan-invoice] Phát hiện tiền tố chung lặp lại (Mã PO): "${firstWord}". Đang tiến hành loại bỏ...`);
+                    items.forEach(item => {
+                        if (item.code) {
+                            let cleanCode = String(item.code).substring(firstWord.length).trim();
+                            cleanCode = cleanCode.replace(/^[\s_-]+/, '');
+                            item.code = cleanCode;
+                        }
+                    });
+                }
+            }
+        }
+
         // ===== Helpers =====
         const tokenizeSpec = (text) => {
             if (!text) return new Set();
@@ -1362,6 +1455,48 @@ Hướng dẫn trích xuất:
                     out.add(w);
                 }
             }
+
+            // Đồng bộ nhóm từ đồng nghĩa tiếng Anh <-> tiếng Việt cho thiết bị điện
+            // 1. Contactor / Công tắc tơ / Khởi động từ
+            if (
+                (out.has('cong') && out.has('to')) || 
+                (out.has('cong') && out.has('tac') && out.has('to')) || 
+                (out.has('cong') && out.has('tac') && out.has('tor')) || 
+                (out.has('khoi') && out.has('dong') && out.has('tu'))
+            ) {
+                out.add('contactor');
+            }
+            if (out.has('contactor')) {
+                out.add('cong');
+                out.add('tac');
+                out.add('to');
+                out.add('contactor');
+            }
+
+            // 2. Rơ le / Rơle <-> Relay
+            if (out.has('ro') && out.has('le')) {
+                out.add('role');
+                out.add('relay');
+            }
+            if (out.has('role') || out.has('relay')) {
+                out.add('ro');
+                out.add('le');
+                out.add('role');
+                out.add('relay');
+            }
+
+            // 3. Aptomat / Cầu dao / CB <-> Breaker / MCB / MCCB
+            if (out.has('aptomat') || (out.has('cau') && out.has('dao'))) {
+                out.add('cb');
+                out.add('mcb');
+                out.add('mccb');
+            }
+            if (out.has('cb') || out.has('mcb') || out.has('mccb')) {
+                out.add('cau');
+                out.add('dao');
+                out.add('aptomat');
+            }
+
             return out;
         };
 
@@ -1448,6 +1583,16 @@ Hướng dẫn trích xuất:
                     if (!item.vat && best.vat) {
                         item.vat = best.vat;
                     }
+                } else if (byCode.length > 0) {
+                    // Fallback: Nếu trùng khớp hoàn toàn mã model trong DB nhưng không vượt qua được passGates
+                    // (ví dụ: lệch từ đồng nghĩa của loại hoặc thông số do ngôn ngữ)
+                    // Ta vẫn khớp với sản phẩm này để tránh việc tạo sản phẩm trùng lặp mã trong kho
+                    const best = byCode.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
+                    matchedProductId = best._id.toString();
+                    confidence = 'low';
+                    if (!item.vat && best.vat) {
+                        item.vat = best.vat;
+                    }
                 }
             }
 
@@ -1477,6 +1622,7 @@ Hướng dẫn trích xuất:
 
         res.json({
             success: 1,
+            imageUrl: imageUrl,
             total: matchedItems.length,
             items: matchedItems
         });
@@ -1486,6 +1632,183 @@ Hướng dẫn trích xuất:
         res.status(500).json({ 
             success: 0, 
             message: `Đã xảy ra lỗi khi phân tích hóa đơn bằng AI: ${error.message}`, 
+            error: error.message 
+        });
+    }
+});
+
+// Khởi tạo rate limiter riêng cho voice query
+const voiceLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 phút
+    max: 5, // 5 req/phút/user
+    keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+    message: { success: 0, message: "Quá nhiều yêu cầu giọng nói, vui lòng thử lại sau." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Khởi tạo multer cho file âm thanh đầu vào
+const uploadAudio = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // Tối đa 10MB
+    fileFilter: (req, file, cb) => {
+        if (/^(audio\/|application\/octet-stream)/.test(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error("Chỉ chấp nhận file âm thanh."));
+        }
+    }
+});
+
+// API Tìm kiếm bằng giọng nói tiếng Việt sử dụng Gemini Multimodal Audio Input
+router.post('/voice-query', [authenticateUser, voiceLimiter, uploadAudio.single('audio')], async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            return res.status(400).json({ 
+                success: 0, 
+                message: 'Vui lòng cấu hình GEMINI_API_KEY hợp lệ trong file be/.env trước khi sử dụng tính năng này.' 
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: 0, message: 'Không nhận được file âm thanh nào.' });
+        }
+
+        const base64Audio = req.file.buffer.toString('base64');
+        let mimeType = req.file.mimetype || 'audio/webm';
+        if (mimeType === 'application/octet-stream') {
+            mimeType = 'audio/mp4'; // Safari fallback
+        }
+
+        const systemPrompt = `Bạn là trợ lý ảo thông minh phụ trách quản lý kho hàng của công ty thiết bị điện/thiết bị tự động hóa TTSmart.
+Hãy nghe file âm thanh được cung cấp (giọng nói tiếng Việt của người dùng) và thực hiện 2 nhiệm vụ:
+1. Ghi lại chính xác (transcribe) những gì người dùng đã nói (giữ nguyên tiếng Việt có dấu, viết hoa các từ cần thiết như Siemens, Mitsubishi, GPC1202,...).
+2. Phân tích ý định (intent) của người dùng để trích xuất ra từ khóa tìm kiếm chính (keyword) và các bộ lọc (filters) thích hợp.
+
+Ví dụ:
+- Người dùng nói: "tìm thiết bị cảm biến siemens" -> transcript: "tìm thiết bị cảm biến siemens", keyword: "cảm biến siemens", intent: "search_product", filters: { brand: "Siemens" }
+- Người dùng nói: "giá của khớp nối gpc mười hai không hai là bao nhiêu" -> transcript: "giá của khớp nối gpc mười hai không hai là bao nhiêu", keyword: "GPC1202", intent: "search_product", filters: { code: "GPC1202" }
+- Người dùng nói: "tìm đèn còn hàng" -> transcript: "tìm đèn còn hàng", keyword: "đèn", intent: "search_product", filters: { type: "Đèn" }
+
+Chú ý:
+- Trường \`keyword\` phải chứa từ khóa tìm kiếm tối ưu nhất (loại bỏ các từ đệm như "tìm cho tôi", "cho tôi hỏi", "là bao nhiêu", "bạn ơi",...).
+- Các trường trong \`filters\` có thể là: brand, type, code, hoặc các thuộc tính khác (nếu không có hãy để null).
+- Định dạng phản hồi BẮT BUỘC là một đối tượng JSON trực tiếp (không nằm trong thẻ markdown và không có văn bản giải thích đi kèm):
+{
+  "transcript": "...",
+  "keyword": "...",
+  "intent": "search_product",
+  "filters": {
+    "brand": null,
+    "type": null,
+    "code": null
+  }
+}`;
+
+        const modelsToTry = [
+            'gemini-2.5-flash',
+            'gemini-2.0-flash'
+        ];
+
+        const callGeminiWithModel = async (modelName) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+
+            try {
+                const res = await fetch(geminiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [
+                                    { text: systemPrompt },
+                                    {
+                                        inlineData: {
+                                            mimeType: mimeType,
+                                            data: base64Audio
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    })
+                });
+                return res;
+            } catch (fetchErr) {
+                if (fetchErr.name === 'AbortError') {
+                    throw new Error(`Kết nối tới Gemini API (${modelName}) bị quá thời gian (Timeout 25s).`);
+                }
+                throw fetchErr;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+
+        let geminiRes = null;
+        let lastError = null;
+
+        for (const model of modelsToTry) {
+            try {
+                const res = await callGeminiWithModel(model);
+                if (res.ok) {
+                    geminiRes = res;
+                    break;
+                } else {
+                    const errText = await res.text();
+                    console.warn(`[voice-query] Model ${model} lỗi:`, errText);
+                    lastError = new Error(`Lỗi từ Gemini API (${model}): ${errText}`);
+                }
+            } catch (err) {
+                console.warn(`[voice-query] Lỗi model ${model}:`, err.message);
+                lastError = err;
+            }
+        }
+
+        if (!geminiRes) {
+            throw lastError || new Error("Không thể kết nối đến bất kỳ model Gemini nào.");
+        }
+
+        const geminiData = await geminiRes.json();
+        let textResult = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResult) {
+            throw new Error('Không nhận được dữ liệu phân tích từ Gemini.');
+        }
+
+        textResult = textResult.trim();
+        textResult = textResult.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+        let resultObj;
+        try {
+            const match = textResult.match(/\{[\s\S]*\}/);
+            resultObj = match ? JSON.parse(match[0]) : JSON.parse(textResult);
+        } catch (parseErr) {
+            console.warn("[voice-query] Không parse được JSON phản hồi từ Gemini:", textResult);
+            // Fallback: dùng toàn bộ transcript/text làm keyword
+            return res.json({
+                success: 1,
+                transcript: textResult,
+                keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),
+                intent: "search_product",
+                filters: { brand: null, type: null, code: null }
+            });
+        }
+
+        res.json({
+            success: 1,
+            ...resultObj
+        });
+
+    } catch (error) {
+        console.error('Lỗi khi phân tích giọng nói bằng AI:', error);
+        res.status(500).json({ 
+            success: 0, 
+            message: `Đã xảy ra lỗi khi phân tích giọng nói bằng AI: ${error.message}`, 
             error: error.message 
         });
     }

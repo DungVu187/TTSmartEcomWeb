@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   TextField,
@@ -27,6 +27,40 @@ const apiUrl = import.meta.env.VITE_API_URL;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
+  const topScrollRef = useRef(null);
+  const tableContainerRef = useRef(null);
+  const [tableWidth, setTableWidth] = useState(1600);
+
+  const handleTopScroll = () => {
+    if (tableContainerRef.current && topScrollRef.current) {
+      if (tableContainerRef.current.scrollLeft !== topScrollRef.current.scrollLeft) {
+        tableContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      }
+    }
+  };
+
+  const handleTableScroll = () => {
+    if (tableContainerRef.current && topScrollRef.current) {
+      if (topScrollRef.current.scrollLeft !== tableContainerRef.current.scrollLeft) {
+        topScrollRef.current.scrollLeft = tableContainerRef.current.scrollLeft;
+      }
+    }
+  };
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (tableContainerRef.current) {
+        setTableWidth(tableContainerRef.current.scrollWidth);
+      }
+    };
+    const timer = setTimeout(updateWidth, 300);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [products]);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [isBrandDialogOpen, setIsBrandDialogOpen] = useState(false);
@@ -106,6 +140,40 @@ const Products = () => {
     return initFilters.search || "";
   });
   const [openSearchDialog, setOpenSearchDialog] = useState(false);
+
+  useEffect(() => {
+    // Đọc filter voice đã lưu khi mount (trường hợp navigate từ trang khác)
+    const savedFilters = sessionStorage.getItem("productFilters");
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        setFilters(parsed);
+        setTempFilters(parsed);
+        setQuickSearch(parsed.search || "");
+        setCurrentPage(1);
+      } catch (e) {
+        console.error("Lỗi parse filters trên mount:", e);
+      }
+    }
+
+    // Vẫn giữ listener cho trường hợp đã ở sẵn /product
+    const handleVoiceSearch = () => {
+      const savedFilters = sessionStorage.getItem("productFilters");
+      if (savedFilters) {
+        try {
+          const parsed = JSON.parse(savedFilters);
+          setFilters(parsed);
+          setTempFilters(parsed);
+          setQuickSearch(parsed.search || "");
+          setCurrentPage(1);
+        } catch (e) {
+          console.error("Lỗi parse filters từ event:", e);
+        }
+      }
+    };
+    window.addEventListener("voiceSearchQuery", handleVoiceSearch);
+    return () => window.removeEventListener("voiceSearchQuery", handleVoiceSearch);
+  }, []);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -350,7 +418,7 @@ const Products = () => {
           specifications: "",
         });
       } else {
-        alert(result.message || "Lỗi khi thêm sản phẩm");
+        toast.error(result.message || "Lỗi khi thêm sản phẩm");
       }
     } catch (error) {
       console.error("Lỗi khi thêm sản phẩm:", error);
@@ -796,8 +864,30 @@ const Products = () => {
         </div>
       </div>
 
+      {/* Thanh cuộn ngang phụ ở trên */}
+      <div 
+        ref={topScrollRef} 
+        onScroll={handleTopScroll} 
+        style={{ 
+          overflowX: "auto", 
+          overflowY: "hidden", 
+          width: "100%", 
+          height: "8px",
+          marginBottom: "6px",
+          borderRadius: "4px",
+          backgroundColor: "#f5f5f5"
+        }}
+      >
+        <div style={{ width: `${tableWidth}px`, height: "1px" }} />
+      </div>
+
       <div>
-        <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
+        <TableContainer 
+          ref={tableContainerRef}
+          onScroll={handleTableScroll}
+          component={Paper} 
+          sx={{ overflowX: "auto" }}
+        >
           <Table sx={{ minWidth: 1600 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#dedede" }}>

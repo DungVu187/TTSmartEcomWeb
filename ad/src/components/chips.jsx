@@ -69,6 +69,8 @@ const Chips = ({ onlySection = false }) => {
   const [newValue, setNewValue] = useState("");
   const [sectionImageUrl, setSectionImageUrl] = useState(null);
   const [currentImageFilename, setCurrentImageFilename] = useState(null);
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [editDeviceValue, setEditDeviceValue] = useState("");
   const fileInputRef = useRef();
 
   const handleSectionChange = (event, newValue) => {
@@ -88,9 +90,6 @@ const Chips = ({ onlySection = false }) => {
   };
 
   const renderDeviceTable = () => {
-    const [selectedValue, setSelectedValue] = useState(null);
-    const [editValue, setEditValue] = useState("");
-
     if (!selectedSection || sectionDevices.length === 0) {
       return null;
     }
@@ -102,13 +101,13 @@ const Chips = ({ onlySection = false }) => {
     );
 
     const handleRowClick = (device) => {
-      setSelectedValue(device);
-      setEditValue(device);
+      setSelectedDevice(device);
+      setEditDeviceValue(device);
     };
 
     const handleClose = () => {
-      setSelectedValue(null);
-      setEditValue("");
+      setSelectedDevice(null);
+      setEditDeviceValue("");
     };
 
     const handleUpdate = async () => {
@@ -122,8 +121,8 @@ const Chips = ({ onlySection = false }) => {
             },
             credentials: "include",
             body: JSON.stringify({
-              oldValue: selectedValue,
-              newValue: editValue,
+              oldValue: selectedDevice,
+              newValue: editDeviceValue,
             }),
           }
         );
@@ -153,7 +152,7 @@ const Chips = ({ onlySection = false }) => {
             },
             credentials: "include",
             body: JSON.stringify({
-              value: selectedValue,
+              value: selectedDevice,
             }),
           }
         );
@@ -198,7 +197,7 @@ const Chips = ({ onlySection = false }) => {
         />
 
         {/* Dialog chỉnh sửa/xóa */}
-        <Dialog open={selectedValue !== null} onClose={handleClose}>
+        <Dialog open={selectedDevice !== null} onClose={handleClose}>
           <DialogTitle>Chỉnh sửa thiết bị</DialogTitle>
           <DialogContent>
             <TextField
@@ -207,8 +206,8 @@ const Chips = ({ onlySection = false }) => {
               label="Giá trị"
               fullWidth
               variant="outlined"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
+              value={editDeviceValue}
+              onChange={(e) => setEditDeviceValue(e.target.value)}
               sx={{ marginTop: 2 }}
               size="small"
             />

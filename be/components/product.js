@@ -20,6 +20,10 @@ function removeVietnameseTones(str) {
         .replace(/Đ/g, 'D');
 }
 
+function normalizeProductCodeForCompare(code) {
+    return String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
 
 const productSchema = new mongoose.Schema({
     type: {
@@ -180,6 +184,16 @@ const getUpdatedImgUrl = (originalUrl) => {
   return originalUrl;
 };
 
+productSchema.post('init', function(doc) {
+  if (doc.variant && Array.isArray(doc.variant)) {
+    doc.variant.forEach(v => {
+      if (v.imgUrl) {
+        v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+      }
+    });
+  }
+});
+
 productSchema.set('toJSON', {
   transform: (doc, ret) => {
     if (ret.variant && Array.isArray(ret.variant)) {
@@ -207,6 +221,24 @@ productSchema.set('toObject', {
 });
 
 const Product = mongoose.model('Product', productSchema);
+
+async function findProductByEquivalentCode(code, excludeId = null) {
+    const normalizedCode = normalizeProductCodeForCompare(code);
+    if (!normalizedCode) {
+        return null;
+    }
+
+    const products = await Product.find({
+        code: { $exists: true, $nin: [null, ""] }
+    }).select('_id name code').lean();
+
+    return products.find(product => {
+        if (excludeId && product._id.toString() === excludeId.toString()) {
+            return false;
+        }
+        return normalizeProductCodeForCompare(product.code) === normalizedCode;
+    }) || null;
+}
 
 // Tạo router cho các API sản phẩm
 const router = express.Router();
@@ -271,7 +303,7 @@ router.post('/create', [authenticateAdmin, checkPermission('update_product')], a
         
         // Kiểm tra trùng lặp mã sản phẩm trước khi tạo mới để tránh trùng lặp
         if (code && code.trim()) {
-            const existing = await Product.findOne({ code: code.trim() });
+            const existing = await findProductByEquivalentCode(code);
             if (existing) {
                 console.log(`[create-product] Từ chối tạo: Mã sản phẩm "${code.trim()}" đã tồn tại (SP: ${existing.name}).`);
                 return res.status(409).json({
@@ -574,6 +606,17 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
         if (req.body.name !== undefined) {
             req.body.nameUnsigned = removeVietnameseTones(req.body.name);
         }
+
+        if (req.body.code && req.body.code.trim()) {
+            const existing = await findProductByEquivalentCode(req.body.code, req.params._id);
+            if (existing) {
+                console.log(`[update-product] Duplicate equivalent code "${req.body.code.trim()}" with product "${existing.name}".`);
+                return res.status(409).json({
+                    message: `MÃ£ sáº£n pháº©m "${req.body.code.trim()}" Ä‘Ã£ tá»“n táº¡i (${existing.name}). Vui lÃ²ng dÃ¹ng mÃ£ khÃ¡c.`
+                });
+            }
+        }
+
         const updatedProduct = await Product.findByIdAndUpdate(
             req.params._id,
             { $set: req.body },
@@ -1683,18 +1726,63 @@ router.post('/voice-query', [authenticateUser, voiceLimiter, uploadAudio.single(
 
         const systemPrompt = `Bạn là trợ lý ảo thông minh phụ trách quản lý kho hàng của công ty thiết bị điện/thiết bị tự động hóa TTSmart.
 Hãy nghe file âm thanh được cung cấp (giọng nói tiếng Việt của người dùng) và thực hiện 2 nhiệm vụ:
-1. Ghi lại chính xác (transcribe) những gì người dùng đã nói (giữ nguyên tiếng Việt có dấu, viết hoa các từ cần thiết như Siemens, Mitsubishi, GPC1202,...).
-2. Phân tích ý định (intent) của người dùng để trích xuất ra từ khóa tìm kiếm chính (keyword) và các bộ lọc (filters) thích hợp.
+1. Ghi lại chính xác (transcribe) những gì người dùng đã nói (giữ nguyên tiếng Việt có dấu, viết hoa các từ cần thiết như Siemens, Mitsubishi, GPC1202, S7-1200, FX3U,...).
+2. Phân tích ý định (intent) của người dùng để trích xuất ra từ khóa tìm kiếm chính (keyword) và các bộ lọc (filters) thích hợp, tối ưu hóa cho tất cả các cách gọi khác nhau của người dùng.
 
-Ví dụ:
-- Người dùng nói: "tìm thiết bị cảm biến siemens" -> transcript: "tìm thiết bị cảm biến siemens", keyword: "cảm biến siemens", intent: "search_product", filters: { brand: "Siemens" }
-- Người dùng nói: "giá của khớp nối gpc mười hai không hai là bao nhiêu" -> transcript: "giá của khớp nối gpc mười hai không hai là bao nhiêu", keyword: "GPC1202", intent: "search_product", filters: { code: "GPC1202" }
-- Người dùng nói: "tìm đèn còn hàng" -> transcript: "tìm đèn còn hàng", keyword: "đèn", intent: "search_product", filters: { type: "Đèn" }
+CƠ SỞ DỮ LIỆU ĐANG CÓ SẴN CÁC THƯƠNG HIỆU (BRANDS) VÀ LOẠI SẢN PHẨM (TYPES) SAU:
+- Thương hiệu khả dụng: 'Airtac', 'Autonics', 'Chaofan', 'Delta', 'Frecon', 'Giga', 'Goldcup', 'Haitima', 'Hanyoung', 'Idec', 'Keli', 'Kinco', 'Mitsubishi', 'Nass', 'Omron', 'Parker', 'STNC', 'SangA', 'Sangjin', 'Schneider', 'Selec', 'Siemens', 'Taiwan', 'VEICHI'
+- Loại sản phẩm khả dụng: 'Aptomat', 'Biến tần', 'Biến áp cách ly', 'Bảo Vệ Mất, Ngược Pha', 'Bộ lọc khí', 'Contactor', 'Cảm biến', 'Cầu Đấu', 'Dây điện', 'Loadcell', 'Lọc bụi', 'Nguồn', 'Nút Nhấn', 'PLC', 'Phụ kiện khí nén', 'Relay Nhiệt', 'Relay Thời Gian', 'Relay Trung Gian', 'TI', 'Van khí nén', 'Van điện từ', 'Xy lanh khí nén', 'Đèn', 'Đồng Hồ'
 
-Chú ý:
-- Trường \`keyword\` phải chứa từ khóa tìm kiếm tối ưu nhất (loại bỏ các từ đệm như "tìm cho tôi", "cho tôi hỏi", "là bao nhiêu", "bạn ơi",...).
-- Các trường trong \`filters\` có thể là: brand, type, code, hoặc các thuộc tính khác (nếu không có hãy để null).
-- Định dạng phản hồi BẮT BUỘC là một đối tượng JSON trực tiếp (không nằm trong thẻ markdown và không có văn bản giải thích đi kèm):
+Quy tắc phân tách và xử lý từ khóa:
+- Khớp đúng Thương hiệu (filters.brand): Nếu người dùng nhắc tới tên thương hiệu, bạn PHẢI ánh xạ chính xác về một trong những thương hiệu khả dụng ở trên (Ví dụ: "siemens" -> "Siemens", "mit su bi shi" -> "Mitsubishi", "ôm ron" -> "Omron", "vê chi" -> "VEICHI", "en tơ nét" -> "Autonics"). Nếu câu nói không chứa tên thương hiệu, "filters.brand" bắt buộc phải là null (Tuyệt đối KHÔNG tự ý gán bừa thương hiệu mặc định).
+- Khớp đúng Loại sản phẩm (filters.type): Ánh xạ từ khóa về một trong các loại sản phẩm khả dụng ở danh sách trên.
+  + Nếu nhắc đến: "át", "át tô mát", "áp tô mát", "aptomat", "cầu dao tự động" -> filters.type: "Aptomat", keyword: "Aptomat".
+  + Nếu nhắc đến: "khởi", "khởi động từ", "công tắc tơ", "contactor" -> filters.type: "Contactor", keyword: "Contactor".
+  + Nếu nhắc đến: "biến tần", "inverter", "bộ biến tần" -> filters.type: "Biến tần", keyword: "biến tần".
+  + Nếu nhắc đến: "cảm biến", "sensor", "thiết bị cảm biến" -> filters.type: "Cảm biến", keyword: "cảm biến".
+  + Nếu nhắc đến: "nút nhấn", "nút bấm" -> filters.type: "Nút Nhấn", keyword: "nút nhấn".
+  + Nếu nhắc đến: "nguồn", "nguồn tổ ong", "nguồn xung" -> filters.type: "Nguồn", keyword: "nguồn".
+  + Nếu nhắc đến: "bộ điều khiển", "bộ lập trình", "plc" -> filters.type: "PLC", keyword: "PLC".
+  + Nếu nhắc đến: "rơ le trung gian", "relay trung gian" -> filters.type: "Relay Trung Gian", keyword: "relay trung gian".
+  + Nếu nhắc đến: "rơ le thời gian", "relay thời gian", "timer" -> filters.type: "Relay Thời Gian", keyword: "relay thời gian".
+  + Nếu nhắc đến: "rơ le nhiệt", "relay nhiệt" -> filters.type: "Relay Nhiệt", keyword: "relay nhiệt".
+  + Nếu nhắc đến: "biến dòng", "biến dòng vuông", "ti" -> filters.type: "TI", keyword: "TI".
+  + Nếu nhắc đến: "đèn báo", "đèn chỉ thị", "đèn" -> filters.type: "Đèn", keyword: "đèn".
+  + Nếu nhắc đến: "xi lanh khí nén", "ty ben" -> filters.type: "Xy lanh khí nén", keyword: "xy lanh".
+- Trường hợp Đặc biệt:
+  + Màn hình / HMI: Vì trong danh mục sản phẩm của hệ thống KHÔNG có loại "HMI" (các màn hình HMI đang được xếp vào loại "PLC" hoặc loại khác), nên nếu người dùng nói "HMI", "màn hình HMI", "màn hình cảm ứng", bạn phải đặt "filters.type" là null và đặt "keyword" là "HMI" hoặc "màn hình" để tìm kiếm theo tên chuỗi văn bản.
+- Tách biệt tên thương hiệu: Nếu người dùng nhắc cả loại và hãng (ví dụ: "tìm plc siemens"), bạn PHẢI tách thương hiệu ra đưa vào "filters.brand" (ví dụ: "Siemens"), và đưa loại sản phẩm vào "keyword" (ví dụ: "PLC") đồng thời loại bỏ tên hãng khỏi "keyword" để tránh việc tìm kiếm chuỗi trong cơ sở dữ liệu bị lỗi.
+- Chỉ gán "filters.brand" tự động khi người dùng đọc mã/model thiết bị đặc thù thuộc về duy nhất một hãng (ví dụ: "S7-1200" hoặc "S7-1500" -> hãng "Siemens"; "FX3U" hoặc "FX5U" -> hãng "Mitsubishi").
+
+Ví dụ cụ thể:
+1. Người dùng nói: "tìm plc siemens"
+-> transcript: "tìm plc siemens", keyword: "PLC", intent: "search_product", filters: { brand: "Siemens", type: "PLC", code: null }
+
+2. Người dùng nói: "tìm bộ lập trình mitsubishi"
+-> transcript: "tìm bộ lập trình mitsubishi", keyword: "PLC", intent: "search_product", filters: { brand: "Mitsubishi", type: "PLC", code: null }
+
+3. Người dùng nói: "giá màn hình hmi delta"
+-> transcript: "giá màn hình hmi delta", keyword: "HMI", intent: "search_product", filters: { brand: "Delta", type: null, code: null }
+
+4. Người dùng nói: "tìm plc"
+-> transcript: "tìm plc", keyword: "PLC", intent: "search_product", filters: { brand: null, type: "PLC", code: null }
+
+5. Người dùng nói: "tìm cảm biến omron"
+-> transcript: "tìm cảm biến omron", keyword: "cảm biến", intent: "search_product", filters: { brand: "Omron", type: "Cảm biến", code: null }
+
+6. Người dùng nói: "khớp nối gpc mười hai không hai còn hàng không"
+-> transcript: "khớp nối gpc mười hai không hai còn hàng không", keyword: "khớp nối GPC1202", intent: "search_product", filters: { brand: null, type: null, code: "GPC1202" }
+
+7. Người dùng nói: "cho tôi xem sản phẩm của hãng siemens"
+-> transcript: "cho tôi xem sản phẩm của hãng siemens", keyword: "", intent: "search_product", filters: { brand: "Siemens", type: null, code: null }
+
+8. Người dùng nói: "tìm thiết bị s7 mười hai trăm"
+-> transcript: "tìm thiết bị s7 mười hai trăm", keyword: "S7-1200", intent: "search_product", filters: { brand: "Siemens", type: "PLC", code: "S7-1200" }
+
+9. Người dùng nói: "fx3u còn hàng không"
+-> transcript: "fx3u còn hàng không", keyword: "FX3U", intent: "search_product", filters: { brand: "Mitsubishi", type: "PLC", code: "FX3U" }
+
+Định dạng phản hồi BẮT BUỘC là một đối tượng JSON trực tiếp (không nằm trong thẻ markdown và không có văn bản giải thích đi kèm):
 {
   "transcript": "...",
   "keyword": "...",
@@ -1704,7 +1792,8 @@ Chú ý:
     "type": null,
     "code": null
   }
-}`;
+}
+`;
 
         const modelsToTry = [
             'gemini-2.5-flash',

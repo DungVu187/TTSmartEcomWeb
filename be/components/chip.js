@@ -71,6 +71,16 @@ const getUpdatedImgUrl = (originalUrl) => {
   return originalUrl;
 };
 
+sectionSchema.post('init', function(doc) {
+  if (doc.Section && Array.isArray(doc.Section)) {
+    doc.Section.forEach(sec => {
+      if (sec.imgUrl) {
+        sec.imgUrl = getUpdatedImgUrl(sec.imgUrl);
+      }
+    });
+  }
+});
+
 sectionSchema.set('toJSON', {
   transform: (doc, ret) => {
     if (ret.Section && Array.isArray(ret.Section)) {

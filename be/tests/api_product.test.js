@@ -42,9 +42,23 @@ describe('Products API Tests (Phase 4)', () => {
     }
     await Product.insertMany(productsToInsert);
 
+    const adminUser = new User({
+      phone: '0987654323',
+      password: 'password123',
+      role: 'admin'
+    });
+    await adminUser.save();
+
+    const adminToken = jwt.sign(
+      { userId: adminUser._id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
     // 2. Gửi request GET phân trang (limit = 10, page = 1)
     const resPage1 = await request(app)
       .get('/products')
+      .set('Cookie', [`authToken=${adminToken}`])
       .query({ page: 1, limit: 10 });
 
     expect(resPage1.status).toBe(200);
@@ -56,6 +70,7 @@ describe('Products API Tests (Phase 4)', () => {
     // 3. Gửi request GET phân trang (limit = 10, page = 2)
     const resPage2 = await request(app)
       .get('/products')
+      .set('Cookie', [`authToken=${adminToken}`])
       .query({ page: 2, limit: 10 });
 
     expect(resPage2.status).toBe(200);
@@ -67,6 +82,7 @@ describe('Products API Tests (Phase 4)', () => {
     // 4. Gửi request lọc theo brand 'Siemens'
     const resBrand = await request(app)
       .get('/products')
+      .set('Cookie', [`authToken=${adminToken}`])
       .query({ brand: 'Siemens' });
 
     expect(resBrand.status).toBe(200);
@@ -143,5 +159,141 @@ describe('Products API Tests (Phase 4)', () => {
     const productInDb = await Product.findOne({ name: 'Màn hình Siemens HMI KTP700' });
     expect(productInDb).toBeDefined();
     expect(productInDb.brand).toBe('Siemens');
+  });
+
+  it('Test Case 9: POST /products/create ngăn chặn tạo trùng mã sản phẩm và trả về 409', async () => {
+    const adminUser = new User({
+      phone: '0987654326',
+      password: 'password123',
+      role: 'admin'
+    });
+    await adminUser.save();
+
+    const adminToken = jwt.sign(
+      { userId: adminUser._id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    const product1 = {
+      type: 'PLC',
+      name: 'Siemens PLC S7-1200',
+      brand: 'Siemens',
+      section: 'Thiết bị tự động hóa',
+      value: 'PLC',
+      code: 'S71200-DUP',
+      warranty: '12 tháng',
+      variant: [{ price: '6000000', color: 'Xám', quantityForSale: 10, quantityInStorage: 10 }]
+    };
+
+    // 1. Tạo sản phẩm đầu tiên thành công (201)
+    const res1 = await request(app)
+      .post('/products/create')
+      .set('Cookie', [`authToken=${adminToken}`])
+      .send(product1);
+    expect(res1.status).toBe(201);
+
+    // 2. Thử tạo sản phẩm thứ hai trùng mã (code: 'S71200-DUP') -> Phải trả về 409
+    const product2 = {
+      ...product1,
+      name: 'Siemens PLC S7-1200 V2'
+    };
+
+    const res2 = await request(app)
+      .post('/products/create')
+      .set('Cookie', [`authToken=${adminToken}`])
+      .send(product2);
+
+    expect(res2.status).toBe(409);
+    expect(res2.body.message).toContain('đã tồn tại');
+  });
+
+  it('Test Case 10: POST /products/voice-query yêu cầu đăng nhập và validation âm thanh', async () => {
+    // 1. Khi chưa đăng nhập -> trả về 401
+    const resUnauth = await request(app)
+      .post('/products/voice-query');
+    expect(resUnauth.status).toBe(401);
+
+    // 2. Đăng nhập nhưng thiếu file audio -> trả về 400
+    const customerUser = new User({
+      phone: '0987654327',
+      password: 'password123',
+      role: 'customer'
+    });
+    await customerUser.save();
+
+    const customerToken = jwt.sign(
+      { userId: customerUser._id, role: 'customer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    const resNoFile = await request(app)
+      .post('/products/voice-query')
+      .set('Cookie', [`authToken=${customerToken}`]);
+
+    expect(resNoFile.status).toBe(400);
+    expect(resNoFile.body.message).toContain('Không nhận được file âm thanh nào');
+  });
+});
+describe('Product code normalized duplicate validation', () => {
+  it('rejects equivalent codes ignoring spaces and symbols on create and update', async () => {
+    const adminUser = new User({
+      phone: '0987654328',
+      password: 'password123',
+      role: 'admin'
+    });
+    await adminUser.save();
+
+    const adminToken = jwt.sign(
+      { userId: adminUser._id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    const baseProduct = {
+      type: 'PLC',
+      name: 'Normalized Code Product A',
+      brand: 'Siemens',
+      section: 'Automation',
+      value: 'PLC',
+      code: 'S7 1200 NORM',
+      warranty: '12 months',
+      variant: [{ price: '6000000', color: 'Gray', quantityForSale: 10, quantityInStorage: 10 }]
+    };
+
+    const res1 = await request(app)
+      .post('/products/create')
+      .set('Cookie', [`authToken=${adminToken}`])
+      .send(baseProduct);
+    expect(res1.status).toBe(201);
+
+    const resDuplicateCreate = await request(app)
+      .post('/products/create')
+      .set('Cookie', [`authToken=${adminToken}`])
+      .send({
+        ...baseProduct,
+        name: 'Normalized Code Product B',
+        code: 's7-1200norm'
+      });
+    expect(resDuplicateCreate.status).toBe(409);
+    expect(resDuplicateCreate.body.message).toBeTruthy();
+
+    const resOther = await request(app)
+      .post('/products/create')
+      .set('Cookie', [`authToken=${adminToken}`])
+      .send({
+        ...baseProduct,
+        name: 'Normalized Code Product C',
+        code: 'OTHER-NORM-CODE'
+      });
+    expect(resOther.status).toBe(201);
+
+    const resDuplicateUpdate = await request(app)
+      .put(`/products/${resOther.body.product._id}`)
+      .set('Cookie', [`authToken=${adminToken}`])
+      .send({ code: 'S71200NORM' });
+    expect(resDuplicateUpdate.status).toBe(409);
+    expect(resDuplicateUpdate.body.message).toBeTruthy();
   });
 });

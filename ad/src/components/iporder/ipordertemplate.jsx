@@ -219,9 +219,7 @@ const IpOrderTemplate = () => {
     try {
       const response = await fetch(`${apiUrl}/users/order-template/${index}`, {
         method: 'DELETE',
-        headers: {
-          'auth-token': authToken,
-        },
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Failed to delete order template');

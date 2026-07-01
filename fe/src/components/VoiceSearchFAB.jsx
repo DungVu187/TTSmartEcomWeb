@@ -16,6 +16,7 @@ const VoiceSearchFAB = () => {
   const audioChunksRef = useRef([]);
   const recordingTimeoutRef = useRef(null);
   const lastTriggerRef = useRef(0);
+  const isPressingRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,6 +44,23 @@ const VoiceSearchFAB = () => {
     }
   }, []);
 
+  // Listen to mouse/touch release on window level when recording, to prevent button getting stuck
+  useEffect(() => {
+    if (isRecording) {
+      const handleWindowRelease = () => {
+        stopRecording();
+      };
+      window.addEventListener("mouseup", handleWindowRelease);
+      window.addEventListener("touchend", handleWindowRelease);
+      window.addEventListener("touchcancel", handleWindowRelease);
+      return () => {
+        window.removeEventListener("mouseup", handleWindowRelease);
+        window.removeEventListener("touchend", handleWindowRelease);
+        window.removeEventListener("touchcancel", handleWindowRelease);
+      };
+    }
+  }, [isRecording]);
+
   const startRecording = async (e) => {
     if (e) {
       e.preventDefault();
@@ -63,9 +81,18 @@ const VoiceSearchFAB = () => {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      isPressingRef.current = true;
       setIsRecording(true);
       audioChunksRef.current = [];
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Check if user already released button during the getUserMedia prompt/delay
+      if (!isPressingRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        setIsRecording(false);
+        return;
+      }
 
       let options = { mimeType: "audio/webm" };
       if (!MediaRecorder.isTypeSupported(options.mimeType)) {
@@ -114,10 +141,12 @@ const VoiceSearchFAB = () => {
       console.error("Lỗi truy cập micro:", err);
       toast.error("Không thể mở micro. Vui lòng cấp quyền micro cho trang web.");
       setIsRecording(false);
+      isPressingRef.current = false;
     }
   };
 
   const stopRecording = () => {
+    isPressingRef.current = false;
     if (recordingTimeoutRef.current) {
       clearTimeout(recordingTimeoutRef.current);
     }

@@ -15,6 +15,7 @@ const VoiceSearchFAB = () => {
   const audioChunksRef = useRef([]);
   const recordingTimeoutRef = useRef(null);
   const lastTriggerRef = useRef(0);
+  const isPressingRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,6 +25,23 @@ const VoiceSearchFAB = () => {
       setPermissionGranted(true);
     }
   }, []);
+
+  // Listen to mouse/touch release on window level when recording, to prevent button getting stuck
+  useEffect(() => {
+    if (isRecording) {
+      const handleWindowRelease = () => {
+        stopRecording();
+      };
+      window.addEventListener("mouseup", handleWindowRelease);
+      window.addEventListener("touchend", handleWindowRelease);
+      window.addEventListener("touchcancel", handleWindowRelease);
+      return () => {
+        window.removeEventListener("mouseup", handleWindowRelease);
+        window.removeEventListener("touchend", handleWindowRelease);
+        window.removeEventListener("touchcancel", handleWindowRelease);
+      };
+    }
+  }, [isRecording]);
 
   const startRecording = async (e) => {
     if (e) {
@@ -45,9 +63,18 @@ const VoiceSearchFAB = () => {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      isPressingRef.current = true;
       setIsRecording(true);
       audioChunksRef.current = [];
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Check if user already released button during the getUserMedia prompt/delay
+      if (!isPressingRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        setIsRecording(false);
+        return;
+      }
 
       // Choose a mimeType supported by browser
       let options = { mimeType: "audio/webm" };
@@ -99,10 +126,12 @@ const VoiceSearchFAB = () => {
       console.error("Lỗi truy cập micro:", err);
       toast.error("Không thể mở micro. Vui lòng cấp quyền micro cho trang web.");
       setIsRecording(false);
+      isPressingRef.current = false;
     }
   };
 
   const stopRecording = () => {
+    isPressingRef.current = false;
     if (recordingTimeoutRef.current) {
       clearTimeout(recordingTimeoutRef.current);
     }
@@ -152,10 +181,12 @@ const VoiceSearchFAB = () => {
 
         const updatedFilters = {
           ...currentFilters,
-          search: keyword || currentFilters.search,
-          brand: filters.brand || currentFilters.brand,
-          type: filters.type || currentFilters.type,
-          code: filters.code || currentFilters.code || "",
+          search: keyword,
+          brand: filters.brand || "Tất cả",
+          type: filters.type || "Tất cả",
+          code: filters.code || "",
+          section: "Tất cả",
+          value: "Tất cả",
         };
 
         sessionStorage.setItem("productFilters", JSON.stringify(updatedFilters));

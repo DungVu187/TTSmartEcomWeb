@@ -25,7 +25,7 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
 
           // Kiểm tra vai trò nếu truy cập /account
           if (location.pathname === '/account') {
-            if (userData.role !== 'admin') {
+            if (userData.role !== 'admin' && userData.role !== 'superadmin') {
               toast.error('Bạn không có quyền truy cập trang này!');
               navigate('/product', { state: { from: location } });
               return;

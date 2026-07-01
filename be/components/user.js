@@ -70,7 +70,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     required: true,
-    enum: ["admin", "staff", "customer"],
+    enum: ["superadmin", "admin", "staff", "customer"],
     default: "customer",
   },
   functions: [
@@ -201,7 +201,7 @@ const checkPermission = (requiredPermission) => async (req, res, next) => {
     if (!user) {
       return res.status(403).json({ message: "User not found" });
     }
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "superadmin") {
       req.user = user;
       return next();
     }
@@ -263,7 +263,15 @@ router.post("/register", authLimiter, (req, res, next) => {
     // 2. Nếu người thực hiện là Staff -> Chỉ được phép tạo tài khoản customer với permissions rỗng
     // 3. Nếu là đăng ký công khai (PUBLIC_SIGNUP_ENABLED=true) -> Chỉ tạo tài khoản customer với permissions rỗng
     if (process.env.PUBLIC_SIGNUP_ENABLED !== "true" && req.user) {
-      if (req.user.role === "admin") {
+      if (req.user.role === "superadmin") {
+        finalRole = role || "customer";
+        finalPermissions = finalRole === "staff" && functions
+          ? permissions || assignPermissionsForFunctions(functions)
+          : permissions || [];
+      } else if (req.user.role === "admin") {
+        if (role === "superadmin" || role === "admin") {
+          return res.status(403).json({ message: "Admin chỉ được phép tạo tài khoản Staff hoặc Customer" });
+        }
         finalRole = role || "customer";
         finalPermissions = finalRole === "staff" && functions
           ? permissions || assignPermissionsForFunctions(functions)
@@ -275,6 +283,13 @@ router.post("/register", authLimiter, (req, res, next) => {
     } else {
       finalRole = "customer";
       finalPermissions = [];
+    }
+
+    if (finalRole === "superadmin") {
+      const existingSuperadmin = await User.findOne({ role: "superadmin" });
+      if (existingSuperadmin) {
+        return res.status(400).json({ message: "Hệ thống chỉ được phép có duy nhất 1 tài khoản Super Admin" });
+      }
     }
 
     let userStations = [];
@@ -388,7 +403,7 @@ router.post("/admin/login", authLimiter, async (req, res) => {
   try {
     const { phone, password } = req.body;
     const user = await User.findOne({ phone });
-    if (!user || (user.role !== "admin" && user.role !== "staff")) {
+    if (!user || (user.role !== "superadmin" && user.role !== "admin" && user.role !== "staff")) {
       return res.status(403).json({ message: "Truy cập bị từ chối. Chỉ dành cho admin hoặc nhân viên" });
     }
     const isMatch = await user.comparePassword(password);
@@ -697,9 +712,30 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { role, functions, permissions, name, email, phone, password, logInString } = req.body;
+
+    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
+    }
+
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    if (req.user.role === "admin") {
+      if (user.role === "superadmin" || user.role === "admin") {
+        return res.status(403).json({ message: "Admin không có quyền chỉnh sửa tài khoản Admin hoặc Super Admin khác" });
+      }
+      if (role && (role === "superadmin" || role === "admin")) {
+        return res.status(403).json({ message: "Admin không có quyền chỉ định vai trò Admin hoặc Super Admin" });
+      }
+    }
+
+    if (role === "superadmin") {
+      const existingSuperadmin = await User.findOne({ role: "superadmin" });
+      if (existingSuperadmin && existingSuperadmin._id.toString() !== id) {
+        return res.status(400).json({ message: "Hệ thống chỉ được phép có duy nhất 1 tài khoản Super Admin" });
+      }
     }
 
     // Lưu thông tin cũ để so sánh
@@ -838,6 +874,16 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
   try {
     const { email, phone, name, password, role, functions, permissions } = req.body;
 
+    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
+    }
+
+    if (req.user.role === "admin") {
+      if (role === "superadmin" || role === "admin") {
+        return res.status(403).json({ message: "Admin chỉ được phép tạo tài khoản Staff hoặc Customer" });
+      }
+    }
+
     if (!phone || !password) {
       return res.status(400).json({ message: "Số điện thoại và mật khẩu là bắt buộc" });
     }
@@ -853,6 +899,13 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
     }
 
     const finalRole = role || "customer";
+    if (finalRole === "superadmin") {
+      const existingSuperadmin = await User.findOne({ role: "superadmin" });
+      if (existingSuperadmin) {
+        return res.status(400).json({ message: "Hệ thống chỉ được phép có duy nhất 1 tài khoản Super Admin" });
+      }
+    }
+
     const finalPermissions = finalRole === "staff" && functions
       ? permissions || assignPermissionsForFunctions(functions)
       : [];
@@ -1009,6 +1062,10 @@ router.put("/stations", authenticateAdmin, async (req, res) => {
   try {
     const { phone, stations } = req.body;
 
+    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
+    }
+
     if (!phone || !Array.isArray(stations)) {
       return res.status(400).json({ message: "Thiếu số điện thoại hoặc danh sách trạm không hợp lệ" });
     }
@@ -1016,6 +1073,12 @@ router.put("/stations", authenticateAdmin, async (req, res) => {
     const user = await User.findOne({ phone });
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng với số điện thoại đã cung cấp" });
+    }
+
+    if (req.user.role === "admin") {
+      if (user.role === "superadmin" || user.role === "admin") {
+        return res.status(403).json({ message: "Admin không có quyền gán trạm cho tài khoản Admin hoặc Super Admin khác" });
+      }
     }
 
     const oldStations = [...(user.station || [])];
@@ -1047,10 +1110,20 @@ router.post("/:id/stations", authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     const { stationId } = req.body;
 
+    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
+    }
+
     if (!stationId) return res.status(400).json({ message: "Thiếu stationId" });
 
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: "Không tìm thấy user" });
+
+    if (req.user.role === "admin") {
+      if (user.role === "superadmin" || user.role === "admin") {
+        return res.status(403).json({ message: "Admin không có quyền gán trạm cho tài khoản Admin hoặc Super Admin" });
+      }
+    }
 
     if (user.station.includes(stationId)) {
       return res.status(200).json({ message: "Trạm đã tồn tại trong user", user });
@@ -1080,6 +1153,22 @@ router.post("/:id/stations", authenticateAdmin, async (req, res) => {
 router.delete("/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
+    }
+
+    const userToDelete = await User.findById(id);
+    if (!userToDelete) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    if (req.user.role === "admin") {
+      if (userToDelete.role === "superadmin" || userToDelete.role === "admin") {
+        return res.status(403).json({ message: "Admin không có quyền xóa tài khoản Admin hoặc Super Admin" });
+      }
+    }
+
     const deletedUser = await User.findByIdAndDelete(id);
     if (!deletedUser) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
@@ -1108,8 +1197,18 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     const { name, email, phone } = req.body;
 
+    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
+    }
+
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    if (req.user.role === "admin") {
+      if (user.role === "superadmin" || user.role === "admin") {
+        return res.status(403).json({ message: "Admin không có quyền cập nhật tài khoản Admin hoặc Super Admin khác" });
+      }
+    }
 
     const oldUserData = { name: user.name, email: user.email, phone: user.phone };
 

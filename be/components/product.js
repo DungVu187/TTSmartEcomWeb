@@ -24,6 +24,191 @@ function normalizeProductCodeForCompare(code) {
     return String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
+const VOICE_BRANDS = [
+    'Airtac', 'Autonics', 'Chaofan', 'Delta', 'Frecon', 'Giga', 'Goldcup',
+    'Haitima', 'Hanyoung', 'Idec', 'Keli', 'Kinco', 'Mitsubishi', 'Nass',
+    'Omron', 'Parker', 'STNC', 'SangA', 'Sangjin', 'Schneider', 'Selec',
+    'Siemens', 'Taiwan', 'VEICHI'
+];
+
+const VOICE_TYPES = [
+    'Aptomat', 'Biến tần', 'Biến áp cách ly', 'Bảo Vệ Mất, Ngược Pha',
+    'Bộ lọc khí', 'Contactor', 'Cảm biến', 'Cầu Đấu', 'Dây điện', 'Loadcell',
+    'Lọc bụi', 'Nguồn', 'Nút Nhấn', 'PLC', 'Phụ kiện khí nén', 'Relay Nhiệt',
+    'Relay Thời Gian', 'Relay Trung Gian', 'TI', 'Van khí nén', 'Van điện từ',
+    'Xy lanh khí nén', 'Đèn', 'Đồng Hồ'
+];
+
+const VOICE_BRAND_ALIASES = [
+    ['Siemens', ['siemens', 'simens', 'xi men', 'si men']],
+    ['Mitsubishi', ['mitsubishi', 'mit su bi shi', 'mit subishi', 'mit su']],
+    ['Omron', ['omron', 'om ron', 'om rong']],
+    ['VEICHI', ['veichi', 've chi', 'v e i c h i']],
+    ['Autonics', ['autonics', 'au tonics', 'en to net']],
+    ['Schneider', ['schneider', 'schnider', 's nai der']],
+    ['Delta', ['delta', 'den ta']],
+    ['Idec', ['idec', 'i dec']],
+    ['Kinco', ['kinco', 'kin co']],
+    ['Airtac', ['airtac', 'air tac']],
+    ['Parker', ['parker', 'pa ker']],
+    ['Selec', ['selec', 'se leck']],
+    ['Hanyoung', ['hanyoung', 'han young']],
+    ['Haitima', ['haitima', 'hai ti ma']],
+    ['Frecon', ['frecon', 'fre con']],
+    ['STNC', ['stnc', 's t n c']],
+    ['SangA', ['sanga', 'sang a']],
+    ['Sangjin', ['sangjin', 'sang jin']],
+    ['Goldcup', ['goldcup', 'gold cup']],
+    ['Chaofan', ['chaofan', 'chao fan']],
+    ['Giga', ['giga', 'gi ga']],
+    ['Keli', ['keli', 'ke li']],
+    ['Nass', ['nass', 'nas']],
+    ['Taiwan', ['taiwan', 'dai loan']]
+];
+
+const VOICE_TYPE_ALIASES = [
+    ['Aptomat', 'Aptomat', ['at', 'at to mat', 'ap to mat', 'aptomat', 'cau dao tu dong']],
+    ['Contactor', 'Contactor', ['khoi', 'khoi dong tu', 'cong tac to', 'contactor']],
+    ['Biến tần', 'biến tần', ['bien tan', 'inverter', 'bo bien tan']],
+    ['Cảm biến', 'cảm biến', ['cam bien', 'sensor', 'thiet bi cam bien']],
+    ['Nút Nhấn', 'nút nhấn', ['nut nhan', 'nut bam']],
+    ['Nguồn', 'nguồn', ['nguon', 'nguon to ong', 'nguon xung']],
+    ['PLC', 'PLC', ['plc', 'bo dieu khien', 'bo lap trinh']],
+    ['Relay Trung Gian', 'relay trung gian', ['ro le trung gian', 'relay trung gian']],
+    ['Relay Thời Gian', 'relay thời gian', ['ro le thoi gian', 'relay thoi gian', 'timer']],
+    ['Relay Nhiệt', 'relay nhiệt', ['ro le nhiet', 'relay nhiet']],
+    ['TI', 'TI', ['bien dong', 'bien dong vuong']],
+    ['Đèn', 'đèn', ['den bao', 'den chi thi', 'den']],
+    ['Xy lanh khí nén', 'xy lanh', ['xi lanh khi nen', 'xy lanh khi nen', 'ty ben']]
+];
+
+function normalizeVoiceText(str) {
+    return removeVietnameseTones(String(str || ''))
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function phraseRegex(phrase) {
+    const escaped = normalizeVoiceText(phrase)
+        .split(' ')
+        .filter(Boolean)
+        .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('\\s+');
+    return new RegExp(`(?:^|\\s)${escaped}(?=\\s|$)`, 'i');
+}
+
+function detectVoiceCode(text) {
+    const normalized = normalizeVoiceText(text);
+    const compact = normalized.replace(/\s+/g, '');
+
+    if (/\bfx\s*3\s*u\b/.test(normalized) || compact.includes('fx3u')) {
+        return { code: 'FX3U', keyword: 'FX3U', brand: 'Mitsubishi', type: 'PLC' };
+    }
+    if (/\bfx\s*5\s*u\b/.test(normalized) || compact.includes('fx5u')) {
+        return { code: 'FX5U', keyword: 'FX5U', brand: 'Mitsubishi', type: 'PLC' };
+    }
+    if (/\bs\s*7\s*[- ]?\s*1200\b/.test(normalized) || /\bs7\s*muoi\s*hai\s*tram\b/.test(normalized) || compact.includes('s71200')) {
+        return { code: 'S7-1200', keyword: 'S7-1200', brand: 'Siemens', type: 'PLC' };
+    }
+    if (/\bs\s*7\s*[- ]?\s*1500\b/.test(normalized) || /\bs7\s*muoi\s*lam\s*tram\b/.test(normalized) || compact.includes('s71500')) {
+        return { code: 'S7-1500', keyword: 'S7-1500', brand: 'Siemens', type: 'PLC' };
+    }
+    if (/\bg\s*p\s*c\s*[- ]?\s*1202\b/.test(normalized) || /\bgpc\s*muoi\s*hai\s*khong\s*hai\b/.test(normalized) || compact.includes('gpc1202')) {
+        return { code: 'GPC1202', keyword: 'khớp nối GPC1202', brand: null, type: null };
+    }
+
+    const rawMatch = String(text || '').match(/\b([A-Za-z]{1,5})[-\s]?(\d{2,5})([A-Za-z]{0,3})\b/);
+    if (rawMatch) {
+        const code = `${rawMatch[1]}${rawMatch[2]}${rawMatch[3] || ''}`.toUpperCase();
+        if (!VOICE_BRANDS.some(brand => brand.toUpperCase() === code)) {
+            return { code, keyword: code, brand: null, type: null };
+        }
+    }
+
+    return null;
+}
+
+function findVoiceBrand(text) {
+    const normalized = normalizeVoiceText(text);
+
+    for (const brand of VOICE_BRANDS) {
+        if (phraseRegex(brand).test(normalized)) {
+            return brand;
+        }
+    }
+
+    for (const [brand, aliases] of VOICE_BRAND_ALIASES) {
+        if (aliases.some(alias => phraseRegex(alias).test(normalized))) {
+            return brand;
+        }
+    }
+
+    return null;
+}
+
+function findVoiceType(text) {
+    const normalized = normalizeVoiceText(text);
+
+    if (/\bh\s*m\s*i\b/.test(normalized) || phraseRegex('man hinh hmi').test(normalized) || phraseRegex('man hinh cam ung').test(normalized)) {
+        return { type: null, keyword: /\bh\s*m\s*i\b/.test(normalized) ? 'HMI' : 'màn hình' };
+    }
+
+    for (const [type, keyword, aliases] of VOICE_TYPE_ALIASES) {
+        if (aliases.some(alias => phraseRegex(alias).test(normalized))) {
+            return { type, keyword };
+        }
+    }
+
+    return { type: null, keyword: null };
+}
+
+function cleanVoiceKeyword(keyword, brand) {
+    let cleaned = String(keyword || '').trim();
+    if (!cleaned || !brand) return cleaned;
+
+    const aliases = [brand, ...(VOICE_BRAND_ALIASES.find(([name]) => name === brand)?.[1] || [])];
+    for (const alias of aliases) {
+        cleaned = cleaned.replace(new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'ig'), ' ');
+    }
+    return cleaned.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeVoiceQueryResult(raw = {}) {
+    const filters = raw.filters && typeof raw.filters === 'object' ? raw.filters : {};
+    const transcript = String(raw.transcript || '').trim();
+    const probeText = [transcript, raw.keyword, filters.code].filter(Boolean).join(' ');
+
+    const codeInfo = detectVoiceCode(probeText);
+    const brandProbeText = transcript || String(raw.keyword || '');
+    const brand = codeInfo?.brand || findVoiceBrand(brandProbeText);
+    const typeInfo = findVoiceType(probeText);
+    const rawType = VOICE_TYPES.includes(filters.type) ? filters.type : null;
+    const type = codeInfo?.type || typeInfo.type || rawType;
+    const code = codeInfo?.code || (typeof filters.code === 'string' && filters.code.trim() ? filters.code.trim().toUpperCase() : null);
+
+    let keyword = '';
+    if (codeInfo?.keyword) {
+        keyword = codeInfo.keyword;
+    } else if (typeInfo.keyword !== null) {
+        keyword = typeInfo.keyword;
+    } else if (typeof raw.keyword === 'string') {
+        keyword = raw.keyword.trim();
+    }
+
+    return {
+        transcript,
+        keyword: cleanVoiceKeyword(keyword, brand),
+        intent: 'search_product',
+        filters: {
+            brand,
+            type,
+            code
+        }
+    };
+}
+
 
 const productSchema = new mongoose.Schema({
     type: {
@@ -1881,16 +2066,19 @@ Ví dụ cụ thể:
             // Fallback: dùng toàn bộ transcript/text làm keyword
             return res.json({
                 success: 1,
-                transcript: textResult,
-                keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),
-                intent: "search_product",
-                filters: { brand: null, type: null, code: null }
+                ...normalizeVoiceQueryResult({
+                    transcript: textResult,
+                    keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),
+                    intent: "search_product",
+                    filters: { brand: null, type: null, code: null }
+                })
             });
         }
 
+        const normalizedResult = normalizeVoiceQueryResult(resultObj);
         res.json({
             success: 1,
-            ...resultObj
+            ...normalizedResult
         });
 
     } catch (error) {
@@ -1907,5 +2095,6 @@ Ví dụ cụ thể:
 module.exports = {
     Product,
     router,
-    uploadImage
+    uploadImage,
+    normalizeVoiceQueryResult
 };

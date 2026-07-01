@@ -62,8 +62,9 @@ const Account = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const availableRoles = ["admin", "staff"];
+  const availableRoles = currentUser?.role === "superadmin" ? ["admin", "staff"] : ["staff"];
   const availableFunctions = ["order_management", "product_management", "iporder_management", "eporder_management"];
   const availablePermissions = {
     order_management: ["read_order", "update_order", "delete_order"],
@@ -73,6 +74,19 @@ const Account = () => {
   };
 
   useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/users/profile`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data);
+        }
+      } catch (err) {
+        console.error("Lỗi khi lấy thông tin đăng nhập:", err);
+      }
+    };
     const fetchUsers = async () => {
       try {
         const response = await fetch(`${apiUrl}/users/all-users`, {
@@ -85,13 +99,17 @@ const Account = () => {
           throw new Error(errorData.message || `Lỗi ${response.status}: Lấy danh sách người dùng thất bại`);
         }
         const data = await response.json();
-        const adminStaffUsers = data.filter((u) => u.role === "admin" || u.role === "staff");
+        const roleOrder = { superadmin: 1, admin: 2, staff: 3 };
+        const adminStaffUsers = data
+          .filter((u) => u.role === "superadmin" || u.role === "admin" || u.role === "staff")
+          .sort((a, b) => (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99));
         setUsers(adminStaffUsers);
       } catch (error) {
         console.error("Lỗi khi lấy danh sách người dùng:", error);
         setError(error.message);
       }
     };
+    fetchCurrentUser();
     fetchUsers();
   }, []);
 
@@ -184,14 +202,33 @@ const Account = () => {
   };
 
   const columns = [
-    { field: "email", headerName: "Email", width: 200 },
-    { field: "phone", headerName: "Số điện thoại", width: 150 },
-    { field: "name", headerName: "Tên", width: 150 },
-    { field: "role", headerName: "Vai trò", width: 120 },
+    { field: "email", headerName: "Email", flex: 1.5, minWidth: 200 },
+    { field: "phone", headerName: "Số điện thoại", flex: 1, minWidth: 130 },
+    { field: "name", headerName: "Tên", flex: 1.2, minWidth: 150 },
+    {
+      field: "role",
+      headerName: "Vai trò",
+      flex: 1,
+      minWidth: 120,
+      renderCell: (params) => {
+        const r = params.value;
+        if (r === "superadmin") {
+          return <Chip label="Super Admin" color="error" variant="filled" size="small" sx={{ fontWeight: 'bold' }} />;
+        }
+        if (r === "admin") {
+          return <Chip label="Admin" color="primary" variant="outlined" size="small" sx={{ fontWeight: 'bold' }} />;
+        }
+        if (r === "staff") {
+          return <Chip label="Staff" color="default" variant="outlined" size="small" />;
+        }
+        return <Chip label={r} size="small" />;
+      }
+    },
     {
       field: "functions",
       headerName: "Chức năng",
-      width: 200,
+      flex: 2,
+      minWidth: 200,
       renderCell: (params) =>
         params.value && params.value.length > 0
           ? params.value.map((func) => (
@@ -202,7 +239,8 @@ const Account = () => {
     {
       field: "permissions",
       headerName: "Quyền",
-      width: 300,
+      flex: 2.5,
+      minWidth: 250,
       renderCell: (params) =>
         params.value && params.value.length > 0
           ? params.value.map((perm) => (
@@ -213,12 +251,19 @@ const Account = () => {
     {
       field: "actions",
       headerName: "Hành động",
-      width: 150,
-      renderCell: (params) => (
-        <Button variant="contained" color="primary" onClick={() => handleEdit(params.row)}>
-          Chỉnh sửa
-        </Button>
-      ),
+      flex: 1,
+      minWidth: 120,
+      renderCell: (params) => {
+        const isSuperadmin = params.row.role === "superadmin";
+        const isAdmin = params.row.role === "admin";
+        // Admin không được sửa tài khoản Super Admin hoặc Admin khác
+        const disableEdit = currentUser?.role === "admin" && (isSuperadmin || isAdmin);
+        return (
+          <Button variant="contained" color="primary" disabled={disableEdit} onClick={() => handleEdit(params.row)}>
+            Chỉnh sửa
+          </Button>
+        );
+      },
     },
   ];
 
@@ -238,7 +283,7 @@ const Account = () => {
         </Button>
       </div>
 
-      <Box sx={{ height: 600, width: "100%" }}>
+      <Box sx={{ height: "calc(100vh - 180px)", width: "100%" }}>
         <DataGrid
           rows={users}
           columns={columns}
@@ -310,7 +355,7 @@ const Account = () => {
                     key={r}
                     value={r}
                     control={<Radio />}
-                    label={r.charAt(0).toUpperCase() + r.slice(1)}
+                    label={r === "admin" ? "Admin" : r === "staff" ? "Nhân viên (Staff)" : r}
                   />
                 ))}
               </RadioGroup>

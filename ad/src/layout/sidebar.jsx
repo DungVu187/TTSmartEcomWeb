@@ -1,3 +1,4 @@
+// Force new hash update for superadmin roles bypass
 import React, { useState, useEffect } from "react";
 import {
   Drawer,
@@ -73,6 +74,7 @@ const Sidebar = () => {
           credentials: "include",
         });
         const data = await res.json();
+        console.log("Super Admin active check:", data.role);
         if (res.ok) {
           setUserFunctions(data.functions || []);
           setUserRole(data.role || "");
@@ -178,7 +180,7 @@ const Sidebar = () => {
     }
   };
 
-  const canView = (func) => userRole === "admin" || userFunctions.includes(func);
+  const canView = (func) => userRole === "admin" || userRole === "superadmin" || userFunctions.includes(func);
 
   const menuItems = [
     { text: "Sản phẩm", path: "/product", icon: <ProductIcon /> },
@@ -264,12 +266,12 @@ const Sidebar = () => {
     },
     { text: "Quản lý banner", path: "/manage", icon: <ManageIcon /> },
     { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
-    userRole === "admin" && {
+    (userRole === "admin" || userRole === "superadmin") && {
       text: "Phân quyền",
       path: "/account",
       icon: <PersonIcon />,
     },
-    userRole === "admin" && {
+    (userRole === "admin" || userRole === "superadmin") && {
       text: "Cấu hình Zalo",
       path: "/zalo",
       icon: <ManageIcon />,

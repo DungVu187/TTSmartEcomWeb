@@ -21,6 +21,24 @@ import toast from "react-hot-toast";
 import QRCode from "qrcode";
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const hasValue = (value) => {
+  const normalized = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+
+  return !["", "n/a", "na", "chua ro", "chua co", "chua phan loai"].includes(normalized);
+};
+
+const isProductAdjusted = (productData) => {
+  return ["type", "brand", "section"].every((field) =>
+    hasValue(productData?.[field])
+  );
+};
+
 const ProductDisplay = () => {
   const { productId } = useParams();
   const [product, setProduct] = useState(null);
@@ -123,7 +141,7 @@ const ProductDisplay = () => {
         vat: updatedProduct.vat || "",
         type: updatedProduct.type || "",
         brand: updatedProduct.brand || "",
-        adjusted: true,
+        adjusted: isProductAdjusted(updatedProduct),
         section: updatedProduct.section || "",
         value: updatedProduct.value || "",
         warranty: updatedProduct.warranty || "",
@@ -421,7 +439,24 @@ const url = await QRCode.toDataURL(qrContent);
     <div style={{ maxWidth: "900px" }}>
       {product ? (
         <>
-          <Box sx={{ mb: 2, display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+          <Box
+            sx={{
+              position: "fixed",
+              top: { xs: 56, md: 0 },
+              left: { xs: 20, md: 260 },
+              right: { xs: 20, md: 20 },
+              zIndex: 1000,
+              px: 0,
+              py: 1.25,
+              display: "flex",
+              gap: 1.5,
+              flexWrap: "wrap",
+              alignItems: "center",
+              backgroundColor: "white",
+              borderBottom: "1px solid rgba(0,0,0,0.08)",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+            }}
+          >
             <Button
               onClick={() => handleProductUpdate()}
               variant="contained"
@@ -441,6 +476,16 @@ const url = await QRCode.toDataURL(qrContent);
             <Button onClick={generateQRCode} variant="contained" size="small">
               Tạo mã QR
             </Button>
+            <Button variant="contained" component="label" size="small">
+              Thêm ảnh
+              <input
+                id="imageUpload"
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleImageUpload}
+              />
+            </Button>
             <Box
               onClick={handleToggleDisplay}
               sx={{
@@ -448,17 +493,17 @@ const url = await QRCode.toDataURL(qrContent);
                 alignItems: "center",
                 gap: 0,
                 border: "1px solid",
-                borderColor: "primary.main",
-                borderRadius: 1,
-                pl: 1,
-                pr: 0.5,
-                height: "30px",
-                cursor: "pointer",
+                  borderColor: "primary.main",
+                  borderRadius: 1,
+                  pl: 1,
+                  pr: 0.5,
+                  height: "30px",
+                  cursor: "pointer",
                 userSelect: "none",
                 "&:hover": { backgroundColor: "rgba(25,118,210,0.08)" },
               }}
             >
-              <Typography sx={{ fontSize: "0.8125rem", color: "primary.main", lineHeight: 1 }}>Hiển thị</Typography>
+                <Typography sx={{ fontSize: "0.8125rem", color: "primary.main", lineHeight: 1 }}>Hiển thị</Typography>
               <Checkbox
                 size="small"
                 checked={product.display}
@@ -470,6 +515,7 @@ const url = await QRCode.toDataURL(qrContent);
               />
             </Box>
           </Box>
+          <Box sx={{ height: 62, mb: 2 }} />
 
           {product.variant?.[0]?.imgUrl ? (
             <Card sx={{ maxWidth: "400px", mt: 2, mb: 2 }}>
@@ -481,25 +527,9 @@ const url = await QRCode.toDataURL(qrContent);
                 onClick={() => document.getElementById("imageUpload").click()}
                 style={{ cursor: "pointer" }}
               />
-              <input
-                id="imageUpload"
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={handleImageUpload}
-              />
             </Card>
           ) : (
-            <Button variant="contained" component="label" sx={{ mt: 2, mb: 2 }}>
-              Thêm ảnh
-              <input
-                id="imageUpload"
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={handleImageUpload}
-              />
-            </Button>
+            <Box sx={{ mt: 2, mb: 2 }} />
           )}
 
           <Typography variant="h6">Quản lý số liệu</Typography>

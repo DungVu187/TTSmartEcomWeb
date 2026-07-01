@@ -10,6 +10,7 @@ import {
   TextField,
   Avatar,
   useMediaQuery,
+  Autocomplete,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
@@ -17,12 +18,23 @@ import toast from "react-hot-toast";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const removeVietnameseTones = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+};
+
 const Station = () => {
   const isMobile = useMediaQuery("(max-width:900px)");
   const navigate = useNavigate();
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [newStation, setNewStation] = useState({
     stationCode: "",
     stationName: "",
@@ -220,22 +232,76 @@ const Station = () => {
     },
   ];
 
+  const filteredStations = stations.filter((station) => {
+    const normalizedSearch = removeVietnameseTones(searchQuery);
+    const normalizedName = removeVietnameseTones(station.name);
+    const normalizedCode = removeVietnameseTones(station.code);
+    return (
+      normalizedName.includes(normalizedSearch) ||
+      normalizedCode.includes(normalizedSearch)
+    );
+  });
+
   return (
     <Box sx={{ p: 2 }}>
       <div className="sticky-header">
         <h2>Quản lý danh sách trạm trộn</h2>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => setOpenDialog(true)}
-        >
-          Thêm trạm
-        </Button>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", mt: 1, flexWrap: "wrap" }}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setOpenDialog(true)}
+            sx={{ height: 40 }}
+          >
+            Thêm trạm
+          </Button>
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={stations}
+            getOptionLabel={(option) => {
+              if (typeof option === "string") return option;
+              return option.name ? `${option.name} (${option.code})` : option.code || "";
+            }}
+            onInputChange={(event, newInputValue) => {
+              setSearchQuery(newInputValue);
+            }}
+            onChange={(event, newValue) => {
+              if (newValue) {
+                if (typeof newValue === "string") {
+                  setSearchQuery(newValue);
+                } else {
+                  setSearchQuery(newValue.name || newValue.code || "");
+                }
+              } else {
+                setSearchQuery("");
+              }
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tìm kiếm trạm..."
+                placeholder="Nhập tên hoặc mã trạm..."
+                variant="outlined"
+                size="small"
+                sx={{ width: 300, bgcolor: "white" }}
+              />
+            )}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) => {
+                const nameMatch = removeVietnameseTones(option.name).includes(inputValue);
+                const codeMatch = removeVietnameseTones(option.code).includes(inputValue);
+                return nameMatch || codeMatch;
+              });
+            }}
+          />
+        </Box>
       </div>
 
       <Box sx={{ width: "100%" }}>
         <DataGrid
-          rows={stations}
+          rows={filteredStations}
           columns={columns}
           pageSize={5}
           rowsPerPageOptions={[5]}

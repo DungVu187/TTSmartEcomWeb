@@ -246,8 +246,8 @@ const OrderedProducts = () => {
       </div>
 
       {/* Bảng sản phẩm */}
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 320px)", overflowX: "auto" }}>
+        <Table stickyHeader>
           <TableHead>
             <TableRow>
               <TableCell align="center">Hình ảnh</TableCell>

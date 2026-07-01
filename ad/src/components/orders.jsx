@@ -23,6 +23,7 @@ import {
   Typography,
   Box,
   CircularProgress,
+  Autocomplete,
 } from "@mui/material";
 import moment from "moment";
 import toast from "react-hot-toast";
@@ -31,6 +32,16 @@ import { useOrderContext } from "../context/ordercontext";
 import { io } from "socket.io-client";
 
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const removeVietnameseTones = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+};
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -57,6 +68,21 @@ const Orders = () => {
     endDate: moment().format("YYYY-MM-DD"),
   });
   const { setOrderChanged } = useOrderContext();
+
+  const uniqueNames = React.useMemo(() => {
+    const names = orders.map((o) => o.userName).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [orders]);
+
+  const uniquePhones = React.useMemo(() => {
+    const phones = orders.map((o) => o.userPhone).filter(Boolean);
+    return Array.from(new Set(phones));
+  }, [orders]);
+
+  const uniqueOrderCodes = React.useMemo(() => {
+    const codes = orders.map((o) => o.orderCode).filter(Boolean);
+    return Array.from(new Set(codes));
+  }, [orders]);
 
   // Trạng thái bộ lọc đã được debounce
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
@@ -416,34 +442,88 @@ const Orders = () => {
             </Select>
           </FormControl>
 
-          <TextField
-            name="phone"
-            label="Số điện thoại"
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={uniquePhones}
             value={filters.phone}
-            onChange={handleFilterChange}
-            variant="outlined"
-            size="small"
-            sx={{ width: 200 }}
+            onInputChange={(event, newInputValue) => {
+              setFilters((prev) => ({ ...prev, phone: newInputValue }));
+            }}
+            onChange={(event, newValue) => {
+              setFilters((prev) => ({ ...prev, phone: newValue || "" }));
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Số điện thoại"
+                placeholder="Nhập số điện thoại..."
+                variant="outlined"
+                sx={{ width: 200 }}
+              />
+            )}
           />
 
-          <TextField
-            name="name"
-            label="Tên người dùng"
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={uniqueNames}
             value={filters.name}
-            onChange={handleFilterChange}
-            variant="outlined"
-            size="small"
-            sx={{ width: 200 }}
+            onInputChange={(event, newInputValue) => {
+              setFilters((prev) => ({ ...prev, name: newInputValue }));
+            }}
+            onChange={(event, newValue) => {
+              setFilters((prev) => ({ ...prev, name: newValue || "" }));
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tên người dùng"
+                placeholder="Nhập tên..."
+                variant="outlined"
+                sx={{ width: 200 }}
+              />
+            )}
           />
 
-          <TextField
-            name="id"
-            label="Mã đơn hàng"
-            value={filters.id}
-            onChange={handleFilterChange}
-            variant="outlined"
+          <Autocomplete
+            freeSolo
             size="small"
-            sx={{ width: 235 }}
+            options={uniqueOrderCodes}
+            value={filters.id}
+            onInputChange={(event, newInputValue) => {
+              setFilters((prev) => ({ ...prev, id: newInputValue }));
+            }}
+            onChange={(event, newValue) => {
+              setFilters((prev) => ({ ...prev, id: newValue || "" }));
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Mã đơn hàng"
+                placeholder="Nhập mã đơn..."
+                variant="outlined"
+                sx={{ width: 235 }}
+              />
+            )}
           />
 
           <TextField

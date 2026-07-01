@@ -2264,8 +2264,8 @@ const ImportOrderDetail = () => {
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "auto" }}>
-          <Table>
+        <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "auto", maxHeight: "calc(100vh - 320px)" }}>
+          <Table stickyHeader>
             <TableHead>
               <TableRow>
                 <TableCell align="center"></TableCell>

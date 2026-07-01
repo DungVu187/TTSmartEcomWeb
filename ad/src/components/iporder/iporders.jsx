@@ -22,6 +22,8 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Autocomplete,
+  LinearProgress,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import moment from "moment";
@@ -29,6 +31,16 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const removeVietnameseTones = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+};
 
 const IpOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -46,16 +58,46 @@ const IpOrders = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
+  const [debouncedOrderName, setDebouncedOrderName] = useState("");
+  const [debouncedUserName, setDebouncedUserName] = useState("");
   const navigate = useNavigate();
 
-  const fetchOrders = async (page = 1) => {
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedOrderName(filterOrderName);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [filterOrderName]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedUserName(filterUserName);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [filterUserName]);
+
+  const uniqueOrderNames = React.useMemo(() => {
+    const names = orders.map((o) => o.orderName).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [orders]);
+
+  const uniqueUserNames = React.useMemo(() => {
+    const names = orders.map((o) => o.userName).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [orders]);
+
+  const fetchOrders = async (
+    page = 1,
+    orderName = debouncedOrderName,
+    userName = debouncedUserName
+  ) => {
     try {
       setLoading(true);
       setError(null);
       const queryParams = new URLSearchParams({
         page,
-        orderName: filterOrderName,
-        userName: filterUserName,
+        orderName,
+        userName,
         status: filterStatus === "all" ? "" : filterStatus,
         startDate: filterStartDate,
         endDate: filterEndDate,
@@ -353,10 +395,10 @@ const IpOrders = () => {
     }
   };
 
-  // Tải danh sách đơn hàng khi component mount
+  // Tải danh sách đơn hàng khi các bộ lọc thay đổi hoặc chuyển trang
   useEffect(() => {
-    fetchOrders(1);
-  }, []);
+    fetchOrders(currentPage, debouncedOrderName, debouncedUserName);
+  }, [currentPage, debouncedOrderName, debouncedUserName]);
 
   // Tải danh sách mẫu hóa đơn khi component mount
   useEffect(() => {
@@ -415,19 +457,59 @@ const IpOrders = () => {
             flexWrap: "wrap",
           }}
         >
-          <TextField
-            label="Tên hóa đơn"
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={uniqueOrderNames}
             value={filterOrderName}
-            onChange={(e) => setFilterOrderName(e.target.value)}
-            size="small"
-            sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
+            onInputChange={(event, newInputValue) => {
+              setFilterOrderName(newInputValue);
+            }}
+            onChange={(event, newValue) => {
+              setFilterOrderName(newValue || "");
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tên hóa đơn"
+                placeholder="Nhập tên..."
+                variant="outlined"
+                sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
+              />
+            )}
           />
-          <TextField
-            label="Tên người tạo"
-            value={filterUserName}
-            onChange={(e) => setFilterUserName(e.target.value)}
+          <Autocomplete
+            freeSolo
             size="small"
-            sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
+            options={uniqueUserNames}
+            value={filterUserName}
+            onInputChange={(event, newInputValue) => {
+              setFilterUserName(newInputValue);
+            }}
+            onChange={(event, newValue) => {
+              setFilterUserName(newValue || "");
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tên người tạo"
+                placeholder="Nhập người tạo..."
+                variant="outlined"
+                sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
+              />
+            )}
           />
           <TextField
             select
@@ -465,7 +547,7 @@ const IpOrders = () => {
             color="primary"
             onClick={() => {
               setCurrentPage(1);
-              fetchOrders(1);
+              fetchOrders(1, filterOrderName, filterUserName);
             }}
             sx={{ height: "40px", minWidth: "80px", flexShrink: 0 }}
           >
@@ -544,13 +626,15 @@ const IpOrders = () => {
         </DialogActions>
       </Dialog>
 
-      {loading ? (
+      {loading && orders.length === 0 ? (
         <Box display="flex" justifyContent="center" p={2}>
           <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
-          <Table style={{ minWidth: "1000px", tableLayout: "fixed" }}>
+        <>
+          {loading && <LinearProgress sx={{ mb: 1 }} />}
+          <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}>
+          <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
             <TableHead>
               <TableRow>
                 <TableCell align="center" style={{ width: "50px" }}></TableCell>
@@ -707,6 +791,7 @@ const IpOrders = () => {
             </TableBody>
           </Table>
         </TableContainer>
+        </>
       )}
 
       {pagination.totalPages > 1 && (

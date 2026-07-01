@@ -10,51 +10,31 @@ const apiUrl = import.meta.env.VITE_API_URL;
 const VoiceSearchFAB = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [permissionGranted, setPermissionGranted] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingTimeoutRef = useRef(null);
   const lastTriggerRef = useRef(0);
-  const isPressingRef = useRef(false);
+  const isStartingRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    // Request permission early or check if available
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      setPermissionGranted(true);
-    }
-  }, []);
-
-  // Listen to mouse/touch release on window level when recording, to prevent button getting stuck
-  useEffect(() => {
-    if (isRecording) {
-      const handleWindowRelease = () => {
-        stopRecording();
-      };
-      window.addEventListener("mouseup", handleWindowRelease);
-      window.addEventListener("touchend", handleWindowRelease);
-      window.addEventListener("touchcancel", handleWindowRelease);
-      return () => {
-        window.removeEventListener("mouseup", handleWindowRelease);
-        window.removeEventListener("touchend", handleWindowRelease);
-        window.removeEventListener("touchcancel", handleWindowRelease);
-      };
-    }
-  }, [isRecording]);
-
-  const startRecording = async (e) => {
-    if (e) {
-      e.preventDefault();
-    }
+  const toggleRecording = () => {
     const now = Date.now();
-    if (now - lastTriggerRef.current < 500) {
-      return; // Chặn nhấp đúp / sự kiện chạm + chuột đồng thời
+    if (now - lastTriggerRef.current < 300) {
+      return;
     }
     lastTriggerRef.current = now;
 
-    if (isProcessing) return;
+    if (isProcessing || isStartingRef.current) return;
 
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const startRecording = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast.error("Trình duyệt yêu cầu kết nối bảo mật HTTPS hoặc Localhost để sử dụng Micro!", {
         duration: 5000
@@ -63,18 +43,11 @@ const VoiceSearchFAB = () => {
     }
 
     try {
-      isPressingRef.current = true;
+      isStartingRef.current = true;
       setIsRecording(true);
       audioChunksRef.current = [];
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Check if user already released button during the getUserMedia prompt/delay
-      if (!isPressingRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        setIsRecording(false);
-        return;
-      }
 
       // Choose a mimeType supported by browser
       let options = { mimeType: "audio/webm" };
@@ -103,7 +76,7 @@ const VoiceSearchFAB = () => {
         });
 
         if (audioBlob.size < 1000) {
-          toast.error("Vui lòng giữ lâu hơn để nói!");
+          toast.error("Vui lòng nói lâu hơn một chút trước khi bấm dừng!");
           setIsProcessing(false);
           return;
         }
@@ -112,7 +85,7 @@ const VoiceSearchFAB = () => {
       };
 
       mediaRecorder.start();
-      toast.success("Đang lắng nghe... Hãy nói rồi thả nút ra!", {
+      toast.success("Đang lắng nghe... Bấm lại nút micro khi nói xong.", {
         id: "voice-status",
         duration: 3000,
       });
@@ -126,12 +99,12 @@ const VoiceSearchFAB = () => {
       console.error("Lỗi truy cập micro:", err);
       toast.error("Không thể mở micro. Vui lòng cấp quyền micro cho trang web.");
       setIsRecording(false);
-      isPressingRef.current = false;
+    } finally {
+      isStartingRef.current = false;
     }
   };
 
   const stopRecording = () => {
-    isPressingRef.current = false;
     if (recordingTimeoutRef.current) {
       clearTimeout(recordingTimeoutRef.current);
     }
@@ -223,21 +196,18 @@ const VoiceSearchFAB = () => {
       <Tooltip
         title={
           isRecording
-            ? "Thả ra để gửi tìm kiếm"
+            ? "Bấm lại để dừng và tìm kiếm"
             : isProcessing
             ? "Đang xử lý..."
-            : "Nhấn giữ để tìm kiếm bằng giọng nói"
+            : "Bấm để bắt đầu tìm kiếm bằng giọng nói"
         }
         placement="top"
         arrow
       >
         <Fab
           color={isRecording ? "error" : "primary"}
-          onMouseDown={startRecording}
-          onMouseUp={stopRecording}
-          onTouchStart={startRecording}
-          onTouchEnd={stopRecording}
-          onContextMenu={(e) => e.preventDefault()} // Ngăn chặn menu chuột phải / nhấn giữ trên điện thoại
+          onClick={toggleRecording}
+          onContextMenu={(e) => e.preventDefault()}
           sx={{
             width: 56,
             height: 56,

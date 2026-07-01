@@ -7,15 +7,19 @@ import {
   Rating,
   Box,
   IconButton,
+  Button,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
 import { ShopContext } from "../context/shopcontext";
 
 function Item({ product }) {
   const navigate = useNavigate();
   const { addToCart } = useContext(ShopContext);
   const [quantity, setQuantity] = useState(1);
+  const quantityForSale = product.variant?.[0]?.quantityForSale ?? 0;
+  const isOutOfStock = quantityForSale <= 0;
 
   const handleClick = () => {
     navigate(`/product/${product._id}`);
@@ -75,7 +79,7 @@ function Item({ product }) {
         </Typography>
         {/* Số lượng tồn hiển thị chữ màu đen rõ ràng */}
         <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500, mt: 0.5 }}>
-          Số lượng tồn: {product.variant?.[0]?.quantityForSale ?? 0}
+          Số lượng tồn: {quantityForSale}
         </Typography>
 
         {/* Bộ chọn số lượng & nút thêm nhanh vào giỏ hàng */}
@@ -88,59 +92,80 @@ function Item({ product }) {
           }}
           onClick={(e) => e.stopPropagation()} // Ngăn sự kiện click lan truyền lên Card
         >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              overflow: "hidden",
-            }}
-          >
-            <button
-              onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-              style={{
-                border: "none",
-                background: "#f0f0f0",
-                padding: "4px 8px",
-                cursor: "pointer",
-                fontWeight: "bold",
+          {isOutOfStock ? (
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              href="tel:0813158383"
+              startIcon={<LocalPhoneIcon />}
+              sx={{
+                ml: "auto",
+                textTransform: "none",
+                fontWeight: 700,
+                borderRadius: "4px",
+                minHeight: "32px",
               }}
             >
-              -
-            </button>
-            <span style={{ padding: "0 10px", fontSize: "0.9rem", minWidth: "20px", textAlign: "center" }}>
-              {quantity}
-            </span>
-            <button
-              onClick={() => setQuantity((prev) => prev + 1)}
-              style={{
-                border: "none",
-                background: "#f0f0f0",
-                padding: "4px 8px",
-                cursor: "pointer",
-                fontWeight: "bold",
-              }}
-            >
-              +
-            </button>
-          </Box>
+              0813158383
+            </Button>
+          ) : (
+            <>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  style={{
+                    border: "none",
+                    background: "#f0f0f0",
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                >
+                  -
+                </button>
+                <span style={{ padding: "0 10px", fontSize: "0.9rem", minWidth: "20px", textAlign: "center" }}>
+                  {quantity}
+                </span>
+                <button
+                  onClick={() => setQuantity((prev) => prev + 1)}
+                  style={{
+                    border: "none",
+                    background: "#f0f0f0",
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                >
+                  +
+                </button>
+              </Box>
 
-          <IconButton
-            color="primary"
-            onClick={handleAddToCartClick}
-            sx={{
-              backgroundColor: "primary.main",
-              color: "white",
-              "&:hover": {
-                backgroundColor: "primary.dark",
-              },
-              borderRadius: "4px",
-              padding: "6px",
-            }}
-          >
-            <ShoppingCartIcon fontSize="small" />
-          </IconButton>
+              <IconButton
+                color="primary"
+                onClick={handleAddToCartClick}
+                sx={{
+                  backgroundColor: "primary.main",
+                  color: "white",
+                  "&:hover": {
+                    backgroundColor: "primary.dark",
+                  },
+                  borderRadius: "4px",
+                  padding: "6px",
+                }}
+              >
+                <ShoppingCartIcon fontSize="small" />
+              </IconButton>
+            </>
+          )}
         </Box>
       </CardContent>
     </Card>

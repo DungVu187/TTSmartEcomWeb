@@ -25,6 +25,16 @@ import "./style/products.css";
 import toast from "react-hot-toast";
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const removeVietnameseTones = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+};
+
 const Products = () => {
   const [products, setProducts] = useState([]);
   const topScrollRef = useRef(null);
@@ -139,6 +149,26 @@ const Products = () => {
     const initFilters = getInitialFilters();
     return initFilters.search || "";
   });
+
+  const searchSuggestions = React.useMemo(() => {
+    const suggestions = new Set();
+    products.forEach((p) => {
+      if (p.name) suggestions.add(p.name);
+      if (p.code) suggestions.add(p.code);
+      if (p.brand) suggestions.add(p.brand);
+    });
+    return Array.from(suggestions);
+  }, [products]);
+
+  const uniqueProductNames = React.useMemo(() => {
+    const names = products.map((p) => p.name).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [products]);
+
+  const uniqueProductCodes = React.useMemo(() => {
+    const codes = products.map((p) => p.code).filter(Boolean);
+    return Array.from(new Set(codes));
+  }, [products]);
   const [openSearchDialog, setOpenSearchDialog] = useState(false);
 
   useEffect(() => {
@@ -671,25 +701,57 @@ const Products = () => {
 
   const filterForm = (
     <form onSubmit={handleSubmit} className="filter-product-string">
-      <TextField
-        label="Tìm kiếm theo tên"
-        variant="outlined"
-        name="search"
+      <Autocomplete
+        freeSolo
+        size="small"
+        options={uniqueProductNames}
         value={tempFilters.search}
-        onChange={handleFilterChange}
-        fullWidth
-        size="small"
-        margin="normal"
+        onInputChange={(event, newInputValue) => {
+          setTempFilters((prev) => ({ ...prev, search: newInputValue }));
+        }}
+        onChange={(event, newValue) => {
+          setTempFilters((prev) => ({ ...prev, search: newValue || "" }));
+        }}
+        filterOptions={(options, state) => {
+          const inputValue = removeVietnameseTones(state.inputValue);
+          return options.filter((option) =>
+            removeVietnameseTones(option).includes(inputValue)
+          );
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Tìm kiếm theo tên"
+            variant="outlined"
+            margin="normal"
+          />
+        )}
       />
-      <TextField
-        label="Mã sản phẩm"
-        variant="outlined"
-        name="code"
-        value={tempFilters.code || ""}
-        onChange={handleFilterChange}
-        fullWidth
+      <Autocomplete
+        freeSolo
         size="small"
-        margin="normal"
+        options={uniqueProductCodes}
+        value={tempFilters.code || ""}
+        onInputChange={(event, newInputValue) => {
+          setTempFilters((prev) => ({ ...prev, code: newInputValue }));
+        }}
+        onChange={(event, newValue) => {
+          setTempFilters((prev) => ({ ...prev, code: newValue || "" }));
+        }}
+        filterOptions={(options, state) => {
+          const inputValue = removeVietnameseTones(state.inputValue);
+          return options.filter((option) =>
+            removeVietnameseTones(option).includes(inputValue)
+          );
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Mã sản phẩm"
+            variant="outlined"
+            margin="normal"
+          />
+        )}
       />
       <Select
         value={tempFilters.brand || "Tất cả"}
@@ -843,14 +905,32 @@ const Products = () => {
             </Button>
           </div>
           <div className="filter-desktop">
-            <TextField
-              label="Tìm kiếm nhanh..."
-              variant="outlined"
+            <Autocomplete
+              freeSolo
               size="small"
+              options={searchSuggestions}
               value={quickSearch}
-              onChange={(e) => setQuickSearch(e.target.value)}
-              placeholder="Tìm theo tên, mã, hãng..."
-              sx={{ width: 250, mr: 2, bgcolor: "white" }}
+              onInputChange={(event, newInputValue) => {
+                setQuickSearch(newInputValue);
+              }}
+              onChange={(event, newValue) => {
+                setQuickSearch(newValue || "");
+              }}
+              filterOptions={(options, state) => {
+                const inputValue = removeVietnameseTones(state.inputValue);
+                return options.filter((option) =>
+                  removeVietnameseTones(option).includes(inputValue)
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Tìm kiếm nhanh..."
+                  placeholder="Tìm theo tên, mã, hãng..."
+                  variant="outlined"
+                  sx={{ width: 250, mr: 2, bgcolor: "white" }}
+                />
+              )}
             />
             <Button
               className="filter-button"
@@ -886,9 +966,9 @@ const Products = () => {
           ref={tableContainerRef}
           onScroll={handleTableScroll}
           component={Paper} 
-          sx={{ overflowX: "auto" }}
+          sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}
         >
-          <Table sx={{ minWidth: 1600 }}>
+          <Table stickyHeader sx={{ minWidth: 1600 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#dedede" }}>
                 <TableCell align="center">Hiển thị</TableCell>

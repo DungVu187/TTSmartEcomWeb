@@ -24,6 +24,27 @@ function normalizeProductCodeForCompare(code) {
     return String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
+function hasAdjustedRequiredValue(value) {
+    const normalized = removeVietnameseTones(String(value ?? ''))
+        .toLowerCase()
+        .trim();
+
+    return ![
+        '',
+        'n/a',
+        'na',
+        'chua ro',
+        'chua co',
+        'chua phan loai'
+    ].includes(normalized);
+}
+
+function calculateProductAdjustedStatus(product) {
+    return ['type', 'brand', 'section'].every(field =>
+        hasAdjustedRequiredValue(product?.[field])
+    );
+}
+
 const VOICE_BRANDS = [
     'Airtac', 'Autonics', 'Chaofan', 'Delta', 'Frecon', 'Giga', 'Goldcup',
     'Haitima', 'Hanyoung', 'Idec', 'Keli', 'Kinco', 'Mitsubishi', 'Nass',
@@ -549,6 +570,8 @@ router.get("/", async (req, res) => {
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.max(1, parseInt(limit) || 100);
         const skip = (pageNum - 1) * limitNum;
+        const adjustedFilter =
+            adjusted !== undefined && adjusted !== "" ? adjusted === "true" : null;
 
         // Tạo bộ lọc
         const filter = {};
@@ -567,7 +590,6 @@ router.get("/", async (req, res) => {
         if (section && section !== "") filter.section = section;
         if (value && value !== "") filter.value = value;
         if (display !== undefined) filter.display = display === "true"; 
-        if (adjusted !== undefined && adjusted !== "") filter.adjusted = adjusted === "true";
 
         // Kiểm tra cookie authToken để thực hiện lọc theo trạm trộn của khách hàng
         const token = req.cookies?.authToken;
@@ -628,19 +650,32 @@ router.get("/", async (req, res) => {
             createdAt: -1 
         };
 
-        // Truy vấn MongoDB
-        const [products, total] = await Promise.all([
-            Product.find(filter)
-                .sort(sortCriteria)
-                .skip(skip)
-                .limit(limitNum),
-            Product.countDocuments(filter)
-        ]);
+        // Truy vấn MongoDB. adjusted được tính động để áp dụng cả sản phẩm cũ.
+        let products;
+        let total;
+
+        if (adjustedFilter === null) {
+            [products, total] = await Promise.all([
+                Product.find(filter)
+                    .sort(sortCriteria)
+                    .skip(skip)
+                    .limit(limitNum),
+                Product.countDocuments(filter)
+            ]);
+        } else {
+            const matchedProducts = await Product.find(filter).sort(sortCriteria);
+            const adjustedProducts = matchedProducts.filter(product =>
+                calculateProductAdjustedStatus(product) === adjustedFilter
+            );
+            total = adjustedProducts.length;
+            products = adjustedProducts.slice(skip, skip + limitNum);
+        }
 
         const processedProducts = products.map(product => {
             const productObj = product.toJSON();
             return {
                 ...productObj,
+                adjusted: calculateProductAdjustedStatus(productObj),
                 purchaseCount: productObj.purchaseCount || 0,
                 averageReviews: productObj.averageReviews || 0
             };

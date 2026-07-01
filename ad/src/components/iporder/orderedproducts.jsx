@@ -16,11 +16,22 @@ import {
   TablePagination,
   CircularProgress,
   Box,
+  Autocomplete,
 } from "@mui/material";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const removeVietnameseTones = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+};
 
 const OrderedProducts = () => {
   const [products, setProducts] = useState([]);
@@ -32,6 +43,11 @@ const OrderedProducts = () => {
   const [selectedProductName, setSelectedProductName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const uniqueProductNames = React.useMemo(() => {
+    const names = products.map((p) => p.name).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [products]);
 
   const [filters, setFilters] = useState({
     productName: "",
@@ -249,13 +265,32 @@ const OrderedProducts = () => {
 
         {/* Bộ lọc */}
         <Box display="flex" gap={2} mb={2}>
-          <TextField
-            name="productName"
-            label="Tên sản phẩm"
-            value={filters.productName}
-            onChange={handleFilterChange}
-            variant="outlined"
+          <Autocomplete
+            freeSolo
             size="small"
+            options={uniqueProductNames}
+            value={filters.productName}
+            onInputChange={(event, newInputValue) => {
+              setFilters((prev) => ({ ...prev, productName: newInputValue }));
+            }}
+            onChange={(event, newValue) => {
+              setFilters((prev) => ({ ...prev, productName: newValue || "" }));
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tên sản phẩm"
+                placeholder="Nhập tên..."
+                variant="outlined"
+                sx={{ width: 200 }}
+              />
+            )}
           />
           <TextField
             name="startDate"
@@ -298,8 +333,8 @@ const OrderedProducts = () => {
       {/* Bảng sản phẩm */}
       {!loading && (
         <>
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 320px)", overflowX: "auto" }}>
+            <Table stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell align="center">Hình ảnh</TableCell>

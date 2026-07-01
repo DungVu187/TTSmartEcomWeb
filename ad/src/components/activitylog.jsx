@@ -18,11 +18,22 @@ import {
   TextField,
   Button,
   Chip,
+  Autocomplete,
 } from "@mui/material";
 import moment from "moment";
 import { useNavigate } from "react-router-dom";
 
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const removeVietnameseTones = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+};
 
 // Nhãn hiển thị tiếng Việt cho các action
 const ACTION_LABELS = {
@@ -176,6 +187,16 @@ const ActivityLog = () => {
 
   const navigate = useNavigate();
 
+  const uniqueUserNames = React.useMemo(() => {
+    const names = logs.map((log) => log.userName).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [logs]);
+
+  const uniqueProductNames = React.useMemo(() => {
+    const names = logs.map((log) => log.productName).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [logs]);
+
   // Debounce hiệu ứng gõ phím
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -240,23 +261,63 @@ const ActivityLog = () => {
       </Typography>
 
       <Box display="flex" gap={1} flexWrap="wrap" mb={2} alignItems="center">
-        <TextField
-          label="Người thực hiện"
+        <Autocomplete
+          freeSolo
           size="small"
+          options={uniqueUserNames}
           value={userName}
-          onChange={(e) => {
-            setUserName(e.target.value);
+          onInputChange={(event, newInputValue) => {
+            setUserName(newInputValue);
             setPage(1);
           }}
+          onChange={(event, newValue) => {
+            setUserName(newValue || "");
+            setPage(1);
+          }}
+          filterOptions={(options, state) => {
+            const inputValue = removeVietnameseTones(state.inputValue);
+            return options.filter((option) =>
+              removeVietnameseTones(option).includes(inputValue)
+            );
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Người thực hiện"
+              placeholder="Nhập tên..."
+              variant="outlined"
+              sx={{ width: 200 }}
+            />
+          )}
         />
-        <TextField
-          label="Sản phẩm"
+        <Autocomplete
+          freeSolo
           size="small"
+          options={uniqueProductNames}
           value={productName}
-          onChange={(e) => {
-            setProductName(e.target.value);
+          onInputChange={(event, newInputValue) => {
+            setProductName(newInputValue);
             setPage(1);
           }}
+          onChange={(event, newValue) => {
+            setProductName(newValue || "");
+            setPage(1);
+          }}
+          filterOptions={(options, state) => {
+            const inputValue = removeVietnameseTones(state.inputValue);
+            return options.filter((option) =>
+              removeVietnameseTones(option).includes(inputValue)
+            );
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Sản phẩm"
+              placeholder="Nhập tên sản phẩm..."
+              variant="outlined"
+              sx={{ width: 200 }}
+            />
+          )}
         />
         <TextField
           label="Từ ngày"
@@ -329,8 +390,8 @@ const ActivityLog = () => {
             </FormControl>
           </Box>
 
-          <TableContainer component={Paper}>
-            <Table size="small">
+          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 280px)", overflowX: "auto" }}>
+            <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell align="center">

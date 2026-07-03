@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -20,17 +19,7 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
         });
 
         if (response.ok) {
-          const userData = await response.json();
           setIsAuthenticated(true);
-
-          // Kiểm tra vai trò nếu truy cập /account
-          if (location.pathname === '/account') {
-            if (userData.role !== 'admin' && userData.role !== 'superadmin') {
-              toast.error('Bạn không có quyền truy cập trang này!');
-              navigate('/product', { state: { from: location } });
-              return;
-            }
-          }
         } else {
           setIsAuthenticated(false);
           if (location.pathname !== redirectTo) {

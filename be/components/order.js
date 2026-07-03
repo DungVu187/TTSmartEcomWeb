@@ -6,6 +6,7 @@ const { Product } = require('./product');
 const { sendNewOrderNotification } = require('../mailer');
 const { sendZaloOrderNotification } = require('../zaloService');
 const { Station } = require('./station');
+const { StorageHistory } = require("./storagehistory");
 
 const router = express.Router();
 
@@ -22,6 +23,12 @@ const getUpdatedImgUrl = (originalUrl) => {
     }
   }
   return originalUrl;
+};
+
+const privilegedOrderRoles = ["admin", "superadmin", "staff"];
+
+const canAccessOrder = (order, user) => {
+  return order.userPhone === user?.phone || privilegedOrderRoles.includes(user?.role);
 };
 
 const counterSchema = new mongoose.Schema({
@@ -204,6 +211,21 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
             }
             product.purchaseCount = (product.purchaseCount || 0) + item.quantity;
             await product.save();
+
+            // Ghi lịch sử kho: xuất kho do đơn hàng bán online hoàn thành
+            try {
+              await new StorageHistory({
+                productId: item.productId,
+                productName: product.name,
+                quantity: -item.quantity,
+                userName: req.user?.name || "Hệ thống",
+                orderId: order.orderCode,
+                orderName: order.orderCode,
+                note: "Đơn hàng bán online",
+              }).save();
+            } catch (logErr) {
+              console.error("StorageHistory error (complete order):", logErr.message);
+            }
           })
         );
       } else if (order.status === "Completed" && value !== "Completed") {
@@ -217,6 +239,21 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
             variant.quantityInStorage += item.quantity;
             product.purchaseCount = Math.max(0, (product.purchaseCount || 0) - item.quantity);
             await product.save();
+
+            // Ghi lịch sử kho: nhập lại do hoàn tác đơn bán online
+            try {
+              await new StorageHistory({
+                productId: item.productId,
+                productName: product.name,
+                quantity: item.quantity,
+                userName: req.user?.name || "Hệ thống",
+                orderId: order.orderCode,
+                orderName: order.orderCode,
+                note: "Hoàn tác đơn bán online",
+              }).save();
+            } catch (logErr) {
+              console.error("StorageHistory error (revert order):", logErr.message);
+            }
           })
         );
       }
@@ -225,7 +262,7 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
     order[field] = value;
     await order.save();
 
-    // 👉 Emit khi đơn hàng được cập nhật
+    // Emit khi đơn hàng được cập nhật
     io.emit("order_updated", {
       orderId: order._id,
       updatedField: field,
@@ -333,7 +370,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       }
     }
 
-    // 👉 Gửi email thông báo đến admin (Sử dụng orderCode thay cho ObjectId)
+    // Gửi email thông báo đến admin (Sử dụng orderCode thay cho ObjectId)
     sendNewOrderNotification({
       orderId: savedOrder.orderCode || savedOrder._id,
       userPhone,
@@ -344,7 +381,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       stationCodes: stationCodesStr,
     });
 
-    // 👉 Gửi tin nhắn thông báo Zalo OA đến admin (không làm gián đoạn luồng đặt hàng nếu lỗi)
+    // Gửi tin nhắn thông báo Zalo OA đến admin (không làm gián đoạn luồng đặt hàng nếu lỗi)
     sendZaloOrderNotification({
       orderId: savedOrder.orderCode || savedOrder._id,
       userPhone,
@@ -353,7 +390,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       createdAt: savedOrder.createdAt,
     }).catch(err => console.error("Lỗi gửi thông báo Zalo:", err));
 
-    // 👉 Emit khi tạo đơn hàng
+    // Emit khi tạo đơn hàng
     io.emit("order_created", {
       orderId: savedOrder._id,
       orderCode: savedOrder.orderCode,
@@ -428,11 +465,15 @@ router.get("/processing-count", async (req, res) => {
 });
 
 // API lấy thông tin chi tiết đơn hàng
-router.get('/:_id', async (req, res) => {
+router.get('/:_id', authenticateUser, async (req, res) => {
   try {
     const order = await Order.findById(req.params._id); // Sửa req.params.id thành req.params._id
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (!canAccessOrder(order, req.user)) {
+      return res.status(403).json({ message: "Bạn không có quyền xem đơn hàng này." });
     }
 
     const cartDetails = await Promise.all(
@@ -478,6 +519,10 @@ router.delete("/:id", authenticateUser, async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    if (!canAccessOrder(order, req.user)) {
+      return res.status(403).json({ message: "Bạn không có quyền xóa đơn hàng này." });
+    }
+
     // Chặn xóa đơn hàng đã hoàn tất
     if (order.status === "Completed") {
       return res.status(400).json({ message: "Không thể xóa đơn hàng đã hoàn thành." });
@@ -498,7 +543,7 @@ router.delete("/:id", authenticateUser, async (req, res) => {
 
     await order.deleteOne();
 
-    // 👉 Emit khi xóa đơn hàng
+    // Emit khi xóa đơn hàng
     io.emit("order_deleted", { orderId: id });
 
     res.status(200).json({ message: "Order deleted and quantities restored if necessary." });
@@ -517,6 +562,10 @@ router.put("/:id", authenticateUser, async (req, res) => {
     const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
+    }
+
+    if (!canAccessOrder(order, req.user)) {
+      return res.status(403).json({ message: "Bạn không có quyền hủy đơn hàng này." });
     }
 
     // Chặn hủy đơn hàng đã hoàn tất
@@ -542,7 +591,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
     order.state = "Cancelled";
     await order.save();
 
-    // 👉 Emit khi hủy đơn hàng
+    // Emit khi hủy đơn hàng
     io.emit("order_cancelled", {
       orderId: order._id,
       userPhone: order.userPhone,

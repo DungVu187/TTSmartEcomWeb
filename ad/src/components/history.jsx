@@ -231,6 +231,7 @@ const History = () => {
           <option value="xuat_thu_cong">Xuất kho thủ công</option>
           <option value="nhap_ai">Nhập đơn quét AI</option>
           <option value="xuat_ai">Xuất đơn quét AI</option>
+          <option value="ban_online">Đơn hàng bán online</option>
         </TextField>
         <Button variant="outlined" color="secondary" onClick={handleResetFilters}>
           Xóa bộ lọc
@@ -294,35 +295,45 @@ const History = () => {
                     </TableCell>
                     <TableCell align="center">
                       {row.orderId ? (
-                        <span
-                          style={{
-                            cursor: "pointer",
-                            color: "#1976d2",
-                            textDecoration: "underline",
-                          }}
-                          onClick={() => {
-                            if (row.quantity > 0) {
-                              navigate(`/importorder/${row.orderId}`);
-                            } else if (row.quantity < 0) {
-                              navigate(`/exportorder/${row.orderId}`);
-                            }
-                          }}
-                        >
-                          {row.orderName || `Đơn hàng (#${row.orderId.slice(-6)})`}
-                        </span>
+                        row.note && row.note.includes("bán online") ? (
+                          <span>{row.orderName || row.orderId}</span>
+                        ) : (
+                          <span
+                            style={{
+                              cursor: "pointer",
+                              color: "#1976d2",
+                              textDecoration: "underline",
+                            }}
+                            onClick={() => {
+                              if (row.quantity > 0) {
+                                navigate(`/importorder/${row.orderId}`);
+                              } else if (row.quantity < 0) {
+                                navigate(`/exportorder/${row.orderId}`);
+                              }
+                            }}
+                          >
+                            {row.orderName || `Đơn hàng (#${row.orderId.slice(-6)})`}
+                          </span>
+                        )
                       ) : (
                         ""
                       )}
                     </TableCell>
                     <TableCell align="center">{row.quantity}</TableCell>
                     <TableCell align="center">
-                      {row.isAIScan ? (
-                        row.quantity > 0 ? "Nhập đơn quét AI" : "Xuất đơn quét AI"
-                      ) : row.orderId ? (
-                        row.quantity > 0 ? "Nhập kho theo đơn" : "Xuất kho theo đơn"
-                      ) : (
-                        row.quantity > 0 ? "Nhập kho thủ công" : "Xuất kho thủ công"
-                      )}
+                      {row.note
+                        ? row.note
+                        : row.isAIScan
+                        ? row.quantity > 0
+                          ? "Nhập đơn quét AI"
+                          : "Xuất đơn quét AI"
+                        : row.orderId
+                        ? row.quantity > 0
+                          ? "Nhập kho theo đơn"
+                          : "Xuất kho theo đơn"
+                        : row.quantity > 0
+                        ? "Nhập kho thủ công"
+                        : "Xuất kho thủ công"}
                     </TableCell>
                     <TableCell align="center">
                       {moment(row.createdAt).format("DD/MM/YYYY HH:mm")}

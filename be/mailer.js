@@ -23,7 +23,7 @@ const sendNewOrderNotification = async (orderInfo) => {
 
   const adminEmail = process.env.ADMIN_NOTIFY_EMAIL;
   if (!adminEmail || !process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn('⚠️  Bỏ qua gửi email: thiếu cấu hình GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_NOTIFY_EMAIL trong .env');
+    console.warn('Bỏ qua gửi email: thiếu cấu hình GMAIL_USER / GMAIL_APP_PASSWORD / ADMIN_NOTIFY_EMAIL trong .env');
     return;
   }
 
@@ -40,7 +40,7 @@ const sendNewOrderNotification = async (orderInfo) => {
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #1565c0; padding: 20px 24px;">
-        <h2 style="color: #ffffff; margin: 0;">🛒 Đơn hàng mới — TTSmart</h2>
+        <h2 style="color: #ffffff; margin: 0;">Đơn hàng mới — TTSmart</h2>
       </div>
       <div style="padding: 24px; background-color: #ffffff;">
         <p style="font-size: 16px; color: #333;">Có một đơn hàng mới vừa được đặt trên hệ thống. Vui lòng xử lý sớm.</p>
@@ -91,37 +91,37 @@ const sendNewOrderNotification = async (orderInfo) => {
     await transporter.sendMail({
       from: `"TTSmart Ecom" <${process.env.GMAIL_USER}>`,
       to: adminEmail,
-      subject: `🛒 Đơn hàng mới #${orderId} — ${totalFormatted}`,
+      subject: `Đơn hàng mới #${orderId} — ${totalFormatted}`,
       html: htmlBody,
     });
-    console.log(`✅ Đã gửi email thông báo đơn hàng mới đến ${adminEmail}`);
+    console.log(`Đã gửi email thông báo đơn hàng mới đến ${adminEmail}`);
   } catch (err) {
     // Không throw — tránh làm hỏng response tạo đơn
-    console.error('❌ Gửi email thất bại:', err.message);
+    console.error('Gửi email thất bại:', err.message);
   }
 };
 
 const sendResetOtpEmail = async (email, otp, userName) => {
   if (!email || !process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn('⚠️  Bỏ qua gửi email: thiếu cấu hình GMAIL_USER / GMAIL_APP_PASSWORD trong .env hoặc thiếu email nhận');
+    console.warn('Bỏ qua gửi email: thiếu cấu hình GMAIL_USER / GMAIL_APP_PASSWORD trong .env hoặc thiếu email nhận');
     return;
   }
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #1976d2; padding: 20px 24px; text-align: center;">
-        <h2 style="color: #ffffff; margin: 0;">🔑 Khôi phục mật khẩu — TTSmart</h2>
+        <h2 style="color: #ffffff; margin: 0;">Khôi phục mật khẩu — TTSmart</h2>
       </div>
       <div style="padding: 24px; background-color: #ffffff;">
         <p style="font-size: 16px; color: #333;">Xin chào <strong>${userName || 'Khách hàng'}</strong>,</p>
         <p style="font-size: 16px; color: #333;">Chúng tôi nhận được yêu cầu khôi phục mật khẩu cho tài khoản của bạn. Vui lòng sử dụng mã OTP dưới đây để hoàn tất việc đặt lại mật khẩu:</p>
-        
+
         <div style="margin: 24px 0; text-align: center;">
           <span style="display: inline-block; background-color: #f1f8e9; color: #33691e; border: 1px dashed #689f38; font-size: 28px; font-weight: bold; letter-spacing: 4px; padding: 12px 30px; border-radius: 6px;">
             ${otp}
           </span>
         </div>
-        
+
         <p style="font-size: 14px; color: #e53935; font-weight: bold;">Lưu ý: Mã OTP này có hiệu lực trong vòng 5 phút.</p>
         <p style="font-size: 14px; color: #666; margin-top: 16px;">Nếu bạn không yêu cầu khôi phục mật khẩu, vui lòng bỏ qua email này.</p>
       </div>
@@ -135,12 +135,12 @@ const sendResetOtpEmail = async (email, otp, userName) => {
     await transporter.sendMail({
       from: `"TTSmart Ecom" <${process.env.GMAIL_USER}>`,
       to: email,
-      subject: `🔑 Mã OTP khôi phục mật khẩu của bạn — TTSmart`,
+      subject: `Mã OTP khôi phục mật khẩu của bạn — TTSmart`,
       html: htmlBody,
     });
-    console.log(`✅ Đã gửi email mã OTP đến ${email}`);
+    console.log(`Đã gửi email mã OTP đến ${email}`);
   } catch (err) {
-    console.error('❌ Gửi email OTP thất bại:', err.message);
+    console.error('Gửi email OTP thất bại:', err.message);
     throw new Error('Gửi email OTP thất bại: ' + err.message);
   }
 };

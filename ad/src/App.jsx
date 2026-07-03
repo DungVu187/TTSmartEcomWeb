@@ -8,6 +8,7 @@ import ProductDisplay from './components/productdisplay';
 import Orders from './components/orders';
 import Login from './components/login';
 import ProtectedRoute from './components/protectedroute';
+import RoleGuard from './components/RoleGuard';
 import Manage from './components/manage';
 import SectionDisplay from './components/sectiondisplay';
 import SoldProducts from './components/soldproducts';
@@ -41,29 +42,29 @@ const App = () => {
                 <Sidebar />
                 <Box className="admin-content-wrapper" sx={{ flex: 1, padding: '20px', pt: { xs: '70px', md: '20px' }, minWidth: 0 }}>
                   <Routes>
-                    <Route path="/account" element={<Account />} />
+                    <Route path="/account" element={<RoleGuard adminOnly><Account /></RoleGuard>} />
                     <Route path="/product" element={<Products />} />
                     <Route path="/chip" element={<Chips />} />
                     <Route path="/cluster" element={<Chips onlySection={true} />} />
                     <Route path="/product/:productId" element={<ProductDisplay />} />
-                    <Route path="/order" element={<Orders />} />
+                    <Route path="/order" element={<RoleGuard requiredFunction="order_management"><Orders /></RoleGuard>} />
                     <Route path="/manage" element={<Manage />} />
                     <Route path="/sectiondisplay" element={<SectionDisplay />} />
-                    <Route path="/soldproducts" element={<SoldProducts />} />
-                    <Route path="/orderedproducts" element={<OrderedProducts />} />
-                    <Route path="/importorder" element={<IpOrders />} />
-                    <Route path="/importorder/:id" element={<ImportOrderDetail />} />
-                    <Route path="/exportedproducts" element={<ExportedProducts />} />
-                    <Route path="/exportorder" element={<EpOrders />} />
-                    <Route path="/exportorder/:id" element={<ExportOrderDetail />} />
-                    <Route path="/importordertemplate/:index" element={<IpOrderTemplate />} />
+                    <Route path="/soldproducts" element={<RoleGuard requiredFunction="order_management"><SoldProducts /></RoleGuard>} />
+                    <Route path="/orderedproducts" element={<RoleGuard requiredFunction="iporder_management"><OrderedProducts /></RoleGuard>} />
+                    <Route path="/importorder" element={<RoleGuard requiredFunction="iporder_management"><IpOrders /></RoleGuard>} />
+                    <Route path="/importorder/:id" element={<RoleGuard requiredFunction="iporder_management"><ImportOrderDetail /></RoleGuard>} />
+                    <Route path="/exportedproducts" element={<RoleGuard requiredFunction="eporder_management"><ExportedProducts /></RoleGuard>} />
+                    <Route path="/exportorder" element={<RoleGuard requiredFunction="eporder_management"><EpOrders /></RoleGuard>} />
+                    <Route path="/exportorder/:id" element={<RoleGuard requiredFunction="eporder_management"><ExportOrderDetail /></RoleGuard>} />
+                    <Route path="/importordertemplate/:index" element={<RoleGuard requiredFunction="iporder_management"><IpOrderTemplate /></RoleGuard>} />
                     <Route path="/stationuser" element={<StationUser />} />      
                     <Route path="/station" element={<Station />} />
                     <Route path="/station/:code" element={<StationDisplay />} />
                     <Route path="/history" element={<History />} />
                     <Route path="/activity-log" element={<ActivityLog />} />
                     <Route path="/chat" element={<Chat />} />
-                    <Route path="/zalo" element={<ZaloSettings />} />
+                    <Route path="/zalo" element={<RoleGuard adminOnly><ZaloSettings /></RoleGuard>} />
                   </Routes>
                 </Box>
                 <VoiceSearchFAB />

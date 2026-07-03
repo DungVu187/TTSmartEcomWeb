@@ -1,4 +1,3 @@
-// Force new hash update for superadmin roles bypass
 import React, { useState, useEffect } from "react";
 import {
   Drawer,
@@ -74,7 +73,6 @@ const Sidebar = () => {
           credentials: "include",
         });
         const data = await res.json();
-        console.log("Super Admin active check:", data.role);
         if (res.ok) {
           setUserFunctions(data.functions || []);
           setUserRole(data.role || "");

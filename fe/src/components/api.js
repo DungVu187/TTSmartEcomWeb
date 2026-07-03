@@ -11,26 +11,20 @@ const api = axios.create({
   xsrfHeaderName: "X-CSRF-Token",
 });
 
-// Middleware cho response (xử lý token hết hạn)
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-    if (
+    const isInvalidToken =
       error.response?.status === 400 &&
-      error.response.data.message.includes("Token không hợp lệ") &&
-      !originalRequest._retry
-    ) {
-      originalRequest._retry = true;
-      try {
-        await api.post("/users/refresh-token");
-        return api(originalRequest); // Thử lại request ban đầu
-      } catch (refreshError) {
-        toast.error("Token đã hết hạn, bạn cần đăng nhập lại");
-        window.location.href = "/login?redirect=" + encodeURIComponent(window.location.pathname + window.location.search);
-        return Promise.reject(refreshError);
-      }
+      error.response.data?.message?.includes("Token không hợp lệ");
+
+    if (error.response?.status === 401 || isInvalidToken) {
+      toast.error("Token đã hết hạn, bạn cần đăng nhập lại");
+      window.location.href =
+        "/login?redirect=" +
+        encodeURIComponent(window.location.pathname + window.location.search);
     }
+
     return Promise.reject(error);
   }
 );

@@ -527,7 +527,6 @@ router.post('/create', [authenticateAdmin, checkPermission('update_product')], a
         if (code && code.trim()) {
             const existing = await findProductByEquivalentCode(code);
             if (existing) {
-                console.log(`[create-product] Từ chối tạo: Mã sản phẩm "${code.trim()}" đã tồn tại (SP: ${existing.name}).`);
                 return res.status(409).json({
                     message: `Mã sản phẩm "${code.trim()}" đã tồn tại (${existing.name}). Vui lòng dùng mã khác.`
                 });
@@ -793,7 +792,6 @@ router.get("/", async (req, res) => {
             delete relaxedFilter.type;
             delete relaxedFilter.brand;
             [products, total] = await runQuery(relaxedFilter);
-            console.log(`[SEARCH FALLBACK] Nới lỏng bộ lọc bỏ type/brand. Tìm thấy ${total} kết quả.`);
         }
 
         const processedProducts = products.map(product => {
@@ -846,7 +844,6 @@ router.get('/:_id', async (req, res) => {
 
 // API lấy thông tin nhiều sản phẩm qua mảng id
 router.post('/fetch-by-ids', async (req, res) => {
-    console.log('📨 API /fetch-by-ids body:', req.body);
     try {
         const { ids } = req.body;
 
@@ -938,9 +935,6 @@ router.put('/update-display-field', [authenticateAdmin, checkPermission('update_
 // API sửa thông tin sản phẩm
 router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     try {
-        console.log('[PUT /products/:_id] id =', req.params._id);
-        console.log('[PUT /products/:_id] name in body =', req.body.name);
-
         // Lấy dữ liệu cũ trước khi cập nhật để so sánh
         const oldProduct = await Product.findById(req.params._id);
         if (!oldProduct) {
@@ -955,9 +949,8 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
         if (req.body.code && req.body.code.trim()) {
             const existing = await findProductByEquivalentCode(req.body.code, req.params._id);
             if (existing) {
-                console.log(`[update-product] Duplicate equivalent code "${req.body.code.trim()}" with product "${existing.name}".`);
                 return res.status(409).json({
-                    message: `MÃ£ sáº£n pháº©m "${req.body.code.trim()}" Ä‘Ã£ tá»“n táº¡i (${existing.name}). Vui lÃ²ng dÃ¹ng mÃ£ khÃ¡c.`
+                    message: `Mã sản phẩm "${req.body.code.trim()}" đã tồn tại (${existing.name}). Vui lòng dùng mã khác.`
                 });
             }
         }
@@ -967,8 +960,6 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
             { $set: req.body },
             { new: true, runValidators: false }
         );
-        console.log('[PUT /products/:_id] name saved =', updatedProduct?.name);
-        console.log('[PUT /products/:_id] result =', updatedProduct ? 'found & updated' : 'NOT FOUND');
         if (!updatedProduct) {
             return res.status(404).json({ message: 'Product not found' });
         }
@@ -2110,8 +2101,6 @@ router.post('/voice-query', [uploadAudio.single('audio')], async (req, res) => {
             mimeType = 'audio/mp4'; // Safari fallback
         }
 
-        console.log(`\n📥 [VOICE INCOMING] Nhận file âm thanh từ điện thoại: ${req.file.size} bytes | Định dạng: ${mimeType}`);
-
         const systemPrompt = `Bạn là trợ lý ảo thông minh phụ trách quản lý kho hàng của công ty thiết bị điện/thiết bị tự động hóa TTSmart.
 Hãy nghe file âm thanh được cung cấp (giọng nói tiếng Việt của người dùng) và thực hiện 2 nhiệm vụ:
 1. Ghi lại chính xác (transcribe) những gì người dùng đã nói (giữ nguyên tiếng Việt có dấu, viết hoa các từ cần thiết như Siemens, Mitsubishi, GPC1202, S7-1200, FX3U,...).
@@ -2281,10 +2270,6 @@ Ví dụ cụ thể:
                 intent: "search_product",
                 filters: { brand: null, type: null, code: null }
             });
-            console.log("\n🎙️ [VOICE SEARCH - FALLBACK] -----------------------");
-            console.log(`🗣️ Người dùng nói: "${fallbackResult.transcript}"`);
-            console.log(`🔍 Từ khóa trích xuất: "${fallbackResult.keyword}"`);
-            console.log("---------------------------------------------------\n");
             return res.json({
                 success: 1,
                 ...fallbackResult
@@ -2292,11 +2277,6 @@ Ví dụ cụ thể:
         }
 
         const normalizedResult = normalizeVoiceQueryResult(resultObj);
-        console.log("\n🎙️ [VOICE SEARCH] ----------------------------------");
-        console.log(`🗣️ Người dùng nói: "${normalizedResult.transcript}"`);
-        console.log(`🔍 Từ khóa trích xuất: "${normalizedResult.keyword}"`);
-        console.log(`🎛️ Bộ lọc trích xuất:`, JSON.stringify(normalizedResult.filters));
-        console.log("---------------------------------------------------\n");
         res.json({
             success: 1,
             ...normalizedResult

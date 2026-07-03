@@ -6,7 +6,7 @@ const authenticateAdmin = (req, res, next) => {
     return userModule.authenticateAdmin(req, res, next);
 };
 
-// ✅ Định nghĩa schema
+// Định nghĩa schema
 const activityLogSchema = new mongoose.Schema({
     userName: {
         type: String,

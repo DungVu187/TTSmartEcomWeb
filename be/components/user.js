@@ -141,14 +141,13 @@ const assignPermissionsForFunctions = (functions = []) => {
 };
 
 const getCookieOptions = (req, maxAge = 43200000) => {
-  const origin = req.headers.origin || "";
-  const isLocaltunnel = origin.includes("loca.lt") || origin.includes("localtunnel");
-  // Chỉ set secure khi thực sự chạy trên HTTPS hoặc qua localtunnel
-  const secureCookie = isLocaltunnel || req.secure;
+  // req.secure đúng nhờ trust proxy=1 + Nginx X-Forwarded-Proto khi chạy HTTPS;
+  // LAN/HTTP thì false. FE/BE cùng miền nên sameSite 'lax' là đủ và an toàn.
+  const secureCookie = req.secure;
   return {
     httpOnly: true,
     secure: secureCookie,
-    sameSite: secureCookie ? "none" : "lax",
+    sameSite: "lax",
     ...(maxAge ? { maxAge } : {})
   };
 };
@@ -173,7 +172,7 @@ const authenticateAdmin = async (req, res, next) => {
   }
 };
 
-// Middleware xác thực user (đọc token từ cookie)
+// Middleware xác thực user (đọc token từ cookie, tra DB để xác thực còn tồn tại + lấy role tươi)
 const authenticateUser = async (req, res, next) => {
   const token = req.cookies.authToken; // Đọc token từ cookie
   if (!token) {
@@ -181,7 +180,20 @@ const authenticateUser = async (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: "Tài khoản không tồn tại hoặc đã bị xóa" });
+    }
+    // Giữ nguyên shape payload JWT (userId, ...) nhưng lấy giá trị tươi từ DB
+    req.user = {
+      userId: user._id.toString(),
+      email: user.email,
+      phone: user.phone,
+      name: user.name,
+      role: user.role,
+      functions: user.functions || [],
+      permissions: user.permissions || [],
+    };
     next();
   } catch (error) {
     console.error("Error in authenticateUser:", error.message);

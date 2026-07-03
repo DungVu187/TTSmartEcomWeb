@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require('./user');
 
-// ✅ Định nghĩa schema
+// Định nghĩa schema
 const storageHistorySchema = new mongoose.Schema({
     productId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -25,6 +25,10 @@ const storageHistorySchema = new mongoose.Schema({
     },
     orderName: {
         type: String
+    },
+    note: {
+        type: String,
+        default: ""
     },
     isAIScan: {
         type: Boolean,
@@ -73,10 +77,12 @@ router.get("/", authenticateAdmin, async (req, res) => {
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $nin: [null, ""] };
                 filter.isAIScan = { $ne: true };
+                filter.note = { $nin: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] };
             } else if (noteType === 'xuat_don') {
                 filter.quantity = { $lt: 0 };
                 filter.orderName = { $nin: [null, ""] };
                 filter.isAIScan = { $ne: true };
+                filter.note = { $nin: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] };
             } else if (noteType === 'nhap_thu_cong') {
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $in: [null, ""] };
@@ -91,6 +97,8 @@ router.get("/", authenticateAdmin, async (req, res) => {
             } else if (noteType === 'xuat_ai') {
                 filter.quantity = { $lt: 0 };
                 filter.isAIScan = true;
+            } else if (noteType === 'ban_online') {
+                filter.note = { $in: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] };
             }
         }
 

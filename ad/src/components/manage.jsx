@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
@@ -22,6 +21,132 @@ import "./style/manage.css";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const ImageCarouselSection = ({
+  title,
+  emptyText,
+  images,
+  type,
+  thumbsSwiper,
+  setThumbsSwiper,
+  inputRef,
+  onFileSelect,
+  onTriggerFileInput,
+  onImageClick,
+  loading,
+  buttonText,
+  loadingText,
+  mainHeight,
+  mainObjectFit,
+  slideAltPrefix,
+}) => (
+  <Box sx={{ mb: 4, width: "900px" }}>
+    <Typography variant="h6">{title}</Typography>
+    <Box sx={{ border: "1px solid #ccc", padding: 2 }}>
+      {images.length > 0 ? (
+        <>
+          <Swiper
+            key={images.join("-")}
+            modules={[Navigation, Pagination, Thumbs]}
+            navigation
+            pagination={{ clickable: true }}
+            thumbs={{
+              swiper: thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null,
+            }}
+            spaceBetween={10}
+            slidesPerView={1}
+            style={{ height: mainHeight }}
+          >
+            {images.map((imgUrl, index) => (
+              <SwiperSlide key={index}>
+                <Box
+                  sx={{ cursor: "pointer" }}
+                  onClick={() => onImageClick(imgUrl, type)}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`${slideAltPrefix} ${index}`}
+                    style={{ width: "100%", height: mainHeight, objectFit: mainObjectFit }}
+                  />
+                </Box>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+          <Swiper
+            onSwiper={setThumbsSwiper}
+            modules={[Thumbs]}
+            spaceBetween={10}
+            slidesPerView={4}
+            freeMode
+            watchSlidesProgress
+            style={{ marginTop: 10 }}
+          >
+            {images.map((imgUrl, index) => (
+              <SwiperSlide key={index}>
+                <Box sx={{ cursor: "pointer" }}>
+                  <img
+                    src={imgUrl}
+                    alt={`Thumb ${index}`}
+                    style={{ width: "100%", height: 60, objectFit: "cover" }}
+                  />
+                </Box>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </>
+      ) : (
+        <Typography>{emptyText}</Typography>
+      )}
+    </Box>
+    <input
+      type="file"
+      multiple
+      ref={inputRef}
+      onChange={onFileSelect(type)}
+      accept="image/*"
+      style={{ display: "none" }}
+    />
+    <Button
+      variant="contained"
+      onClick={onTriggerFileInput(type)}
+      disabled={loading}
+      sx={{ mt: 2 }}
+    >
+      {loading ? loadingText : buttonText}
+    </Button>
+  </Box>
+);
+
+const TextUpdateSection = ({
+  title,
+  buttonLoadingText,
+  buttonText,
+  label,
+  value,
+  onChange,
+  onUpdate,
+  loading,
+}) => (
+  <Box sx={{ mb: 4, display: "grid" }}>
+    <Typography variant="h6">{title}</Typography>
+    <Button
+      variant="contained"
+      onClick={onUpdate}
+      disabled={loading}
+      sx={{ mb: 2, width: "150px" }}
+    >
+      {loading ? buttonLoadingText : buttonText}
+    </Button>
+    <TextField
+      multiline
+      minRows={5}
+      label={label}
+      value={value}
+      onChange={onChange}
+      style={{ minWidth: "500px", borderRadius: "4px", borderColor: "#ccc" }}
+    />
+  </Box>
+);
+
 const Manage = () => {
   const [manageData, setManageData] = useState({
     overViewImg: [],
@@ -34,8 +159,8 @@ const Manage = () => {
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [bannerThumbsSwiper, setBannerThumbsSwiper] = useState(null); // Thumbs cho ảnh bìa
-  const [partnersThumbsSwiper, setPartnersThumbsSwiper] = useState(null); // Thumbs cho ảnh đối tác
+  const [bannerThumbsSwiper, setBannerThumbsSwiper] = useState(null);
+  const [partnersThumbsSwiper, setPartnersThumbsSwiper] = useState(null);
   const [introductionInput, setIntroductionInput] = useState("");
   const [mainPolicyInput, setMainPolicyInput] = useState("");
 
@@ -51,7 +176,7 @@ const Manage = () => {
   const fetchManageData = async () => {
     try {
       const response = await fetch(`${apiUrl}/manages/`, {
-        credentials: 'include',
+        credentials: "include",
       });
       const result = await response.json();
       if (result.success) {
@@ -88,7 +213,7 @@ const Manage = () => {
           : `${apiUrl}/manages/update`;
       const response = await fetch(endpoint, {
         method: type === "banner" || type === "partners" ? "POST" : "PUT",
-        credentials: 'include',
+        credentials: "include",
         body: formData,
       });
       const result = await response.json();
@@ -164,7 +289,7 @@ const Manage = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({ imgUrl }),
       });
       const result = await response.json();
@@ -206,7 +331,7 @@ const Manage = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({ introduction: introductionInput }),
       });
       const result = await response.json();
@@ -235,7 +360,7 @@ const Manage = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({ mainPolicy: mainPolicyInput }),
       });
       const result = await response.json();
@@ -264,203 +389,66 @@ const Manage = () => {
         </Typography>
       </div>
 
-      {/* Ảnh bìa (overViewImg) */}
-      <Box sx={{ mb: 4, width: "900px" }}>
-        <Typography variant="h6">Ảnh bìa</Typography>
-        <Box sx={{ border: "1px solid #ccc", padding: 2 }}>
-          {manageData.overViewImg.length > 0 ? (
-            <>
-              <Swiper
-                key={manageData.overViewImg.join("-")}
-                modules={[Navigation, Pagination, Thumbs]}
-                navigation
-                pagination={{ clickable: true }}
-                thumbs={{
-                  swiper: bannerThumbsSwiper && !bannerThumbsSwiper.destroyed ? bannerThumbsSwiper : null,
-                }}
-                spaceBetween={10}
-                slidesPerView={1}
-                style={{ height: "300px" }}
-              >
-                {manageData.overViewImg.map((imgUrl, index) => (
-                  <SwiperSlide key={index}>
-                    <Box
-                      sx={{ cursor: "pointer" }}
-                      onClick={() => handleImageClick(imgUrl, "banner")}
-                    >
-                      <img
-                        src={imgUrl}
-                        alt={`Banner ${index}`}
-                        style={{ width: "100%", height: "300px", objectFit: "fill" }}
-                      />
-                    </Box>
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-              <Swiper
-                onSwiper={setBannerThumbsSwiper} // Gán thumbs cho ảnh bìa
-                modules={[Thumbs]}
-                spaceBetween={10}
-                slidesPerView={4}
-                freeMode
-                watchSlidesProgress
-                style={{ marginTop: 10 }}
-              >
-                {manageData.overViewImg.map((imgUrl, index) => (
-                  <SwiperSlide key={index}>
-                    <Box sx={{ cursor: "pointer" }}>
-                      <img
-                        src={imgUrl}
-                        alt={`Thumb ${index}`}
-                        style={{ width: "100%", height: 60, objectFit: "cover" }}
-                      />
-                    </Box>
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </>
-          ) : (
-            <Typography>Chưa có ảnh bìa</Typography>
-          )}
-        </Box>
-        <input
-          type="file"
-          multiple
-          ref={bannerInputRef}
-          onChange={handleFileSelect("banner")}
-          accept="image/*"
-          style={{ display: "none" }}
-        />
-        <Button
-          variant="contained"
-          onClick={triggerFileInput("banner")}
-          disabled={loading}
-          sx={{ mt: 2 }}
-        >
-          {loading ? "Đang tải..." : "Thêm ảnh bìa"}
-        </Button>
-      </Box>
+      <ImageCarouselSection
+        title="Ảnh bìa"
+        emptyText="Chưa có ảnh bìa"
+        images={manageData.overViewImg}
+        type="banner"
+        thumbsSwiper={bannerThumbsSwiper}
+        setThumbsSwiper={setBannerThumbsSwiper}
+        inputRef={bannerInputRef}
+        onFileSelect={handleFileSelect}
+        onTriggerFileInput={triggerFileInput}
+        onImageClick={handleImageClick}
+        loading={loading}
+        buttonText="Thêm ảnh bìa"
+        loadingText="Đang tải..."
+        mainHeight="300px"
+        mainObjectFit="fill"
+        slideAltPrefix="Banner"
+      />
 
-      {/* Ảnh đối tác */}
-      <Box sx={{ mb: 4, width: "900px" }}>
-        <Typography variant="h6">Ảnh đối tác</Typography>
-        <Box sx={{ border: "1px solid #ccc", padding: 2 }}>
-          {manageData.partners.length > 0 ? (
-            <>
-              <Swiper
-                key={manageData.partners.join("-")}
-                modules={[Navigation, Pagination, Thumbs]}
-                navigation
-                pagination={{ clickable: true }}
-                thumbs={{
-                  swiper: partnersThumbsSwiper && !partnersThumbsSwiper.destroyed ? partnersThumbsSwiper : null,
-                }}
-                spaceBetween={10}
-                slidesPerView={1}
-                style={{ height: "100px" }}
-              >
-                {manageData.partners.map((imgUrl, index) => (
-                  <SwiperSlide key={index}>
-                    <Box
-                      sx={{ cursor: "pointer" }}
-                      onClick={() => handleImageClick(imgUrl, "partners")}
-                    >
-                      <img
-                        src={imgUrl}
-                        alt={`Partner ${index}`}
-                        style={{ width: "100%", height: "100px", objectFit: "contain" }}
-                      />
-                    </Box>
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-              <Swiper
-                onSwiper={setPartnersThumbsSwiper} // Gán thumbs cho ảnh đối tác
-                modules={[Thumbs]}
-                spaceBetween={10}
-                slidesPerView={4}
-                freeMode
-                watchSlidesProgress
-                style={{ marginTop: 10 }}
-              >
-                {manageData.partners.map((imgUrl, index) => (
-                  <SwiperSlide key={index}>
-                    <Box sx={{ cursor: "pointer" }}>
-                      <img
-                        src={imgUrl}
-                        alt={`Thumb ${index}`}
-                        style={{ width: "100%", height: 60, objectFit: "cover" }}
-                      />
-                    </Box>
-                  </SwiperSlide>
-                ))}
-              </Swiper>
-            </>
-          ) : (
-            <Typography>Chưa có đối tác</Typography>
-          )}
-        </Box>
-        <input
-          type="file"
-          multiple
-          ref={partnersInputRef}
-          onChange={handleFileSelect("partners")}
-          accept="image/*"
-          style={{ display: "none" }}
-        />
-        <Button
-          variant="contained"
-          onClick={triggerFileInput("partners")}
-          disabled={loading}
-          sx={{ mt: 2 }}
-        >
-          {loading ? "Đang tải..." : "Thêm ảnh đối tác"}
-        </Button>
-      </Box>
+      <ImageCarouselSection
+        title="Ảnh đối tác"
+        emptyText="Chưa có đối tác"
+        images={manageData.partners}
+        type="partners"
+        thumbsSwiper={partnersThumbsSwiper}
+        setThumbsSwiper={setPartnersThumbsSwiper}
+        inputRef={partnersInputRef}
+        onFileSelect={handleFileSelect}
+        onTriggerFileInput={triggerFileInput}
+        onImageClick={handleImageClick}
+        loading={loading}
+        buttonText="Thêm ảnh đối tác"
+        loadingText="Đang tải..."
+        mainHeight="100px"
+        mainObjectFit="contain"
+        slideAltPrefix="Partner"
+      />
 
-      {/* Giới thiệu (introduction) */}
-      <Box sx={{ mb: 4, display: "grid" }}>
-        <Typography variant="h6">Giới thiệu</Typography>
-        <Button
-          variant="contained"
-          onClick={handleUpdateIntroduction}
-          disabled={loading}
-          sx={{ mb: 2, width: "150px" }}
-        >
-          {loading ? "Đang cập nhật..." : "Cập nhật"}
-        </Button>
-        <TextField
-          multiline
-          minRows={5}
-          label="Nhập nội dung giới thiệu"
-          value={introductionInput}
-          onChange={(e) => setIntroductionInput(e.target.value)}
-          style={{ minWidth: "500px", borderRadius: "4px", borderColor: "#ccc" }}
-        />
-      </Box>
+      <TextUpdateSection
+        title="Giới thiệu"
+        buttonLoadingText="Đang cập nhật..."
+        buttonText="Cập nhật"
+        label="Nhập nội dung giới thiệu"
+        value={introductionInput}
+        onChange={(e) => setIntroductionInput(e.target.value)}
+        onUpdate={handleUpdateIntroduction}
+        loading={loading}
+      />
 
-      {/* Chính sách (mainPolicy) */}
-      <Box sx={{ mb: 4, display: "grid" }}>
-        <Typography variant="h6">Chính sách</Typography>
-        <Button
-          variant="contained"
-          onClick={handleUpdateMainPolicy}
-          disabled={loading}
-          sx={{ mb: 2, width: "150px" }}
-        >
-          {loading ? "Đang cập nhật..." : "Cập nhật"}
-        </Button>
-        <TextField
-          multiline
-          minRows={5}
-          label="Nhập nội dung chính sách"
-          value={mainPolicyInput}
-          onChange={(e) => setMainPolicyInput(e.target.value)}
-          style={{ minWidth: "500px", borderRadius: "4px", borderColor: "#ccc" }}
-        />
-      </Box>
+      <TextUpdateSection
+        title="Chính sách"
+        buttonLoadingText="Đang cập nhật..."
+        buttonText="Cập nhật"
+        label="Nhập nội dung chính sách"
+        value={mainPolicyInput}
+        onChange={(e) => setMainPolicyInput(e.target.value)}
+        onUpdate={handleUpdateMainPolicy}
+        loading={loading}
+      />
 
-      {/* Dialog xác nhận xóa */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}

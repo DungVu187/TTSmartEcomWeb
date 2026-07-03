@@ -200,26 +200,41 @@ Virtual: `inviteCode` trả về `stationCode`. Helper: `findStationByInviteCode
 ### Frontend Client (`fe/.env`)
 | Biến | Mô tả |
 |---|---|
-| `REACT_APP_API_URL` | Base URL của backend API |
+| `REACT_APP_BACK_END` | Base URL của backend API |
 
 ---
 
 ## 8. QUY TẮC CỐT LÕI: TUÂN THỦ AI AGENT SKILLS
 
-Thư mục `/skills` ở gốc dự án chứa các bộ hướng dẫn thiết kế và phát triển chất lượng cao giúp tránh các lối mòn thiết kế rập khuôn của AI.
+Thư mục `skills/` ở gốc dự án chứa các bộ hướng dẫn thiết kế và phát triển chất lượng cao giúp tránh các lối mòn thiết kế rập khuôn của AI.
 
-> **BẮT BUỘC**: Khi thực hiện bất kỳ thay đổi nào liên quan đến giao diện (UI) hoặc cấu trúc mã nguồn, AI Agent phải đọc `SKILL.md` tương ứng trong `/skills` **trước khi viết code**.
+> **LƯU Ý VỀ CƠ CHẾ**: Các skill này hiện được lưu ở `skills/` (không phải `.claude/skills/`), nên **không tự động khớp** qua cơ chế Skill của công cụ. Chúng là **tài liệu tham chiếu bắt buộc đọc thủ công**: Agent phải chủ động `Read` file `SKILL.md` tương ứng **trước khi viết code UI**. Nếu muốn skill tự động trigger theo mô tả, cần copy chúng vào `.claude/skills/`.
 
-### Các skill cần áp dụng theo ngữ cảnh
+> **BẮT BUỘC**: Khi thực hiện bất kỳ thay đổi nào liên quan đến giao diện (UI) hoặc cấu trúc mã nguồn, AI Agent phải đọc `SKILL.md` tương ứng trong `skills/` **trước khi viết code**.
+
+### Các skill hiện có và khi nào dùng
 
 | Skill | File | Khi nào dùng |
 |---|---|---|
-| `design-taste-frontend` | `/skills/design-taste-frontend/SKILL.md` | Mọi thay đổi UI mới |
-| `redesign-existing-projects` | `/skills/redesign-existing-projects/SKILL.md` | Nâng cấp giao diện đã có |
-| `high-end-visual-design` | `/skills/high-end-visual-design/SKILL.md` | Typography, màu sắc, layout tổng thể |
-| `gpt-taste` | `/skills/gpt-taste/SKILL.md` | GSAP animation, cấu trúc trang AIDA, bento grid |
-| `image-to-code` | `/skills/image-to-code/SKILL.md` | Chuyển mockup/ảnh thành code |
-| `full-output-enforcement` | `/skills/full-output-enforcement/SKILL.md` | **Luôn áp dụng** — cấm cắt code, cấm placeholder |
+| `design-taste-frontend` | `skills/design-taste-frontend/SKILL.md` | Mặc định (v2) cho mọi thay đổi UI mới — landing, redesign |
+| `design-taste-frontend-v1` | `skills/design-taste-frontend-v1/SKILL.md` | Chỉ dùng khi cần tương thích ngược đúng hành vi v1 |
+| `redesign-existing-projects` | `skills/redesign-existing-projects/SKILL.md` | Nâng cấp giao diện đã có (audit-first) |
+| `high-end-visual-design` | `skills/high-end-visual-design/SKILL.md` | Typography, màu sắc, layout, micro-interaction cao cấp |
+| `gpt-taste` | `skills/gpt-taste/SKILL.md` | GSAP animation, cấu trúc trang AIDA, bento grid |
+| `minimalist-ui` | `skills/minimalist-ui/SKILL.md` | Phong cách editorial tối giản, đơn sắc ấm |
+| `industrial-brutalist-ui` | `skills/industrial-brutalist-ui/SKILL.md` | Dashboard dữ liệu dày, phong cách brutalist/tactical |
+| `image-to-code` | `skills/image-to-code/SKILL.md` | Chuyển mockup/ảnh thiết kế thành code |
+| `imagegen-frontend-web` | `skills/imagegen-frontend-web/SKILL.md` | Sinh ảnh tham chiếu section website |
+| `imagegen-frontend-mobile` | `skills/imagegen-frontend-mobile/SKILL.md` | Sinh ảnh màn hình app mobile |
+| `brandkit` | `skills/brandkit/SKILL.md` | Sinh ảnh bộ nhận diện thương hiệu |
+| `stitch-design-taste` | `skills/stitch-design-taste/SKILL.md` | Tạo file `DESIGN.md` cho Google Stitch |
+| `full-output-enforcement` | `skills/full-output-enforcement/SKILL.md` | **Luôn áp dụng** — cấm cắt code, cấm placeholder |
+
+### Ưu tiên chọn skill UI theo ngữ cảnh dự án này
+
+- Admin Dashboard (`ad/`) dùng **MUI/Joy UI + DataGrid** — khi sửa bảng, form quản trị: ưu tiên `redesign-existing-projects` (audit trước, không phá tính năng), không áp `design-taste-frontend` (skill này dành cho landing/portfolio, không dành cho dashboard/bảng dữ liệu).
+- Client Frontend (`fe/`) là trang bán hàng hướng người dùng cuối — landing, trang sản phẩm: dùng `design-taste-frontend` / `high-end-visual-design`.
+- **Tuân thủ mục 9.2 (không emoji) của chính file này** kể cả khi skill gợi ý khác.
 
 > **`full-output-enforcement` là bắt buộc cho mọi tác vụ viết code.** Không được viết `// ... rest of code`, `// TODO`, hay bất kỳ dạng placeholder nào. Phải xuất toàn bộ file hoàn chỉnh.
 
@@ -247,3 +262,90 @@ Thư mục `/skills` ở gốc dự án chứa các bộ hướng dẫn thiết 
 - **Branch tính năng**: `feature/<tên-tính-năng>` (vd: `feature/zalo-integration`)
 - **Commit**: viết bằng tiếng Việt hoặc tiếng Anh, mô tả rõ phạm vi thay đổi
 - Trước khi merge vào `main`, kiểm tra không có `console.log` debug còn sót lại
+
+---
+
+## 11. LỆNH CHẠY & BUILD (3 APP)
+
+> Mỗi app là một package riêng, có `node_modules` riêng. Chạy `npm install` trong từng thư mục (`be/`, `ad/`, `fe/`) trước lần đầu.
+
+### Backend (`be/`) — Node + Express, cổng mặc định `5000`
+| Lệnh | Tác dụng |
+|---|---|
+| `npm run start` | Chạy dev với `nodemon index.js` (auto-reload) |
+| `npm test` | Chạy Jest: `jest --runInBand --detectOpenHandles --forceExit` |
+
+- Không có script `build` — chạy trực tiếp `index.js` (không transpile).
+- `index.js` **guard** theo `NODE_ENV`: chỉ connect MongoDB + `listen` khi `NODE_ENV !== 'test'`.
+
+### Admin Dashboard (`ad/`) — Vite + React 18
+| Lệnh | Tác dụng |
+|---|---|
+| `npm run dev` | Dev server Vite (mặc định cổng `5173`) |
+| `npm run build` | Build production ra `dist/` |
+| `npm run preview` | Preview bản build |
+| `npm run lint` | ESLint toàn bộ (`eslint .`) |
+
+### Client Frontend (`fe/`) — Create React App (`react-scripts`)
+| Lệnh | Tác dụng |
+|---|---|
+| `npm start` | Dev server CRA (cổng `3000`), có `proxy` → `http://localhost:5000` |
+| `npm run build` | Build production ra `build/` |
+| `npm test` | Chạy test theo `react-scripts test` (Jest + React Testing Library) |
+
+- `fe/package.json` khai báo `"proxy": "http://localhost:5000"` — request tương đối trong dev tự forward sang backend.
+
+### Thứ tự khởi động khi dev đầy đủ
+1. MongoDB (local `mongodb://localhost:27017`)
+2. `be/` → `npm run start`
+3. `ad/` → `npm run dev` và/hoặc `fe/` → `npm start`
+
+---
+
+## 12. CHUẨN API RESPONSE & ERROR
+
+> Hiện codebase **chưa hoàn toàn nhất quán**: một số route trả `{ success, message }`, số khác chỉ trả `{ message }` hoặc trả thẳng document. Khi viết route mới hoặc sửa route cũ trong phạm vi cho phép, **ưu tiên chuẩn dưới đây** và không phá vỡ shape mà frontend đang đọc.
+
+### Response thành công
+- Trả JSON, kèm HTTP status đúng ngữ nghĩa: `200` (OK), `201` (Created).
+- Với hành động (create/update/delete): trả `{ success: true, message, data? }`.
+- Với truy vấn danh sách có phân trang: giữ shape `{ total, page, limit, products }` (hoặc key danh sách tương ứng) như các route hiện có.
+
+### Response lỗi
+| Status | Khi nào | Body |
+|---|---|---|
+| `400` | Input sai/thiếu, giá trị enum không hợp lệ | `{ success: false, message }` |
+| `401` | Chưa xác thực (thiếu/hết hạn JWT cookie) | `{ message }` |
+| `403` | Đã xác thực nhưng thiếu quyền (`checkPermission` fail, `customer` vào admin route) | `{ message }` |
+| `404` | Không tìm thấy resource | `{ success: false, message }` |
+| `500` | Lỗi server không lường trước | `{ success: false, message: "Internal server error" }` |
+
+### Quy tắc bắt buộc
+- **Không rò rỉ nội bộ**: ở `500` không trả nguyên object `error`/stack ra client trong môi trường production. Log chi tiết bằng **Winston**, client chỉ nhận message chung.
+- **Message người dùng đọc**: dùng tiếng Việt cho lỗi hướng người dùng cuối (vd: "Không thể hủy đơn hàng đã hoàn thành."), tiếng Anh chấp nhận được cho lỗi kỹ thuật nội bộ.
+- **Không lộ secret**: tuyệt đối không trả `JWT_SECRET`, `secretKey` (Zalo), `password` hash trong bất kỳ response nào.
+- **Validate ở biên**: mọi input từ client phải validate trước khi chạm DB; sai thì `400` ngay, không để rơi xuống `500`.
+
+---
+
+## 13. QUY ƯỚC TESTING
+
+### Backend (`be/`) — Jest + Supertest
+- Test đặt trong `be/tests/**/*.test.js` (đã có: `auth`, `order`, `product`, `station`, `user`, `role_hierarchy`, `admin_user_management`, `register`, `recover`, `autologin`, `api_product`, `voice_query_normalizer`).
+- Cấu hình ở `be/jest.config.js`:
+  - `testEnvironment: 'node'`, `testMatch: ['**/tests/**/*.test.js']`
+  - `maxWorkers: 1` (chạy tuần tự — tránh tranh chấp DB test dùng chung). Không đặt `runInBand` trong config (đó là CLI flag).
+  - `setupFiles: ['<rootDir>/tests/setup.env.js']` — nạp biến môi trường test (đặt `NODE_ENV=test` để `index.js` không tự connect DB + listen).
+  - `clearMocks` / `restoreMocks: true`, `forceExit` + `detectOpenHandles` để tránh treo do handle mở.
+- **DB test**: các test hiện phụ thuộc MongoDB live tại `mongodb://localhost:27017/EcomTest`. Phải có Mongo chạy local trước khi `npm test`.
+  - Hướng cải tiến (khuyến nghị cho test mới): dùng `mongodb-memory-server` hoặc mock để bỏ phụ thuộc DB thật.
+- **Auth trong test**: xác thực qua `httpOnly` cookie `authToken` — dùng Supertest agent giữ cookie, **không** set Authorization header (đúng theo mục 3).
+
+### Frontend
+- `fe/` (CRA): `npm test` → `react-scripts test` (Jest + React Testing Library, đã có `@testing-library/*` trong deps).
+- `ad/` (Vite): hiện **chưa cấu hình test runner**. Nếu cần bổ sung, dùng **Vitest** (đồng bộ hệ sinh thái Vite) thay vì Jest.
+
+### Quy tắc chung
+- Khi thêm tính năng hoặc sửa bug ở backend: **viết/ cập nhật test tương ứng** trong `be/tests/` và chạy `npm test` pass trước khi coi là xong.
+- Không commit test đang fail hoặc `console.log` debug còn sót (đồng bộ mục 10).
+- Test phải độc lập, tự dọn dữ liệu tạo ra (teardown) để chạy lặp lại không rác DB.

@@ -86,7 +86,9 @@ const StationUser = () => {
 
   const fetchStations = async () => {
     try {
-      const res = await fetch(`${apiUrl}/stations`);
+      const res = await fetch(`${apiUrl}/stations`, {
+        credentials: "include",
+      });
       const data = await res.json();
       setStations(data);
       const map = {};
@@ -174,6 +176,7 @@ const StationUser = () => {
       const res = await fetch(`${apiUrl}/users/stations`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           phone: userPhone,
           stations: updatedStationList,

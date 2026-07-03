@@ -23,7 +23,7 @@ const { router: zaloRoutes } = require('./components/zalo');
 
 // Tạo app + http server + socket.io
 const app = express();
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
@@ -45,11 +45,7 @@ const checkOrigin = (origin, callback) => {
     process.env.NODE_ENV === 'development' ||
     !origin ||
     allowedOrigins.includes(origin) ||
-    origin.startsWith('http://192.168.') || // Tự động cho phép mọi IP trong mạng LAN nội bộ
-    origin.endsWith('.loca.lt') ||
-    origin.endsWith('.localtunnel.me') ||
-    origin.endsWith('.trycloudflare.com') || // Tự động cho phép mọi sub-domain của Cloudflare Tunnel
-    origin === 'null'
+    origin.startsWith('http://192.168.') // Cho phép mọi IP trong mạng LAN nội bộ khi test
   ) {
     callback(null, true);
   } else {
@@ -69,7 +65,7 @@ const io = new Server(server, {
 const activeSupports = new Map();
 
 io.on('connection', (socket) => {
-  console.log('✅ Socket connected:', socket.id);
+  console.log('Socket connected:', socket.id);
 
   // Gửi danh sách các phòng đang được hỗ trợ cho client vừa kết nối
   const currentSupports = {};
@@ -78,28 +74,20 @@ io.on('connection', (socket) => {
   }
   socket.emit('active_supports_list', currentSupports);
 
-  // Log sự kiện tùy chỉnh nhận từ client
-  socket.onAny((event, ...args) => {
-    console.log(`📨 Received event "${event}" with data:`, args);
-  });
-
-  // Gửi test sự kiện về client (tùy chọn)
-  socket.emit('server:hello', { message: 'Hello from server!' });
-
   // Lắng nghe sự kiện Chat hỗ trợ kỹ thuật
   socket.on('join_chat', ({ sessionId }) => {
     socket.join(`room_${sessionId}`);
-    console.log(`💬 Socket ${socket.id} joined room_${sessionId}`);
+    console.log(`Socket ${socket.id} joined room_${sessionId}`);
   });
 
   socket.on('occupy_session', ({ sessionId, adminName }) => {
     const currentSupport = activeSupports.get(sessionId);
     if (!currentSupport || currentSupport.socketId === socket.id) {
       activeSupports.set(sessionId, { adminName, socketId: socket.id });
-      console.log(`🔒 Session ${sessionId} occupied by Admin ${adminName} (${socket.id})`);
+      console.log(`Session ${sessionId} occupied by Admin ${adminName} (${socket.id})`);
       io.emit('session_occupied', { sessionId, adminName, socketId: socket.id });
     } else {
-      console.log(`⚠️ Session ${sessionId} is already occupied by Admin ${currentSupport.adminName}. Occupy request from Admin ${adminName} (${socket.id}) is denied.`);
+      console.log(`Session ${sessionId} is already occupied by Admin ${currentSupport.adminName}. Occupy request from Admin ${adminName} (${socket.id}) is denied.`);
     }
   });
 
@@ -107,7 +95,7 @@ io.on('connection', (socket) => {
     const support = activeSupports.get(sessionId);
     if (support && support.socketId === socket.id) {
       activeSupports.delete(sessionId);
-      console.log(`🔓 Session ${sessionId} released`);
+      console.log(`Session ${sessionId} released`);
       io.emit('session_released', { sessionId });
     }
   });
@@ -136,11 +124,11 @@ io.on('connection', (socket) => {
 
   // Khi client ngắt kết nối
   socket.on('disconnect', (reason) => {
-    console.log(`❌ Socket disconnected (${socket.id}): ${reason}`);
+    console.log(`Socket disconnected (${socket.id}): ${reason}`);
     for (const [sessionId, support] of activeSupports.entries()) {
       if (support.socketId === socket.id) {
         activeSupports.delete(sessionId);
-        console.log(`🔓 Session ${sessionId} automatically released due to disconnect`);
+        console.log(`Session ${sessionId} automatically released due to disconnect`);
         io.emit('session_released', { sessionId });
       }
     }
@@ -179,57 +167,8 @@ if (process.env.NODE_ENV !== 'test') {
   const password = process.env.DB_PASSWORD;
   const uri = `mongodb://localhost:27017/`;
   mongoose.connect(uri)
-    .then(async () => {
+    .then(() => {
       console.log('Connected to MongoDB!');
-      
-      // Tự động quét và đồng bộ lại tổng tiền cho các đơn hàng cũ
-      try {
-        const { IpOrder } = require('./components/iporder');
-        const { EpOrder } = require('./components/eporder');
-        const { Product } = require('./components/product');
-
-        console.log('🔄 Đang đồng bộ hóa tổng tiền các đơn hàng và trường adjusted trong Database...');
-
-        // Đồng bộ trường adjusted cho sản phẩm cũ
-        await Product.updateMany(
-          { adjusted: { $exists: false } },
-          { $set: { adjusted: true } }
-        );
-
-        const ipOrders = await IpOrder.find({});
-        let ipUpdatedCount = 0;
-        for (const order of ipOrders) {
-          const calculatedTotal = (order.productList || []).reduce((sum, item) => {
-            const priceNum = parseFloat(item.price?.replace(/\./g, "").replace(",", ".") || 0);
-            return sum + priceNum * (item.quantity || 0);
-          }, 0).toString();
-          
-          if (order.total !== calculatedTotal) {
-            order.total = calculatedTotal;
-            await order.save();
-            ipUpdatedCount++;
-          }
-        }
-
-        const epOrders = await EpOrder.find({});
-        let epUpdatedCount = 0;
-        for (const order of epOrders) {
-          const calculatedTotal = (order.productList || []).reduce((sum, item) => {
-            const priceNum = parseFloat(item.price?.replace(/\./g, "").replace(",", ".") || 0);
-            return sum + priceNum * (item.quantity || 0);
-          }, 0).toString();
-          
-          if (order.total !== calculatedTotal) {
-            order.total = calculatedTotal;
-            await order.save();
-            epUpdatedCount++;
-          }
-        }
-
-        console.log(`✅ Hoàn tất đồng bộ: Đã cập nhật ${ipUpdatedCount} đơn nhập, ${epUpdatedCount} đơn xuất.`);
-      } catch (err) {
-        console.error('⚠️ Lỗi khi đồng bộ tổng tiền đơn hàng:', err.message);
-      }
     })
     .catch(err => console.error('MongoDB connection error:', err));
 }

@@ -26,6 +26,7 @@ import {
   LinearProgress,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import TuneIcon from "@mui/icons-material/Tune";
 import moment from "moment";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -58,6 +59,7 @@ const IpOrders = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [debouncedOrderName, setDebouncedOrderName] = useState("");
   const [debouncedUserName, setDebouncedUserName] = useState("");
   const navigate = useNavigate();
@@ -415,7 +417,7 @@ const IpOrders = () => {
 
   return (
     <Box p={2}>
-      <div className="sticky-header">
+      <div className="sticky-header" style={{ position: "relative" }}>
         <Box
           sx={{
             display: "flex",
@@ -423,13 +425,25 @@ const IpOrders = () => {
             alignItems: "center",
             flexWrap: "wrap",
             gap: 2,
-            mb: 2,
+            mb: { xs: 0, sm: 2 },
           }}
         >
           <Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
             Quản lý đơn nhập
           </Typography>
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+          
+          {/* Nút Bộ lọc & Chức năng cho di động */}
+          <Button
+            variant="outlined"
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            startIcon={<TuneIcon />}
+            sx={{ display: { xs: "inline-flex", sm: "none" } }}
+          >
+            Bộ lọc & Chức năng
+          </Button>
+
+          {/* Cụm nút tác vụ cho Desktop */}
+          <Box sx={{ display: { xs: "none", sm: "flex" }, gap: 1.5, flexWrap: "wrap" }}>
             <Button
               variant="contained"
               color="secondary"
@@ -447,14 +461,14 @@ const IpOrders = () => {
           </Box>
         </Box>
 
-        {/* Bộ lọc */}
+        {/* 1. Bộ lọc cho Desktop */}
         <Box
           sx={{
-            display: "flex",
+            display: { xs: "none", sm: "flex" },
             gap: 1.5,
             mb: 0,
-            alignItems: "center",
             flexWrap: "wrap",
+            alignItems: "center"
           }}
         >
           <Autocomplete
@@ -474,13 +488,13 @@ const IpOrders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: "200px" }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên hóa đơn"
                 placeholder="Nhập tên..."
                 variant="outlined"
-                sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
               />
             )}
           />
@@ -501,13 +515,13 @@ const IpOrders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: "200px" }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên người tạo"
                 placeholder="Nhập người tạo..."
                 variant="outlined"
-                sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
               />
             )}
           />
@@ -517,7 +531,7 @@ const IpOrders = () => {
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             size="small"
-            sx={{ width: "150px", minWidth: "110px", flex: { xs: "1 1 120px", sm: "none" } }}
+            sx={{ width: "150px" }}
             SelectProps={{ native: true }}
           >
             <option value="all">Tất cả</option>
@@ -531,7 +545,7 @@ const IpOrders = () => {
             onChange={(e) => setFilterStartDate(e.target.value)}
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
+            sx={{ width: "150px" }}
           />
           <TextField
             label="Đến ngày"
@@ -540,7 +554,7 @@ const IpOrders = () => {
             onChange={(e) => setFilterEndDate(e.target.value)}
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
+            sx={{ width: "150px" }}
           />
           <Button
             variant="contained"
@@ -549,10 +563,158 @@ const IpOrders = () => {
               setCurrentPage(1);
               fetchOrders(1, filterOrderName, filterUserName);
             }}
-            sx={{ height: "40px", minWidth: "80px", flexShrink: 0 }}
+            sx={{ height: "40px", minWidth: "80px" }}
           >
             Lọc
           </Button>
+        </Box>
+
+        {/* 2. Bảng chức năng trượt xuống cho di động */}
+        <Box
+          sx={{
+            display: { xs: "block", sm: "none" },
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 110,
+            bgcolor: "background.paper",
+            boxShadow: "0px 8px 24px rgba(0,0,0,0.15)",
+            borderBottom: "1px solid #e0e0e0",
+            transform: showMobileFilters ? "translateY(0)" : "translateY(-15px)",
+            opacity: showMobileFilters ? 1 : 0,
+            visibility: showMobileFilters ? "visible" : "hidden",
+            transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s"
+          }}
+        >
+          <Box p={2.5} display="flex" flexDirection="column" gap={2}>
+            <Typography variant="subtitle2" fontWeight="bold">CHỨC NĂNG</Typography>
+            <Box display="flex" gap={1.5}>
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={() => {
+                  setShowMobileFilters(false);
+                  handleOpenDialog();
+                }}
+                fullWidth
+              >
+                Mẫu hóa đơn
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  setShowMobileFilters(false);
+                  handleOpenCreateDialog();
+                }}
+                fullWidth
+              >
+                Tạo đơn mới
+              </Button>
+            </Box>
+
+            <Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 1 }}>BỘ LỌC TÌM KIẾM</Typography>
+            
+            <Autocomplete
+              freeSolo
+              size="small"
+              options={uniqueOrderNames}
+              value={filterOrderName}
+              onInputChange={(event, newInputValue) => {
+                setFilterOrderName(newInputValue);
+              }}
+              onChange={(event, newValue) => {
+                setFilterOrderName(newValue || "");
+              }}
+              filterOptions={(options, state) => {
+                const inputValue = removeVietnameseTones(state.inputValue);
+                return options.filter((option) =>
+                  removeVietnameseTones(option).includes(inputValue)
+                );
+              }}
+              sx={{ width: "100%" }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Tên hóa đơn"
+                  placeholder="Nhập tên..."
+                  variant="outlined"
+                />
+              )}
+            />
+            <Autocomplete
+              freeSolo
+              size="small"
+              options={uniqueUserNames}
+              value={filterUserName}
+              onInputChange={(event, newInputValue) => {
+                setFilterUserName(newInputValue);
+              }}
+              onChange={(event, newValue) => {
+                setFilterUserName(newValue || "");
+              }}
+              filterOptions={(options, state) => {
+                const inputValue = removeVietnameseTones(state.inputValue);
+                return options.filter((option) =>
+                  removeVietnameseTones(option).includes(inputValue)
+                );
+              }}
+              sx={{ width: "100%" }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Tên người tạo"
+                  placeholder="Nhập người tạo..."
+                  variant="outlined"
+                />
+              )}
+            />
+            <TextField
+              select
+              label="Trạng thái"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              size="small"
+              sx={{ width: "100%" }}
+              SelectProps={{ native: true }}
+            >
+              <option value="all">Tất cả</option>
+              <option value="true">Hoàn thành</option>
+              <option value="false">Chưa hoàn thành</option>
+            </TextField>
+            <TextField
+              label="Từ ngày"
+              type="date"
+              value={filterStartDate}
+              onChange={(e) => setFilterStartDate(e.target.value)}
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              sx={{ width: "100%" }}
+            />
+            <TextField
+              label="Đến ngày"
+              type="date"
+              value={filterEndDate}
+              onChange={(e) => setFilterEndDate(e.target.value)}
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              sx={{ width: "100%" }}
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                setShowMobileFilters(false);
+                setCurrentPage(1);
+                fetchOrders(1, filterOrderName, filterUserName);
+              }}
+              fullWidth
+              sx={{ height: "40px" }}
+            >
+              Lọc kết quả
+            </Button>
+          </Box>
         </Box>
       </div>
 
@@ -807,6 +969,23 @@ const IpOrders = () => {
           />
         </Box>
       )}
+      {/* Lớp nền mờ khi mở bộ lọc trên di động */}
+      <Box
+        onClick={() => setShowMobileFilters(false)}
+        sx={{
+          display: { xs: "block", sm: "none" },
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          backgroundColor: "rgba(0, 0, 0, 0.4)",
+          zIndex: 105,
+          opacity: showMobileFilters ? 1 : 0,
+          visibility: showMobileFilters ? "visible" : "hidden",
+          transition: "opacity 0.25s ease-in-out, visibility 0.25s"
+        }}
+      />
     </Box>
   );
 };

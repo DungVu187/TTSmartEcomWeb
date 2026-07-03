@@ -341,15 +341,6 @@ const EpOrders = () => {
     fetchOrderTemplates();
   }, []);
 
-  if (loading && orders.length === 0) {
-    return (
-      <Box display="flex" flexDirection="column" alignItems="center" p={2}>
-        <CircularProgress />
-        <Typography mt={2}>Đang tải đơn xuất...</Typography>
-      </Box>
-    );
-  }
-
   if (error) {
     return (
       <Box p={2}>
@@ -398,8 +389,9 @@ const EpOrders = () => {
             display: "flex",
             gap: 1.5,
             mb: 0,
-            alignItems: "center",
             flexWrap: "wrap",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" }
           }}
         >
           <Autocomplete
@@ -419,13 +411,13 @@ const EpOrders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: "200px" } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên hóa đơn"
                 placeholder="Nhập tên..."
                 variant="outlined"
-                sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
               />
             )}
           />
@@ -446,13 +438,13 @@ const EpOrders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: "200px" } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên người tạo"
                 placeholder="Nhập người tạo..."
                 variant="outlined"
-                sx={{ width: "200px", minWidth: "120px", flex: { xs: "1 1 150px", sm: "none" } }}
               />
             )}
           />
@@ -462,7 +454,7 @@ const EpOrders = () => {
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             size="small"
-            sx={{ width: "150px", minWidth: "110px", flex: { xs: "1 1 120px", sm: "none" } }}
+            sx={{ width: { xs: "100%", sm: "150px" } }}
             SelectProps={{ native: true }}
           >
             <option value="all">Tất cả</option>
@@ -476,7 +468,7 @@ const EpOrders = () => {
             onChange={(e) => setFilterStartDate(e.target.value)}
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
+            sx={{ width: { xs: "100%", sm: "150px" } }}
           />
           <TextField
             label="Đến ngày"
@@ -485,7 +477,7 @@ const EpOrders = () => {
             onChange={(e) => setFilterEndDate(e.target.value)}
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: "150px", minWidth: "130px", flex: { xs: "1 1 130px", sm: "none" } }}
+            sx={{ width: { xs: "100%", sm: "150px" } }}
           />
            <Button
             variant="contained"
@@ -494,7 +486,7 @@ const EpOrders = () => {
               setCurrentPage(1);
               fetchOrders(1, filterOrderName, filterUserName);
             }}
-            sx={{ height: "40px", minWidth: "80px", flexShrink: 0 }}
+            sx={{ height: "40px", minWidth: "80px", alignSelf: { xs: "stretch", sm: "center" } }}
           >
             Lọc
           </Button>
@@ -576,181 +568,189 @@ const EpOrders = () => {
         </DialogActions>
       </Dialog>
 
-      {loading && <LinearProgress sx={{ mb: 1 }} />}
-      <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}>
-        <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
-          <TableHead>
-            <TableRow>
-              <TableCell align="center" style={{ width: "50px" }}></TableCell>
-              <TableCell align="center" style={{ width: "25%" }}>Tên hóa đơn</TableCell>
-              <TableCell align="center" style={{ width: "12%" }}>Tên người tạo</TableCell>
-              <TableCell align="center" style={{ width: "13%" }}>Số lượng sản phẩm</TableCell>
-              <TableCell align="center" style={{ width: "13%" }}>Tổng giá</TableCell>
-              <TableCell align="center" style={{ width: "10%" }}>Trạng thái</TableCell>
-              <TableCell align="center" style={{ width: "13%" }}>Ngày tạo</TableCell>
-              <TableCell align="center" style={{ width: "14%" }}>Ngày xuất</TableCell>
-              <TableCell align="center" style={{ width: "100px" }}></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {orders.map((order) => {
-              const hasMissingProducts = order.productList.some(
-                (p) => p.quantityEx < p.quantity
-              );
+      {loading && orders.length === 0 ? (
+        <Box display="flex" justifyContent="center" p={2}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          {loading && <LinearProgress sx={{ mb: 1 }} />}
+          <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}>
+            <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell align="center" style={{ width: "50px" }}></TableCell>
+                  <TableCell align="center" style={{ width: "25%" }}>Tên hóa đơn</TableCell>
+                  <TableCell align="center" style={{ width: "12%" }}>Tên người tạo</TableCell>
+                  <TableCell align="center" style={{ width: "13%" }}>Số lượng sản phẩm</TableCell>
+                  <TableCell align="center" style={{ width: "13%" }}>Tổng giá</TableCell>
+                  <TableCell align="center" style={{ width: "10%" }}>Trạng thái</TableCell>
+                  <TableCell align="center" style={{ width: "13%" }}>Ngày tạo</TableCell>
+                  <TableCell align="center" style={{ width: "14%" }}>Ngày xuất</TableCell>
+                  <TableCell align="center" style={{ width: "100px" }}></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {orders.map((order) => {
+                  const hasMissingProducts = order.productList.some(
+                    (p) => p.quantityEx < p.quantity
+                  );
 
-              return (
-                <React.Fragment key={order._id}>
-                  <TableRow hover>
-                    <TableCell align="center">
-                      <IconButton
-                        onClick={() =>
-                          !order.status && handleExpandClick(order._id)
-                        }
-                        sx={{
-                          pointerEvents: order.status ? "none" : "auto",
-                          opacity: order.status ? 0.5 : 1,
-                        }}
-                      >
-                        <ExpandMoreIcon
-                          sx={{
-                            transform: expandedRows[order._id]
-                              ? "rotate(180deg)"
-                              : "rotate(0deg)",
-                            transition: "transform 0.2s",
-                          }}
-                        />
-                      </IconButton>
-                    </TableCell>
-                    <TableCell align="center">
-                      {order.orderName || "N/A"}
-                    </TableCell>
-                    <TableCell align="center">
-                      {order.userName || "N/A"}
-                    </TableCell>
-                    <TableCell align="center">
-                      {order.productList?.length || 0} sản phẩm
-                    </TableCell>
-                    <TableCell align="center">
-                      {Number(order.total || 0).toLocaleString("vi-VN")} VNĐ
-                    </TableCell>
-                    <TableCell align="center">
-                      <Checkbox
-                        checked={order.status}
-                        color="success"
-                        readOnly
-                        onChange={() => {
-                          if (!order.status) handleUpdateOrderStatus(order);
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      {moment(order.createdAt).format("DD/MM/YYYY HH:mm")}
-                    </TableCell>
-                    <TableCell align="center">
-                      {order.completedAt 
-                        ? moment(order.completedAt).format("DD/MM/YYYY HH:mm") 
-                        : (order.status === true ? moment(order.createdAt).format("DD/MM/YYYY HH:mm") : "")}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        size="small"
-                        onClick={() => navigate(`/exportorder/${order._id}`)}
-                      >
-                        Chi tiết
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  {hasMissingProducts && (
-                    <TableRow>
-                      <TableCell
-                        style={{ paddingBottom: 0, paddingTop: 0 }}
-                        colSpan={9}
-                      >
-                        <Collapse
-                          in={expandedRows[order._id]}
-                          timeout="auto"
-                          unmountOnExit
-                        >
-                          <Box
+                  return (
+                    <React.Fragment key={order._id}>
+                      <TableRow hover>
+                        <TableCell align="center">
+                          <IconButton
+                            onClick={() =>
+                              !order.status && handleExpandClick(order._id)
+                            }
                             sx={{
-                              margin: 2,
+                              pointerEvents: order.status ? "none" : "auto",
+                              opacity: order.status ? 0.5 : 1,
                             }}
                           >
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Tên</TableCell>
-                                  <TableCell>Hình ảnh</TableCell>
-                                  <TableCell>Hãng</TableCell>
-                                  <TableCell>Số lượng còn thiếu</TableCell>
-                                  <TableCell>Ghi chú</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {order.productList
-                                  .filter((p) => p.quantityEx < p.quantity)
-                                  .map((product) => {
-                                    const productDetail =
-                                      productDetails[order._id]?.[
-                                        product.productId
-                                      ];
-                                    return (
-                                      <TableRow key={product.productId}>
-                                        <TableCell>
-                                          {productDetail?.name || "Đang tải..."}
-                                        </TableCell>
-                                        <TableCell>
-                                         {productDetail?.variant?.[0]?.imgUrl ? (
-  <img
-    src={productDetail.variant?.[0]?.imgUrl}
-    alt={productDetail?.name || "Sản phẩm"}
-    style={{ width: 50, height: 50, objectFit: "cover" }}
-  />
-) : (
-  "N/A"
-)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {productDetail?.brand || "N/A"}
-                                        </TableCell>
-                                        <TableCell>
-                                          {product.quantity -
-                                            product.quantityEx}
-                                        </TableCell>
-                                        <TableCell>
-                                          {product.note || "Không có"}
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                              </TableBody>
-                            </Table>
-                          </Box>
-                        </Collapse>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                            <ExpandMoreIcon
+                              sx={{
+                                transform: expandedRows[order._id]
+                                  ? "rotate(180deg)"
+                                  : "rotate(0deg)",
+                                transition: "transform 0.2s",
+                              }}
+                            />
+                          </IconButton>
+                        </TableCell>
+                        <TableCell align="center">
+                          {order.orderName || "N/A"}
+                        </TableCell>
+                        <TableCell align="center">
+                          {order.userName || "N/A"}
+                        </TableCell>
+                        <TableCell align="center">
+                          {order.productList?.length || 0} sản phẩm
+                        </TableCell>
+                        <TableCell align="center">
+                          {Number(order.total || 0).toLocaleString("vi-VN")} VNĐ
+                        </TableCell>
+                        <TableCell align="center">
+                          <Checkbox
+                            checked={order.status}
+                            color="success"
+                            readOnly
+                            onChange={() => {
+                              if (!order.status) handleUpdateOrderStatus(order);
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          {moment(order.createdAt).format("DD/MM/YYYY HH:mm")}
+                        </TableCell>
+                        <TableCell align="center">
+                          {order.completedAt 
+                            ? moment(order.completedAt).format("DD/MM/YYYY HH:mm") 
+                            : (order.status === true ? moment(order.createdAt).format("DD/MM/YYYY HH:mm") : "")}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            size="small"
+                            onClick={() => navigate(`/exportorder/${order._id}`)}
+                          >
+                            Chi tiết
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {hasMissingProducts && (
+                        <TableRow>
+                          <TableCell
+                            style={{ paddingBottom: 0, paddingTop: 0 }}
+                            colSpan={9}
+                          >
+                            <Collapse
+                              in={expandedRows[order._id]}
+                              timeout="auto"
+                              unmountOnExit
+                            >
+                              <Box
+                                sx={{
+                                  margin: 2,
+                                }}
+                              >
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>Tên</TableCell>
+                                      <TableCell>Hình ảnh</TableCell>
+                                      <TableCell>Hãng</TableCell>
+                                      <TableCell>Số lượng còn thiếu</TableCell>
+                                      <TableCell>Ghi chú</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {order.productList
+                                      .filter((p) => p.quantityEx < p.quantity)
+                                      .map((product) => {
+                                        const productDetail =
+                                          productDetails[order._id]?.[
+                                            product.productId
+                                          ];
+                                        return (
+                                          <TableRow key={product.productId}>
+                                            <TableCell>
+                                              {productDetail?.name || "Đang tải..."}
+                                            </TableCell>
+                                            <TableCell>
+                                             {productDetail?.variant?.[0]?.imgUrl ? (
+                                      <img
+                                        src={productDetail.variant?.[0]?.imgUrl}
+                                        alt={productDetail?.name || "Sản phẩm"}
+                                        style={{ width: 50, height: 50, objectFit: "cover" }}
+                                      />
+                                    ) : (
+                                      "N/A"
+                                    )}
+                                            </TableCell>
+                                            <TableCell>
+                                              {productDetail?.brand || "N/A"}
+                                            </TableCell>
+                                            <TableCell>
+                                              {product.quantity -
+                                                product.quantityEx}
+                                            </TableCell>
+                                            <TableCell>
+                                              {product.note || "Không có"}
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                  </TableBody>
+                                </Table>
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-      {pagination.totalPages > 1 && (
-        <Box display="flex" justifyContent="center" mt={2}>
-          <Pagination
-            count={pagination.totalPages}
-            page={currentPage}
-            onChange={(event, newPage) => {
-              setCurrentPage(newPage);
-              fetchOrders(newPage);
-            }}
-            color="primary"
-          />
-        </Box>
+          {pagination.totalPages > 1 && (
+            <Box display="flex" justifyContent="center" mt={2}>
+              <Pagination
+                count={pagination.totalPages}
+                page={currentPage}
+                onChange={(event, newPage) => {
+                  setCurrentPage(newPage);
+                  fetchOrders(newPage);
+                }}
+                color="primary"
+              />
+            </Box>
+          )}
+        </>
       )}
     </Box>
   );

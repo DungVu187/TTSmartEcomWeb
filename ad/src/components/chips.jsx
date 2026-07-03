@@ -574,7 +574,7 @@ const fetchSectionDevices = async (sectionName) => {
                 {...params}
                 label="Chọn cụm"
                 variant="outlined"
-                sx={{ margin: 2 }}
+                sx={{ bgcolor: "white" }}
               />
             )}
           />

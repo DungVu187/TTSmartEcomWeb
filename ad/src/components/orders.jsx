@@ -268,7 +268,7 @@ const Orders = () => {
     };
 
     try {
-      const parsedUrl = new URL(apiUrl);
+      const parsedUrl = new URL(apiUrl, window.location.origin);
       if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
         socketUrl = parsedUrl.origin;
         socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
@@ -396,8 +396,17 @@ const Orders = () => {
           Quản lý đơn hàng bán
         </Typography>
 
-        <Box display="flex" gap={2} mb={2} flexWrap="wrap">
-          <FormControl sx={{ minWidth: 120 }}>
+        <Box 
+          display="flex" 
+          gap={2} 
+          mb={2} 
+          flexWrap="wrap"
+          sx={{
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" }
+          }}
+        >
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 120 }, width: { xs: "100%", sm: 120 } }}>
             <InputLabel>Trạng thái</InputLabel>
             <Select
               name="status"
@@ -413,7 +422,7 @@ const Orders = () => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 120 }}>
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 120 }, width: { xs: "100%", sm: 120 } }}>
             <InputLabel>Thanh toán</InputLabel>
             <Select
               name="payment"
@@ -428,7 +437,7 @@ const Orders = () => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 120 }}>
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 120 }, width: { xs: "100%", sm: 120 } }}>
             <InputLabel>Tình trạng</InputLabel>
             <Select
               name="state"
@@ -459,13 +468,13 @@ const Orders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Số điện thoại"
                 placeholder="Nhập số điện thoại..."
                 variant="outlined"
-                sx={{ width: 200 }}
               />
             )}
           />
@@ -487,13 +496,13 @@ const Orders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên người dùng"
                 placeholder="Nhập tên..."
                 variant="outlined"
-                sx={{ width: 200 }}
               />
             )}
           />
@@ -515,13 +524,13 @@ const Orders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: 235 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Mã đơn hàng"
                 placeholder="Nhập mã đơn..."
                 variant="outlined"
-                sx={{ width: 235 }}
               />
             )}
           />
@@ -535,7 +544,7 @@ const Orders = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
 
           <TextField
@@ -547,7 +556,7 @@ const Orders = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
         </Box>
       </div>

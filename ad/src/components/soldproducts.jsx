@@ -264,7 +264,16 @@ const SoldProducts = () => {
           Quản lý sản phẩm đã bán
         </Typography>
 
-        <Box display="flex" gap={2} mb={2} flexWrap="wrap">
+        <Box 
+          display="flex" 
+          gap={2} 
+          mb={2} 
+          flexWrap="wrap"
+          sx={{
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" }
+          }}
+        >
           <TextField
             name="productName"
             label="Tên sản phẩm"
@@ -272,7 +281,7 @@ const SoldProducts = () => {
             onChange={handleFilterChange}
             variant="outlined"
             size="small"
-            sx={{ width: 200 }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
           />
 
           <TextField
@@ -282,10 +291,10 @@ const SoldProducts = () => {
             onChange={handleFilterChange}
             variant="outlined"
             size="small"
-            sx={{ width: 200 }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
           />
 
-          <FormControl sx={{ minWidth: 150 }}>
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 150 }, width: { xs: "100%", sm: 150 } }}>
             <InputLabel>Thanh toán</InputLabel>
             <Select
               name="payment"
@@ -308,7 +317,7 @@ const SoldProducts = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
           <TextField
             name="endDate"
@@ -319,9 +328,14 @@ const SoldProducts = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
-          <Button variant="contained" color="primary" onClick={handleSearch}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={handleSearch}
+            sx={{ alignSelf: { xs: "stretch", sm: "center" }, height: "40px" }}
+          >
             Tìm kiếm
           </Button>
         </Box>

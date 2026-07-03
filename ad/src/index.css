@@ -1,8 +1,12 @@
+html {
+  overflow-y: scroll !important;
+}
 html,
 body {
   margin: 0;
   padding: 0;
   height: 100%;
+  scrollbar-gutter: stable;
   /* Đảm bảo toàn bộ màn hình được chiếm */
 }
 
@@ -25,6 +29,7 @@ body {
 .admin-content-wrapper > div:has(.sticky-header),
 .admin-content-wrapper > .MuiBox-root:has(.sticky-header) {
   padding: 0 !important;
+  padding-bottom: 30px !important; /* Giữ khoảng cách đáy trang cho thoáng */
 }
 
 .sticky-header {
@@ -35,10 +40,10 @@ body {
   will-change: transform;
   transform: translateZ(0);
   /* Enable hardware acceleration to prevent jittering/sliding when scrolling */
-  padding-top: 20px;
-  padding-bottom: 15px;
+  padding-top: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #e0e0e0;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 
   /* Extend to left and right screen edges to hide scrolling content on sides */
   margin-left: -20px;
@@ -49,8 +54,9 @@ body {
 
 @media (max-width: 900px) {
   .sticky-header {
-    position: static !important;
-    padding-top: 15px;
+    position: relative !important;
+    padding-top: 70px !important;
+    /* Đẩy tiêu đề xuống dưới nút Hamburger Menu (☰) */
   }
 }
 
@@ -64,7 +70,7 @@ body {
 .MuiBox-root>div>.MuiTypography-h4:first-of-type,
 .sticky-header .MuiTypography-root:not(.total-summary-text) {
   font-family: 'Arial', 'Outfit', 'Inter', 'Segoe UI', sans-serif !important;
-  font-size: 36px !important;
+  font-size: 22px !important;
   font-weight: 500 !important;
   /* Medium weight, less heavy */
   color: #000000 !important;
@@ -87,4 +93,58 @@ table {
   color: #000000 !important;
   margin-top: 10px !important;
   margin-bottom: 0 !important;
+}
+
+/* Custom Sticky Styling for Table Headers and Horizontal Scrollbar */
+.top-scrollbar-sticky {
+  position: sticky !important;
+  z-index: 99 !important;
+  background-color: #fff !important;
+  box-shadow: 0 2px 2px -1px rgba(0,0,0,0.05);
+}
+
+.sticky-table-header {
+  position: sticky !important;
+  z-index: 98 !important;
+  background-color: #dedede !important;
+}
+
+/* Clean up table padding for a more compact list view */
+.admin-content-wrapper .MuiTableCell-root {
+  padding: 6px 10px !important;
+  font-size: 0.825rem !important;
+}
+
+/* Ghim table headers cho tất cả các bảng (vì bảng cuộn nội bộ trong TableContainer nên top luôn là 0) */
+.admin-content-wrapper thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 98 !important;
+  background-color: #dedede !important;
+}
+
+/* Thu hẹp khoảng trắng giữa các hàng bộ lọc/nút bấm và đường gạch dưới trong sticky-header */
+.sticky-header > .MuiBox-root,
+.sticky-header > div:not(.total-summary-text),
+.sticky-header > form {
+  margin-bottom: 6px !important;
+  gap: 10px !important;
+}
+
+/* Thu hẹp khoảng cách từ đường gạch dưới của sticky-header tới bảng hoặc phần tử tiếp theo */
+.sticky-header {
+  margin-bottom: 8px !important;
+}
+
+
+/* Ensure the white admin content page has bottom breathing space, and only set min-height on mobile */
+.admin-content-wrapper {
+  padding-bottom: 30px !important;
+  box-sizing: border-box;
+}
+
+@media (max-width: 899px) {
+  .admin-content-wrapper {
+    min-height: 1400px;
+  }
 }

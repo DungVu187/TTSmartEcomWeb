@@ -281,7 +281,15 @@ const ExportedProducts = () => {
         </Typography>
 
         {/* Bộ lọc */}
-        <Box display="flex" gap={2} mb={2}>
+        <Box 
+          display="flex" 
+          gap={2} 
+          mb={2}
+          sx={{
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" }
+          }}
+        >
           <Autocomplete
             freeSolo
             size="small"
@@ -299,13 +307,13 @@ const ExportedProducts = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên sản phẩm"
                 placeholder="Nhập tên..."
                 variant="outlined"
-                sx={{ width: "200px" }}
               />
             )}
           />
@@ -318,7 +326,7 @@ const ExportedProducts = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: "150px" }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
           <TextField
             name="endDate"
@@ -329,13 +337,14 @@ const ExportedProducts = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: "150px" }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSearch}
-            size="small"
+            size="medium"
+            sx={{ alignSelf: { xs: "stretch", sm: "center" }, height: "40px" }}
           >
             Tìm kiếm
           </Button>

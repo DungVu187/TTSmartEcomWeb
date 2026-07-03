@@ -24,6 +24,15 @@ function normalizeProductCodeForCompare(code) {
     return String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
+// Sinh Regex tự động chấp nhận các ký tự ngăn cách trong mã sản phẩm
+function generateFuzzyCodeRegex(rawCode) {
+    if (!rawCode) return null;
+    const cleanCode = String(rawCode).replace(/[^a-zA-Z0-9]/g, '');
+    if (!cleanCode) return null;
+    const regexPattern = cleanCode.split('').join('[\\s\\-\\/\\.]*');
+    return new RegExp(regexPattern, 'i');
+}
+
 function hasAdjustedRequiredValue(value) {
     const normalized = removeVietnameseTones(String(value ?? ''))
         .toLowerCase()
@@ -98,7 +107,7 @@ const VOICE_TYPE_ALIASES = [
     ['Relay Trung Gian', 'relay trung gian', ['ro le trung gian', 'relay trung gian']],
     ['Relay Thời Gian', 'relay thời gian', ['ro le thoi gian', 'relay thoi gian', 'timer']],
     ['Relay Nhiệt', 'relay nhiệt', ['ro le nhiet', 'relay nhiet']],
-    ['TI', 'TI', ['bien dong', 'bien dong vuong']],
+    ['TI', 'TI', ['ti']],
     ['Đèn', 'đèn', ['den bao', 'den chi thi', 'den']],
     ['Xy lanh khí nén', 'xy lanh', ['xi lanh khi nen', 'xy lanh khi nen', 'ty ben']]
 ];
@@ -203,19 +212,26 @@ function normalizeVoiceQueryResult(raw = {}) {
 
     const codeInfo = detectVoiceCode(probeText);
     const brandProbeText = transcript || String(raw.keyword || '');
-    const brand = codeInfo?.brand || findVoiceBrand(brandProbeText);
+    
+    // Ưu tiên Brand từ Gemini AI, nếu không có mới dùng Regex
+    const rawBrand = VOICE_BRANDS.includes(filters.brand) ? filters.brand : null;
+    const brand = rawBrand || codeInfo?.brand || findVoiceBrand(brandProbeText);
+
+    // Ưu tiên Type từ Gemini AI, nếu không có mới dùng Regex
     const typeInfo = findVoiceType(probeText);
     const rawType = VOICE_TYPES.includes(filters.type) ? filters.type : null;
-    const type = codeInfo?.type || typeInfo.type || rawType;
+    const type = rawType || codeInfo?.type || typeInfo.type;
+
     const code = codeInfo?.code || (typeof filters.code === 'string' && filters.code.trim() ? filters.code.trim().toUpperCase() : null);
 
+    // Ưu tiên Keyword từ Gemini AI trước, tránh bị bộ lọc Regex đè lên
     let keyword = '';
-    if (codeInfo?.keyword) {
+    if (typeof raw.keyword === 'string' && raw.keyword.trim() !== '') {
+        keyword = raw.keyword.trim();
+    } else if (codeInfo?.keyword) {
         keyword = codeInfo.keyword;
     } else if (typeInfo.keyword !== null) {
         keyword = typeInfo.keyword;
-    } else if (typeof raw.keyword === 'string') {
-        keyword = raw.keyword.trim();
     }
 
     return {
@@ -575,16 +591,49 @@ router.get("/", async (req, res) => {
 
         // Tạo bộ lọc
         const filter = {};
-        if (search && search !== "") {
-            const searchUnsigned = removeVietnameseTones(search);
-            filter.$or = [
-                { name: { $regex: search, $options: "i" } },
-                { nameUnsigned: { $regex: searchUnsigned, $options: "i" } },
-                { code: { $regex: search, $options: "i" } },
-                { brand: { $regex: search, $options: "i" } }
-            ];
+        const andQueries = [];
+
+        if (search && search.trim() !== "") {
+            // Tách từ khóa tìm kiếm thành các từ đơn để so khớp AND tự do thứ tự
+            const tokens = search.split(/\s+/).filter(t => t.length > 0);
+            if (tokens.length > 0) {
+                tokens.forEach(token => {
+                    const tokenUnsigned = removeVietnameseTones(token);
+                    // Hỗ trợ tìm kiếm song song "relay"/"rơ le", "xi"/"xy" (xi lanh/xy lanh), "ki"/"ky" cho từng từ khóa đơn lẻ
+                    const fuzzyToken = token
+                        .replace(/relay|rơ\s+le/gi, '(relay|rơ le)')
+                        .replace(/^(xi|xy)$/gi, '(xi|xy)')
+                        .replace(/^(ki|ky)$/gi, '(ki|ky)');
+                    const fuzzyTokenUnsigned = tokenUnsigned
+                        .replace(/relay|ro\s+le/gi, '(relay|ro le)')
+                        .replace(/^(xi|xy)$/gi, '(xi|xy)')
+                        .replace(/^(ki|ky)$/gi, '(ki|ky)');
+                    
+                    const fuzzyCodeRegex = generateFuzzyCodeRegex(token);
+                    andQueries.push({
+                        $or: [
+                            { name: { $regex: fuzzyToken, $options: "i" } },
+                            { nameUnsigned: { $regex: fuzzyTokenUnsigned, $options: "i" } },
+                            { code: fuzzyCodeRegex || { $regex: token, $options: "i" } },
+                            { brand: { $regex: token, $options: "i" } }
+                        ]
+                    });
+                });
+            }
         }
-        if (code && code !== "") filter.code = { $regex: code, $options: "i" };
+
+        if (code && code !== "") {
+            const fuzzyCodeRegex = generateFuzzyCodeRegex(code);
+            const codeQuery = [
+                { code: fuzzyCodeRegex || { $regex: code, $options: "i" } },
+                { name: { $regex: code, $options: "i" } }
+            ];
+            andQueries.push({ $or: codeQuery });
+        }
+
+        if (andQueries.length > 0) {
+            filter.$and = andQueries;
+        }
         if (type && type !== "") filter.type = type;
         if (brand && brand !== "") filter.brand = brand;
         if (section && section !== "") filter.section = section;
@@ -654,21 +703,97 @@ router.get("/", async (req, res) => {
         let products;
         let total;
 
-        if (adjustedFilter === null) {
-            [products, total] = await Promise.all([
-                Product.find(filter)
-                    .sort(sortCriteria)
-                    .skip(skip)
-                    .limit(limitNum),
-                Product.countDocuments(filter)
-            ]);
-        } else {
-            const matchedProducts = await Product.find(filter).sort(sortCriteria);
-            const adjustedProducts = matchedProducts.filter(product =>
-                calculateProductAdjustedStatus(product) === adjustedFilter
-            );
-            total = adjustedProducts.length;
-            products = adjustedProducts.slice(skip, skip + limitNum);
+        const runQuery = async (queryFilter) => {
+            let localProducts;
+            let localTotal;
+            if (adjustedFilter === null) {
+                if (search && search.trim() !== "") {
+                    const allMatched = await Product.find(queryFilter).sort(sortCriteria);
+                    const tokens = removeVietnameseTones(search)
+                        .toLowerCase()
+                        .split(/\s+/)
+                        .filter(t => t.length > 0);
+                    
+                    if (tokens.length > 0) {
+                        allMatched.sort((a, b) => {
+                            const score = (product) => {
+                                const nameLower = removeVietnameseTones(product.name || '').toLowerCase();
+                                const codeLower = removeVietnameseTones(product.code || '').toLowerCase();
+                                let matchCount = 0;
+                                tokens.forEach(t => {
+                                    if (nameLower.includes(t) || codeLower.includes(t)) {
+                                        matchCount++;
+                                    }
+                                });
+                                const fullSearch = removeVietnameseTones(search).toLowerCase();
+                                if (nameLower.includes(fullSearch) || codeLower.includes(fullSearch)) {
+                                    matchCount += 10;
+                                }
+                                return matchCount;
+                            };
+                            return score(b) - score(a);
+                        });
+                    }
+                    localTotal = allMatched.length;
+                    localProducts = allMatched.slice(skip, skip + limitNum);
+                } else {
+                    [localProducts, localTotal] = await Promise.all([
+                        Product.find(queryFilter)
+                            .sort(sortCriteria)
+                            .skip(skip)
+                            .limit(limitNum),
+                        Product.countDocuments(queryFilter)
+                    ]);
+                }
+            } else {
+                const matchedProducts = await Product.find(queryFilter).sort(sortCriteria);
+                let adjustedProducts = matchedProducts.filter(product =>
+                    calculateProductAdjustedStatus(product) === adjustedFilter
+                );
+                
+                if (search && search.trim() !== "") {
+                    const tokens = removeVietnameseTones(search)
+                        .toLowerCase()
+                        .split(/\s+/)
+                        .filter(t => t.length > 0);
+                    
+                    if (tokens.length > 0) {
+                        adjustedProducts.sort((a, b) => {
+                            const score = (product) => {
+                                const nameLower = removeVietnameseTones(product.name || '').toLowerCase();
+                                const codeLower = removeVietnameseTones(product.code || '').toLowerCase();
+                                let matchCount = 0;
+                                tokens.forEach(t => {
+                                    if (nameLower.includes(t) || codeLower.includes(t)) {
+                                        matchCount++;
+                                    }
+                                });
+                                const fullSearch = removeVietnameseTones(search).toLowerCase();
+                                if (nameLower.includes(fullSearch) || codeLower.includes(fullSearch)) {
+                                    matchCount += 10;
+                                }
+                                return matchCount;
+                            };
+                            return score(b) - score(a);
+                        });
+                    }
+                }
+                localTotal = adjustedProducts.length;
+                localProducts = adjustedProducts.slice(skip, skip + limitNum);
+            }
+            return [localProducts, localTotal];
+        };
+
+        // Chạy truy vấn chính thức
+        [products, total] = await runQuery(filter);
+
+        // Hỗ trợ dự phòng nới lỏng bộ lọc: Nếu kết quả bằng 0 và có dùng lọc hãng/loại, ta tự động bỏ qua loại/hãng để tìm rộng
+        if (total === 0 && ((type && type !== "") || (brand && brand !== ""))) {
+            const relaxedFilter = { ...filter };
+            delete relaxedFilter.type;
+            delete relaxedFilter.brand;
+            [products, total] = await runQuery(relaxedFilter);
+            console.log(`[SEARCH FALLBACK] Nới lỏng bộ lọc bỏ type/brand. Tìm thấy ${total} kết quả.`);
         }
 
         const processedProducts = products.map(product => {
@@ -955,6 +1080,38 @@ router.delete('/clean-temp-image', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('Lỗi khi xóa ảnh tạm:', error);
         res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh tạm.", error: error.message });
+    }
+});
+
+// API xóa nhiều sản phẩm hàng loạt (bulk delete)
+router.post('/bulk-delete', [authenticateAdmin, checkPermission('delete_product')], async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'Danh sách ID không hợp lệ.' });
+        }
+
+        // Tìm tất cả sản phẩm sắp xóa để lấy thông tin ghi log
+        const productsToDelete = await Product.find({ _id: { $in: ids } });
+        
+        // Thực hiện xóa hàng loạt
+        const deleteResult = await Product.deleteMany({ _id: { $in: ids } });
+        
+        // Ghi log hoạt động cho từng sản phẩm bị xóa
+        try {
+            const logs = productsToDelete.map(product => ({
+                userName: req.user.name,
+                action: 'delete_product',
+                productId: product._id,
+                productName: product.name,
+                details: [{ field: 'Xóa sản phẩm hàng loạt', oldValue: product.name, newValue: '' }]
+            }));
+            await ActivityLog.insertMany(logs);
+        } catch (logErr) { console.error('Bulk ActivityLog error:', logErr.message); }
+
+        res.json({ message: `Đã xóa thành công ${deleteResult.deletedCount} sản phẩm.` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -1555,12 +1712,17 @@ router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')]
 Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat) và ghi chú (note).
 
 Hướng dẫn trích xuất:
-- Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Tuyệt đối không tự ý đánh số thứ tự tuần tự 1, 2, 3, 4... nếu trên hóa đơn đã có ghi cột số thứ tự. Chỉ tự đánh số từ 1 tăng dần khi hóa đơn hoàn toàn không có cột số thứ tự.
+- Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Nếu cột số thứ tự trên hóa đơn bị để trống hoặc không được ghi số thứ tự cụ thể (chỉ ghi dấu * hoặc bỏ trống), bạn BẮT BUỘC phải tự động đánh số thứ tự tuần tự tăng dần từ 1 cho đến hết (1, 2, 3, 4...) cho các dòng mặt hàng.
 - Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "GW1S-3E20", "NFO-40 500/5A"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order - ví dụ: "SOHL2606183B1D4B"), mã đơn mua hàng, số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này. Nếu phát hiện một mã PO/mã quản lý giống hệt nhau lặp đi lặp lại ở tất cả các dòng của hóa đơn, bạn phải LOẠI BỎ hoàn toàn phần mã lặp lại đó ra khỏi trường \`code\`, chỉ giữ lại phần model thực của sản phẩm ở phía sau.
 - Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được).
 - Trường \`price\` là đơn giá thực tế của sản phẩm. Nếu hóa đơn không có cột Đơn giá (hoặc các giá trị tương đương), bạn phải để trống hoặc gán null cho trường \`price\`. Tuyệt đối KHÔNG tự ý suy đoán đơn giá hoặc lấy các con số khác (ví dụ: số mét đầu/cuối của cuộn dây cáp ở cột Ghi chú như "1050 - 750", số thứ tự, số lượng, hoặc số điện thoại) để điền vào trường \`price\`.
 - Trường \`quantity\` phải là kiểu số nguyên dương (hãy loại bỏ các ký tự dấu chấm, dấu phẩy hoặc đơn vị VND).
 - Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...).
+- NGUYÊN TẮC DÒNG ĐỐI DÒNG VÀ PHÂN TÍCH KÝ TỰ ĐẦU DÒNG (CỰC KỲ QUAN TRỌNG):
+  + NHẬN DIỆN KÝ TỰ ĐẦU DÒNG (DẤU SAO * HOẶC MŨI TÊN ↓): Hãy chú ý các ký tự viết tay ở đầu cột tên hàng (ví dụ dấu sao "*", hoặc ký hiệu mũi tên đi xuống "↓"). Đây là ký hiệu bắt đầu một dòng sản phẩm độc lập. 
+  + KHÔNG GỘP TIÊU ĐỀ NHÓM: Các dòng ghi tiêu đề nhóm hoặc thông tin phụ (Ví dụ: "8.8 Đen" ở hóa đơn 1, "8.8 Mạ" ở hóa đơn 2) không có ký tự "*" ở đầu và dòng đó trống trơn số liệu (số lượng/giá). Đây là dòng tiêu đề phân loại hoặc ghi chú chứ không phải tên dài xuống dòng (vì chữ viết còn rất ngắn chưa chạm mép lề). Bạn BẮT BUỘC phải xuất dòng tiêu đề này thành một phần tử riêng trong JSON với "quantity" là 0 và "price" là 0. TUYỆT ĐỐI KHÔNG gộp dòng này với sản phẩm có dấu "*" ở phía dưới (như "* 30x120+ê VP"), vì sẽ làm đẩy lệch toàn bộ cột số lượng và đơn giá của các sản phẩm bên dưới lên 1 hàng.
+  + ĐỐI VỚI CÁC SẢN PHẨM ĐỘC LẬP: Xuất kết quả nghiêm ngặt theo từng dòng vật lý (line-by-line). Nếu một sản phẩm bị trống số lượng hoặc giá tiền, bạn vẫn phải xuất dòng đó thành một sản phẩm riêng biệt và gán giá trị 0 cho "quantity" và "price". Tuyệt đối KHÔNG lấy số liệu của các dòng phía dưới để điền bù lên dòng trống này.
+- KIỂM TRA PHÉP NHÂN TOÁN HỌC (CỰC KỲ QUAN TRỌNG): Đối với hóa đơn viết tay, các nét chữ số lượng và đơn giá rất dễ bị nhận diện nhầm (ví dụ: số 42 trông giống số 12, hoặc số 4.000 bị nhầm với số 40.000). Bạn BẮT BUỘC phải thực hiện phép nhân nhẩm: [Số lượng (quantity)] x [Đơn giá (price)] và đối chiếu xem kết quả có trùng khớp với con số ở cột [Thành tiền] được ghi trên hóa đơn cho dòng sản phẩm đó hay không. Nếu không khớp, hãy dùng phép tính toán học để suy ngược lại và tự điều chỉnh số lượng hoặc đơn giá cho chính xác trước khi xuất kết quả JSON (Ví dụ: nếu đơn giá là 12.500 và thành tiền ghi là 525.000, thì số lượng bắt buộc phải là 42 chứ không thể là 12).
 
 Định dạng phản hồi BẮT BUỘC là một mảng JSON trực tiếp (không nằm trong thẻ markdown \`\`\`json và không có văn bản giải thích đi kèm):
 [
@@ -1578,15 +1740,19 @@ Hướng dẫn trích xuất:
 
         // 4. Gọi API Gemini bằng fetch có hỗ trợ Fallback tự động khi quá tải (503)
         const modelsToTry = [
+            'gemini-2.5-pro',
             'gemini-2.5-flash',
             'gemini-2.5-flash-lite',
-            'gemini-2.0-flash'
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-flash-latest',
+            'gemini-flash-lite-latest'
         ];
 
         const callGeminiWithModel = async (modelName) => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             const startGemini = Date.now();
             console.log(`[scan-invoice] Bắt đầu gọi Gemini API (${modelName}) để trích xuất chữ từ ảnh...`);
 
@@ -1924,7 +2090,7 @@ const uploadAudio = multer({
 });
 
 // API Tìm kiếm bằng giọng nói tiếng Việt sử dụng Gemini Multimodal Audio Input
-router.post('/voice-query', [authenticateUser, voiceLimiter, uploadAudio.single('audio')], async (req, res) => {
+router.post('/voice-query', [uploadAudio.single('audio')], async (req, res) => {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
@@ -1943,6 +2109,8 @@ router.post('/voice-query', [authenticateUser, voiceLimiter, uploadAudio.single(
         if (mimeType === 'application/octet-stream') {
             mimeType = 'audio/mp4'; // Safari fallback
         }
+
+        console.log(`\n📥 [VOICE INCOMING] Nhận file âm thanh từ điện thoại: ${req.file.size} bytes | Định dạng: ${mimeType}`);
 
         const systemPrompt = `Bạn là trợ lý ảo thông minh phụ trách quản lý kho hàng của công ty thiết bị điện/thiết bị tự động hóa TTSmart.
 Hãy nghe file âm thanh được cung cấp (giọng nói tiếng Việt của người dùng) và thực hiện 2 nhiệm vụ:
@@ -1966,13 +2134,16 @@ Quy tắc phân tách và xử lý từ khóa:
   + Nếu nhắc đến: "rơ le trung gian", "relay trung gian" -> filters.type: "Relay Trung Gian", keyword: "relay trung gian".
   + Nếu nhắc đến: "rơ le thời gian", "relay thời gian", "timer" -> filters.type: "Relay Thời Gian", keyword: "relay thời gian".
   + Nếu nhắc đến: "rơ le nhiệt", "relay nhiệt" -> filters.type: "Relay Nhiệt", keyword: "relay nhiệt".
-  + Nếu nhắc đến: "biến dòng", "biến dòng vuông", "ti" -> filters.type: "TI", keyword: "TI".
+  + Nếu nhắc đến: "ti" -> filters.type: "TI", keyword: "TI".
   + Nếu nhắc đến: "đèn báo", "đèn chỉ thị", "đèn" -> filters.type: "Đèn", keyword: "đèn".
   + Nếu nhắc đến: "xi lanh khí nén", "ty ben" -> filters.type: "Xy lanh khí nén", keyword: "xy lanh".
 - Trường hợp Đặc biệt:
   + Màn hình / HMI: Vì trong danh mục sản phẩm của hệ thống KHÔNG có loại "HMI" (các màn hình HMI đang được xếp vào loại "PLC" hoặc loại khác), nên nếu người dùng nói "HMI", "màn hình HMI", "màn hình cảm ứng", bạn phải đặt "filters.type" là null và đặt "keyword" là "HMI" hoặc "màn hình" để tìm kiếm theo tên chuỗi văn bản.
 - Tách biệt tên thương hiệu: Nếu người dùng nhắc cả loại và hãng (ví dụ: "tìm plc siemens"), bạn PHẢI tách thương hiệu ra đưa vào "filters.brand" (ví dụ: "Siemens"), và đưa loại sản phẩm vào "keyword" (ví dụ: "PLC") đồng thời loại bỏ tên hãng khỏi "keyword" để tránh việc tìm kiếm chuỗi trong cơ sở dữ liệu bị lỗi.
 - Chỉ gán "filters.brand" tự động khi người dùng đọc mã/model thiết bị đặc thù thuộc về duy nhất một hãng (ví dụ: "S7-1200" hoặc "S7-1500" -> hãng "Siemens"; "FX3U" hoặc "FX5U" -> hãng "Mitsubishi").
+- Giữ lại thông số kỹ thuật chi tiết: Nếu câu nói chứa tên model và các thông số chi tiết (ví dụ: "SM1231 8 AI RTD", "S7-1200 1214C", "FX3U 16MR"), bạn PHẢI trích xuất mã dòng sản phẩm chính vào "filters.code" (ví dụ: "SM1231", "S7-1200", "FX3U"), nhưng đối với trường "keyword", bạn bắt buộc PHẢI giữ nguyên toàn bộ tên model kèm thông số chi tiết đó (ví dụ: "SM1231 8 AI RTD") để backend có thể đối sánh chính xác.
+- Giữ lại thuộc tính mô tả chi tiết: Nếu người dùng đọc kèm mô tả cụ thể (ví dụ: "nút đỏ", "nút đỏ không đèn", "nút nhấn màu xanh", "relay nhiệt mười tám a", "rơ le nhiệt 18A"), bạn PHẢI giữ nguyên cụm từ mô tả chi tiết đó làm "keyword" (ví dụ: "nút đỏ", "nút đỏ không đèn", "nút nhấn màu xanh", "relay nhiệt 18A"), TUYỆT ĐỐI không được rút ngắn keyword thành tên loại sản phẩm chung chung (như "nút nhấn" hoặc "relay nhiệt") vì hệ thống cần từ khóa chi tiết để lọc sản phẩm theo màu sắc/dòng điện.
+
 
 Ví dụ cụ thể:
 1. Người dùng nói: "tìm plc siemens"
@@ -2016,14 +2187,19 @@ Ví dụ cụ thể:
 `;
 
         const modelsToTry = [
+            'gemini-2.5-pro',
             'gemini-2.5-flash',
-            'gemini-2.0-flash'
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-flash-latest',
+            'gemini-flash-lite-latest'
         ];
 
         const callGeminiWithModel = async (modelName) => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
             try {
                 const res = await fetch(geminiUrl, {
@@ -2099,18 +2275,28 @@ Ví dụ cụ thể:
         } catch (parseErr) {
             console.warn("[voice-query] Không parse được JSON phản hồi từ Gemini:", textResult);
             // Fallback: dùng toàn bộ transcript/text làm keyword
+            const fallbackResult = normalizeVoiceQueryResult({
+                transcript: textResult,
+                keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),
+                intent: "search_product",
+                filters: { brand: null, type: null, code: null }
+            });
+            console.log("\n🎙️ [VOICE SEARCH - FALLBACK] -----------------------");
+            console.log(`🗣️ Người dùng nói: "${fallbackResult.transcript}"`);
+            console.log(`🔍 Từ khóa trích xuất: "${fallbackResult.keyword}"`);
+            console.log("---------------------------------------------------\n");
             return res.json({
                 success: 1,
-                ...normalizeVoiceQueryResult({
-                    transcript: textResult,
-                    keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),
-                    intent: "search_product",
-                    filters: { brand: null, type: null, code: null }
-                })
+                ...fallbackResult
             });
         }
 
         const normalizedResult = normalizeVoiceQueryResult(resultObj);
+        console.log("\n🎙️ [VOICE SEARCH] ----------------------------------");
+        console.log(`🗣️ Người dùng nói: "${normalizedResult.transcript}"`);
+        console.log(`🔍 Từ khóa trích xuất: "${normalizedResult.keyword}"`);
+        console.log(`🎛️ Bộ lọc trích xuất:`, JSON.stringify(normalizedResult.filters));
+        console.log("---------------------------------------------------\n");
         res.json({
             success: 1,
             ...normalizedResult

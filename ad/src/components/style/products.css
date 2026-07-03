@@ -3,8 +3,8 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 1.5rem;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .product-add-button-add {

@@ -264,7 +264,15 @@ const OrderedProducts = () => {
         <h2>Danh sách sản phẩm đã đặt</h2>
 
         {/* Bộ lọc */}
-        <Box display="flex" gap={2} mb={2}>
+        <Box 
+          display="flex" 
+          gap={2} 
+          mb={2}
+          sx={{
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" }
+          }}
+        >
           <Autocomplete
             freeSolo
             size="small"
@@ -282,13 +290,13 @@ const OrderedProducts = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
                 label="Tên sản phẩm"
                 placeholder="Nhập tên..."
                 variant="outlined"
-                sx={{ width: 200 }}
               />
             )}
           />
@@ -301,6 +309,7 @@ const OrderedProducts = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
           <TextField
             name="endDate"
@@ -311,12 +320,14 @@ const OrderedProducts = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
+            sx={{ width: { xs: "100%", sm: 150 } }}
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSearch}
-            size="small"
+            size="medium"
+            sx={{ alignSelf: { xs: "stretch", sm: "center" }, height: "40px" }}
           >
             Tìm kiếm
           </Button>

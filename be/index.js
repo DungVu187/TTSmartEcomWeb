@@ -48,6 +48,7 @@ const checkOrigin = (origin, callback) => {
     origin.startsWith('http://192.168.') || // Tự động cho phép mọi IP trong mạng LAN nội bộ
     origin.endsWith('.loca.lt') ||
     origin.endsWith('.localtunnel.me') ||
+    origin.endsWith('.trycloudflare.com') || // Tự động cho phép mọi sub-domain của Cloudflare Tunnel
     origin === 'null'
   ) {
     callback(null, true);

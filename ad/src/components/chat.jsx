@@ -76,7 +76,7 @@ const Chat = () => {
     };
 
     try {
-      const parsedUrl = new URL(apiUrl);
+      const parsedUrl = new URL(apiUrl, window.location.origin);
       if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
         socketUrl = parsedUrl.origin;
         socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";

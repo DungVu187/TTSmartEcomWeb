@@ -37,9 +37,28 @@ const removeVietnameseTones = (str) => {
 
 const Products = () => {
   const [products, setProducts] = useState([]);
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
   const topScrollRef = useRef(null);
   const tableContainerRef = useRef(null);
   const [tableWidth, setTableWidth] = useState(1600);
+  const stickyHeaderRef = useRef(null);
+  const [stickyHeight, setStickyHeight] = useState(0);
+
+  useEffect(() => {
+    if (stickyHeaderRef.current) {
+      const handleResize = () => {
+        setStickyHeight(stickyHeaderRef.current.offsetHeight);
+      };
+      handleResize();
+      window.addEventListener("resize", handleResize);
+      const observer = new ResizeObserver(handleResize);
+      observer.observe(stickyHeaderRef.current);
+      return () => {
+        window.removeEventListener("resize", handleResize);
+        observer.disconnect();
+      };
+    }
+  }, []);
 
   const handleTopScroll = () => {
     if (tableContainerRef.current && topScrollRef.current) {
@@ -224,6 +243,70 @@ const Products = () => {
   useEffect(() => {
     setQuickSearch(filters.search || "");
   }, [filters.search]);
+
+  useEffect(() => {
+    setSelectedProductIds([]);
+  }, [products]);
+
+  const handleSelectAllClick = (event) => {
+    if (event.target.checked) {
+      const newSelecteds = products.map((n) => n._id);
+      setSelectedProductIds(newSelecteds);
+    } else {
+      setSelectedProductIds([]);
+    }
+  };
+
+  const handleSelectRow = (event, id) => {
+    event.stopPropagation();
+    const selectedIndex = selectedProductIds.indexOf(id);
+    let newSelected = [];
+
+    if (selectedIndex === -1) {
+      newSelected = newSelected.concat(selectedProductIds, id);
+    } else if (selectedIndex === 0) {
+      newSelected = newSelected.concat(selectedProductIds.slice(1));
+    } else if (selectedIndex === selectedProductIds.length - 1) {
+      newSelected = newSelected.concat(selectedProductIds.slice(0, -1));
+    } else if (selectedIndex > 0) {
+      newSelected = newSelected.concat(
+        selectedProductIds.slice(0, selectedIndex),
+        selectedProductIds.slice(selectedIndex + 1)
+      );
+    }
+    setSelectedProductIds(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProductIds.length === 0) return;
+    const confirmDelete = window.confirm(
+      `Bạn có chắc chắn muốn xóa ${selectedProductIds.length} sản phẩm đã chọn? Hành động này không thể hoàn tác.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch(`${apiUrl}/products/bulk-delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ids: selectedProductIds }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to bulk delete products");
+      }
+
+      toast.success("Xóa hàng loạt sản phẩm thành công");
+      setSelectedProductIds([]);
+      fetchProducts(currentPage, rowsPerPage);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Xóa hàng loạt thất bại");
+    }
+  };
 
   const navigate = useNavigate();
 
@@ -847,8 +930,8 @@ const Products = () => {
   );
 
   return (
-    <div className="main-product-add-container">
-      <div className="sticky-header">
+    <div className="main-product-add-container" style={{ "--sticky-header-height": `${stickyHeight}px` }}>
+      <div className="sticky-header" ref={stickyHeaderRef}>
         <h2>Danh mục sản phẩm</h2>
         <div className="product-add-functions">
           <div className="product-add-button-add">
@@ -898,11 +981,22 @@ const Products = () => {
             <Button
               variant={showUnadjustedOnly ? "contained" : "outlined"}
               color="warning"
-              sx={{ marginLeft: 2 }}
+              sx={{ marginLeft: 2, minWidth: 220, whiteSpace: "nowrap" }}
               onClick={() => setShowUnadjustedOnly(!showUnadjustedOnly)}
             >
               {showUnadjustedOnly ? "Hiển thị tất cả" : "Sản phẩm chưa điều chỉnh"}
             </Button>
+            {selectedProductIds.length > 0 && (
+              <Button
+                variant="contained"
+                color="error"
+                size="small"
+                sx={{ marginLeft: 1, minWidth: "fit-content", whiteSpace: "nowrap" }}
+                onClick={handleBulkDelete}
+              >
+                Xóa ({selectedProductIds.length})
+              </Button>
+            )}
           </div>
           <div className="filter-desktop">
             <Autocomplete
@@ -948,14 +1042,20 @@ const Products = () => {
       <div 
         ref={topScrollRef} 
         onScroll={handleTopScroll} 
+        className="top-scrollbar-sticky"
         style={{ 
+          position: "sticky",
+          top: `${stickyHeight}px`,
+          zIndex: 99,
+          backgroundColor: "#fff",
           overflowX: "auto", 
           overflowY: "hidden", 
           width: "100%", 
-          height: "8px",
+          height: "12px",
+          paddingTop: "2px",
+          paddingBottom: "2px",
           marginBottom: "6px",
           borderRadius: "4px",
-          backgroundColor: "#f5f5f5"
         }}
       >
         <div style={{ width: `${tableWidth}px`, height: "1px" }} />
@@ -968,9 +1068,18 @@ const Products = () => {
           component={Paper} 
           sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}
         >
-          <Table stickyHeader sx={{ minWidth: 1600 }}>
+          <Table stickyHeader size="small" sx={{ minWidth: 1600 }}>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#dedede" }}>
+                <TableCell align="center" style={{ width: 40, padding: "0 8px" }}>
+                  <Checkbox
+                    indeterminate={selectedProductIds.length > 0 && selectedProductIds.length < products.length}
+                    checked={products.length > 0 && selectedProductIds.length === products.length}
+                    onChange={handleSelectAllClick}
+                    color="primary"
+                    size="small"
+                  />
+                </TableCell>
                 <TableCell align="center">Hiển thị</TableCell>
                 <TableCell align="center" sx={{ minWidth: 100 }}>Loại</TableCell>
                 <TableCell align="center" sx={{ minWidth: 200 }}>Tên</TableCell>
@@ -996,6 +1105,18 @@ const Products = () => {
                   hover
                   style={{ cursor: "pointer" }}
                 >
+                  <TableCell
+                    align="center"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ width: 40, padding: "0 8px" }}
+                  >
+                    <Checkbox
+                      checked={selectedProductIds.includes(product._id)}
+                      onChange={(e) => handleSelectRow(e, product._id)}
+                      color="primary"
+                      size="small"
+                    />
+                  </TableCell>
                   <TableCell
                     align="center"
                     onClick={(e) => e.stopPropagation()}

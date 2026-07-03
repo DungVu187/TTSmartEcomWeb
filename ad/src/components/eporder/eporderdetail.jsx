@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import {
@@ -297,6 +297,13 @@ const ExportOrderDetail = () => {
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [tempScanImageUrl, setTempScanImageUrl] = useState(null);
 
+  // States phục vụ Zoom + Drag cho khung xem ảnh hóa đơn AI
+  const [scanZoomScale, setScanZoomScale] = useState(1);
+  const [scanPanOffset, setScanPanOffset] = useState({ x: 0, y: 0 });
+  const [scanIsDragging, setScanIsDragging] = useState(false);
+  const [scanDragStart, setScanDragStart] = useState({ x: 0, y: 0 });
+  const imageWrapperRef = useRef(null);
+
   // States phục vụ Zoom + Xoay + Drag ảnh giống Zalo
   const [rotation, setRotation] = useState(0);
   const [zoomScale, setZoomScale] = useState(1);
@@ -469,9 +476,64 @@ const ExportOrderDetail = () => {
     setLightboxOpen(true);
   };
 
+  // Zoom & Pan handlers for the AI Scan invoice image box via ref callback
+  const setWrapperRef = useCallback((node) => {
+    if (imageWrapperRef.current) {
+      try {
+        imageWrapperRef.current.removeEventListener("wheel", imageWrapperRef.current._wheelHandler);
+      } catch (err) {
+        console.error("Lỗi gỡ bỏ wheel listener:", err);
+      }
+    }
+    imageWrapperRef.current = node;
+    if (node) {
+      const handleNativeWheel = (e) => {
+        e.preventDefault();
+        const zoomFactor = 0.15;
+        setScanZoomScale((prevScale) => {
+          let newScale = prevScale + (e.deltaY < 0 ? zoomFactor : -zoomFactor);
+          newScale = Math.max(1, Math.min(newScale, 8)); // Limit zoom scale from 1x to 8x
+          if (newScale <= 1) {
+            setScanPanOffset({ x: 0, y: 0 });
+          }
+          return newScale;
+        });
+      };
+      node.addEventListener("wheel", handleNativeWheel, { passive: false });
+      node._wheelHandler = handleNativeWheel;
+    }
+  }, []);
+
+  const handleScanMouseDown = (e) => {
+    if (scanZoomScale <= 1) return;
+    e.preventDefault();
+    setScanIsDragging(true);
+    setScanDragStart({ x: e.clientX - scanPanOffset.x, y: e.clientY - scanPanOffset.y });
+  };
+
+  const handleScanMouseMove = (e) => {
+    if (!scanIsDragging) return;
+    e.preventDefault();
+    setScanPanOffset({
+      x: e.clientX - scanDragStart.x,
+      y: e.clientY - scanDragStart.y
+    });
+  };
+
+  const handleScanMouseUp = () => {
+    setScanIsDragging(false);
+  };
+
+  const resetScanZoomPan = () => {
+    setScanZoomScale(1);
+    setScanPanOffset({ x: 0, y: 0 });
+    setScanIsDragging(false);
+  };
+
   const handleCancelScanDialog = async () => {
     if (isScanning) return;
     setIsScanDialogOpen(false);
+    resetScanZoomPan();
     if (tempScanImageUrl) {
       const urlToDelete = tempScanImageUrl;
       setTempScanImageUrl(null);
@@ -2439,8 +2501,9 @@ const ExportOrderDetail = () => {
       <Dialog
         open={isScanDialogOpen}
         onClose={handleCancelScanDialog}
-        maxWidth="lg"
-        fullWidth
+        fullWidth={true}
+        maxWidth={false}
+        PaperProps={{ sx: { width: "95vw", maxWidth: "95vw" } }}
       >
         <DialogTitle sx={{ 
           bgcolor: '#512da8', 
@@ -2457,24 +2520,44 @@ const ExportOrderDetail = () => {
           <Box sx={{ display: "flex", gap: 3, mt: 2, flexDirection: { xs: "column", md: "row" } }}>
             
             {/* Cột trái: Ảnh hóa đơn gốc */}
-            <Box sx={{ 
-              flex: 1, 
-              minWidth: "300px", 
-              border: "1px solid rgba(0,0,0,0.12)", 
-              borderRadius: "12px", 
-              overflow: "hidden", 
-              display: "flex", 
-              alignItems: "center", 
-              justifyContent: "center", 
-              bgcolor: "#fafafa",
-              boxShadow: "inset 0 0 10px rgba(0,0,0,0.03)",
-              p: 1
-            }}>
+            <Box 
+              ref={setWrapperRef}
+              onMouseDown={handleScanMouseDown}
+              onMouseMove={handleScanMouseMove}
+              onMouseUp={handleScanMouseUp}
+              onMouseLeave={handleScanMouseUp}
+              sx={{ 
+                width: "40%", 
+                maxWidth: "40%", 
+                flexShrink: 0,
+                border: "1px solid rgba(0,0,0,0.12)", 
+                borderRadius: "12px", 
+                overflow: "hidden", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                bgcolor: "#fafafa",
+                boxShadow: "inset 0 0 10px rgba(0,0,0,0.03)",
+                p: 1,
+                cursor: scanZoomScale > 1 ? (scanIsDragging ? 'grabbing' : 'grab') : 'default',
+                position: 'relative'
+              }}
+            >
               {selectedScanImage ? (
                 <img
                   src={selectedScanImage}
                   alt="Invoice Preview"
-                  style={{ maxWidth: "100%", maxHeight: "550px", objectFit: "contain", borderRadius: "8px" }}
+                  style={{ 
+                    maxWidth: "100%", 
+                    maxHeight: "650px", 
+                    objectFit: "contain", 
+                    borderRadius: "8px",
+                    transform: `scale(${scanZoomScale}) translate(${scanPanOffset.x / scanZoomScale}px, ${scanPanOffset.y / scanZoomScale}px)`,
+                    transformOrigin: "center center",
+                    transition: scanIsDragging ? "none" : "transform 0.1s ease-out",
+                    userSelect: "none",
+                    pointerEvents: "none"
+                  }}
                 />
               ) : (
                 <Typography color="text.secondary">Chưa chọn ảnh</Typography>
@@ -2482,7 +2565,7 @@ const ExportOrderDetail = () => {
             </Box>
 
             {/* Cột phải: Danh sách kết quả từ AI */}
-            <Box sx={{ flex: 2, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <Box sx={{ width: "60%", maxWidth: "60%", flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               {isScanning ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
                   <CircularProgress size={50} thickness={4} sx={{ color: '#512da8' }} />
@@ -2507,6 +2590,7 @@ const ExportOrderDetail = () => {
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Tên trên hóa đơn</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '90px' }}>Số lượng</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Đơn giá</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Thành tiền</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '80px' }}>VAT</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '60px' }}>Xóa</TableCell>
                       </TableRow>
@@ -2614,6 +2698,11 @@ const ExportOrderDetail = () => {
                                 sx={{ width: "120px" }}
                               />
                             </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight="bold">
+                                {((row.quantity || 0) * (row.price || 0)).toLocaleString("vi-VN")}
+                              </Typography>
+                            </TableCell>
                             <TableCell align="center">
                               <TextField
                                 value={row.vat || ""}
@@ -2642,6 +2731,18 @@ const ExportOrderDetail = () => {
                           </TableRow>
                         );
                       })}
+                      {/* Dòng tổng cộng tự tính */}
+                      <TableRow sx={{ bgcolor: "#fafafa" }}>
+                        <TableCell colSpan={3} align="right" sx={{ fontWeight: "bold" }}>Tổng đơn trích xuất:</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: "bold" }}>
+                          {scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                        </TableCell>
+                        <TableCell />
+                        <TableCell align="right" sx={{ fontWeight: "bold", color: "#512da8" }}>
+                          {scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ
+                        </TableCell>
+                        <TableCell colSpan={2} />
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -2654,7 +2755,26 @@ const ExportOrderDetail = () => {
 
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+        {scanResults.length > 0 && !isScanning && (
+          <Box sx={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center", 
+            px: 3, 
+            py: 1.5, 
+            bgcolor: "#f5f5f5", 
+            borderTop: "1px solid rgba(0,0,0,0.08)",
+            borderBottom: "1px solid rgba(0,0,0,0.08)"
+          }}>
+            <Typography variant="body1" fontWeight="bold" color="text.primary">
+              Tổng số lượng: <span style={{ color: '#512da8' }}>{scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0).toLocaleString("vi-VN")}</span>
+            </Typography>
+            <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
+              Tổng đơn hàng trích xuất (tự tính): <span style={{ color: '#512da8', fontSize: '1.2rem' }}>{scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ</span>
+            </Typography>
+          </Box>
+        )}
+        <DialogActions sx={{ p: 3, borderTop: scanResults.length > 0 && !isScanning ? 'none' : '1px solid rgba(0,0,0,0.08)' }}>
           <Button 
             onClick={() => {
               setIsScanDialogOpen(false);

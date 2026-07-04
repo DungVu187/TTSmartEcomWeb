@@ -18,7 +18,6 @@ const { router: eporderRoutes } = require('./components/eporder');
 const { router: stationRoutes } = require('./components/station');
 const { router: historyRoutes } = require('./components/storagehistory');
 const { router: activityLogRoutes } = require('./components/activitylog');
-const { router: chatRoutes, ChatMessage } = require('./components/chat');
 const { router: zaloRoutes } = require('./components/zalo');
 
 // Tạo app + http server + socket.io
@@ -62,76 +61,11 @@ const io = new Server(server, {
   },
 });
 
-const activeSupports = new Map();
-
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
-  // Gửi danh sách các phòng đang được hỗ trợ cho client vừa kết nối
-  const currentSupports = {};
-  for (const [sessId, data] of activeSupports.entries()) {
-    currentSupports[sessId] = { adminName: data.adminName, socketId: data.socketId };
-  }
-  socket.emit('active_supports_list', currentSupports);
-
-  // Lắng nghe sự kiện Chat hỗ trợ kỹ thuật
-  socket.on('join_chat', ({ sessionId }) => {
-    socket.join(`room_${sessionId}`);
-    console.log(`Socket ${socket.id} joined room_${sessionId}`);
-  });
-
-  socket.on('occupy_session', ({ sessionId, adminName }) => {
-    const currentSupport = activeSupports.get(sessionId);
-    if (!currentSupport || currentSupport.socketId === socket.id) {
-      activeSupports.set(sessionId, { adminName, socketId: socket.id });
-      console.log(`Session ${sessionId} occupied by Admin ${adminName} (${socket.id})`);
-      io.emit('session_occupied', { sessionId, adminName, socketId: socket.id });
-    } else {
-      console.log(`Session ${sessionId} is already occupied by Admin ${currentSupport.adminName}. Occupy request from Admin ${adminName} (${socket.id}) is denied.`);
-    }
-  });
-
-  socket.on('leave_session', ({ sessionId }) => {
-    const support = activeSupports.get(sessionId);
-    if (support && support.socketId === socket.id) {
-      activeSupports.delete(sessionId);
-      console.log(`Session ${sessionId} released`);
-      io.emit('session_released', { sessionId });
-    }
-  });
-
-  socket.on('send_msg', async (data) => {
-    const { sessionId, senderPhone, senderName, senderRole, message } = data;
-    try {
-      const newMsg = new ChatMessage({
-        sessionId,
-        senderPhone,
-        senderName,
-        senderRole,
-        message,
-      });
-      await newMsg.save();
-
-      // Gửi tin nhắn đến mọi client trong phòng room_<sessionId> (bao gồm khách hàng và admin đang xem phòng đó)
-      io.to(`room_${sessionId}`).emit('receive_msg', newMsg);
-
-      // Thông báo cho tất cả admin/staff về tin nhắn mới (để cập nhật danh sách phiên chat ở admin panel)
-      io.emit('admin_notify_msg', { sessionId, message: newMsg });
-    } catch (err) {
-      console.error("Lỗi khi lưu tin nhắn chat socket:", err.message);
-    }
-  });
-
-  // Khi client ngắt kết nối
   socket.on('disconnect', (reason) => {
     console.log(`Socket disconnected (${socket.id}): ${reason}`);
-    for (const [sessionId, support] of activeSupports.entries()) {
-      if (support.socketId === socket.id) {
-        activeSupports.delete(sessionId);
-        console.log(`Session ${sessionId} automatically released due to disconnect`);
-        io.emit('session_released', { sessionId });
-      }
-    }
   });
 });
 
@@ -185,7 +119,6 @@ app.use('/eporders', eporderRoutes);
 app.use('/stations', stationRoutes);
 app.use('/histories', historyRoutes);
 app.use('/activity-logs', activityLogRoutes);
-app.use('/chat', chatRoutes);
 app.use('/zalo', zaloRoutes);
 
 // Static files
@@ -218,7 +151,7 @@ app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
-    '/histories', '/chat', '/images', '/section-images', '/zalo'
+    '/histories', '/images', '/section-images', '/zalo'
   ];
   const isApi = apiPaths.some(path => req.path.startsWith(path));
   const isStaticFile = /\.(jpg|jpeg|png|gif|webp|svg|css|js|ico|map)$/i.test(req.path);

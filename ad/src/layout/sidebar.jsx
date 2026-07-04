@@ -27,7 +27,6 @@ import {
   Sell as SoldIcon,
   Settings as ManageIcon,
   DisplaySettings as DisplayIcon,
-  Chat as ChatIcon
 } from "@mui/icons-material";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import PersonIcon from "@mui/icons-material/Person";
@@ -276,7 +275,6 @@ const Sidebar = () => {
     },
     { text: "Lịch sử kho", path: "/history", icon: <TocIcon /> },
     { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },
-    { text: "Chat hỗ trợ", path: "/chat", icon: <ChatIcon /> },
     { text: "Đăng xuất", icon: <LogoutIcon />, action: "logout" },
   ].filter(Boolean);
 

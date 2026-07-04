@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-07-04 — Codex (thêm tạo đơn bán thủ công trong admin)
+- `be/components/order.js`: thêm `GET /orders/customer-suggestions` và `POST /orders/admin-create-order` dùng cookie auth + quyền order; route tạo đơn validate toàn bộ payload trước khi trừ `quantityForSale`, lấy giá từ DB, tạo mã `TTSM-xx`, bỏ qua email/Zalo cho đơn nội bộ và vẫn emit socket `order_created`.
+- `ad/src/components/orders.jsx`: thêm nút/dialog “Tạo đơn hàng mới”, autocomplete khách hàng, tìm sản phẩm debounce, chọn variant/số lượng, bảng dòng hàng, tạm tính và submit bằng `apiFetch` cookie httpOnly.
+- `be/tests/order.test.js`: bổ sung regression cho admin/staff tạo đơn, customer bị 403, server bỏ qua total client gửi, lỗi phone/items/quantity/tồn kho không làm đổi kho, và customer suggestions chỉ trả customer name/phone.
+- Verify: `cd be; npm test` pass — 18 suites, 81 tests; `cd ad; npm run build` pass (còn warning chunk lớn cũ).
+- Rủi ro còn lại: chưa mở browser thao tác thủ công dialog mới; cần kiểm nhanh UX tìm sản phẩm/variant trên dữ liệu thật trước demo.
+
+## 2026-07-04 — Codex (sửa admin LAN gọi nhầm API localhost)
+- `ad/.env`: đổi `VITE_API_URL` từ `http://localhost:5000` sang `http://192.168.1.228:5000` vì admin đang mở bằng `http://192.168.1.228/admin/...`; gọi API sang `localhost` làm cookie khác site/host nên `/users/profile` 401 sau login.
+- Rebuild `ad/dist`; kiểm bundle mới có `http://192.168.1.228:5000` và không còn phụ thuộc `localhost:5000` cho API admin.
+- Verify: `cd ad; npm run build` pass (còn warning chunk lớn cũ).
+- Cần hard refresh trình duyệt hoặc xóa cache để tải asset mới `index-Bv__b4yu.js`; request `/users/profile` phải thành `http://192.168.1.228:5000/users/profile`.
+
+## 2026-07-04 — Codex (sửa cookie local làm `/users/profile` 401 sau admin login)
+- `be/components/user.js`: chỉnh `getCookieOptions` để localhost/127.0.0.1/::1/LAN HTTP không set `Secure` dù request bị proxy đánh dấu secure; tránh browser drop cookie `authToken` khiến login báo thành công nhưng `/users/profile` trả 401.
+- `be/tests/auth.test.js`: thêm regression test cho cookie localhost không có `secure`, production HTTPS vẫn có `secure`.
+- Verify: `cd be; npm test` pass — 18 suites, 77 tests; `cd ad; npm run build` pass (còn warning chunk lớn cũ).
+- Cách kiểm tra browser: login admin xong mở DevTools > Application > Cookies > `http://localhost:5000` phải thấy `authToken`; request `/users/profile` phải có header `Cookie: authToken=...`.
+
+## 2026-07-04 — Codex (sửa router sau login admin)
+- `ad/src/components/login.jsx`: thêm fallback `VITE_DASHBOARD || "/admin/product"` để login admin không redirect vào URL rỗng/sai khi env thiếu.
+- `ad/src/App.jsx`: thêm route index và wildcard redirect về `/product`, tránh trường hợp login thành công nhưng vào `/admin` hoặc route không khớp thì shell admin hiện trống như chưa đăng nhập.
+- Verify: `cd ad; npm run build` pass (còn warning chunk lớn cũ).
+- Rủi ro còn lại: chưa mở browser đăng nhập thủ công; nếu vẫn lỗi, cần xem Network tab request `/users/profile` có gửi cookie `authToken` không.
+
+## 2026-07-04 — Codex (hoàn tất gỡ chat hỗ trợ đang dở)
+- Hoàn tất phần Claude đang làm dở: sau khi chat backend/frontend đã bị gỡ khỏi `be/index.js`, `ad/src/App.jsx`, `ad/src/layout/sidebar.jsx`, xóa nốt proxy `/chat` trong `ad/vite.config.js` và các key dịch Chat Widget không còn được dùng trong `fe/src/context/languagecontext.jsx`.
+- Giữ lại hai key login/register (`already_have_account_login`, `dont_have_account_register`) vì `fe/src/pages/login.jsx` vẫn đang dùng.
+- Verify: `cd be; npm test` pass — 18 suites, 76 tests; `cd ad; npm run build` pass (còn warning chunk lớn); `cd fe; npm run build` pass với các warning eslint/Browserslist/CRA cũ.
+- Rủi ro còn lại: chưa mở browser kiểm thử UI thủ công; việc gỡ chat là thay đổi hành vi có chủ đích, cần xác nhận với demo rằng không còn yêu cầu module chat hỗ trợ.
+
+## 2026-07-04 — Codex (vá 5 nhóm hardening backend: injection, auth, IDOR, upload)
+- `be/components/user.js`: chặn NoSQL injection autologin khi `token` không phải string; `/users/all-users` không trả `password`, `logInString`, `resetOtpExpires`.
+- `be/components/product.js`, `chip.js`, `station.js`, `eporder.js`: thêm auth/permission cho `PUT /products/purchase/:id` và `POST /chips/:name/value`, sửa permission eporder `update_eporder`, thêm owner/moderator guard cho sửa/xóa review, thêm `multer` image `fileFilter` + `limits` cho upload ảnh.
+- Thêm `be/tests/security_hardening.test.js`: cover autologin object token, autologin string hợp lệ, field hiding all-users, purchase unauth 401, review IDOR, và permission `update_eporder`.
+- Kết quả `cd be; npm test`: pass — 18 suites passed, 75 tests passed.
+- Rủi ro còn lại: chưa kiểm thử thủ công upload file xấu qua UI/browser; không đổi nghiệp vụ hợp lệ, chỉ thêm rào chắn.
+
+## 2026-07-04 — Codex (vá phân quyền admin-only backend + test regression)
+- Thêm `authenticateAdminOnly` trong `be/components/user.js` (đọc JWT từ cookie `authToken`, chỉ cho `admin/superadmin`) và áp dụng cho đúng các route hở: `/users/all-users`, `/users/customers`, `/users/:id/rotate-autologin-token`, `/zalo/settings`, `/zalo/auth-url`; không đụng `/zalo/callback` hay các route write đã có guard role bên trong.
+- Thêm `be/tests/authz_admin_only.test.js`: staff bị 403 ở các route admin-only, admin vẫn 200, customer vẫn 403, và regression staff có `read_order` vẫn GET `/orders` 200.
+- Trong lúc chạy full test, sửa tối thiểu các lỗi test cũ: bỏ gửi email OTP thật khi `NODE_ENV=test`, cho `/products/voice-query` auth trước multer, chỉnh normalizer voice để khớp test hiện có.
+- Kết quả `cd be; npm test`: pass — 17 suites passed, 70 tests passed.
+- Rủi ro còn lại: chưa kiểm thử thủ công trên browser/admin UI; working tree còn một số file ngoài phạm vi đã tồn tại/không liên quan nên không revert.
+
 ## 2026-07-03 — Codex (Đợt 5 cuối: refactor manage UI + dọn code chết + Vitest cho ad)
 - V12: refactor gọn `ad/src/components/manage.jsx` (tách `ImageCarouselSection` và `TextUpdateSection` cho các khối lặp), giữ nguyên endpoint/payload/shape API `/manages/`; KHÔNG đụng `be/components/manage.js`.
 - V13: xóa component chết `ad/src/components/iporderdetail.jsx` (bản gốc) sau khi grep xác nhận chỉ còn import bản đang dùng `ad/src/components/iporder/iporderdetail.jsx`. V14: xóa `fe/backup_ui_original/` sau khi grep xác nhận `fe/src` không import.

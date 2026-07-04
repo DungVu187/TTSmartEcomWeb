@@ -143,7 +143,13 @@ const assignPermissionsForFunctions = (functions = []) => {
 const getCookieOptions = (req, maxAge = 43200000) => {
   // req.secure đúng nhờ trust proxy=1 + Nginx X-Forwarded-Proto khi chạy HTTPS;
   // LAN/HTTP thì false. FE/BE cùng miền nên sameSite 'lax' là đủ và an toàn.
-  const secureCookie = req.secure;
+  const host = req.hostname || req.get("host")?.split(":")[0] || "";
+  const isLocalHttp =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host.startsWith("192.168.");
+  const secureCookie = req.secure && !isLocalHttp;
   return {
     httpOnly: true,
     secure: secureCookie,
@@ -168,6 +174,25 @@ const authenticateAdmin = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Error in authenticateAdmin:", error.message);
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
+const authenticateAdminOnly = async (req, res, next) => {
+  const token = req.cookies.authToken;
+  if (!token) {
+    return res.status(401).json({ message: "Access denied, no token provided" });
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      return res.status(403).json({ message: "Access denied, admin only" });
+    }
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error("Error in authenticateAdminOnly:", error.message);
     res.status(401).json({ message: "Invalid or expired token" });
   }
 };
@@ -566,9 +591,9 @@ router.post("/reset-password", authLimiter, async (req, res) => {
   }
 });
 
-router.get("/all-users", authenticateAdmin, async (req, res) => {
+router.get("/all-users", authenticateAdminOnly, async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().select("-password -logInString -resetOtpExpires");
     res.json(users);
   } catch (error) {
     console.error("Error in get users:", error.message);
@@ -846,7 +871,7 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
 });
 
 // 📌 Xoay token đăng nhập tự động (chỉ dành cho Admin)
-router.post("/:id/rotate-autologin-token", authenticateAdmin, async (req, res) => {
+router.post("/:id/rotate-autologin-token", authenticateAdminOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const user = await User.findById(id);
@@ -1061,7 +1086,7 @@ router.delete("/order-template/:index", authenticateUser, async (req, res) => {
   }
 });
 
-router.get("/customers", authenticateAdmin, async (req, res) => {
+router.get("/customers", authenticateAdminOnly, async (req, res) => {
   try {
     const customers = await User.find({ role: "customer" }).select("-password");
     res.json(customers);
@@ -1276,6 +1301,10 @@ router.post("/autologin", authLimiter, async (req, res) => {
       return res.status(400).json({ message: "Thiếu mã đăng nhập tự động" });
     }
 
+    if (typeof token !== "string") {
+      return res.status(400).json({ message: "Mã đăng nhập tự động không hợp lệ" });
+    }
+
     // 1. Thử tìm kiếm trực tiếp bằng token ngẫu nhiên mới (Cơ chế mới: 64 ký tự hex)
     let user;
     const isNewHexToken = typeof token === "string" && /^[0-9a-f]{64}$/i.test(token);
@@ -1355,6 +1384,7 @@ module.exports = {
   User,
   router,
   authenticateAdmin,
+  authenticateAdminOnly,
   authenticateUser,
   checkPermission,
   getCookieOptions,

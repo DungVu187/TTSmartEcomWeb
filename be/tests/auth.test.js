@@ -1,7 +1,7 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../index');
-const { User } = require('../components/user');
+const { User, getCookieOptions } = require('../components/user');
 
 beforeAll(async () => {
   // Kết nối tới Database test riêng biệt
@@ -21,6 +21,24 @@ afterEach(async () => {
 });
 
 describe('Authentication API Tests (Phase 3)', () => {
+  it('does not set Secure cookie for localhost HTTP even when proxy marks request secure', () => {
+    const localOptions = getCookieOptions({
+      secure: true,
+      hostname: 'localhost',
+      get: () => 'localhost:5000'
+    });
+
+    expect(localOptions.secure).toBe(false);
+
+    const productionOptions = getCookieOptions({
+      secure: true,
+      hostname: 'ttsmart.com.vn',
+      get: () => 'ttsmart.com.vn'
+    });
+
+    expect(productionOptions.secure).toBe(true);
+  });
+
   it('Test Case 5: POST /users/login thành công phải thiết lập cookie authToken', async () => {
     // 1. Tạo và lưu user mẫu
     const user = new User({

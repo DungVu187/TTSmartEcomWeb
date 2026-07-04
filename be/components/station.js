@@ -70,7 +70,16 @@ const stationStorage = multer.diskStorage({
   },
 });
 
-const uploadStationImage = multer({ storage: stationStorage });
+const uploadStationImage = multer({
+  storage: stationStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Chỉ cho phép upload file ảnh!"));
+    }
+    cb(null, true);
+  },
+});
 
 router.post("/:id/upload-image", authenticateAdmin, uploadStationImage.single("station"), async (req, res) => {
   try {

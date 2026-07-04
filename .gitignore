@@ -35,4 +35,6 @@ be/upload/
 
 # Backups and data archives
 backups/
-wdata/*.archive
+# wdata: dữ liệu backup runtime trên server production (upload/hóa đơn/ảnh trạm...),
+# sinh mỗi ngày — là data, không phải mã nguồn, không đưa vào repo.
+wdata/

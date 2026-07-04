@@ -47,10 +47,6 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
-      '/chat': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-      },
       '/images': {
         target: 'http://localhost:5000',
         changeOrigin: true,

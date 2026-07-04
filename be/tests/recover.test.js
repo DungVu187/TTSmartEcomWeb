@@ -1,5 +1,12 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
+
+// Mock mailer để test không phụ thuộc SMTP thật (code prod vẫn gửi mail thật)
+jest.mock('../mailer', () => ({
+  sendNewOrderNotification: jest.fn().mockResolvedValue(undefined),
+  sendResetOtpEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
 const app = require('../index');
 const { User } = require('../components/user');
 

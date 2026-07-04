@@ -78,7 +78,6 @@ function Navbar() {
       if (response.ok) {
         setIsLoggedIn(false);
         setUserName("");
-        localStorage.removeItem("chat_session");
         toast.success("Đăng xuất thành công");
         setTimeout(() => {
           window.location.href = "/login";

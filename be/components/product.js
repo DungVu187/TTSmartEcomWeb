@@ -213,9 +213,11 @@ function normalizeVoiceQueryResult(raw = {}) {
     const codeInfo = detectVoiceCode(probeText);
     const brandProbeText = transcript || String(raw.keyword || '');
     
-    // Ưu tiên Brand từ Gemini AI, nếu không có mới dùng Regex
+    // Ưu tiên brand suy ra từ mã máy rồi tới regex quét trên transcript; chỉ dùng brand
+    // do Gemini đưa (filters.brand) khi không có transcript, tránh brand "ảo" AI tự thêm
     const rawBrand = VOICE_BRANDS.includes(filters.brand) ? filters.brand : null;
-    const brand = rawBrand || codeInfo?.brand || findVoiceBrand(brandProbeText);
+    const detectedBrand = findVoiceBrand(brandProbeText);
+    const brand = codeInfo?.brand || detectedBrand || (!transcript ? rawBrand : null);
 
     // Ưu tiên Type từ Gemini AI, nếu không có mới dùng Regex
     const typeInfo = findVoiceType(probeText);
@@ -224,19 +226,20 @@ function normalizeVoiceQueryResult(raw = {}) {
 
     const code = codeInfo?.code || (typeof filters.code === 'string' && filters.code.trim() ? filters.code.trim().toUpperCase() : null);
 
-    // Ưu tiên Keyword từ Gemini AI trước, tránh bị bộ lọc Regex đè lên
+    // Ưu tiên mã máy nhận diện được (S7-1200, FX3U,...) để ánh xạ tìm kiếm chính
+    // xác; nếu không có mã mới dùng keyword do Gemini đưa, cuối cùng mới tới regex type
     let keyword = '';
-    if (typeof raw.keyword === 'string' && raw.keyword.trim() !== '') {
-        keyword = raw.keyword.trim();
-    } else if (codeInfo?.keyword) {
+    if (codeInfo?.keyword) {
         keyword = codeInfo.keyword;
+    } else if (typeof raw.keyword === 'string' && raw.keyword.trim() !== '') {
+        keyword = raw.keyword.trim();
     } else if (typeInfo.keyword !== null) {
         keyword = typeInfo.keyword;
     }
 
     return {
         transcript,
-        keyword: cleanVoiceKeyword(keyword, brand),
+        keyword: cleanVoiceKeyword(keyword, brand || rawBrand),
         intent: 'search_product',
         filters: {
             brand,
@@ -473,7 +476,16 @@ const imageStorage = multer.diskStorage({
     }
 });
 
-const uploadImage = multer({ storage: imageStorage });
+const uploadImage = multer({
+    storage: imageStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Chỉ cho phép upload file ảnh!'));
+        }
+        cb(null, true);
+    }
+});
 
 router.post("/upload/image", [authenticateAdmin, checkPermission('update_product')], uploadImage.single('product'), (req, res) => {
     if (!req.file) {
@@ -1018,7 +1030,7 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
 });
 
 // API tăng hoặc giảm số lượng sản phẩm đã mua
-router.put("/purchase/:_id", async (req, res) => {
+router.put("/purchase/:_id", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     try {
         const { action, amount } = req.body; // action: "increase" hoặc "decrease", amount: số lượng thay đổi
         const numericAmount = parseInt(amount, 10);
@@ -1420,6 +1432,12 @@ router.put('/:_id/review/:reviewId', authenticateUser, async (req, res) => {
             return res.status(404).json({ message: 'Review not found' });
         }
 
+        const isOwner = review.email === req.user.email;
+        const isModerator = req.user.role === "admin" || req.user.role === "superadmin" || req.user.role === "staff";
+        if (!isOwner && !isModerator) {
+            return res.status(403).json({ message: "Bạn không có quyền chỉnh sửa đánh giá này." });
+        }
+
         // Update the review
         if (comment) review.comment = comment;
         if (rating) {
@@ -1449,6 +1467,12 @@ router.delete('/:_id/review/:reviewId', authenticateUser, async (req, res) => {
         const review = product.reviews.id(reviewId);
         if (!review) {
             return res.status(404).json({ message: 'Review not found' });
+        }
+
+        const isOwner = review.email === req.user.email;
+        const isModerator = req.user.role === "admin" || req.user.role === "superadmin" || req.user.role === "staff";
+        if (!isOwner && !isModerator) {
+            return res.status(403).json({ message: "Bạn không có quyền chỉnh sửa đánh giá này." });
         }
 
         // Remove the review
@@ -2081,7 +2105,7 @@ const uploadAudio = multer({
 });
 
 // API Tìm kiếm bằng giọng nói tiếng Việt sử dụng Gemini Multimodal Audio Input
-router.post('/voice-query', [uploadAudio.single('audio')], async (req, res) => {
+router.post('/voice-query', [authenticateUser, uploadAudio.single('audio')], async (req, res) => {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {

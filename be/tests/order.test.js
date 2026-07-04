@@ -24,12 +24,14 @@ afterEach(async () => {
   await StorageHistory.deleteMany({});
 });
 
-const createUser = async ({ phone, role = 'customer' }) => {
+const createUser = async ({ phone, role = 'customer', functions = [], permissions = [] }) => {
   const user = new User({
     phone,
     password: 'password123',
     name: `Test ${phone}`,
-    role
+    role,
+    functions,
+    permissions
   });
   await user.save();
   return user;
@@ -302,6 +304,40 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(revertHistory.quantity).toBe(2);
   });
 
+  it('Test Case 16: không cho hoàn thành đơn đã bị hủy (Cancelled -> Completed bị chặn)', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0900000009' });
+    await createUser({ phone: '0900000010', role: 'admin' });
+
+    const cancelledOrder = await Order.create({
+      orderCode: 'TTSM-CANCELLED-01',
+      userPhone: '0900000009',
+      userName: 'Customer 0900000009',
+      cartItems: [{
+        productId: product._id.toString(),
+        variantIndex: 0,
+        quantity: 1
+      }],
+      total: 100000,
+      state: 'Cancelled'
+    });
+
+    const adminAgent = await loginAgent({ phone: '0900000010', role: 'admin' });
+
+    const response = await adminAgent
+      .put(`/orders/update-order/${cancelledOrder._id}`)
+      .send({ field: 'status', value: 'Completed' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+
+    // Đơn không được chuyển sang Completed và không bị trừ kho
+    const unchanged = await Order.findById(cancelledOrder._id);
+    expect(unchanged.status).not.toBe('Completed');
+    const untouchedProduct = await Product.findById(product._id);
+    expect(untouchedProduct.variant[0].quantityInStorage).toBe(10);
+  });
+
   it('Test Case 15: token cũ bị từ chối khi user đã bị xóa khỏi DB', async () => {
     const product = await createProduct();
     const customer = await createUser({ phone: '0900000008' });
@@ -319,5 +355,114 @@ describe('Orders API Tests (Phase 5)', () => {
 
     const afterDeleteResponse = await customerAgent.get(`/orders/${order._id}`);
     expect(afterDeleteResponse.status).toBe(401);
+  });
+
+  it('Test Case 17: admin tao don thu cong dung gia DB, tru quantityForSale va giu status/state mac dinh', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0900000011', role: 'admin' });
+    const adminAgent = await loginAgent({ phone: '0900000011', role: 'admin' });
+
+    const response = await adminAgent
+      .post('/orders/admin-create-order')
+      .send({
+        userPhone: '0911111111',
+        userName: 'Manual Customer',
+        total: 1,
+        items: [{
+          productId: product._id.toString(),
+          variantIndex: 0,
+          quantity: 2
+        }]
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.success).toBe(true);
+    expect(response.body.order.total).toBe(200000);
+    expect(response.body.order.status).toBe('Processing');
+    expect(response.body.order.state).toBe('Processing');
+
+    const updatedProduct = await Product.findById(product._id);
+    expect(updatedProduct.variant[0].quantityForSale).toBe(8);
+  });
+
+  it('Test Case 18: admin tao don bi chan khi thieu phone, rong items, quantity sai hoac vuot ton', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0900000012', role: 'admin' });
+    const adminAgent = await loginAgent({ phone: '0900000012', role: 'admin' });
+
+    const missingPhone = await adminAgent
+      .post('/orders/admin-create-order')
+      .send({
+        items: [{ productId: product._id.toString(), variantIndex: 0, quantity: 1 }]
+      });
+    expect(missingPhone.status).toBe(400);
+
+    const emptyItems = await adminAgent
+      .post('/orders/admin-create-order')
+      .send({ userPhone: '0911111112', items: [] });
+    expect(emptyItems.status).toBe(400);
+
+    const invalidQuantity = await adminAgent
+      .post('/orders/admin-create-order')
+      .send({
+        userPhone: '0911111112',
+        items: [{ productId: product._id.toString(), variantIndex: 0, quantity: 0 }]
+      });
+    expect(invalidQuantity.status).toBe(400);
+
+    const tooMuch = await adminAgent
+      .post('/orders/admin-create-order')
+      .send({
+        userPhone: '0911111112',
+        items: [{ productId: product._id.toString(), variantIndex: 0, quantity: 11 }]
+      });
+    expect(tooMuch.status).toBe(400);
+
+    const unchangedProduct = await Product.findById(product._id);
+    expect(unchangedProduct.variant[0].quantityForSale).toBe(10);
+  });
+
+  it('Test Case 19: staff co update_order tao don duoc, customer bi chan', async () => {
+    const product = await createProduct();
+    await createUser({
+      phone: '0900000013',
+      role: 'staff',
+      functions: ['order_management'],
+      permissions: ['read_order', 'update_order']
+    });
+    await createUser({ phone: '0900000014' });
+    const staffAgent = await loginAgent({ phone: '0900000013', role: 'staff' });
+    const customerAgent = await loginAgent({ phone: '0900000014' });
+
+    const staffResponse = await staffAgent
+      .post('/orders/admin-create-order')
+      .send({
+        userPhone: '0911111113',
+        items: [{ productId: product._id.toString(), variantIndex: 0, quantity: 1 }]
+      });
+    expect(staffResponse.status).toBe(201);
+
+    const customerResponse = await customerAgent
+      .post('/orders/admin-create-order')
+      .send({
+        userPhone: '0911111114',
+        items: [{ productId: product._id.toString(), variantIndex: 0, quantity: 1 }]
+      });
+    expect(customerResponse.status).toBe(403);
+  });
+
+  it('Test Case 20: admin lay goi y khach hang chi tra customer name/phone', async () => {
+    await createUser({ phone: '0900000015', role: 'admin' });
+    await createUser({ phone: '0900000016', role: 'customer' });
+    await createUser({ phone: '0900000017', role: 'staff' });
+    const adminAgent = await loginAgent({ phone: '0900000015', role: 'admin' });
+
+    const response = await adminAgent.get('/orders/customer-suggestions');
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.customers).toHaveLength(1);
+    expect(response.body.customers[0].phone).toBe('0900000016');
+    expect(response.body.customers[0]).not.toHaveProperty('password');
   });
 });

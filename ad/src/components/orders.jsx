@@ -68,6 +68,19 @@ const Orders = () => {
     endDate: moment().format("YYYY-MM-DD"),
   });
   const { setOrderChanged } = useOrderContext();
+  const [isCreateOrderDialogOpen, setIsCreateOrderDialogOpen] = useState(false);
+  const [customerOptions, setCustomerOptions] = useState([]);
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [productOptions, setProductOptions] = useState([]);
+  const [productLoading, setProductLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [newOrderUserPhone, setNewOrderUserPhone] = useState("");
+  const [newOrderUserName, setNewOrderUserName] = useState("");
+  const [newOrderItems, setNewOrderItems] = useState([]);
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   const uniqueNames = React.useMemo(() => {
     const names = orders.map((o) => o.userName).filter(Boolean);
@@ -261,6 +274,26 @@ const Orders = () => {
   }, [location.state]);
 
   useEffect(() => {
+    if (!isCreateOrderDialogOpen || !productSearch.trim()) {
+      setProductOptions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setProductLoading(true);
+      const query = new URLSearchParams({
+        search: productSearch,
+        limit: 20,
+      }).toString();
+      const data = await apiFetch(`${apiUrl}/products?${query}`);
+      setProductOptions(data?.products || []);
+      setProductLoading(false);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [isCreateOrderDialogOpen, productSearch]);
+
+  useEffect(() => {
     let socketUrl = apiUrl;
     let socketOptions = {
       withCredentials: true,
@@ -336,6 +369,111 @@ const Orders = () => {
     setIsConfirmDialogOpen(true);
   };
 
+  const formatPrice = (price) => {
+    const value = typeof price === "number"
+      ? price
+      : Number(String(price || "0").replace(/\./g, "").replace(",", ".")) || 0;
+    return value.toLocaleString("vi-VN");
+  };
+
+  const getVariantPrice = (variant) => {
+    if (!variant) return 0;
+    return typeof variant.price === "number"
+      ? variant.price
+      : Number(String(variant.price || "0").replace(/\./g, "").replace(",", ".")) || 0;
+  };
+
+  const resetCreateOrderDialog = () => {
+    setCustomerOptions([]);
+    setProductSearch("");
+    setProductOptions([]);
+    setSelectedProduct(null);
+    setSelectedVariantIndex(0);
+    setSelectedQuantity(1);
+    setNewOrderUserPhone("");
+    setNewOrderUserName("");
+    setNewOrderItems([]);
+    setCreatingOrder(false);
+  };
+
+  const openCreateOrderDialog = async () => {
+    setIsCreateOrderDialogOpen(true);
+    setCustomerLoading(true);
+    const data = await apiFetch(`${apiUrl}/orders/customer-suggestions`);
+    setCustomerOptions(data?.customers || []);
+    setCustomerLoading(false);
+  };
+
+  const closeCreateOrderDialog = () => {
+    setIsCreateOrderDialogOpen(false);
+    resetCreateOrderDialog();
+  };
+
+  const addProductToNewOrder = () => {
+    if (!selectedProduct) return;
+    const variant = selectedProduct.variant?.[selectedVariantIndex];
+    const quantity = Number(selectedQuantity);
+
+    if (!variant || !Number.isInteger(quantity) || quantity <= 0) {
+      toast.error("Số lượng không hợp lệ");
+      return;
+    }
+
+    setNewOrderItems((prev) => [
+      ...prev,
+      {
+        productId: selectedProduct._id,
+        productName: selectedProduct.name,
+        variantIndex: selectedVariantIndex,
+        variantColor: variant.color || variant.shape || "Default",
+        unitPrice: getVariantPrice(variant),
+        quantity,
+      },
+    ]);
+    setSelectedProduct(null);
+    setSelectedVariantIndex(0);
+    setSelectedQuantity(1);
+    setProductSearch("");
+  };
+
+  const removeNewOrderItem = (index) => {
+    setNewOrderItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const createAdminOrder = async () => {
+    if (!/^\d{10,11}$/.test(newOrderUserPhone) || newOrderItems.length === 0) {
+      toast.error("Vui lòng nhập số điện thoại và sản phẩm hợp lệ");
+      return;
+    }
+
+    setCreatingOrder(true);
+    const result = await apiFetch(`${apiUrl}/orders/admin-create-order`, {
+      method: "POST",
+      body: JSON.stringify({
+        userPhone: newOrderUserPhone,
+        userName: newOrderUserName,
+        items: newOrderItems.map((item) => ({
+          productId: item.productId,
+          variantIndex: item.variantIndex,
+          quantity: item.quantity,
+        })),
+      }),
+    });
+    setCreatingOrder(false);
+
+    if (result?.success) {
+      toast.success("Tạo đơn hàng thành công");
+      fetchOrders(page + 1);
+      setOrderChanged((prev) => !prev);
+      closeCreateOrderDialog();
+    }
+  };
+
+  const newOrderSubtotal = newOrderItems.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0
+  );
+
   // Lấy nhãn trạng thái
   const getStatusLabel = (order) => {
     if (!order) return "";
@@ -395,6 +533,9 @@ const Orders = () => {
         <Typography variant="h4" mb={3}>
           Quản lý đơn hàng bán
         </Typography>
+        <Button variant="contained" onClick={openCreateOrderDialog} sx={{ mb: 2 }}>
+          Tạo đơn hàng mới
+        </Button>
 
         <Box 
           display="flex" 
@@ -640,6 +781,168 @@ const Orders = () => {
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
       />
+
+      <Dialog open={isCreateOrderDialogOpen} onClose={closeCreateOrderDialog} maxWidth="md" fullWidth>
+        <DialogTitle>Tạo đơn hàng mới</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={2} mt={1}>
+            <Box display="flex" gap={2} flexDirection={{ xs: "column", sm: "row" }}>
+              <Autocomplete
+                freeSolo
+                loading={customerLoading}
+                options={customerOptions}
+                getOptionLabel={(option) =>
+                  typeof option === "string" ? option : `${option.phone || ""} - ${option.name || ""}`
+                }
+                inputValue={newOrderUserPhone}
+                onInputChange={(event, newInputValue) => setNewOrderUserPhone(newInputValue)}
+                onChange={(event, newValue) => {
+                  if (newValue && typeof newValue !== "string") {
+                    setNewOrderUserPhone(newValue.phone || "");
+                    setNewOrderUserName(newValue.name || "");
+                  }
+                }}
+                sx={{ flex: 1 }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Số điện thoại"
+                    required
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {customerLoading ? <CircularProgress size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+              <TextField
+                label="Tên khách hàng"
+                value={newOrderUserName}
+                onChange={(event) => setNewOrderUserName(event.target.value)}
+                sx={{ flex: 1 }}
+              />
+            </Box>
+
+            <Box display="flex" gap={2} flexDirection={{ xs: "column", md: "row" }} alignItems={{ md: "center" }}>
+              <Autocomplete
+                loading={productLoading}
+                options={productOptions}
+                value={selectedProduct}
+                inputValue={productSearch}
+                onInputChange={(event, newInputValue) => setProductSearch(newInputValue)}
+                onChange={(event, newValue) => {
+                  setSelectedProduct(newValue);
+                  setSelectedVariantIndex(0);
+                }}
+                getOptionLabel={(option) =>
+                  option ? `${option.name || ""}${option.code ? ` - ${option.code}` : ""}` : ""
+                }
+                sx={{ flex: 2, minWidth: 240 }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Tìm sản phẩm"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {productLoading ? <CircularProgress size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+
+              <FormControl sx={{ minWidth: 180 }} disabled={!selectedProduct}>
+                <InputLabel>Phiên bản</InputLabel>
+                <Select
+                  value={selectedVariantIndex}
+                  label="Phiên bản"
+                  onChange={(event) => setSelectedVariantIndex(Number(event.target.value))}
+                >
+                  {(selectedProduct?.variant || []).map((variant, index) => (
+                    <MenuItem key={index} value={index}>
+                      {variant.color || variant.shape || `Variant ${index + 1}`} - {formatPrice(variant.price)} ₫
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <TextField
+                label="Số lượng"
+                type="number"
+                value={selectedQuantity}
+                onChange={(event) => setSelectedQuantity(event.target.value)}
+                inputProps={{ min: 1 }}
+                sx={{ width: { xs: "100%", md: 120 } }}
+              />
+
+              <Button variant="contained" onClick={addProductToNewOrder} disabled={!selectedProduct}>
+                Thêm vào đơn
+              </Button>
+            </Box>
+
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Tên sản phẩm</TableCell>
+                    <TableCell>Phiên bản</TableCell>
+                    <TableCell align="right">Đơn giá</TableCell>
+                    <TableCell align="right">SL</TableCell>
+                    <TableCell align="right">Thành tiền</TableCell>
+                    <TableCell align="center">Xóa</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {newOrderItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">Chưa có sản phẩm</TableCell>
+                    </TableRow>
+                  ) : (
+                    newOrderItems.map((item, index) => (
+                      <TableRow key={`${item.productId}-${item.variantIndex}-${index}`}>
+                        <TableCell>{item.productName}</TableCell>
+                        <TableCell>{item.variantColor}</TableCell>
+                        <TableCell align="right">{formatPrice(item.unitPrice)} ₫</TableCell>
+                        <TableCell align="right">{item.quantity}</TableCell>
+                        <TableCell align="right">{formatPrice(item.unitPrice * item.quantity)} ₫</TableCell>
+                        <TableCell align="center">
+                          <Button color="error" onClick={() => removeNewOrderItem(index)}>
+                            Xóa
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box display="flex" justifyContent="space-between" flexDirection={{ xs: "column", sm: "row" }} gap={1}>
+              <Typography>Tạm tính: {formatPrice(newOrderSubtotal)} ₫</Typography>
+              <Typography color="text.secondary">Server sẽ tính lại tổng tiền cuối cùng.</Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCreateOrderDialog}>Hủy</Button>
+          <Button
+            variant="contained"
+            onClick={createAdminOrder}
+            disabled={creatingOrder || !/^\d{10,11}$/.test(newOrderUserPhone) || newOrderItems.length === 0}
+          >
+            {creatingOrder ? "Đang tạo..." : "Tạo đơn"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={isDialogOpen} onClose={closeDialog} maxWidth="md" fullWidth>
         <DialogTitle>Chi tiết đơn hàng {selectedOrder?.orderCode || selectedOrder?._id}</DialogTitle>

@@ -361,7 +361,7 @@ router.put(
 
 router.put(
   "/orders/:id/products/:productIndex/setStatusAndQuantity",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("update_eporder")],
   async (req, res) => {
     try {
       const { status } = req.body;

@@ -88,6 +88,11 @@ const orderSchema = new mongoose.Schema(
 
 const Order = mongoose.model("Order", orderSchema);
 
+const parseOrderPrice = (price) => {
+  if (typeof price === "number") return price;
+  return Number(String(price || "0").replace(/\./g, "").replace(",", ".")) || 0;
+};
+
 // API lấy danh sách đơn hàng với phân trang
 router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, res) => {
   try {
@@ -171,6 +176,22 @@ router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, 
 });
 
 // API cập nhật trạng thái hoặc thanh toán của đơn hàng
+router.get("/customer-suggestions", [authenticateAdmin, checkPermission('read_order')], async (req, res) => {
+  try {
+    const customers = await User.find({ role: "customer" }).select("name phone");
+    res.json({
+      success: true,
+      customers: customers.map((customer) => ({
+        name: customer.name,
+        phone: customer.phone,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching customer suggestions:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
   const { _id } = req.params;
   const { field, value } = req.body;
@@ -189,6 +210,11 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
     if (field === 'status') {
       if (!["Processing", "Delivering", "Completed"].includes(value)) {
         return res.status(400).json({ success: false, message: 'Invalid status value' });
+      }
+
+      // Không cho hoàn thành đơn đã bị hủy (state = 'Cancelled')
+      if (value === "Completed" && order.state === "Cancelled") {
+        return res.status(400).json({ success: false, message: 'Không thể hoàn thành đơn hàng đã bị hủy.' });
       }
 
       if (value === "Completed") {
@@ -277,6 +303,121 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
 });
 
 // API tạo đơn hàng
+router.post("/admin-create-order", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  const { userPhone, userName, items } = req.body;
+  const io = req.app.get('io');
+
+  if (!userPhone || !/^\d{10,11}$/.test(String(userPhone))) {
+    return res.status(400).json({ success: false, message: "Số điện thoại không hợp lệ" });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: "Danh sách sản phẩm không hợp lệ" });
+  }
+
+  try {
+    const preparedItems = [];
+    const productCache = new Map();
+    const reservedStock = new Map();
+    let total = 0;
+
+    for (const item of items) {
+      const quantity = Number(item.quantity);
+      const variantIndex = Number(item.variantIndex);
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        return res.status(400).json({ success: false, message: "Số lượng sản phẩm không hợp lệ" });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(item.productId)) {
+        return res.status(400).json({ success: false, message: "Sản phẩm không hợp lệ" });
+      }
+
+      if (!Number.isInteger(variantIndex) || variantIndex < 0) {
+        return res.status(400).json({ success: false, message: "Phiên bản sản phẩm không hợp lệ" });
+      }
+
+      const productId = String(item.productId);
+      let product = productCache.get(productId);
+      if (!product) {
+        product = await Product.findById(productId);
+        if (product) {
+          productCache.set(productId, product);
+        }
+      }
+      if (!product) {
+        return res.status(404).json({ success: false, message: `Sản phẩm với ID ${item.productId} không tồn tại.` });
+      }
+
+      const variant = product.variant[variantIndex];
+      if (!variant) {
+        return res.status(404).json({ success: false, message: `Variant không tồn tại cho sản phẩm ${item.productId}.` });
+      }
+
+      const stockKey = `${product._id.toString()}:${variantIndex}`;
+      const reservedQuantity = reservedStock.get(stockKey) || 0;
+      if (variant.quantityForSale - reservedQuantity < quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Không đủ hàng cho sản phẩm ${product.name}, variant ${variant.color || 'default'}.`
+        });
+      }
+      reservedStock.set(stockKey, reservedQuantity + quantity);
+
+      const price = parseOrderPrice(variant.price);
+      total += price * quantity;
+      preparedItems.push({
+        product,
+        variant,
+        cartItem: {
+          productId: product._id.toString(),
+          variantIndex,
+          quantity,
+        },
+      });
+    }
+
+    for (const item of preparedItems) {
+      item.variant.quantityForSale -= item.cartItem.quantity;
+      await item.product.save();
+    }
+
+    const counter = await Counter.findOneAndUpdate(
+      { id: "orderCode" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+
+    const newOrder = new Order({
+      orderCode,
+      userPhone: String(userPhone),
+      userName,
+      cartItems: preparedItems.map((item) => item.cartItem),
+      total,
+    });
+    const savedOrder = await newOrder.save();
+
+    // Đơn tạo nội bộ bở qua email/Zalo để không gửi thông báo như luồng khách tự đặt.
+    io.emit("order_created", {
+      orderId: savedOrder._id,
+      orderCode: savedOrder.orderCode,
+      userPhone,
+      total,
+      createdAt: savedOrder.createdAt,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Tạo đơn hàng thành công",
+      order: savedOrder,
+    });
+  } catch (error) {
+    console.error("Error creating admin order:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi tạo đơn hàng" });
+  }
+});
+
 router.post("/create-order", authenticateUser, async (req, res) => {
   const { cartItems, total, stationCode } = req.body;
   const userPhone = req.user.phone;

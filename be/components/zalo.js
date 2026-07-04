@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const { authenticateAdmin } = require("./user");
+const { authenticateAdminOnly } = require("./user");
 const { ActivityLog } = require("./activitylog");
 require("dotenv").config();
 
@@ -19,7 +19,7 @@ const zaloConfigSchema = new mongoose.Schema({
 const ZaloConfig = mongoose.model("ZaloConfig", zaloConfigSchema);
 
 // GET /api/zalo/settings - Lấy cấu hình hiện tại (đã ẩn các trường nhạy cảm)
-router.get("/settings", authenticateAdmin, async (req, res) => {
+router.get("/settings", authenticateAdminOnly, async (req, res) => {
   try {
     let config = await ZaloConfig.findOne();
     if (!config) {
@@ -46,7 +46,7 @@ router.get("/settings", authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/zalo/settings - Lưu cấu hình từ Admin Panel
-router.post("/settings", authenticateAdmin, async (req, res) => {
+router.post("/settings", authenticateAdminOnly, async (req, res) => {
   try {
     const { appId, secretKey, oaId, recipientUserId } = req.body;
 
@@ -89,7 +89,7 @@ router.post("/settings", authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/zalo/auth-url - Sinh URL OAuth Zalo
-router.get("/auth-url", authenticateAdmin, async (req, res) => {
+router.get("/auth-url", authenticateAdminOnly, async (req, res) => {
   try {
     const config = await ZaloConfig.findOne();
     if (!config || !config.appId) {

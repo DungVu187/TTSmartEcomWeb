@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Box } from '@mui/material';
 import Sidebar from './layout/sidebar';
 import Products from './components/products';
@@ -25,7 +25,6 @@ import Station from './components/station';
 import StationDisplay from './components/stationdisplay';
 import History from './components/history';
 import ActivityLog from './components/activitylog';
-import Chat from './components/chat';
 import ZaloSettings from './components/ZaloSettings';
 import VoiceSearchFAB from './components/VoiceSearchFAB';
 
@@ -42,6 +41,7 @@ const App = () => {
                 <Sidebar />
                 <Box className="admin-content-wrapper" sx={{ flex: 1, padding: '20px', pt: { xs: '70px', md: '20px' }, minWidth: 0 }}>
                   <Routes>
+                    <Route index element={<Navigate to="/product" replace />} />
                     <Route path="/account" element={<RoleGuard adminOnly><Account /></RoleGuard>} />
                     <Route path="/product" element={<Products />} />
                     <Route path="/chip" element={<Chips />} />
@@ -63,8 +63,8 @@ const App = () => {
                     <Route path="/station/:code" element={<StationDisplay />} />
                     <Route path="/history" element={<History />} />
                     <Route path="/activity-log" element={<ActivityLog />} />
-                    <Route path="/chat" element={<Chat />} />
                     <Route path="/zalo" element={<RoleGuard adminOnly><ZaloSettings /></RoleGuard>} />
+                    <Route path="*" element={<Navigate to="/product" replace />} />
                   </Routes>
                 </Box>
                 <VoiceSearchFAB />

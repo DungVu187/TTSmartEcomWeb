@@ -18,7 +18,7 @@ import toast from "react-hot-toast";
 import logo from "../assets/logo.png";
 
 const apiUrl = import.meta.env.VITE_API_URL || "";
-const dashboardUrl = import.meta.env.VITE_DASHBOARD;
+const dashboardUrl = import.meta.env.VITE_DASHBOARD || "/admin/product";
 const adminLogin = import.meta.env.VITE_APP_ADMIN_LOGIN;
 
 const customTheme = extendTheme({
@@ -446,4 +446,4 @@ export default function SignInPage() {
       </Box>
     </CssVarsProvider>
   );
-}
+}

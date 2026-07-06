@@ -10,6 +10,7 @@ require('dotenv').config();
 const fs = require('fs').promises;
 const { StorageHistory } = require("./storagehistory");
 const { ActivityLog } = require("./activitylog");
+const voiceVocabDefaults = require('../config/voiceVocab.defaults');
 
 function removeVietnameseTones(str) {
     if (!str) return '';
@@ -33,6 +34,70 @@ function generateFuzzyCodeRegex(rawCode) {
     return new RegExp(regexPattern, 'i');
 }
 
+// Dựng khối $or fuzzy cho MỘT token tìm kiếm (name/nameUnsigned/code/brand).
+// Tách ra hàm riêng để phễu "thu hẹp dần" tái dùng đúng logic với AND gốc.
+function buildTokenQuery(token) {
+    const tokenUnsigned = removeVietnameseTones(token);
+    // Hỗ trợ tìm kiếm song song "relay"/"rơ le", "xi"/"xy" (xi lanh/xy lanh), "ki"/"ky" cho từng từ khóa đơn lẻ
+    const fuzzyToken = token
+        .replace(/relay|rơ\s+le/gi, '(relay|rơ le)')
+        .replace(/^(xi|xy)$/gi, '(xi|xy)')
+        .replace(/^(ki|ky)$/gi, '(ki|ky)');
+    const fuzzyTokenUnsigned = tokenUnsigned
+        .replace(/relay|ro\s+le/gi, '(relay|ro le)')
+        .replace(/^(xi|xy)$/gi, '(xi|xy)')
+        .replace(/^(ki|ky)$/gi, '(ki|ky)');
+
+    const fuzzyCodeRegex = generateFuzzyCodeRegex(token);
+    return {
+        $or: [
+            { name: { $regex: fuzzyToken, $options: "i" } },
+            { nameUnsigned: { $regex: fuzzyTokenUnsigned, $options: "i" } },
+            { code: fuzzyCodeRegex || { $regex: token, $options: "i" } },
+            { brand: { $regex: token, $options: "i" } }
+        ]
+    };
+}
+
+// Các từ dẫn/nghi vấn thường đứng đầu hoặc cuối câu nói, không phải thực thể sản phẩm.
+// Chỉ bóc khi nằm ở BIÊN (đầu/cuối) để không cắt nhầm từ giữa cụm mô tả.
+// Khởi tạo từ nguồn chung (voiceVocab.defaults). refreshVoiceVocab() có thể nạp
+// lại từ DB khi admin sửa qua trang quản trị mà không cần restart.
+let SEARCH_STOPWORDS = new Set(voiceVocabDefaults.stopwords);
+
+// Bóc stopword ở đầu và cuối chuỗi tìm kiếm, trả về mảng token thực thể còn lại.
+function stripSearchStopwords(search) {
+    const raw = String(search || '').split(/\s+/).filter(Boolean);
+    let start = 0;
+    while (start < raw.length && SEARCH_STOPWORDS.has(removeVietnameseTones(raw[start]).toLowerCase())) {
+        start++;
+    }
+    let tokens = raw.slice(start);
+    while (tokens.length > 0 && SEARCH_STOPWORDS.has(removeVietnameseTones(tokens[tokens.length - 1]).toLowerCase())) {
+        tokens = tokens.slice(0, -1);
+    }
+    return tokens;
+}
+
+// Thuật toán thu hẹp dần tham lam: cộng dồn từng token trái->phải, giữ token nào
+// vẫn còn kết quả, bỏ qua token làm rớt về 0. Trả về tập token thắng + kết quả cuối.
+// runFn(subsetTokens) là hàm async trả [products, total]; tách thuần để test không cần DB.
+async function greedyNarrowTokens(tokens, runFn) {
+    let kept = [];
+    let bestProducts = [];
+    let bestTotal = 0;
+    for (const tk of tokens) {
+        const trial = [...kept, tk];
+        const [products, total] = await runFn(trial);
+        if (total > 0) {
+            kept = trial;
+            bestProducts = products;
+            bestTotal = total;
+        }
+    }
+    return { tokens: kept, products: bestProducts, total: bestTotal };
+}
+
 function hasAdjustedRequiredValue(value) {
     const normalized = removeVietnameseTones(String(value ?? ''))
         .toLowerCase()
@@ -54,63 +119,43 @@ function calculateProductAdjustedStatus(product) {
     );
 }
 
-const VOICE_BRANDS = [
-    'Airtac', 'Autonics', 'Chaofan', 'Delta', 'Frecon', 'Giga', 'Goldcup',
-    'Haitima', 'Hanyoung', 'Idec', 'Keli', 'Kinco', 'Mitsubishi', 'Nass',
-    'Omron', 'Parker', 'STNC', 'SangA', 'Sangjin', 'Schneider', 'Selec',
-    'Siemens', 'Taiwan', 'VEICHI'
-];
+// Khởi tạo từ nguồn chung (voiceVocab.defaults). Dùng `let` để refreshVoiceVocab()
+// nạp lại được từ DB khi admin sửa qua trang quản trị mà không cần restart server.
+let VOICE_BRANDS = voiceVocabDefaults.brands.slice();
+let VOICE_TYPES = voiceVocabDefaults.types.slice();
+let VOICE_BRAND_ALIASES = voiceVocabDefaults.brandAliases.map(([b, a]) => [b, a.slice()]);
+let VOICE_TYPE_ALIASES = voiceVocabDefaults.typeAliases.map(([t, k, a]) => [t, k, a.slice()]);
+let VOICE_CODE_MAP = voiceVocabDefaults.codeMap.map(c => ({ ...c, patterns: (c.patterns || []).slice() }));
+let VOICE_INTENT_ALIASES = voiceVocabDefaults.intentAliases.map(([id, label, a]) => [id, label, (a || []).slice()]);
+const VALID_INTENTS = ['search_product', 'add_to_cart', 'update_item', 'delete_item'];
 
-const VOICE_TYPES = [
-    'Aptomat', 'Biến tần', 'Biến áp cách ly', 'Bảo Vệ Mất, Ngược Pha',
-    'Bộ lọc khí', 'Contactor', 'Cảm biến', 'Cầu Đấu', 'Dây điện', 'Loadcell',
-    'Lọc bụi', 'Nguồn', 'Nút Nhấn', 'PLC', 'Phụ kiện khí nén', 'Relay Nhiệt',
-    'Relay Thời Gian', 'Relay Trung Gian', 'TI', 'Van khí nén', 'Van điện từ',
-    'Xy lanh khí nén', 'Đèn', 'Đồng Hồ'
-];
-
-const VOICE_BRAND_ALIASES = [
-    ['Siemens', ['siemens', 'simens', 'xi men', 'si men']],
-    ['Mitsubishi', ['mitsubishi', 'mit su bi shi', 'mit subishi', 'mit su']],
-    ['Omron', ['omron', 'om ron', 'om rong']],
-    ['VEICHI', ['veichi', 've chi', 'v e i c h i']],
-    ['Autonics', ['autonics', 'au tonics', 'en to net']],
-    ['Schneider', ['schneider', 'schnider', 's nai der']],
-    ['Delta', ['delta', 'den ta']],
-    ['Idec', ['idec', 'i dec']],
-    ['Kinco', ['kinco', 'kin co']],
-    ['Airtac', ['airtac', 'air tac']],
-    ['Parker', ['parker', 'pa ker']],
-    ['Selec', ['selec', 'se leck']],
-    ['Hanyoung', ['hanyoung', 'han young']],
-    ['Haitima', ['haitima', 'hai ti ma']],
-    ['Frecon', ['frecon', 'fre con']],
-    ['STNC', ['stnc', 's t n c']],
-    ['SangA', ['sanga', 'sang a']],
-    ['Sangjin', ['sangjin', 'sang jin']],
-    ['Goldcup', ['goldcup', 'gold cup']],
-    ['Chaofan', ['chaofan', 'chao fan']],
-    ['Giga', ['giga', 'gi ga']],
-    ['Keli', ['keli', 'ke li']],
-    ['Nass', ['nass', 'nas']],
-    ['Taiwan', ['taiwan', 'dai loan']]
-];
-
-const VOICE_TYPE_ALIASES = [
-    ['Aptomat', 'Aptomat', ['at', 'at to mat', 'ap to mat', 'aptomat', 'cau dao tu dong']],
-    ['Contactor', 'Contactor', ['khoi', 'khoi dong tu', 'cong tac to', 'contactor']],
-    ['Biến tần', 'biến tần', ['bien tan', 'inverter', 'bo bien tan']],
-    ['Cảm biến', 'cảm biến', ['cam bien', 'sensor', 'thiet bi cam bien']],
-    ['Nút Nhấn', 'nút nhấn', ['nut nhan', 'nut bam']],
-    ['Nguồn', 'nguồn', ['nguon', 'nguon to ong', 'nguon xung']],
-    ['PLC', 'PLC', ['plc', 'bo dieu khien', 'bo lap trinh']],
-    ['Relay Trung Gian', 'relay trung gian', ['ro le trung gian', 'relay trung gian']],
-    ['Relay Thời Gian', 'relay thời gian', ['ro le thoi gian', 'relay thoi gian', 'timer']],
-    ['Relay Nhiệt', 'relay nhiệt', ['ro le nhiet', 'relay nhiet']],
-    ['TI', 'TI', ['ti']],
-    ['Đèn', 'đèn', ['den bao', 'den chi thi', 'den']],
-    ['Xy lanh khí nén', 'xy lanh', ['xi lanh khi nen', 'xy lanh khi nen', 'ty ben']]
-];
+// Nạp lại toàn bộ từ vựng voice lúc runtime (Giai đoạn 2 gọi khi admin sửa qua DB).
+// Chỉ ghi đè nhóm nào được truyền vào; nhóm thiếu giữ nguyên giá trị hiện tại.
+// Nhờ vậy cả nhánh regex fallback lẫn prompt Gemini (sinh động từ các biến này)
+// đều dùng vocab mới ngay, không cần restart server.
+function refreshVoiceVocab(vocab = {}) {
+    if (Array.isArray(vocab.stopwords)) {
+        SEARCH_STOPWORDS = new Set(vocab.stopwords);
+    }
+    if (Array.isArray(vocab.brands)) {
+        VOICE_BRANDS = vocab.brands.slice();
+    }
+    if (Array.isArray(vocab.types)) {
+        VOICE_TYPES = vocab.types.slice();
+    }
+    if (Array.isArray(vocab.brandAliases)) {
+        VOICE_BRAND_ALIASES = vocab.brandAliases.map(([b, a]) => [b, (a || []).slice()]);
+    }
+    if (Array.isArray(vocab.typeAliases)) {
+        VOICE_TYPE_ALIASES = vocab.typeAliases.map(([t, k, a]) => [t, k, (a || []).slice()]);
+    }
+    if (Array.isArray(vocab.codeMap)) {
+        VOICE_CODE_MAP = vocab.codeMap.map(c => ({ ...c, patterns: (c.patterns || []).slice() }));
+    }
+    if (Array.isArray(vocab.intentAliases)) {
+        VOICE_INTENT_ALIASES = vocab.intentAliases.map(([id, label, a]) => [id, label, (a || []).slice()]);
+    }
+}
 
 function normalizeVoiceText(str) {
     return removeVietnameseTones(String(str || ''))
@@ -133,20 +178,19 @@ function detectVoiceCode(text) {
     const normalized = normalizeVoiceText(text);
     const compact = normalized.replace(/\s+/g, '');
 
-    if (/\bfx\s*3\s*u\b/.test(normalized) || compact.includes('fx3u')) {
-        return { code: 'FX3U', keyword: 'FX3U', brand: 'Mitsubishi', type: 'PLC' };
-    }
-    if (/\bfx\s*5\s*u\b/.test(normalized) || compact.includes('fx5u')) {
-        return { code: 'FX5U', keyword: 'FX5U', brand: 'Mitsubishi', type: 'PLC' };
-    }
-    if (/\bs\s*7\s*[- ]?\s*1200\b/.test(normalized) || /\bs7\s*muoi\s*hai\s*tram\b/.test(normalized) || compact.includes('s71200')) {
-        return { code: 'S7-1200', keyword: 'S7-1200', brand: 'Siemens', type: 'PLC' };
-    }
-    if (/\bs\s*7\s*[- ]?\s*1500\b/.test(normalized) || /\bs7\s*muoi\s*lam\s*tram\b/.test(normalized) || compact.includes('s71500')) {
-        return { code: 'S7-1500', keyword: 'S7-1500', brand: 'Siemens', type: 'PLC' };
-    }
-    if (/\bg\s*p\s*c\s*[- ]?\s*1202\b/.test(normalized) || /\bgpc\s*muoi\s*hai\s*khong\s*hai\b/.test(normalized) || compact.includes('gpc1202')) {
-        return { code: 'GPC1202', keyword: 'khớp nối GPC1202', brand: null, type: null };
+    // Duyệt danh sách mã model (VOICE_CODE_MAP) theo thứ tự: khớp nếu bất kỳ
+    // pattern nào (test trên chuỗi đã bỏ dấu) khớp, hoặc compact chứa chuỗi con.
+    for (const entry of VOICE_CODE_MAP) {
+        const patternHit = (entry.patterns || []).some(p => new RegExp(p, 'i').test(normalized));
+        const compactHit = entry.compact ? compact.includes(entry.compact) : false;
+        if (patternHit || compactHit) {
+            return {
+                code: entry.code,
+                keyword: entry.keyword,
+                brand: entry.brand ?? null,
+                type: entry.type ?? null
+            };
+        }
     }
 
     const rawMatch = String(text || '').match(/\b([A-Za-z]{1,5})[-\s]?(\d{2,5})([A-Za-z]{0,3})\b/);
@@ -192,6 +236,19 @@ function findVoiceType(text) {
     }
 
     return { type: null, keyword: null };
+}
+
+function detectVoiceIntent(text) {
+    const normalized = normalizeVoiceText(text);
+
+    for (const [intentId, , aliases] of VOICE_INTENT_ALIASES) {
+        if (!VALID_INTENTS.includes(intentId)) continue;
+        if ((aliases || []).some(alias => phraseRegex(alias).test(normalized))) {
+            return intentId;
+        }
+    }
+
+    return 'search_product';
 }
 
 function cleanVoiceKeyword(keyword, brand) {
@@ -240,7 +297,7 @@ function normalizeVoiceQueryResult(raw = {}) {
     return {
         transcript,
         keyword: cleanVoiceKeyword(keyword, brand || rawBrand),
-        intent: 'search_product',
+        intent: VALID_INTENTS.includes(raw.intent) ? raw.intent : detectVoiceIntent(transcript),
         filters: {
             brand,
             type,
@@ -602,35 +659,17 @@ router.get("/", async (req, res) => {
 
         // Tạo bộ lọc
         const filter = {};
-        const andQueries = [];
+        // Tách riêng phần AND của "search" và của "code" để phễu thu hẹp dần chỉ
+        // thay phần search, giữ nguyên các ràng buộc code/type/brand/trạm.
+        const searchAndQueries = [];
+        const codeAndQueries = [];
 
         if (search && search.trim() !== "") {
             // Tách từ khóa tìm kiếm thành các từ đơn để so khớp AND tự do thứ tự
             const tokens = search.split(/\s+/).filter(t => t.length > 0);
-            if (tokens.length > 0) {
-                tokens.forEach(token => {
-                    const tokenUnsigned = removeVietnameseTones(token);
-                    // Hỗ trợ tìm kiếm song song "relay"/"rơ le", "xi"/"xy" (xi lanh/xy lanh), "ki"/"ky" cho từng từ khóa đơn lẻ
-                    const fuzzyToken = token
-                        .replace(/relay|rơ\s+le/gi, '(relay|rơ le)')
-                        .replace(/^(xi|xy)$/gi, '(xi|xy)')
-                        .replace(/^(ki|ky)$/gi, '(ki|ky)');
-                    const fuzzyTokenUnsigned = tokenUnsigned
-                        .replace(/relay|ro\s+le/gi, '(relay|ro le)')
-                        .replace(/^(xi|xy)$/gi, '(xi|xy)')
-                        .replace(/^(ki|ky)$/gi, '(ki|ky)');
-                    
-                    const fuzzyCodeRegex = generateFuzzyCodeRegex(token);
-                    andQueries.push({
-                        $or: [
-                            { name: { $regex: fuzzyToken, $options: "i" } },
-                            { nameUnsigned: { $regex: fuzzyTokenUnsigned, $options: "i" } },
-                            { code: fuzzyCodeRegex || { $regex: token, $options: "i" } },
-                            { brand: { $regex: token, $options: "i" } }
-                        ]
-                    });
-                });
-            }
+            tokens.forEach(token => {
+                searchAndQueries.push(buildTokenQuery(token));
+            });
         }
 
         if (code && code !== "") {
@@ -639,9 +678,10 @@ router.get("/", async (req, res) => {
                 { code: fuzzyCodeRegex || { $regex: code, $options: "i" } },
                 { name: { $regex: code, $options: "i" } }
             ];
-            andQueries.push({ $or: codeQuery });
+            codeAndQueries.push({ $or: codeQuery });
         }
 
+        const andQueries = [...searchAndQueries, ...codeAndQueries];
         if (andQueries.length > 0) {
             filter.$and = andQueries;
         }
@@ -804,6 +844,30 @@ router.get("/", async (req, res) => {
             delete relaxedFilter.type;
             delete relaxedFilter.brand;
             [products, total] = await runQuery(relaxedFilter);
+        }
+
+        // Phễu thu hẹp dần: nếu AND đầy đủ vẫn ra 0 và câu tìm có >=2 từ thực thể
+        // (vd "Tìm van điện khí TTSM1"), cộng dồn từng từ trái->phải, bỏ từ nào
+        // làm rớt về 0. Chỉ thay phần search trong $and, giữ nguyên code/type/brand/trạm.
+        if (total === 0 && search && search.trim() !== "") {
+            const entityTokens = stripSearchStopwords(search);
+            if (entityTokens.length >= 2) {
+                const runWithTokens = async (subsetTokens) => {
+                    const subFilter = { ...filter };
+                    const combined = [...subsetTokens.map(buildTokenQuery), ...codeAndQueries];
+                    if (combined.length > 0) {
+                        subFilter.$and = combined;
+                    } else {
+                        delete subFilter.$and;
+                    }
+                    return runQuery(subFilter);
+                };
+                const narrowed = await greedyNarrowTokens(entityTokens, runWithTokens);
+                if (narrowed.total > 0) {
+                    products = narrowed.products;
+                    total = narrowed.total;
+                }
+            }
         }
 
         const processedProducts = products.map(product => {
@@ -2131,10 +2195,16 @@ Hãy nghe file âm thanh được cung cấp (giọng nói tiếng Việt của 
 2. Phân tích ý định (intent) của người dùng để trích xuất ra từ khóa tìm kiếm chính (keyword) và các bộ lọc (filters) thích hợp, tối ưu hóa cho tất cả các cách gọi khác nhau của người dùng.
 
 CƠ SỞ DỮ LIỆU ĐANG CÓ SẴN CÁC THƯƠNG HIỆU (BRANDS) VÀ LOẠI SẢN PHẨM (TYPES) SAU:
-- Thương hiệu khả dụng: 'Airtac', 'Autonics', 'Chaofan', 'Delta', 'Frecon', 'Giga', 'Goldcup', 'Haitima', 'Hanyoung', 'Idec', 'Keli', 'Kinco', 'Mitsubishi', 'Nass', 'Omron', 'Parker', 'STNC', 'SangA', 'Sangjin', 'Schneider', 'Selec', 'Siemens', 'Taiwan', 'VEICHI'
-- Loại sản phẩm khả dụng: 'Aptomat', 'Biến tần', 'Biến áp cách ly', 'Bảo Vệ Mất, Ngược Pha', 'Bộ lọc khí', 'Contactor', 'Cảm biến', 'Cầu Đấu', 'Dây điện', 'Loadcell', 'Lọc bụi', 'Nguồn', 'Nút Nhấn', 'PLC', 'Phụ kiện khí nén', 'Relay Nhiệt', 'Relay Thời Gian', 'Relay Trung Gian', 'TI', 'Van khí nén', 'Van điện từ', 'Xy lanh khí nén', 'Đèn', 'Đồng Hồ'
+- Thương hiệu khả dụng: ${VOICE_BRANDS.map(b => `'${b}'`).join(', ')}
+- Loại sản phẩm khả dụng: ${VOICE_TYPES.map(t => `'${t}'`).join(', ')}
+
+BẢNG ÁNH XẠ CÁCH ĐỌC LÓNG (tự động cập nhật khi admin thêm từ mới; cách đọc đã bỏ dấu):
+- Thương hiệu: ${VOICE_BRAND_ALIASES.map(([b, a]) => `${a.map(x => `"${x}"`).join('/')} -> ${b}`).join('; ')}
+- Loại sản phẩm: ${VOICE_TYPE_ALIASES.map(([t, , a]) => `${a.map(x => `"${x}"`).join('/')} -> ${t}`).join('; ')}
+- Ý định: ${VOICE_INTENT_ALIASES.map(([id, , a]) => `${a.map(x => `"${x}"`).join('/')} -> ${id}`).join('; ')}
 
 Quy tắc phân tách và xử lý từ khóa:
+- Intent chỉ được là một trong các giá trị: ${VALID_INTENTS.map(i => `"${i}"`).join(', ')}. Nếu người dùng chỉ hỏi/xem/tra cứu sản phẩm thì dùng "search_product". Nếu câu là lệnh thêm vào giỏ thì dùng "add_to_cart"; lệnh sửa/cập nhật thì dùng "update_item"; lệnh xóa/bỏ/hủy thì dùng "delete_item". Dù intent là thêm/sửa/xóa, vẫn phải trích xuất keyword và filters như bình thường; không tự thực hiện thao tác giỏ hàng hay đơn hàng.
 - Khớp đúng Thương hiệu (filters.brand): Nếu người dùng nhắc tới tên thương hiệu, bạn PHẢI ánh xạ chính xác về một trong những thương hiệu khả dụng ở trên (Ví dụ: "siemens" -> "Siemens", "mit su bi shi" -> "Mitsubishi", "ôm ron" -> "Omron", "vê chi" -> "VEICHI", "en tơ nét" -> "Autonics"). Nếu câu nói không chứa tên thương hiệu, "filters.brand" bắt buộc phải là null (Tuyệt đối KHÔNG tự ý gán bừa thương hiệu mặc định).
 - Khớp đúng Loại sản phẩm (filters.type): Ánh xạ từ khóa về một trong các loại sản phẩm khả dụng ở danh sách trên.
   + Nếu nhắc đến: "át", "át tô mát", "áp tô mát", "aptomat", "cầu dao tự động" -> filters.type: "Aptomat", keyword: "Aptomat".
@@ -2186,11 +2256,20 @@ Ví dụ cụ thể:
 9. Người dùng nói: "fx3u còn hàng không"
 -> transcript: "fx3u còn hàng không", keyword: "FX3U", intent: "search_product", filters: { brand: "Mitsubishi", type: "PLC", code: "FX3U" }
 
+10. Người dùng nói: "thêm biến tần omron"
+-> transcript: "thêm biến tần omron", keyword: "biến tần", intent: "add_to_cart", filters: { brand: "Omron", type: "Biến tần", code: null }
+
+11. Người dùng nói: "cập nhật plc siemens"
+-> transcript: "cập nhật plc siemens", keyword: "PLC", intent: "update_item", filters: { brand: "Siemens", type: "PLC", code: null }
+
+12. Người dùng nói: "xóa fx3u"
+-> transcript: "xóa fx3u", keyword: "FX3U", intent: "delete_item", filters: { brand: "Mitsubishi", type: "PLC", code: "FX3U" }
+
 Định dạng phản hồi BẮT BUỘC là một đối tượng JSON trực tiếp (không nằm trong thẻ markdown và không có văn bản giải thích đi kèm):
 {
   "transcript": "...",
   "keyword": "...",
-  "intent": "search_product",
+  "intent": "search_product | add_to_cart | update_item | delete_item",
   "filters": {
     "brand": null,
     "type": null,
@@ -2291,7 +2370,6 @@ Ví dụ cụ thể:
             const fallbackResult = normalizeVoiceQueryResult({
                 transcript: textResult,
                 keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),
-                intent: "search_product",
                 filters: { brand: null, type: null, code: null }
             });
             return res.json({
@@ -2316,10 +2394,48 @@ Ví dụ cụ thể:
     }
 });
 
+// API Tìm kiếm bằng "giọng nói dạng chữ" để test khi máy không có micro.
+// Nhận { text } coi như transcript đã nghe được, chạy đúng pipeline chuẩn hóa
+// (normalizeVoiceQueryResult) như voice-query nhưng bỏ qua bước gọi Gemini.
+router.post('/voice-query-text', authenticateUser, async (req, res) => {
+    try {
+        const text = String(req.body?.text || '').trim();
+        if (!text) {
+            return res.status(400).json({ success: 0, message: 'Vui lòng nhập câu tìm kiếm.' });
+        }
+
+        // Bản text không qua Gemini nên phải tự bóc động từ/stopword ("tìm", "cho tôi xem"...)
+        // để keyword không dính chữ dẫn. Voice thật thì Gemini đã bóc sẵn.
+        const strippedTokens = stripSearchStopwords(text);
+        const cleanedKeyword = strippedTokens.length > 0 ? strippedTokens.join(' ') : text;
+
+        const normalizedResult = normalizeVoiceQueryResult({
+            transcript: text,
+            keyword: cleanedKeyword,
+            filters: { brand: null, type: null, code: null }
+        });
+
+        res.json({
+            success: 1,
+            ...normalizedResult
+        });
+    } catch (error) {
+        console.error('Lỗi khi phân tích câu tìm kiếm dạng chữ:', error);
+        res.status(500).json({
+            success: 0,
+            message: `Đã xảy ra lỗi khi phân tích câu tìm kiếm: ${error.message}`
+        });
+    }
+});
+
 // Export router
 module.exports = {
     Product,
     router,
     uploadImage,
-    normalizeVoiceQueryResult
+    normalizeVoiceQueryResult,
+    stripSearchStopwords,
+    buildTokenQuery,
+    greedyNarrowTokens,
+    refreshVoiceVocab
 };

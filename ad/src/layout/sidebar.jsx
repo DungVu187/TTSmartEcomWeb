@@ -34,6 +34,7 @@ import CabinIcon from "@mui/icons-material/Cabin";
 import TocIcon from '@mui/icons-material/Toc';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import ShoppingCartCheckoutIcon from "@mui/icons-material/ShoppingCartCheckout";
+import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import toast from "react-hot-toast";
 import { useOrderContext } from "../context/ordercontext";
 import { io } from "socket.io-client";
@@ -272,6 +273,11 @@ const Sidebar = () => {
       text: "Cấu hình Zalo",
       path: "/zalo",
       icon: <ManageIcon />,
+    },
+    (userRole === "admin" || userRole === "superadmin") && {
+      text: "Từ vựng Voice",
+      path: "/voice-vocab",
+      icon: <RecordVoiceOverIcon />,
     },
     { text: "Lịch sử kho", path: "/history", icon: <TocIcon /> },
     { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },

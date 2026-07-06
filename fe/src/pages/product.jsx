@@ -57,19 +57,23 @@ function Product() {
   const [userStations, setUserStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || "Tất cả");
 
-  const fetchProducts = async (currStationId = null) => {
+  const fetchProducts = async (currStationId = null, overrides = null) => {
     try {
+      // Ưu tiên filter/page truyền vào (đọc trực tiếp từ URL) để tránh đọc phải
+      // state cũ khi setFilters chưa kịp flush trong cùng một lượt effect.
+      const f = overrides?.filters || filters;
+      const activePage = overrides?.page ?? page;
       const activeStationId = currStationId !== null ? currStationId : selectedStation;
       const updatedFilters = {
-        page,
+        page: activePage,
         limit,
-        search: filters.search,
-        brand: filters.brand === "Tất cả" ? "" : filters.brand,
-        type: filters.type === "Tất cả" ? "" : filters.type,
-        section: filters.section === "Tất cả" ? "" : filters.section,
-        value: filters.value === "Tất cả" ? "" : filters.value,
-        sortBy: filters.sortBy || "purchaseCount",
-        sortOrder: filters.sortOrder || "desc",
+        search: f.search,
+        brand: f.brand === "Tất cả" ? "" : f.brand,
+        type: f.type === "Tất cả" ? "" : f.type,
+        section: f.section === "Tất cả" ? "" : f.section,
+        value: f.value === "Tất cả" ? "" : f.value,
+        sortBy: f.sortBy || "purchaseCount",
+        sortOrder: f.sortOrder || "desc",
         display: "true",
         stationId: activeStationId === "Tất cả" ? "" : activeStationId,
       };
@@ -140,12 +144,15 @@ function Product() {
     };
     setFilters(updatedFilters);
     const pageParam = queryParams.get("page");
-    setPage(pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 1);
-    
+    const parsedPage = pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 1;
+    setPage(parsedPage);
+
     const stationIdParam = queryParams.get("stationId") || "Tất cả";
     setSelectedStation(stationIdParam);
-    
-    fetchProducts(stationIdParam);
+
+    // Truyền thẳng filter/page vừa parse từ URL để không đọc phải state cũ
+    // (setFilters/setPage chưa flush trong cùng lượt chạy effect này).
+    fetchProducts(stationIdParam, { filters: updatedFilters, page: parsedPage });
   }, [location.search]);
 
   const handleFilterChange = (e) => {

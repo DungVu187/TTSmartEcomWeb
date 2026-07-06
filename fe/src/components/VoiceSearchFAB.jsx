@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Fab, Tooltip, CircularProgress, Box } from "@mui/material";
+import { Fab, Tooltip, CircularProgress, Box, IconButton, TextField } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
+import KeyboardIcon from "@mui/icons-material/Keyboard";
+import CloseIcon from "@mui/icons-material/Close";
+import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -11,6 +14,8 @@ const VoiceSearchFAB = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [textMode, setTextMode] = useState(false);
+  const [textValue, setTextValue] = useState("");
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingTimeoutRef = useRef(null);
@@ -179,6 +184,60 @@ const VoiceSearchFAB = () => {
     }
   };
 
+  // Gửi câu tìm kiếm dạng chữ (dùng để test khi máy không có micro).
+  // Đi qua cùng endpoint chuẩn hóa nên kết quả điều hướng giống hệt giọng nói.
+  const submitTextQuery = async (e) => {
+    if (e) e.preventDefault();
+    const query = textValue.trim();
+    if (!query) {
+      toast.error("Vui lòng nhập câu tìm kiếm.");
+      return;
+    }
+
+    setIsProcessing(true);
+    toast.loading("Đang xử lý câu tìm kiếm...", { id: "voice-status-fe" });
+    try {
+      const response = await fetch(`${apiUrl}/products/voice-query-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text: query }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const keyword = data.keyword || "";
+        const filters = data.filters || {};
+
+        toast.success(`Tìm kiếm: "${keyword || data.transcript}"`, {
+          id: "voice-status-fe",
+          duration: 3000,
+        });
+
+        const params = new URLSearchParams();
+        let searchVal = filters.code ? filters.code : (keyword || "");
+
+        if (searchVal) params.set("search", searchVal);
+        if (filters.brand) params.set("brand", filters.brand);
+        if (filters.type) params.set("type", filters.type);
+
+        setTextMode(false);
+        setTextValue("");
+        navigate(`/product?${params.toString()}`);
+      } else {
+        throw new Error(data.message || "Không phân tích được câu tìm kiếm.");
+      }
+    } catch (err) {
+      console.error("Lỗi voice-query-text API:", err);
+      toast.error(err.message || "Gặp lỗi khi xử lý câu tìm kiếm.", {
+        id: "voice-status-fe",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (!isLoggedIn) return null;
 
   return (
@@ -188,57 +247,112 @@ const VoiceSearchFAB = () => {
         bottom: 24,
         right: 24,
         zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: 1.5,
       }}
     >
-      <Tooltip
-        title={
-          isRecording
-            ? "Bấm lại để dừng và tìm kiếm"
-            : isProcessing
-            ? "Đang xử lý..."
-            : "Bấm để bắt đầu tìm kiếm bằng giọng nói"
-        }
-        placement="top"
-        arrow
-      >
-        <Fab
-          color={isRecording ? "error" : "primary"}
-          onClick={toggleRecording}
-          onContextMenu={(e) => e.preventDefault()}
+      {/* Ô nhập chữ để test đầu vào khi máy không có micro; đi qua cùng luồng chuẩn hóa */}
+      {textMode && (
+        <Box
+          component="form"
+          onSubmit={submitTextQuery}
           sx={{
-            width: 56,
-            height: 56,
-            boxShadow: isRecording
-              ? "0 0 20px #d32f2f, 0 0 40px #d32f2f"
-              : "0 4px 10px rgba(0,0,0,0.3)",
-            transition: "all 0.3s ease",
-            transform: isRecording ? "scale(1.15)" : "scale(1)",
-            "&::after": isRecording
-              ? {
-                  content: '""',
-                  position: "absolute",
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: "50%",
-                  border: "2px solid #d32f2f",
-                  animation: "pulse 1.2s infinite ease-in-out",
-                }
-              : {},
-            "@keyframes pulse": {
-              "0%": { transform: "scale(1)", opacity: 1 },
-              "100%": { transform: "scale(1.8)", opacity: 0 },
-            },
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+            backgroundColor: "white",
+            borderRadius: "999px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            pl: 2,
+            pr: 0.5,
+            py: 0.5,
           }}
         >
-          {isProcessing ? (
-            <CircularProgress size={24} color="inherit" />
-          ) : isRecording ? (
-            <GraphicEqIcon />
-          ) : (
-            <MicIcon />
-          )}
-        </Fab>
-      </Tooltip>
+          <TextField
+            variant="standard"
+            placeholder="Nhập câu tìm kiếm, vd: tìm van điện khí TTSM1"
+            value={textValue}
+            onChange={(e) => setTextValue(e.target.value)}
+            autoFocus
+            disabled={isProcessing}
+            InputProps={{ disableUnderline: true }}
+            sx={{ width: { xs: 200, sm: 300 } }}
+          />
+          <IconButton type="submit" color="primary" disabled={isProcessing} aria-label="Tìm kiếm">
+            {isProcessing ? <CircularProgress size={22} color="inherit" /> : <SearchIcon />}
+          </IconButton>
+        </Box>
+      )}
+
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {/* Nút bật/tắt chế độ nhập chữ */}
+        <Tooltip
+          title={textMode ? "Đóng ô nhập chữ" : "Nhập câu tìm kiếm bằng bàn phím"}
+          placement="top"
+          arrow
+        >
+          <Fab
+            size="small"
+            color={textMode ? "error" : "default"}
+            onClick={() => setTextMode((prev) => !prev)}
+            aria-label="Chuyển chế độ nhập chữ"
+          >
+            {textMode ? <CloseIcon /> : <KeyboardIcon />}
+          </Fab>
+        </Tooltip>
+
+        <Tooltip
+          title={
+            isRecording
+              ? "Bấm lại để dừng và tìm kiếm"
+              : isProcessing
+              ? "Đang xử lý..."
+              : "Bấm để bắt đầu tìm kiếm bằng giọng nói"
+          }
+          placement="top"
+          arrow
+        >
+          <Fab
+            color={isRecording ? "error" : "primary"}
+            onClick={toggleRecording}
+            onContextMenu={(e) => e.preventDefault()}
+            sx={{
+              width: 56,
+              height: 56,
+              boxShadow: isRecording
+                ? "0 0 20px #d32f2f, 0 0 40px #d32f2f"
+                : "0 4px 10px rgba(0,0,0,0.3)",
+              transition: "all 0.3s ease",
+              transform: isRecording ? "scale(1.15)" : "scale(1)",
+              "&::after": isRecording
+                ? {
+                    content: '""',
+                    position: "absolute",
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "50%",
+                    border: "2px solid #d32f2f",
+                    animation: "pulse 1.2s infinite ease-in-out",
+                  }
+                : {},
+              "@keyframes pulse": {
+                "0%": { transform: "scale(1)", opacity: 1 },
+                "100%": { transform: "scale(1.8)", opacity: 0 },
+              },
+            }}
+          >
+            {isProcessing ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : isRecording ? (
+              <GraphicEqIcon />
+            ) : (
+              <MicIcon />
+            )}
+          </Fab>
+        </Tooltip>
+      </Box>
     </Box>
   );
 };

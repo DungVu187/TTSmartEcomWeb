@@ -85,7 +85,12 @@ const ACTION_LABELS = {
     update_homepage_section: 'Sửa phần trang chủ',
     
     // Zalo settings
-    update_zalo_settings: 'Cập nhật cấu hình Zalo OA'
+    update_zalo_settings: 'Cập nhật cấu hình Zalo OA',
+
+    // Voice vocabulary (từ vựng tìm kiếm bằng giọng nói)
+    create_voice_vocab: 'Thêm từ vựng voice',
+    update_voice_vocab: 'Sửa từ vựng voice',
+    delete_voice_vocab: 'Xóa từ vựng voice'
 };
 
 // API lấy danh sách lịch sử hoạt động

@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-06 — Codex (data-driven intent cho voice/text search)
+- `be/config/voiceVocab.defaults.js`, `be/components/product.js`: thêm nhóm `intentAliases` cho 4 intent `search_product`, `add_to_cart`, `update_item`, `delete_item`; normalizer ưu tiên intent hợp lệ từ Gemini, nếu thiếu thì tự detect bằng alias trong transcript và vẫn giữ nguyên keyword/filter.
+- `be/components/voicevocab.js`, `ad/src/components/voicevocab.jsx`: mở rộng trang/admin API `/voice-vocabs` để quản lý `intentAliases` giống các nhóm alias khác, dùng cookie auth hiện có và không nối hành động thật cho thêm/sửa/xóa giỏ hàng.
+- `be/tests/voice_vocab.test.js`: thêm regression DB-free cho round-trip defaults/doc payload, detect intent mặc định, và refresh alias intent mới có hiệu lực ngay.
+- Verify: `cd be && npm test` pass — 20 suites, 99 tests; `cd ad && npm run build` pass (còn warning chunk lớn cũ của Vite).
+- Rủi ro còn lại: chưa mở browser kiểm thử thủ công tab admin mới; frontend hiện vẫn chỉ đọc dữ liệu tìm kiếm, chưa thực thi lệnh add/update/delete thật theo giọng nói.
+
+## 2026-07-06 — Antigravity (Kiểm thử UI thực tế 4 màn hình nghi ngờ dùng token cũ)
+- Màn hình Cấu hình Zalo (`/admin/zalo`): Xác nhận **FAIL** (lỗi tải dữ liệu) do file `ad/src/components/ZaloSettings.jsx` gửi custom header `"auth-token"` bị chặn bởi CORS preflight OPTIONS ở Backend (chỉ cho phép `Content-Type`, `Authorization`, `CSRF-Token`).
+- Màn hình `/admin/importorder`, `/admin/orderedproducts`, `/admin/importordertemplate/0`: Xác nhận **OK** (tải dữ liệu bình thường) vì thực tế router `ad/src/App.jsx` nạp các component tương ứng từ thư mục con `ad/src/components/iporder/` đã dùng Cookie chuẩn (`credentials: "include"`, không gửi header `auth-token`). Các file nghi ngờ ngoài thư mục con chỉ là file thừa không sử dụng.
+- Màn hình đối chứng Đơn hàng (`/admin/order`): Xác nhận **OK** (tải dữ liệu bình thường).
+- Verify: Chạy script Puppeteer tự động hóa login admin (`0813158383` / `0813158383`) kiểm thử thực tế thành công.
+- Rủi ro còn lại: File `ZaloSettings.jsx` cần loại bỏ custom header và dùng Cookie đồng bộ.
+
 ## 2026-07-04 — Codex (thêm tạo đơn bán thủ công trong admin)
 - `be/components/order.js`: thêm `GET /orders/customer-suggestions` và `POST /orders/admin-create-order` dùng cookie auth + quyền order; route tạo đơn validate toàn bộ payload trước khi trừ `quantityForSale`, lấy giá từ DB, tạo mã `TTSM-xx`, bỏ qua email/Zalo cho đơn nội bộ và vẫn emit socket `order_created`.
 - `ad/src/components/orders.jsx`: thêm nút/dialog “Tạo đơn hàng mới”, autocomplete khách hàng, tìm sản phẩm debounce, chọn variant/số lượng, bảng dòng hàng, tạm tính và submit bằng `apiFetch` cookie httpOnly.

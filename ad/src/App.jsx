@@ -26,6 +26,7 @@ import StationDisplay from './components/stationdisplay';
 import History from './components/history';
 import ActivityLog from './components/activitylog';
 import ZaloSettings from './components/ZaloSettings';
+import VoiceVocab from './components/voicevocab';
 import VoiceSearchFAB from './components/VoiceSearchFAB';
 
 const App = () => {
@@ -64,6 +65,7 @@ const App = () => {
                     <Route path="/history" element={<History />} />
                     <Route path="/activity-log" element={<ActivityLog />} />
                     <Route path="/zalo" element={<RoleGuard adminOnly><ZaloSettings /></RoleGuard>} />
+                    <Route path="/voice-vocab" element={<RoleGuard adminOnly><VoiceVocab /></RoleGuard>} />
                     <Route path="*" element={<Navigate to="/product" replace />} />
                   </Routes>
                 </Box>

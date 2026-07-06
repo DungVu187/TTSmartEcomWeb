@@ -19,6 +19,7 @@ const { router: stationRoutes } = require('./components/station');
 const { router: historyRoutes } = require('./components/storagehistory');
 const { router: activityLogRoutes } = require('./components/activitylog');
 const { router: zaloRoutes } = require('./components/zalo');
+const { router: voiceVocabRoutes, initVoiceVocab } = require('./components/voicevocab');
 
 // Tạo app + http server + socket.io
 const app = express();
@@ -103,6 +104,8 @@ if (process.env.NODE_ENV !== 'test') {
   mongoose.connect(uri)
     .then(() => {
       console.log('Connected to MongoDB!');
+      // Nạp từ vựng voice từ DB vào cache runtime của product.js (seed từ defaults nếu chưa có).
+      initVoiceVocab();
     })
     .catch(err => console.error('MongoDB connection error:', err));
 }
@@ -120,6 +123,7 @@ app.use('/stations', stationRoutes);
 app.use('/histories', historyRoutes);
 app.use('/activity-logs', activityLogRoutes);
 app.use('/zalo', zaloRoutes);
+app.use('/voice-vocabs', voiceVocabRoutes);
 
 // Static files
 const fs = require('fs');
@@ -151,7 +155,7 @@ app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
-    '/histories', '/images', '/section-images', '/zalo'
+    '/histories', '/images', '/section-images', '/zalo', '/voice-vocabs'
   ];
   const isApi = apiPaths.some(path => req.path.startsWith(path));
   const isStaticFile = /\.(jpg|jpeg|png|gif|webp|svg|css|js|ico|map)$/i.test(req.path);

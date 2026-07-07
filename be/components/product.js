@@ -269,7 +269,7 @@ function normalizeVoiceQueryResult(raw = {}) {
 
     const codeInfo = detectVoiceCode(probeText);
     const brandProbeText = transcript || String(raw.keyword || '');
-    
+
     // Ưu tiên brand suy ra từ mã máy rồi tới regex quét trên transcript; chỉ dùng brand
     // do Gemini đưa (filters.brand) khi không có transcript, tránh brand "ảo" AI tự thêm
     const rawBrand = VOICE_BRANDS.includes(filters.brand) ? filters.brand : null;
@@ -359,8 +359,8 @@ const productSchema = new mongoose.Schema({
         type: [
             {
                 price: { type: String, default: "" },
-                importPrice: { type: String, default: ""},
-                earn: { type: Number, default: 0},
+                importPrice: { type: String, default: "" },
+                earn: { type: Number, default: 0 },
                 imgUrl: { type: String, default: "" },
                 color: { type: String, default: "" },
                 shape: { type: String, default: "" },
@@ -446,7 +446,7 @@ const productSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-productSchema.pre('save', function(next) {
+productSchema.pre('save', function (next) {
     if (this.isModified('name')) {
         this.nameUnsigned = removeVietnameseTones(this.name);
     }
@@ -454,52 +454,52 @@ productSchema.pre('save', function(next) {
 });
 
 const getUpdatedImgUrl = (originalUrl) => {
-  if (!originalUrl) return originalUrl;
+    if (!originalUrl) return originalUrl;
 
-  const paths = ['/images/', '/station/', '/section-images/'];
-  for (const p of paths) {
-    const idx = originalUrl.indexOf(p);
-    if (idx !== -1) {
-      return originalUrl.substring(idx);
+    const paths = ['/images/', '/station/', '/section-images/'];
+    for (const p of paths) {
+        const idx = originalUrl.indexOf(p);
+        if (idx !== -1) {
+            return originalUrl.substring(idx);
+        }
     }
-  }
-  return originalUrl;
+    return originalUrl;
 };
 
-productSchema.post('init', function(doc) {
-  if (doc.variant && Array.isArray(doc.variant)) {
-    doc.variant.forEach(v => {
-      if (v.imgUrl) {
-        v.imgUrl = getUpdatedImgUrl(v.imgUrl);
-      }
-    });
-  }
+productSchema.post('init', function (doc) {
+    if (doc.variant && Array.isArray(doc.variant)) {
+        doc.variant.forEach(v => {
+            if (v.imgUrl) {
+                v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+            }
+        });
+    }
 });
 
 productSchema.set('toJSON', {
-  transform: (doc, ret) => {
-    if (ret.variant && Array.isArray(ret.variant)) {
-      ret.variant.forEach(v => {
-        if (v.imgUrl) {
-          v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+    transform: (doc, ret) => {
+        if (ret.variant && Array.isArray(ret.variant)) {
+            ret.variant.forEach(v => {
+                if (v.imgUrl) {
+                    v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+                }
+            });
         }
-      });
+        return ret;
     }
-    return ret;
-  }
 });
 
 productSchema.set('toObject', {
-  transform: (doc, ret) => {
-    if (ret.variant && Array.isArray(ret.variant)) {
-      ret.variant.forEach(v => {
-        if (v.imgUrl) {
-          v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+    transform: (doc, ret) => {
+        if (ret.variant && Array.isArray(ret.variant)) {
+            ret.variant.forEach(v => {
+                if (v.imgUrl) {
+                    v.imgUrl = getUpdatedImgUrl(v.imgUrl);
+                }
+            });
         }
-      });
+        return ret;
     }
-    return ret;
-  }
 });
 
 const Product = mongoose.model('Product', productSchema);
@@ -591,7 +591,7 @@ router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('u
 router.post('/create', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
     try {
         const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted } = req.body;
-        
+
         // Kiểm tra trùng lặp mã sản phẩm trước khi tạo mới để tránh trùng lặp
         if (code && code.trim()) {
             const existing = await findProductByEquivalentCode(code);
@@ -634,13 +634,13 @@ router.post('/create', [authenticateAdmin, checkPermission('update_product')], a
 // API lấy tất cả sản phẩm
 router.get("/", async (req, res) => {
     try {
-        const { 
-            page = 1, 
+        const {
+            page = 1,
             limit = 100,
             search = "",
             code = "",
-            type, 
-            brand, 
+            type,
+            brand,
             section,
             value,
             sortBy = "purchaseCount",
@@ -689,7 +689,7 @@ router.get("/", async (req, res) => {
         if (brand && brand !== "") filter.brand = brand;
         if (section && section !== "") filter.section = section;
         if (value && value !== "") filter.value = value;
-        if (display !== undefined) filter.display = display === "true"; 
+        if (display !== undefined) filter.display = display === "true";
 
         // Kiểm tra cookie authToken để thực hiện lọc theo trạm trộn của khách hàng
         const token = req.cookies?.authToken;
@@ -699,14 +699,14 @@ router.get("/", async (req, res) => {
                 const user = await User.findById(decoded.userId);
                 if (user && user.role === "customer") {
                     const userStations = user.station || [];
-                    
+
                     if (userStations.length === 0) {
                         // Khách hàng không có trạm trộn nào -> Không hiển thị sản phẩm nào
                         return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
                     }
 
                     let allowedProductIds = [];
-                    
+
                     // Nếu khách hàng chọn lọc một trạm cụ thể từ dropdown
                     if (stationId && stationId !== "Tất cả") {
                         // Kiểm tra xem trạm này có thuộc sở hữu của khách hàng không
@@ -745,9 +745,9 @@ router.get("/", async (req, res) => {
         const sortField = validSortFields.includes(sortBy) ? sortBy : "purchaseCount";
         const sortDirection = sortOrder === "asc" ? 1 : -1;
 
-        const sortCriteria = { 
-            [sortField]: sortDirection, 
-            createdAt: -1 
+        const sortCriteria = {
+            [sortField]: sortDirection,
+            createdAt: -1
         };
 
         // Truy vấn MongoDB. adjusted được tính động để áp dụng cả sản phẩm cũ.
@@ -764,7 +764,7 @@ router.get("/", async (req, res) => {
                         .toLowerCase()
                         .split(/\s+/)
                         .filter(t => t.length > 0);
-                    
+
                     if (tokens.length > 0) {
                         allMatched.sort((a, b) => {
                             const score = (product) => {
@@ -801,13 +801,13 @@ router.get("/", async (req, res) => {
                 let adjustedProducts = matchedProducts.filter(product =>
                     calculateProductAdjustedStatus(product) === adjustedFilter
                 );
-                
+
                 if (search && search.trim() !== "") {
                     const tokens = removeVietnameseTones(search)
                         .toLowerCase()
                         .split(/\s+/)
                         .filter(t => t.length > 0);
-                    
+
                     if (tokens.length > 0) {
                         adjustedProducts.sort((a, b) => {
                             const score = (product) => {
@@ -880,11 +880,11 @@ router.get("/", async (req, res) => {
             };
         });
 
-        res.json({ 
-            total, 
-            page: pageNum, 
-            limit: limitNum, 
-            products: processedProducts 
+        res.json({
+            total,
+            page: pageNum,
+            limit: limitNum,
+            products: processedProducts
         });
     } catch (error) {
         console.error("Error fetching products:", error);
@@ -898,7 +898,7 @@ router.get('/top-purchased', async (req, res) => {
         const products = await Product.find()
             .sort({ purchaseCount: -1 }) // Sắp xếp giảm dần theo purchaseCount
             .limit(10);
-        
+
         res.json(products);
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server', error });
@@ -990,20 +990,20 @@ router.put('/update-display-field', [authenticateAdmin, checkPermission('update_
         );
 
         if (result.modifiedCount === 0) {
-            return res.status(200).json({ 
-                message: 'Không có sản phẩm nào cần cập nhật hoặc tất cả sản phẩm đã có trường display' 
+            return res.status(200).json({
+                message: 'Không có sản phẩm nào cần cập nhật hoặc tất cả sản phẩm đã có trường display'
             });
         }
 
-        res.status(200).json({ 
-            message: 'Cập nhật trường display thành công', 
-            updatedCount: result.modifiedCount 
+        res.status(200).json({
+            message: 'Cập nhật trường display thành công',
+            updatedCount: result.modifiedCount
         });
     } catch (error) {
         console.error('Error updating display field:', error);
-        res.status(500).json({ 
-            message: 'Lỗi server khi cập nhật trường display', 
-            error: error.message 
+        res.status(500).json({
+            message: 'Lỗi server khi cập nhật trường display',
+            error: error.message
         });
     }
 });
@@ -1160,10 +1160,10 @@ router.post('/bulk-delete', [authenticateAdmin, checkPermission('delete_product'
 
         // Tìm tất cả sản phẩm sắp xóa để lấy thông tin ghi log
         const productsToDelete = await Product.find({ _id: { $in: ids } });
-        
+
         // Thực hiện xóa hàng loạt
         const deleteResult = await Product.deleteMany({ _id: { $in: ids } });
-        
+
         // Ghi log hoạt động cho từng sản phẩm bị xóa
         try {
             const logs = productsToDelete.map(product => ({
@@ -1265,15 +1265,15 @@ router.put('/:_id/toggle-display', [authenticateAdmin, checkPermission('update_p
             }).save();
         } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
 
-        res.status(200).json({ 
-            message: `Thay đổi hiển thị thành công`, 
-            product 
+        res.status(200).json({
+            message: `Thay đổi hiển thị thành công`,
+            product
         });
     } catch (error) {
         console.error('Error toggling display:', error);
-        res.status(500).json({ 
-            message: 'Lỗi server khi thay đổi display', 
-            error: error.message 
+        res.status(500).json({
+            message: 'Lỗi server khi thay đổi display',
+            error: error.message
         });
     }
 });
@@ -1435,15 +1435,15 @@ router.delete('/:id/:variantIndex', [authenticateAdmin, checkPermission('update_
 // Lấy đánh giá của một sản phẩm
 router.get('/:_id/review', async (req, res) => {
     try {
-      const product = await Product.findById(req.params._id).select('reviews');
-      if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
-      }
-      res.json(product.reviews);
+        const product = await Product.findById(req.params._id).select('reviews');
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        res.json(product.reviews);
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching reviews', error });
+        res.status(500).json({ message: 'Error fetching reviews', error });
     }
-  });
+});
 
 // Thêm review
 router.post('/:_id/review/create', authenticateUser, async (req, res) => {
@@ -1741,7 +1741,7 @@ router.post('/by-codes', async (req, res) => {
 });
 
 // Khởi tạo multer memory storage cho việc upload ảnh quét hóa đơn tạm thời có giới hạn bảo mật
-const uploadMemory = multer({ 
+const uploadMemory = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }, // Tối đa 5MB
     fileFilter: (req, file, cb) => {
@@ -1758,9 +1758,9 @@ router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')]
     try {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
-            return res.status(400).json({ 
-                success: 0, 
-                message: 'Vui lòng cấu hình GEMINI_API_KEY hợp lệ trong file be/.env trước khi sử dụng tính năng này.' 
+            return res.status(400).json({
+                success: 0,
+                message: 'Vui lòng cấu hình GEMINI_API_KEY hợp lệ trong file be/.env trước khi sử dụng tính năng này.'
             });
         }
 
@@ -1770,7 +1770,7 @@ router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')]
 
         // 1. Lấy toàn bộ sản phẩm hiển thị trong DB để tự động đối khớp ở Backend
         const activeProducts = await Product.find({ display: true }).select('_id name code brand variant vat');
-        
+
         // 2. Chuyển ảnh sang base64 và lưu file xuống đĩa
         const base64Image = req.file.buffer.toString('base64');
         const mimeType = req.file.mimetype;
@@ -1787,23 +1787,30 @@ router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')]
         const imageUrl = `/invoice-images/${fileName}`;
 
         // 3. Chuẩn bị prompt trích xuất thông tin từ ảnh (Cực kỳ ngắn gọn để giảm thiểu token và tăng tốc độ)
-        const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn chuyên nghiệp.
+        const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn/phiếu xuất kho chuyên nghiệp, xử lý được nhiều định dạng khác nhau: hóa đơn bán lẻ viết tay, hóa đơn in từ máy tính tiền, phiếu xuất kho có mã PO, và hóa đơn in kim (dot-matrix).
 Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat) và ghi chú (note).
 
 Hướng dẫn trích xuất:
-- Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Nếu cột số thứ tự trên hóa đơn bị để trống hoặc không được ghi số thứ tự cụ thể (chỉ ghi dấu * hoặc bỏ trống), bạn BẮT BUỘC phải tự động đánh số thứ tự tuần tự tăng dần từ 1 cho đến hết (1, 2, 3, 4...) cho các dòng mặt hàng.
+- NHIỀU HÓA ĐƠN TRONG 1 ẢNH: Một ảnh có thể chứa NHIỀU hóa đơn độc lập đặt cạnh nhau (ví dụ 2 tờ "Đơn 1", "Đơn 2" chụp chung 1 khung hình — mỗi tờ có bảng "Tên hàng/Số lượng/Đơn giá/Thành tiền" và dòng "Cộng" riêng). Khi đó, hãy trích xuất TẤT CẢ sản phẩm của mọi hóa đơn vào cùng một mảng JSON, theo thứ tự từ trái sang phải, trên xuống dưới. Đối chiếu tổng tiền (xem mục dưới) phải thực hiện RIÊNG cho từng hóa đơn, không cộng gộp các hóa đơn với nhau.
+- Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Nếu cột số thứ tự trên hóa đơn bị để trống hoặc không được ghi số thứ tự cụ thể (chỉ ghi dấu * hoặc bỏ trống), bạn BẮT BUỘC phải tự động đánh số thứ tự tuần tự tăng dần từ 1 cho đến hết (1, 2, 3, 4...) cho các dòng mặt hàng. Ngược lại, nếu hóa đơn CÓ ghi STT nhưng KHÔNG liên tục (ví dụ 1, 6, 7, 12...), hãy GIỮ NGUYÊN số gốc, không tự "sửa" lại cho liền mạch.
 - Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "GW1S-3E20", "NFO-40 500/5A"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order - ví dụ: "SOHL2606183B1D4B"), mã đơn mua hàng, số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này. Nếu phát hiện một mã PO/mã quản lý giống hệt nhau lặp đi lặp lại ở tất cả các dòng của hóa đơn, bạn phải LOẠI BỎ hoàn toàn phần mã lặp lại đó ra khỏi trường \`code\`, chỉ giữ lại phần model thực của sản phẩm ở phía sau.
 - BẮT BUỘC ĐỌC ĐỦ MÃ HÀNG TỪNG DÒNG (CỰC KỲ QUAN TRỌNG): Hóa đơn thường có một cột "Mã hàng"/"Mã SP"/"Model" riêng biệt (tách rời với cột "Mã số PO"). Gần như MỌI dòng sản phẩm đều có mã hàng thực ở cột này. Bạn phải quét kỹ cột đó cho TỪNG dòng và điền vào trường \`code\`. TUYỆT ĐỐI KHÔNG để trống \`code\` khi trong dòng đó có bất kỳ chuỗi nào trông giống mã model (có chứa cả chữ và số, hoặc có dấu gạch nối "-", dấu gạch chéo "/", ví dụ: "NFO-40 500/5A", "GW1S-3E20", "RN2S-NL-D24", "S-T10 AC200V"). Nếu nét chữ ở cột mã hàng bị mờ/khó đọc, hãy cố suy luận và đọc gần đúng nhất chứ KHÔNG được bỏ trống trường \`code\`. Chỉ để \`code\` là chuỗi rỗng khi dòng đó thật sự không có cột mã hàng hoặc là dòng tiêu đề phân loại.
 - LƯU Ý PHÂN BIỆT CỘT: Đừng vì cột "Mã số PO" (mã dài lặp lại như "SOHL260618A52FC4") nằm sát bên trái mà bỏ qua hoặc nhầm lẫn cột "Mã hàng" thực nằm ngay cạnh nó. Hai cột này độc lập: cột PO thì loại bỏ, cột mã hàng thì phải đọc và giữ lại.
-- Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được).
+- Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được). Nếu hóa đơn không có cột thuế riêng từng dòng mà chỉ ghi MỘT mức thuế suất chung ở cuối (ví dụ "Thuế suất GTGT: 8%"), hãy áp mức đó cho \`vat\` của TẤT CẢ các dòng thuộc hóa đơn.
 - Trường \`price\` là đơn giá thực tế của sản phẩm. Nếu hóa đơn không có cột Đơn giá (hoặc các giá trị tương đương), bạn phải để trống hoặc gán null cho trường \`price\`. Tuyệt đối KHÔNG tự ý suy đoán đơn giá hoặc lấy các con số khác (ví dụ: số mét đầu/cuối của cuộn dây cáp ở cột Ghi chú như "1050 - 750", số thứ tự, số lượng, hoặc số điện thoại) để điền vào trường \`price\`.
-- Trường \`quantity\` phải là kiểu số nguyên dương (hãy loại bỏ các ký tự dấu chấm, dấu phẩy hoặc đơn vị VND).
-- Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...).
+- Trường \`quantity\` là số dương, KHÔNG bắt buộc phải nguyên: với đơn vị đo lường (kg, mét, lít, m2...) có thể là số thập phân (ví dụ "2,2kg" -> 2.2); với đơn vị đếm (cái, bộ, đôi, chiếc...) phải là số nguyên. Hãy loại bỏ dấu chấm phân cách hàng nghìn và đơn vị VND, nhưng GIỮ ĐÚNG dấu phẩy/chấm thập phân theo ngữ cảnh (tuyệt đối không nhầm "2,2" thành "22").
+- Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...). Một số hóa đơn KHÔNG có cột đơn vị riêng mà viết chung số lượng với đơn vị trong 1 ô (ví dụ "1kg", "5 đôi", "2,2kg", "40"): khi đó hãy TÁCH phần số vào \`quantity\` và phần chữ vào \`unit\`. Nếu ô chỉ có số thì để \`unit\` rỗng.
 - NGUYÊN TẮC DÒNG ĐỐI DÒNG VÀ PHÂN TÍCH KÝ TỰ ĐẦU DÒNG (CỰC KỲ QUAN TRỌNG):
   + NHẬN DIỆN KÝ TỰ ĐẦU DÒNG (DẤU SAO * HOẶC MŨI TÊN ↓): Hãy chú ý các ký tự viết tay ở đầu cột tên hàng (ví dụ dấu sao "*", hoặc ký hiệu mũi tên đi xuống "↓"). Đây là ký hiệu bắt đầu một dòng sản phẩm độc lập. 
   + KHÔNG GỘP TIÊU ĐỀ NHÓM: Các dòng ghi tiêu đề nhóm hoặc thông tin phụ (Ví dụ: "8.8 Đen" ở hóa đơn 1, "8.8 Mạ" ở hóa đơn 2) không có ký tự "*" ở đầu và dòng đó trống trơn số liệu (số lượng/giá). Đây là dòng tiêu đề phân loại hoặc ghi chú chứ không phải tên dài xuống dòng (vì chữ viết còn rất ngắn chưa chạm mép lề). Bạn BẮT BUỘC phải xuất dòng tiêu đề này thành một phần tử riêng trong JSON với "quantity" là 0 và "price" là 0. TUYỆT ĐỐI KHÔNG gộp dòng này với sản phẩm có dấu "*" ở phía dưới (như "* 30x120+ê VP"), vì sẽ làm đẩy lệch toàn bộ cột số lượng và đơn giá của các sản phẩm bên dưới lên 1 hàng.
   + ĐỐI VỚI CÁC SẢN PHẨM ĐỘC LẬP: Xuất kết quả nghiêm ngặt theo từng dòng vật lý (line-by-line). Nếu một sản phẩm bị trống số lượng hoặc giá tiền, bạn vẫn phải xuất dòng đó thành một sản phẩm riêng biệt và gán giá trị 0 cho "quantity" và "price". Tuyệt đối KHÔNG lấy số liệu của các dòng phía dưới để điền bù lên dòng trống này.
-- KIỂM TRA PHÉP NHÂN TOÁN HỌC (CỰC KỲ QUAN TRỌNG): Đối với hóa đơn viết tay, các nét chữ số lượng và đơn giá rất dễ bị nhận diện nhầm (ví dụ: số 42 trông giống số 12, hoặc số 4.000 bị nhầm với số 40.000). Bạn BẮT BUỘC phải thực hiện phép nhân nhẩm: [Số lượng (quantity)] x [Đơn giá (price)] và đối chiếu xem kết quả có trùng khớp với con số ở cột [Thành tiền] được ghi trên hóa đơn cho dòng sản phẩm đó hay không. Nếu không khớp, hãy dùng phép tính toán học để suy ngược lại và tự điều chỉnh số lượng hoặc đơn giá cho chính xác trước khi xuất kết quả JSON (Ví dụ: nếu đơn giá là 12.500 và thành tiền ghi là 525.000, thì số lượng bắt buộc phải là 42 chứ không thể là 12).
+  + TÊN SẢN PHẨM TRÀN XUỐNG DÒNG DƯỚI: Nếu một dòng phía dưới KHÔNG có ký tự "*" ở đầu, KHÔNG có số liệu riêng (số lượng/giá trống), mà chữ ở dòng trên đã chạm sát lề phải → đây là phần tên bị xuống dòng của sản phẩm phía trên. Hãy GỘP phần chữ đó vào cuối "rawScannedName" của dòng trên, KHÔNG tách thành sản phẩm mới.
+- BỎ QUA DÒNG KHÔNG PHẢI SẢN PHẨM: Không xuất các dòng tổng kết hoặc phụ phí thành mặt hàng, ví dụ: "Cộng", "Tổng cộng", "Tổng cộng tiền thanh toán", "Thành tiền", "V.chuyển"/"Vận chuyển"/phí ship, "Mang sang"/"Chuyển sang", dòng thuế GTGT tổng. Các dòng này chỉ dùng để đối chiếu tổng tiền (xem mục dưới), KHÔNG đưa vào danh sách items.
+- BỎ QUA KÝ HIỆU KIỂM TRA NỘI BỘ: Các dấu tick/check (✓, √) hoặc dấu gạch chéo (×) xuất hiện lặp lại bên cạnh cột số lượng/đơn giá là ký hiệu nhân viên đã đối chiếu — KHÔNG phải dữ liệu, bỏ qua hoàn toàn, không đưa vào bất kỳ trường nào. LƯU Ý PHÂN BIỆT với con số viết tay trong ngoặc đơn cạnh 1 dòng cụ thể (ví dụ "(2)", "(10)") — đây thường là chú thích số lượng thực giao/thiếu, hãy xử lý theo mục "Ghi chú tay" bên dưới.
+- GHI CHÚ TAY GẮN VỚI DÒNG CỤ THỂ: Nếu hóa đơn có ghi chú viết tay ở lề hoặc cuối trang đề cập một STT/mục cụ thể (ví dụ "Giao thiếu mục 5: 2 cái"), hãy gắn nội dung đó vào trường "note" của ĐÚNG dòng có STT tương ứng (note của dòng STT=5 → "Giao thiếu 2 cái so với hóa đơn"). TUYỆT ĐỐI KHÔNG thay đổi "quantity" gốc của dòng đó — quantity giữ nguyên theo số hóa đơn ghi, ghi chú chỉ bổ sung thông tin. Trường "note" CHỈ dùng cho: (a) ghi chú tay có thật trên hóa đơn gắn với dòng đó, hoặc (b) diễn giải điều chỉnh do phép nhân toán học (xem mục dưới). Không tự bịa thêm diễn giải.
+- KIỂM TRA PHÉP NHÂN TOÁN HỌC (CỰC KỲ QUAN TRỌNG): Đối với hóa đơn viết tay, các nét chữ số lượng và đơn giá rất dễ bị nhận diện nhầm (ví dụ: số 42 trông giống số 12, hoặc số 4.000 bị nhầm với số 40.000). Bạn BẮT BUỘC phải thực hiện phép nhân nhẩm: [Số lượng (quantity)] x [Đơn giá (price)] và đối chiếu xem kết quả có trùng khớp với con số ở cột [Thành tiền] được ghi trên hóa đơn cho dòng sản phẩm đó hay không. Nếu không khớp, hãy dùng phép tính toán học để suy ngược lại và tự điều chỉnh số lượng hoặc đơn giá cho chính xác trước khi xuất kết quả JSON (Ví dụ: nếu đơn giá là 12.500 và thành tiền ghi là 525.000, thì số lượng bắt buộc phải là 42 chứ không thể là 12). Khi tự điều chỉnh như vậy, hãy ghi lại vào "note" của dòng đó (ví dụ: "Đã tự điều chỉnh số lượng từ 12 thành 42 theo thành tiền 525.000"). Nếu cả 3 giá trị đều mờ/khó đọc, ưu tiên giữ con số [Thành tiền] rõ/đậm nhất làm chuẩn để suy ngược.
+- ĐỐI CHIẾU TỔNG TIỀN TOÀN HÓA ĐƠN (bước suy luận nội bộ, KHÔNG xuất ra JSON): Sau khi trích xuất hết các dòng, hãy tự cộng [Thành tiền] của tất cả sản phẩm và so với số ghi ở dòng "Cộng"/"Tổng cộng tiền thanh toán" (đối chiếu thêm dòng "viết bằng chữ" nếu có, vì chữ ít bị nhầm nét hơn số). Nếu tổng tự tính KHÁC tổng ghi trên hóa đơn, đây là tín hiệu ít nhất một dòng đã đọc sai — hãy rà lại các dòng có số liệu mờ nhất và ưu tiên sửa theo hướng khớp với tổng đã ghi, trước khi xuất kết quả cuối cùng.
+- ẢNH KHÔNG PHẢI HÓA ĐƠN / KHÔNG ĐỌC ĐƯỢC: Nếu ảnh không chứa hóa đơn nào hoặc quá mờ để đọc bất kỳ dòng nào, hãy trả về một mảng rỗng [] — TUYỆT ĐỐI KHÔNG bịa dữ liệu.
 
 Định dạng phản hồi BẮT BUỘC là một mảng JSON trực tiếp (không nằm trong thẻ markdown \`\`\`json và không có văn bản giải thích đi kèm):
 [
@@ -1819,15 +1826,13 @@ Hướng dẫn trích xuất:
   }
 ]`;
 
-        // 4. Gọi API Gemini bằng fetch có hỗ trợ Fallback tự động khi quá tải (503)
+        // 4. Gọi API Gemini bằng fetch có hỗ trợ Fallback tự động khi quá tải (503) hoặc hết quota ngày
         const modelsToTry = [
-            'gemini-2.5-pro',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
-            'gemini-2.0-flash',
-            'gemini-2.0-flash-lite',
-            'gemini-flash-latest',
-            'gemini-flash-lite-latest'
+            'gemini-3.5-flash',       // Ưu tiên 1: Bản 3.5 ổn định, tốt nhất
+            'gemini-2.5-flash',       // Ưu tiên 2: Bản 2.5 ổn định, phổ biến
+            'gemini-3.1-flash-lite',  // Ưu tiên 3: Bản 3.1 Lite ổn định, quota 500 RPD
+            'gemini-2.5-flash-lite',  // Ưu tiên 4: Bản 2.5 Lite ổn định
+            'gemini-3-flash-preview'  // Ưu tiên 5: Bản Preview dòng 3
         ];
 
         const callGeminiWithModel = async (modelName) => {
@@ -1899,7 +1904,7 @@ Hướng dẫn trích xuất:
         }
 
         const geminiData = await geminiRes.json();
-        
+
         // Lấy text phản hồi và parse sang JSON
         let textResult = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!textResult) {
@@ -1969,9 +1974,9 @@ Hướng dẫn trích xuất:
             // Đồng bộ nhóm từ đồng nghĩa tiếng Anh <-> tiếng Việt cho thiết bị điện
             // 1. Contactor / Công tắc tơ / Khởi động từ
             if (
-                (out.has('cong') && out.has('to')) || 
-                (out.has('cong') && out.has('tac') && out.has('to')) || 
-                (out.has('cong') && out.has('tac') && out.has('tor')) || 
+                (out.has('cong') && out.has('to')) ||
+                (out.has('cong') && out.has('tac') && out.has('to')) ||
+                (out.has('cong') && out.has('tac') && out.has('tor')) ||
                 (out.has('khoi') && out.has('dong') && out.has('tu'))
             ) {
                 out.add('contactor');
@@ -2079,7 +2084,7 @@ Hướng dẫn trích xuất:
                 const cc = cleanCode(item.code);
                 const byCode = activeProducts.filter(p => codeKind(p.code) === 'model' && cleanCode(p.code) === cc);
                 const passed = byCode.filter(p => passGates(p, ctx, item)); // R3: lọc spec/type giữa các biến thể trùng mã
-                
+
                 if (passed.length === 1) {
                     matchedProductId = passed[0]._id.toString();
                     confidence = ctx.hasScanSpec ? 'high' : 'low';
@@ -2113,10 +2118,10 @@ Hướng dẫn trích xuất:
                     const best = candidates.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
                     matchedProductId = best._id.toString();
                     const pSpec = tokenizeSpec(`${best.name || ''} ${best.code || ''}`);
-                    
+
                     confidence = !ctx.hasScanSpec ? 'low'                      // R6: không spec -> low
-                               : pSpec.size === ctx.scanSpec.size ? 'high'      // spec bằng nhau -> high
-                               : 'medium';                                      // R7: candidate dư thừa spec -> medium
+                        : pSpec.size === ctx.scanSpec.size ? 'high'      // spec bằng nhau -> high
+                            : 'medium';                                      // R7: candidate dư thừa spec -> medium
                     if (!item.vat && best.vat) {
                         item.vat = best.vat;
                     }
@@ -2139,10 +2144,10 @@ Hướng dẫn trích xuất:
 
     } catch (error) {
         console.error('Lỗi khi quét hóa đơn bằng AI:', error);
-        res.status(500).json({ 
-            success: 0, 
-            message: `Đã xảy ra lỗi khi phân tích hóa đơn bằng AI: ${error.message}`, 
-            error: error.message 
+        res.status(500).json({
+            success: 0,
+            message: `Đã xảy ra lỗi khi phân tích hóa đơn bằng AI: ${error.message}`,
+            error: error.message
         });
     }
 });
@@ -2175,9 +2180,9 @@ router.post('/voice-query', [authenticateUser, uploadAudio.single('audio')], asy
     try {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
-            return res.status(400).json({ 
-                success: 0, 
-                message: 'Vui lòng cấu hình GEMINI_API_KEY hợp lệ trong file be/.env trước khi sử dụng tính năng này.' 
+            return res.status(400).json({
+                success: 0,
+                message: 'Vui lòng cấu hình GEMINI_API_KEY hợp lệ trong file be/.env trước khi sử dụng tính năng này.'
             });
         }
 
@@ -2388,10 +2393,10 @@ Ví dụ cụ thể:
 
     } catch (error) {
         console.error('Lỗi khi phân tích giọng nói bằng AI:', error);
-        res.status(500).json({ 
-            success: 0, 
-            message: `Đã xảy ra lỗi khi phân tích giọng nói bằng AI: ${error.message}`, 
-            error: error.message 
+        res.status(500).json({
+            success: 0,
+            message: `Đã xảy ra lỗi khi phân tích giọng nói bằng AI: ${error.message}`,
+            error: error.message
         });
     }
 });

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TTSmart FE Proposal · Backend Fit</title>
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #dbe3ef;
+      --line-strong: #cbd5e1;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --navy: #0a1f3d;
+      --navy-2: #123761;
+      --blue: #0b63ce;
+      --blue-soft: #e9f2ff;
+      --orange: #ff6a00;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --red-soft: #fee2e2;
+      --yellow-soft: #fef3c7;
+      --yellow: #d97706;
+      --shadow: 0 12px 32px rgba(15, 23, 42, 0.1);
+      --shadow-soft: 0 6px 20px rgba(15, 23, 42, 0.07);
+      --container: 1240px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--bg); line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+    .container { width: min(var(--container), calc(100% - 40px)); margin: 0 auto; }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 20;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner { min-height: 68px; display: flex; align-items: center; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; color: var(--navy); letter-spacing: -0.03em; font-size: 20px; }
+    .brand img { width: 34px; height: 34px; object-fit: contain; }
+    .brand span { color: var(--orange); }
+    .navlinks { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .navlinks a { font-size: 13px; font-weight: 700; color: var(--muted); padding: 8px 12px; border-radius: 999px; }
+    .navlinks a:hover { background: var(--blue-soft); color: var(--blue); }
+
+    .hero {
+      background:
+        linear-gradient(135deg, rgba(10, 31, 61, 0.96), rgba(18, 55, 97, 0.92)),
+        radial-gradient(circle at 85% 10%, rgba(255, 106, 0, 0.24), transparent 36%);
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .hero-inner {
+      min-height: 520px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 44px;
+      align-items: center;
+      padding: 74px 0;
+    }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 9px;
+      font-size: 12px; line-height: 1; letter-spacing: 0.12em;
+      text-transform: uppercase; font-weight: 900; color: #a9d0ff;
+    }
+
+    .eyebrow::before { content: ""; width: 28px; height: 2px; background: var(--orange); border-radius: 999px; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { margin-top: 18px; font-size: clamp(38px, 5vw, 68px); line-height: 0.98; letter-spacing: -0.055em; max-width: 740px; }
+    .hero-copy { margin-top: 22px; max-width: 620px; color: #d8e4f5; font-size: 18px; }
+    .hero-actions { margin-top: 30px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 1px solid transparent; border-radius: 7px; padding: 12px 18px;
+      min-height: 44px; font-weight: 800; cursor: pointer; transition: 0.18s ease;
+      background: #fff; color: var(--navy);
+    }
+
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: #e85d00; transform: translateY(-1px); }
+    .btn-blue { background: var(--blue); color: #fff; }
+    .btn-outline { background: transparent; border-color: rgba(255, 255, 255, 0.35); color: #fff; }
+    .btn-light-outline { background: var(--panel); border-color: var(--line-strong); color: var(--navy); }
+
+    .hero-search-card {
+      background: #fff; color: var(--ink);
+      border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .search-head, .mock-toolbar {
+      min-height: 58px; border-bottom: 1px solid var(--line); padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      background: #fbfdff;
+    }
+
+    .search-head strong, .mock-title b { color: var(--navy); font-size: 15px; }
+    .status-pill, .stock-pill {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 900; white-space: nowrap;
+    }
+
+    .status-pill, .stock-ok { background: var(--green-soft); color: #166534; }
+    .stock-low { background: var(--yellow-soft); color: #92400e; }
+    .stock-out { background: var(--red-soft); color: #991b1b; }
+    .search-box { padding: 18px; }
+    .search-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+    .search-row input, .query-strip input, .query-strip select {
+      width: 100%; min-height: 44px; border: 1px solid var(--line-strong);
+      border-radius: 7px; padding: 0 12px; outline: none; color: var(--ink); background: #fff;
+    }
+
+    .search-row input { min-height: 48px; padding: 0 14px; font-weight: 700; }
+    .voice-hint { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; border: 1px solid var(--line);
+      border-radius: 999px; padding: 6px 10px; color: var(--muted);
+      background: #fff; font-size: 12px; font-weight: 800;
+    }
+
+    .quick-results { display: grid; gap: 10px; padding: 0 18px 18px; }
+    .quick-result {
+      display: grid; grid-template-columns: 60px 1fr auto; gap: 12px; align-items: center;
+      border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+    }
+
+    .product-art {
+      position: relative; border-radius: 7px; background: linear-gradient(135deg, #e8eef7, #f8fafc);
+      border: 1px solid var(--line); overflow: hidden; min-height: 56px;
+    }
+
+    .product-art::before, .product-art::after { content: ""; position: absolute; border-radius: 4px; background: var(--navy-2); }
+    .product-art::before { width: 38%; height: 52%; left: 18%; top: 24%; }
+    .product-art::after { width: 28%; height: 30%; right: 16%; top: 35%; background: var(--orange); }
+    .quick-result b { display: block; color: var(--navy); line-height: 1.25; }
+    .quick-result span { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    section { padding: 76px 0; }
+    .section-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 24px; }
+    .section-kicker { color: var(--blue); font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; margin-bottom: 8px; }
+    h2 { color: var(--navy); font-size: clamp(28px, 3.2vw, 44px); line-height: 1.05; letter-spacing: -0.04em; }
+    .section-sub { color: var(--muted); max-width: 640px; margin-top: 10px; }
+    .mock-shell { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-soft); overflow: hidden; }
+    .mock-title { display: flex; flex-direction: column; gap: 2px; }
+    .mock-title span { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    .listing-layout { display: grid; grid-template-columns: 260px 1fr; min-height: 680px; }
+    .filters { border-right: 1px solid var(--line); background: #fbfdff; padding: 18px; }
+    .filter-group { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .filter-group:last-child { border-bottom: 0; }
+    .filter-title { font-size: 12px; font-weight: 900; color: var(--navy); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+    .check-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 700; margin: 9px 0; }
+    .check-row label { display: inline-flex; align-items: center; gap: 8px; }
+    .listing-main { padding: 18px; min-width: 0; }
+    .query-strip { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; margin-bottom: 18px; }
+
+    .product-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .product-card { border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+    .product-card .product-art { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; min-height: 150px; }
+    .product-card-body { padding: 13px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .meta-line { display: flex; gap: 6px; flex-wrap: wrap; }
+    .meta-tag { font-size: 11px; font-weight: 900; color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 4px 8px; }
+    .product-card h3 { color: var(--navy); font-size: 16px; line-height: 1.28; letter-spacing: -0.02em; }
+    .card-code { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .price-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: auto; }
+    .price { color: var(--navy); font-weight: 950; font-size: 19px; letter-spacing: -0.03em; }
+    .small-btn { min-height: 36px; padding: 8px 11px; border-radius: 6px; border: 1px solid var(--line-strong); background: #fff; color: var(--navy); font-weight: 900; cursor: pointer; }
+
+    .detail-layout { display: grid; grid-template-columns: 0.9fr 1fr 330px; gap: 22px; padding: 22px; }
+    .gallery { display: grid; grid-template-columns: 72px 1fr; gap: 14px; }
+    .thumbs { display: grid; gap: 10px; align-content: start; }
+    .thumb { height: 64px; border: 1px solid var(--line); border-radius: 7px; background: #f8fafc; }
+    .main-image {
+      min-height: 420px; border: 1px solid var(--line); border-radius: 8px;
+      background: linear-gradient(135deg, #eef4fb, #ffffff);
+      display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+    }
+
+    .main-image .device {
+      width: 58%; height: 48%; border-radius: 14px;
+      background: linear-gradient(135deg, var(--navy), #335b86);
+      box-shadow: 0 28px 60px rgba(10, 31, 61, 0.22); position: relative;
+    }
+
+    .main-image .device::before {
+      content: "S7-1200"; position: absolute; left: 18px; top: 16px; color: #fff;
+      font-weight: 950; letter-spacing: 0.06em;
+    }
+
+    .main-image .device::after {
+      content: ""; position: absolute; left: 18px; right: 18px; bottom: 20px; height: 42px; border-radius: 6px;
+      background: repeating-linear-gradient(90deg, #dbeafe 0 16px, #93c5fd 16px 20px);
+    }
+
+    .breadcrumb { color: var(--muted); font-size: 12px; font-weight: 800; margin-bottom: 12px; }
+    .detail-copy h2 { font-size: clamp(28px, 3vw, 38px); }
+    .rating { margin-top: 12px; color: var(--yellow); font-weight: 900; font-size: 14px; }
+    .desc { margin-top: 16px; color: var(--muted); }
+    .spec-table { margin-top: 22px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .spec-row { display: grid; grid-template-columns: 42% 1fr; border-bottom: 1px solid var(--line); }
+    .spec-row:last-child { border-bottom: 0; }
+    .spec-row span { padding: 10px 12px; font-size: 13px; }
+    .spec-row span:first-child { background: #f8fafc; color: var(--muted); font-weight: 900; }
+    .buy-box { border: 1px solid var(--line); border-radius: 10px; padding: 16px; align-self: start; position: sticky; top: 88px; background: #fff; box-shadow: var(--shadow-soft); }
+    .buy-box .price { font-size: 28px; }
+    .field { margin-top: 14px; }
+    .field label { display: block; color: var(--muted); font-size: 12px; font-weight: 900; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .variant-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .variant-options button, .qty { min-height: 40px; border: 1px solid var(--line-strong); background: #fff; border-radius: 6px; font-weight: 900; color: var(--navy); }
+    .variant-options button.active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
+    .buy-actions { margin-top: 16px; display: grid; gap: 10px; }
+
+    .cart-layout { display: grid; grid-template-columns: 1fr 340px; gap: 18px; padding: 18px; }
+    .cart-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .cart-table th { text-align: left; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--line); padding: 12px 10px; }
+    .cart-table td { border-bottom: 1px solid var(--line); padding: 12px 10px; vertical-align: middle; }
+    .cart-item { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: center; }
+    .cart-item .product-art { min-height: 52px; }
+    .cart-item b { display: block; color: var(--navy); line-height: 1.25; }
+    .cart-item span { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .summary { border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: #fbfdff; align-self: start; }
+    .summary h3 { color: var(--navy); margin-bottom: 14px; }
+    .summary-line { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-weight: 800; margin: 10px 0; }
+    .summary-line.total { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; color: var(--navy); font-size: 20px; font-weight: 950; }
+
+    .map-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .map-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    .map-card h3 { color: var(--navy); font-size: 17px; margin-bottom: 10px; }
+    .map-card code { display: inline-block; background: #f1f5f9; border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; color: var(--navy-2); font-weight: 800; font-size: 12px; margin: 2px 0; }
+    .map-card p { color: var(--muted); font-size: 14px; }
+    .footer { background: var(--navy); color: #d8e4f5; padding: 34px 0; font-size: 13px; }
+    .footer strong { color: #fff; }
+
+    @media (max-width: 1080px) {
+      .hero-inner, .detail-layout, .cart-layout { grid-template-columns: 1fr; }
+      .listing-layout { grid-template-columns: 1fr; }
+      .filters { border-right: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .filter-group { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+      .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 720px) {
+      .container { width: min(100% - 24px, var(--container)); }
+      .topbar-inner { height: auto; padding: 12px 0; align-items: flex-start; flex-direction: column; }
+      .navlinks { margin-left: 0; }
+      .hero-inner { min-height: auto; padding: 48px 0; }
+      section { padding: 52px 0; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .filters, .query-strip, .product-grid, .map-grid { grid-template-columns: 1fr; }
+      .gallery { grid-template-columns: 1fr; }
+      .thumbs { display: none; }
+      .main-image { min-height: 300px; }
+      .cart-table { min-width: 720px; }
+      .cart-scroll { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="#">
+        <img src="../src/assets/TTSlogo.png" alt="TTSmart" />
+        TT<span>Smart</span>
+      </a>
+      <nav class="navlinks" aria-label="Design sections">
+        <a href="#listing">Product listing</a>
+        <a href="#detail">Product detail</a>
+        <a href="#cart">Cart</a>
+        <a href="#backend-map">Backend map</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div>
+          <span class="eyebrow">Industrial ecommerce proposal</span>
+          <h1>FE mới cho TTSmart: đẹp nhưng khớp backend hiện tại.</h1>
+          <p class="hero-copy">
+            Hướng thiết kế lấy cảm hứng từ Grainger, Digi-Key và B2B catalog:
+            search mạnh, filter kỹ thuật, product detail rõ thông số, cart dạng bảng.
+            Không thêm flow mà backend chưa hỗ trợ.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#listing">Xem listing</a>
+            <a class="btn btn-outline" href="#backend-map">Xem map backend</a>
+          </div>
+        </div>
+
+        <aside class="hero-search-card" aria-label="Search preview">
+          <div class="search-head">
+            <strong>Voice/Text search</strong>
+            <span class="status-pill">Backend ready</span>
+          </div>
+          <div class="search-box">
+            <div class="search-row">
+              <input value="PLC Siemens S7-1200" aria-label="Search example" />
+              <button class="btn btn-blue">Tìm</button>
+            </div>
+            <div class="voice-hint">
+              <span class="chip">brand: Siemens</span>
+              <span class="chip">type: PLC</span>
+              <span class="chip">code: S7-1200</span>
+              <span class="chip">intent: search_product</span>
+            </div>
+          </div>
+          <div class="quick-results">
+            <div class="quick-result">
+              <div class="product-art"></div>
+              <div>
+                <b>PLC Siemens S7-1200 CPU 1214C</b>
+                <span>Code S7-1200 · brand Siemens · type PLC</span>
+              </div>
+              <span class="stock-pill stock-ok">Còn 12</span>
+            </div>
+            <div class="quick-result">
+              <div class="product-art"></div>
+              <div>
+                <b>PLC Mitsubishi FX3U-16MR</b>
+                <span>Code FX3U · brand Mitsubishi · type PLC</span>
+              </div>
+              <span class="stock-pill stock-low">Còn 2</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="listing">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">01 · Product listing</div>
+            <h2>Search-first catalog cho sản phẩm kỹ thuật</h2>
+            <p class="section-sub">
+              Khớp `GET /products` và các query hiện có: search, brand, type, section,
+              value, code, sort, page. Desktop dùng filter trái; mobile dùng bottom sheet sau này.
+            </p>
+          </div>
+          <button class="btn btn-light-outline">Grid / Compact table</button>
+        </div>
+
+        <div class="mock-shell">
+          <div class="mock-toolbar">
+            <div class="mock-title">
+              <b>Sản phẩm tự động hóa</b>
+              <span>Showing 1-12 of 248 products · query: PLC</span>
+            </div>
+            <span class="chip">API: /products</span>
+          </div>
+          <div class="listing-layout">
+            <aside class="filters">
+              <div class="filter-group">
+                <div class="filter-title">Hãng</div>
+                <div class="check-row"><label><input type="checkbox" checked /> Siemens</label><span>32</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Mitsubishi</label><span>28</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Omron</label><span>19</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Delta</label><span>14</span></div>
+              </div>
+              <div class="filter-group">
+                <div class="filter-title">Loại</div>
+                <div class="check-row"><label><input type="checkbox" checked /> PLC</label><span>74</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Biến tần</label><span>36</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Cảm biến</label><span>51</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Relay</label><span>43</span></div>
+              </div>
+              <div class="filter-group">
+                <div class="filter-title">Tồn kho</div>
+                <div class="check-row"><label><input type="checkbox" checked /> Còn hàng</label><span>196</span></div>
+                <div class="check-row"><label><input type="checkbox" /> Sắp hết</label><span>27</span></div>
+              </div>
+            </aside>
+
+            <div class="listing-main">
+              <div class="query-strip">
+                <input value="PLC Siemens" aria-label="Product search" />
+                <select aria-label="Sort">
+                  <option>Sắp xếp: Liên quan nhất</option>
+                  <option>Giá thấp đến cao</option>
+                  <option>Giá cao đến thấp</option>
+                </select>
+                <button class="btn btn-blue">Áp dụng</button>
+              </div>
+
+              <div class="product-grid">
+                <article class="product-card">
+                  <div class="product-art"></div>
+                  <div class="product-card-body">
+                    <div class="meta-line"><span class="meta-tag">Siemens</span><span class="meta-tag">PLC</span></div>
+                    <h3>PLC Siemens S7-1200 CPU 1214C</h3>
+                    <div class="card-code">Code: S7-1200 · Variant: DC/DC/DC</div>
+                    <span class="stock-pill stock-ok">Còn hàng: 12</span>
+                    <div class="price-row"><span class="price">4.850.000đ</span><button class="small-btn">Chi tiết</button></div>
+                  </div>
+                </article>
+                <article class="product-card">
+                  <div class="product-art"></div>
+                  <div class="product-card-body">
+                    <div class="meta-line"><span class="meta-tag">Mitsubishi</span><span class="meta-tag">PLC</span></div>
+                    <h3>PLC Mitsubishi FX3U-16MR</h3>
+                    <div class="card-code">Code: FX3U · Variant: Relay output</div>
+                    <span class="stock-pill stock-low">Sắp hết: 2</span>
+                    <div class="price-row"><span class="price">3.920.000đ</span><button class="small-btn">Chi tiết</button></div>
+                  </div>
+                </article>
+                <article class="product-card">
+                  <div class="product-art"></div>
+                  <div class="product-card-body">
+                    <div class="meta-line"><span class="meta-tag">Omron</span><span class="meta-tag">Biến tần</span></div>
+                    <h3>Biến tần Omron 3 pha 2.2kW</h3>
+                    <div class="card-code">Code: 3G3MX2 · Variant: 220V</div>
+                    <span class="stock-pill stock-ok">Còn hàng: 7</span>
+                    <div class="price-row"><span class="price">5.300.000đ</span><button class="small-btn">Chi tiết</button></div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="detail" style="background:#fff">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">02 · Product detail</div>
+            <h2>Trang chi tiết dạng kỹ thuật, không chỉ là landing page</h2>
+            <p class="section-sub">
+              Khớp schema `Product`: name, code, brand, type, variant, warranty,
+              description, features, operatingMethod, advantages, specifications, infoDoc.
+            </p>
+          </div>
+        </div>
+
+        <div class="mock-shell">
+          <div class="mock-toolbar">
+            <div class="mock-title">
+              <b>Product detail</b>
+              <span>Route hiện tại: /product/:productId</span>
+            </div>
+            <span class="chip">fields: Product + variant[index]</span>
+          </div>
+          <div class="detail-layout">
+            <div class="gallery">
+              <div class="thumbs"><div class="thumb"></div><div class="thumb"></div><div class="thumb"></div></div>
+              <div class="main-image"><div class="device"></div></div>
+            </div>
+
+            <div class="detail-copy">
+              <div class="breadcrumb">Sản phẩm / PLC / Siemens / S7-1200</div>
+              <h2>PLC Siemens S7-1200 CPU 1214C DC/DC/DC</h2>
+              <div class="rating">★★★★★ 4.8 · 24 đánh giá</div>
+              <p class="desc">Bộ điều khiển PLC phù hợp cho tủ điện điều khiển trạm, băng tải, silo và các cụm tự động hóa cần độ ổn định cao.</p>
+              <div class="spec-table">
+                <div class="spec-row"><span>Mã sản phẩm</span><span>S7-1200</span></div>
+                <div class="spec-row"><span>Hãng</span><span>Siemens</span></div>
+                <div class="spec-row"><span>Loại</span><span>PLC</span></div>
+                <div class="spec-row"><span>Bảo hành</span><span>12 tháng</span></div>
+                <div class="spec-row"><span>Thông số</span><span>CPU 1214C, DC/DC/DC, 14DI/10DO, Ethernet</span></div>
+                <div class="spec-row"><span>Tài liệu</span><span>Manual · Datasheet · Catalog</span></div>
+              </div>
+            </div>
+
+            <aside class="buy-box">
+              <span class="stock-pill stock-ok">Còn hàng: 12</span>
+              <div style="margin-top:12px" class="price">4.850.000đ</div>
+              <div class="field">
+                <label>Chọn variant</label>
+                <div class="variant-options">
+                  <button class="active">DC/DC/DC</button>
+                  <button>Relay</button>
+                  <button>14DI/10DO</button>
+                  <button>Ethernet</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Số lượng</label>
+                <input class="qty" type="number" value="1" min="1" style="width:100%;padding:0 12px" />
+              </div>
+              <div class="buy-actions">
+                <button class="btn btn-primary">Thêm vào giỏ</button>
+                <button class="btn btn-light-outline">Gửi Zalo tư vấn</button>
+                <button class="btn btn-light-outline">Tải datasheet</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="cart">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">03 · Cart / order</div>
+            <h2>Cart dạng B2B shopping list</h2>
+            <p class="section-sub">
+              Khớp backend cart/order hiện tại: mỗi dòng giữ `productId`, `variantIndex`, `quantity`; tạo order bằng cartItems và tổng tính lại từ backend.
+            </p>
+          </div>
+        </div>
+
+        <div class="mock-shell">
+          <div class="mock-toolbar">
+            <div class="mock-title">
+              <b>Giỏ hàng</b>
+              <span>3 sản phẩm · chuẩn bị tạo đơn</span>
+            </div>
+            <span class="chip">API: /carts + /orders/create-order</span>
+          </div>
+          <div class="cart-layout">
+            <div class="cart-scroll">
+              <table class="cart-table">
+                <thead><tr><th>Sản phẩm</th><th>Variant</th><th>Đơn giá</th><th>Số lượng</th><th>Tạm tính</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div class="cart-item"><div class="product-art"></div><div><b>PLC Siemens S7-1200</b><span>productId · code S7-1200</span></div></div></td>
+                    <td>variantIndex: 0</td><td>4.850.000đ</td><td><input class="qty" value="1" style="width:72px;text-align:center" /></td><td><b>4.850.000đ</b></td>
+                  </tr>
+                  <tr>
+                    <td><div class="cart-item"><div class="product-art"></div><div><b>Cảm biến Autonics BEN300</b><span>productId · code BEN300</span></div></div></td>
+                    <td>variantIndex: 1</td><td>620.000đ</td><td><input class="qty" value="4" style="width:72px;text-align:center" /></td><td><b>2.480.000đ</b></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <aside class="summary">
+              <h3>Tóm tắt đơn</h3>
+              <div class="summary-line"><span>Tạm tính</span><span>7.330.000đ</span></div>
+              <div class="summary-line"><span>VAT</span><span>Theo cấu hình</span></div>
+              <div class="summary-line"><span>Trạm nhận hàng</span><span>HN-04</span></div>
+              <div class="summary-line total"><span>Tổng</span><span>7.330.000đ</span></div>
+              <div class="buy-actions">
+                <button class="btn btn-primary">Tạo đơn hàng</button>
+                <button class="btn btn-light-outline">Tiếp tục mua</button>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="backend-map" style="background:#fff">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">04 · Backend compatibility</div>
+            <h2>Thiết kế này dùng dữ liệu backend đang có</h2>
+            <p class="section-sub">
+              Không cần schema mới cho phase đầu. Những phần chưa có backend được loại khỏi mockup:
+              wishlist, compare sâu, shipping ETA, recommendation thật.
+            </p>
+          </div>
+        </div>
+        <div class="map-grid">
+          <div class="map-card"><h3>Product listing</h3><p>Dùng <code>GET /products</code>, <code>/chips/brands</code>, <code>/chips/types</code>, <code>/chips/section</code>. UI map vào query hiện có: search, brand, type, section, value, code, sort, page.</p></div>
+          <div class="map-card"><h3>Product card</h3><p>Field dùng trực tiếp: <code>name</code>, <code>code</code>, <code>brand</code>, <code>type</code>, <code>variant[0].imgUrl</code>, <code>variant[0].price</code>, <code>variant[0].quantityForSale</code>.</p></div>
+          <div class="map-card"><h3>Product detail</h3><p>Dùng <code>GET /products/:id</code>. Variant selector map vào <code>variantIndex</code>, các tab lấy từ <code>description</code>, <code>features</code>, <code>specifications</code>, <code>infoDoc</code>.</p></div>
+          <div class="map-card"><h3>Cart / order</h3><p>Add cart dùng <code>POST /carts/addToCart</code> với <code>productId</code> và <code>variantIndex</code>. Update quantity dùng <code>/carts/updateCartItem</code>. Checkout dùng <code>/orders/create-order</code>.</p></div>
+          <div class="map-card"><h3>Voice search</h3><p>Search bar có nút mic map vào <code>/products/voice-query</code> và <code>/products/voice-query-text</code>. Kết quả trả về keyword, brand, type, code.</p></div>
+          <div class="map-card"><h3>Không làm ở phase này</h3><p>Không triển khai voice add/update/delete thật, wishlist, shipping ETA, recommendation thật hoặc compare thông số dạng structured vì backend chưa có đủ contract.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <strong>TTSmart FE Design Proposal · Backend Fit</strong><br />
+      Một file HTML + CSS riêng, không đụng file Claude đang làm.
+    </div>
+  </footer>
+</body>
+</html>

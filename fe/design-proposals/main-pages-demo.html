@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TTSmart - Demo theo nghiệp vụ backend</title>
+  <style>
+    :root {
+      --ink: #142033;
+      --muted: #657386;
+      --line: #d9e2ec;
+      --page: #f4f7fb;
+      --panel: #ffffff;
+      --brand: #0b3f75;
+      --blue: #1769aa;
+      --orange: #f37021;
+      --green: #159957;
+      --yellow: #b7791f;
+      --red: #cc3341;
+      --soft-blue: #eaf3fb;
+      --soft-orange: #fff1e8;
+      --shadow: 0 16px 38px rgba(20, 32, 51, 0.09);
+      --container: 1240px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--page); line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+    h1, h2, h3, p { margin: 0; }
+    code { font: 700 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; color: #24486f; }
+
+    .container { width: min(var(--container), calc(100% - 32px)); margin: 0 auto; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(255, 255, 255, 0.94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+
+    .topbar-inner {
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 166px;
+      color: var(--brand);
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .brand img { width: 36px; height: 36px; object-fit: contain; }
+    .brand span { color: var(--orange); }
+
+    .nav {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .nav a {
+      border-radius: 7px;
+      padding: 9px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      background: var(--soft-blue);
+      color: var(--blue);
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .hero {
+      color: #fff;
+      background:
+        linear-gradient(90deg, rgba(9, 39, 72, 0.96), rgba(11, 63, 117, 0.74)),
+        url("../src/assets/banner.jpg") center / cover no-repeat;
+    }
+
+    .hero-grid {
+      min-height: 470px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+      align-items: center;
+      gap: 38px;
+      padding: 54px 0;
+    }
+
+    .eyebrow {
+      color: #b9dcff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero h1 {
+      max-width: 760px;
+      margin-top: 14px;
+      font-size: clamp(36px, 5vw, 62px);
+      line-height: 1.02;
+      letter-spacing: -0.035em;
+    }
+
+    .hero p {
+      max-width: 670px;
+      margin-top: 18px;
+      color: #dbeafe;
+      font-size: 17px;
+    }
+
+    .section {
+      padding: 54px 0;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+
+    .section-head h2 {
+      color: var(--brand);
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+
+    .section-head p {
+      max-width: 700px;
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      padding: 10px 14px;
+      background: #fff;
+      color: var(--brand);
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn.primary { background: var(--orange); color: #fff; }
+    .btn.blue { background: var(--blue); color: #fff; }
+    .btn.light { border-color: var(--line); background: #fff; color: var(--brand); }
+    .btn.ghost { background: transparent; border-color: rgba(255, 255, 255, 0.42); color: #fff; }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .shell,
+    .card,
+    .contract,
+    .hero-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .toolbar,
+    .panel-head {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfdff;
+    }
+
+    .toolbar strong,
+    .panel-head strong {
+      color: var(--brand);
+    }
+
+    .hero-panel {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.97);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .hero-panel-body {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: var(--soft-blue);
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .badge.green { background: #dcf7e9; color: var(--green); }
+    .badge.yellow { background: #fff3d6; color: var(--yellow); }
+    .badge.red { background: #ffe3e7; color: var(--red); }
+    .badge.orange { background: var(--soft-orange); color: var(--orange); }
+
+    .quick-row {
+      display: grid;
+      grid-template-columns: 52px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .quick-row b,
+    .list-row b {
+      display: block;
+      color: var(--brand);
+      line-height: 1.25;
+    }
+
+    .quick-row span,
+    .muted,
+    .list-row span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .device-art,
+    .station-art,
+    .section-art {
+      position: relative;
+      min-height: 50px;
+      border-radius: 7px;
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, #edf4fb, #fff);
+      overflow: hidden;
+    }
+
+    .device-art::before,
+    .device-art::after {
+      content: "";
+      position: absolute;
+      border-radius: 4px;
+    }
+
+    .device-art::before { left: 18%; top: 22%; width: 40%; height: 55%; background: var(--brand); }
+    .device-art::after { right: 14%; top: 35%; width: 26%; height: 28%; background: var(--orange); }
+
+    .station-art {
+      min-height: 72px;
+      background:
+        linear-gradient(135deg, rgba(237, 244, 251, 0.92), rgba(255, 255, 255, 0.92)),
+        url("../src/assets/solution/solution2.jpg") center / cover no-repeat;
+    }
+
+    .station-art::before {
+      content: "";
+      position: absolute;
+      left: 14%;
+      bottom: 18%;
+      width: 72%;
+      height: 22%;
+      border-radius: 6px;
+      background: var(--brand);
+    }
+
+    .section-art {
+      min-height: 132px;
+      background:
+        linear-gradient(135deg, rgba(11, 63, 117, 0.18), rgba(243, 112, 33, 0.12)),
+        url("../src/assets/solution/solution1.jpg") center / cover no-repeat;
+    }
+
+    .hero-actions,
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 15px;
+    }
+
+    .metric b {
+      display: block;
+      color: var(--brand);
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .catalog-layout {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      min-height: 650px;
+    }
+
+    .filters {
+      border-right: 1px solid var(--line);
+      background: #fbfdff;
+      padding: 16px;
+    }
+
+    .filter-block {
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .filter-block:last-child { border-bottom: 0; }
+
+    .filter-title {
+      margin-bottom: 8px;
+      color: var(--brand);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 9px 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .field-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .content { padding: 16px; min-width: 0; }
+
+    .query-row {
+      display: grid;
+      grid-template-columns: 1fr 160px 122px;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .query-row input,
+    .query-row select {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 0 12px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card-media {
+      min-height: 144px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card .device-art,
+    .card .station-art {
+      border: 0;
+      border-radius: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card-body {
+      padding: 15px;
+    }
+
+    .card h3 {
+      color: var(--brand);
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .card p {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .card-foot {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .price {
+      color: var(--brand);
+      font-size: 20px;
+      font-weight: 950;
+      letter-spacing: -0.02em;
+    }
+
+    .list-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 16px;
+    }
+
+    .list-row:last-child { border-bottom: 0; }
+
+    .meta-line {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .contract {
+      position: sticky;
+      top: 82px;
+      box-shadow: none;
+    }
+
+    .contract-body {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .contract h3 {
+      color: var(--brand);
+      font-size: 16px;
+    }
+
+    .api-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .api-row {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px;
+      background: #fff;
+    }
+
+    .api-row b {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .api-row span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .flow {
+      display: grid;
+      gap: 8px;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 8px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .flow-step i {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--soft-blue);
+      color: var(--blue);
+      font-style: normal;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .table th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--line);
+      padding: 12px;
+    }
+
+    .table td {
+      border-bottom: 1px solid var(--line);
+      padding: 12px;
+      vertical-align: middle;
+    }
+
+    .table tr:last-child td { border-bottom: 0; }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfdff;
+    }
+
+    .tab {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .tab.active {
+      border-color: var(--blue);
+      background: var(--soft-blue);
+      color: var(--blue);
+    }
+
+    .bottom-note {
+      padding: 20px 0 34px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    @media (max-width: 1060px) {
+      .hero-grid,
+      .split,
+      .catalog-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .contract {
+        position: static;
+      }
+
+      .filters {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .metrics,
+      .grid-3,
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 700px) {
+      .container { width: min(100% - 24px, var(--container)); }
+      .topbar-inner { align-items: flex-start; flex-direction: column; padding: 12px 0; }
+      .nav { margin-left: 0; }
+      .hero-grid { min-height: auto; padding: 42px 0; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .metrics,
+      .grid-3,
+      .grid-2,
+      .query-row,
+      .quick-row,
+      .list-row {
+        grid-template-columns: 1fr;
+      }
+
+      .table { min-width: 720px; }
+      .table-wrap { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="#home" data-page-link="home">
+        <img src="../src/assets/TTSlogo.png" alt="TTSmart" />
+        TT<span>Smart</span>
+      </a>
+      <nav class="nav" aria-label="Trang chính">
+        <a href="#home" class="active" data-page-link="home">Trang chủ</a>
+        <a href="#product" data-page-link="product">Sản phẩm</a>
+        <a href="#station" data-page-link="station">Trạm trộn</a>
+        <a href="#dashboard" data-page-link="dashboard">Cụm thiết bị</a>
+        <a href="#myorder" data-page-link="myorder">Đơn hàng của tôi</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <article class="page active" id="page-home">
+      <section class="hero">
+        <div class="container hero-grid">
+          <div>
+            <div class="eyebrow">Route / · component Dashboard.jsx</div>
+            <h1>Trang chủ lấy dữ liệu từ cấu hình Manage, không hard-code block bán hàng.</h1>
+            <p>
+              Hero, banner, đối tác và các section sản phẩm đều đi theo schema `Manage`.
+              Section chỉ hiển thị khi `display = true` và có đủ danh sách `productId` để fetch sản phẩm.
+            </p>
+            <div class="hero-actions">
+              <a class="btn primary" href="#product" data-page-link="product">Xem flow sản phẩm</a>
+              <a class="btn ghost" href="#dashboard" data-page-link="dashboard">Xem section/value</a>
+            </div>
+          </div>
+          <aside class="hero-panel">
+            <div class="panel-head">
+              <strong>Preview dữ liệu trang chủ</strong>
+              <span class="badge green">Backend-fit</span>
+            </div>
+            <div class="hero-panel-body">
+              <div class="quick-row">
+                <div class="section-art"></div>
+                <div><b>overViewImg[]</b><span>Banner carousel lấy từ `/manages/`</span></div>
+                <span class="badge">image url</span>
+              </div>
+              <div class="quick-row">
+                <div class="device-art"></div>
+                <div><b>section1.productId[]</b><span>Fetch chi tiết qua `/products/fetch-by-ids`</span></div>
+                <span class="badge green">display</span>
+              </div>
+              <div class="quick-row">
+                <div class="section-art"></div>
+                <div><b>partners[]</b><span>Carousel logo đối tác nếu có dữ liệu</span></div>
+                <span class="badge">optional</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container split">
+          <div>
+            <div class="section-head">
+              <div>
+                <div class="eyebrow" style="color:var(--blue)">Dashboard sections</div>
+                <h2>Trang chủ là bộ khung hiển thị sản phẩm đã được admin cấu hình.</h2>
+                <p>Không bịa số vận hành. UI chỉ dùng những field backend đang trả về.</p>
+              </div>
+            </div>
+            <div class="metrics">
+              <div class="metric"><b>overViewImg</b><span>Mảng banner từ Manage</span></div>
+              <div class="metric"><b>section1-10</b><span>Tên section, productId, display</span></div>
+              <div class="metric"><b>partners</b><span>Mảng ảnh đối tác</span></div>
+              <div class="metric"><b>Product</b><span>Render card theo variant đầu tiên</span></div>
+            </div>
+            <div class="grid-3" style="margin-top:14px">
+              <article class="card">
+                <div class="device-art card-media"></div>
+                <div class="card-body">
+                  <h3>Section: Bán chạy</h3>
+                  <p>`section1.name`, `section1.display`, `section1.productId[]`.</p>
+                  <div class="card-foot"><span class="badge green">display=true</span><button class="btn light">Mở product</button></div>
+                </div>
+              </article>
+              <article class="card">
+                <div class="device-art card-media"></div>
+                <div class="card-body">
+                  <h3>Product card</h3>
+                  <p>`name`, `brand`, `code`, `variant[0].imgUrl`, `variant[0].price`.</p>
+                  <div class="card-foot"><span class="price">4.850.000đ</span><span class="badge">variant 0</span></div>
+                </div>
+              </article>
+              <article class="card">
+                <div class="section-art card-media"></div>
+                <div class="card-body">
+                  <h3>Partner carousel</h3>
+                  <p>Chỉ hiện nếu `partners.length > 0`, đúng logic frontend hiện tại.</p>
+                  <div class="card-foot"><span class="badge">optional</span><button class="btn light">Ẩn nếu rỗng</button></div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <aside class="contract">
+            <div class="toolbar"><strong>Backend contract</strong><span class="badge orange">/</span></div>
+            <div class="contract-body">
+              <div class="api-list">
+                <div class="api-row"><b>GET /manages/</b><span>Trả `success`, `data.overViewImg`, `data.section1..section10`, `data.partners`.</span></div>
+                <div class="api-row"><b>POST /products/fetch-by-ids</b><span>Body `{ ids: productId[] }`, trả `products`.</span></div>
+              </div>
+              <div class="flow">
+                <div class="flow-step"><i>1</i><span>Load Manage khi vào `/`.</span></div>
+                <div class="flow-step"><i>2</i><span>Lọc section có `display=true` và tối thiểu 5 productId như code hiện tại.</span></div>
+                <div class="flow-step"><i>3</i><span>Render Swiper sản phẩm, click sang `/product/:productId`.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </article>
+
+    <article class="page" id="page-product">
+      <section class="section">
+        <div class="container split">
+          <div>
+            <div class="section-head">
+              <div>
+                <div class="eyebrow" style="color:var(--blue)">Route /product · component Product.jsx</div>
+                <h2>Catalog dùng đúng query backend và filter theo trạm nếu user có station.</h2>
+                <p>Filter gồm `search`, `brand`, `type`, `section`, `value`, `sortBy`, `sortOrder`, `stationId`, `display=true`, `page`, `limit`.</p>
+              </div>
+              <a class="btn blue" href="http://192.168.1.228/product">Mở path thật</a>
+            </div>
+
+            <div class="shell">
+              <div class="toolbar"><strong>Danh sách sản phẩm</strong><span class="badge">limit=12</span></div>
+              <div class="catalog-layout">
+                <aside class="filters">
+                  <div class="filter-block">
+                    <div class="filter-title">Trạm của user</div>
+                    <div class="field-row"><label><input type="radio" checked /> Tất cả trạm</label><span>stationId=""</span></div>
+                    <div class="field-row"><label><input type="radio" /> BT-03</label><span>_id</span></div>
+                  </div>
+                  <div class="filter-block">
+                    <div class="filter-title">Brand / Type</div>
+                    <div class="field-row"><label><input type="checkbox" checked /> Siemens</label><span>Brand</span></div>
+                    <div class="field-row"><label><input type="checkbox" checked /> PLC</label><span>Type</span></div>
+                    <div class="field-row"><label><input type="checkbox" /> Biến tần</label><span>Type</span></div>
+                  </div>
+                  <div class="filter-block">
+                    <div class="filter-title">Section / Value</div>
+                    <div class="field-row"><label><input type="checkbox" checked /> Tủ điện</label><span>section</span></div>
+                    <div class="field-row"><label><input type="checkbox" /> Cụm cấp liệu</label><span>value</span></div>
+                  </div>
+                </aside>
+                <div class="content">
+                  <div class="query-row">
+                    <input value="PLC Siemens S7-1200" aria-label="Tìm sản phẩm" />
+                    <select aria-label="Sắp xếp"><option>purchaseCount desc</option><option>createdAt desc</option><option>averageReviews desc</option></select>
+                    <button class="btn blue">Tìm</button>
+                  </div>
+                  <div class="grid-3">
+                    <article class="card">
+                      <div class="device-art card-media"></div>
+                      <div class="card-body">
+                        <h3>PLC Siemens S7-1200 CPU 1214C</h3>
+                        <p>code: S7-1200 · brand: Siemens · type: PLC · section: Tủ điện</p>
+                        <div class="card-foot"><span class="price">4.850.000đ</span><span class="badge green">quantityForSale: 12</span></div>
+                      </div>
+                    </article>
+                    <article class="card">
+                      <div class="device-art card-media"></div>
+                      <div class="card-body">
+                        <h3>PLC Mitsubishi FX3U-16MR</h3>
+                        <p>variantIndex: 0 · color: Relay · frame: default</p>
+                        <div class="card-foot"><span class="price">3.920.000đ</span><button class="btn primary">Add cart</button></div>
+                      </div>
+                    </article>
+                    <article class="card">
+                      <div class="device-art card-media"></div>
+                      <div class="card-body">
+                        <h3>Cảm biến Autonics BEN300</h3>
+                        <p>Click card mở `/product/:productId`; add cart gửi `productId + variantIndex`.</p>
+                        <div class="card-foot"><span class="badge">variant[0]</span><button class="btn light">Chi tiết</button></div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="contract">
+            <div class="toolbar"><strong>Backend contract</strong><span class="badge orange">/product</span></div>
+            <div class="contract-body">
+              <div class="api-list">
+                <div class="api-row"><b>GET /products</b><span>Query: search, brand, type, section, value, sortBy, sortOrder, display, stationId, page, limit.</span></div>
+                <div class="api-row"><b>GET /chips/brands · /chips/types · /chips/section</b><span>Nguồn dữ liệu cho filter.</span></div>
+                <div class="api-row"><b>GET /chips/:section/value</b><span>Chỉ gọi khi đã chọn section.</span></div>
+                <div class="api-row"><b>POST /carts/addToCart</b><span>Body `{ productId, variantIndex, quantity }`, yêu cầu đăng nhập.</span></div>
+                <div class="api-row"><b>POST /products/voice-query-text</b><span>Text search voice trả `keyword`, `intent`, `filters.brand/type/code`.</span></div>
+              </div>
+              <div class="flow">
+                <div class="flow-step"><i>1</i><span>Đọc URL query để khởi tạo filter.</span></div>
+                <div class="flow-step"><i>2</i><span>Nếu đăng nhập, lấy `/users/profile`, rồi `/stations/by-ids` để hiện filter trạm.</span></div>
+                <div class="flow-step"><i>3</i><span>Submit filter cập nhật URL, backend trả `products` và `total`.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </article>
+
+    <article class="page" id="page-station">
+      <section class="section">
+        <div class="container split">
+          <div>
+            <div class="section-head">
+              <div>
+                <div class="eyebrow" style="color:var(--blue)">Route /station · component Station.jsx</div>
+                <h2>Trạm trộn là danh sách station được gán cho user, không phải realtime vận hành.</h2>
+                <p>Backend hiện có `stationName`, `stationCode`, `imgUrl`, `location`, `productId[]`, `allowPublicSignup`.</p>
+              </div>
+              <a class="btn blue" href="http://192.168.1.228/station">Mở path thật</a>
+            </div>
+
+            <div class="shell">
+              <div class="toolbar"><strong>Trạm của tôi</strong><span class="badge">authenticateUser</span></div>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Ảnh</th>
+                      <th>Tên trạm</th>
+                      <th>Mã trạm</th>
+                      <th>Sản phẩm gắn trạm</th>
+                      <th>Vị trí</th>
+                      <th>Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="station-art" style="width:82px"></div></td>
+                      <td><b>Trạm Long Biên</b></td>
+                      <td><code>BT-03</code></td>
+                      <td>productId.length = 12</td>
+                      <td>Hà Nội</td>
+                      <td><button class="btn light">/station/BT-03</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="station-art" style="width:82px"></div></td>
+                      <td><b>Trạm Bắc Ninh</b></td>
+                      <td><code>BT-05</code></td>
+                      <td>productId.length = 8</td>
+                      <td>Bắc Ninh</td>
+                      <td><button class="btn light">/station/BT-05</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <aside class="contract">
+            <div class="toolbar"><strong>Backend contract</strong><span class="badge orange">/station</span></div>
+            <div class="contract-body">
+              <div class="api-list">
+                <div class="api-row"><b>GET /users/profile</b><span>Kiểm tra đăng nhập.</span></div>
+                <div class="api-row"><b>GET /users/my-stations</b><span>Trả `{ stations: [stationId] }`.</span></div>
+                <div class="api-row"><b>POST /stations/by-ids</b><span>Body `{ ids }`, trả thông tin station.</span></div>
+                <div class="api-row"><b>GET /stations/code/:code</b><span>Trang chi tiết station theo mã.</span></div>
+              </div>
+              <div class="flow">
+                <div class="flow-step"><i>1</i><span>Chưa login: hiện trạng thái cần đăng nhập.</span></div>
+                <div class="flow-step"><i>2</i><span>Login rồi: lấy stationId từ user.</span></div>
+                <div class="flow-step"><i>3</i><span>Click row điều hướng theo `stationCode` hoặc `inviteCode`.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </article>
+
+    <article class="page" id="page-dashboard">
+      <section class="section">
+        <div class="container split">
+          <div>
+            <div class="section-head">
+              <div>
+                <div class="eyebrow" style="color:var(--blue)">Route /dashboard · component MainPage.jsx</div>
+                <h2>Cụm thiết bị đang tương ứng với Section/Value trong chips.</h2>
+                <p>Trang này nên thiết kế như danh mục cụm thiết bị. Click vào section sẽ sang `/section/:sectionName`, rồi dùng `value` để lọc sản phẩm.</p>
+              </div>
+              <a class="btn blue" href="http://192.168.1.228/dashboard">Mở path thật</a>
+            </div>
+
+            <div class="grid-2">
+              <article class="card">
+                <div class="section-art"></div>
+                <div class="card-body">
+                  <h3>Tủ điện điều khiển</h3>
+                  <p>Section có `name`, `value[]`, `imgUrl`. Chỉ hiện khi có `imgUrl`.</p>
+                  <div class="card-foot"><span class="badge">/section/Tủ điện</span><button class="btn light">Mở</button></div>
+                </div>
+              </article>
+              <article class="card">
+                <div class="section-art" style="background-image:linear-gradient(135deg,rgba(11,63,117,.18),rgba(243,112,33,.12)),url('../src/assets/solution/solution3.jpg')"></div>
+                <div class="card-body">
+                  <h3>Cụm trạm trộn</h3>
+                  <p>`value[]`: silo, cân định lượng, băng tải, cụm xả liệu.</p>
+                  <div class="card-foot"><span class="badge">value filter</span><button class="btn light">Xem sản phẩm</button></div>
+                </div>
+              </article>
+            </div>
+
+            <div class="shell" style="margin-top:16px">
+              <div class="toolbar"><strong>Section values</strong><span class="badge">GET /chips/:name/value</span></div>
+              <div class="list-row">
+                <div><b>Tủ điện điều khiển</b><span>Value: PLC, HMI, nguồn 24V, relay trung gian</span></div>
+                <button class="btn primary">Lọc product</button>
+              </div>
+              <div class="list-row">
+                <div><b>Cụm khí nén</b><span>Value: xy lanh, van điện từ, lọc khí, đầu nối</span></div>
+                <button class="btn primary">Lọc product</button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="contract">
+            <div class="toolbar"><strong>Backend contract</strong><span class="badge orange">/dashboard</span></div>
+            <div class="contract-body">
+              <div class="api-list">
+                <div class="api-row"><b>GET /chips/section-doc</b><span>Trả document có `Section[]`; frontend lọc section có `imgUrl`.</span></div>
+                <div class="api-row"><b>GET /chips/:name/value</b><span>Lấy danh sách cụm/value trong section.</span></div>
+                <div class="api-row"><b>GET /products?section=&value=</b><span>Điểm nối sang catalog sản phẩm.</span></div>
+              </div>
+              <div class="flow">
+                <div class="flow-step"><i>1</i><span>Sort section theo tên, numeric-aware như code hiện tại.</span></div>
+                <div class="flow-step"><i>2</i><span>Card section dùng ảnh từ `imgUrl`.</span></div>
+                <div class="flow-step"><i>3</i><span>Click section điều hướng `/section/:sectionName`.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </article>
+
+    <article class="page" id="page-myorder">
+      <section class="section">
+        <div class="container split">
+          <div>
+            <div class="section-head">
+              <div>
+                <div class="eyebrow" style="color:var(--blue)">Route /myorder · component MyOrder.jsx</div>
+                <h2>Đơn hàng theo đúng state/status của backend.</h2>
+                <p>Không dùng “chờ báo giá” như trạng thái thật. Backend hiện có `status`: Processing, Delivering, Completed và `state`: Processing, Cancelled.</p>
+              </div>
+              <a class="btn blue" href="http://192.168.1.228/myorder">Mở path thật</a>
+            </div>
+
+            <div class="shell">
+              <div class="tabs">
+                <button class="tab active">Tất cả</button>
+                <button class="tab">Processing</button>
+                <button class="tab">Delivering</button>
+                <button class="tab">Completed</button>
+                <button class="tab">Cancelled</button>
+              </div>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Mã đơn</th>
+                      <th>Ngày đặt</th>
+                      <th>Sản phẩm</th>
+                      <th>Tổng</th>
+                      <th>Thanh toán</th>
+                      <th>Trạng thái</th>
+                      <th>Hủy</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><code>TTSM-01</code></td>
+                      <td>07/07/2026 09:20</td>
+                      <td>PLC Siemens S7-1200 · qty 1</td>
+                      <td>4.850.000đ</td>
+                      <td><span class="badge red">payment=false</span></td>
+                      <td><span class="badge yellow">Processing</span></td>
+                      <td><button class="btn light">Cho hủy</button></td>
+                    </tr>
+                    <tr>
+                      <td><code>TTSM-02</code></td>
+                      <td>06/07/2026 15:10</td>
+                      <td>Cảm biến Autonics · qty 4</td>
+                      <td>2.480.000đ</td>
+                      <td><span class="badge green">payment=true</span></td>
+                      <td><span class="badge">Delivering</span></td>
+                      <td><button class="btn light" disabled>Khóa</button></td>
+                    </tr>
+                    <tr>
+                      <td><code>TTSM-03</code></td>
+                      <td>04/07/2026 10:30</td>
+                      <td>Contactor Schneider · qty 2</td>
+                      <td>2.140.000đ</td>
+                      <td><span class="badge green">payment=true</span></td>
+                      <td><span class="badge green">Completed</span></td>
+                      <td><button class="btn light" disabled>Khóa</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <aside class="contract">
+            <div class="toolbar"><strong>Backend contract</strong><span class="badge orange">/myorder</span></div>
+            <div class="contract-body">
+              <div class="api-list">
+                <div class="api-row"><b>GET /users/profile</b><span>Kiểm tra đăng nhập trước khi load đơn.</span></div>
+                <div class="api-row"><b>GET /orders/userOrders?state=Processing</b><span>Tab lọc theo status/state. 404 nghĩa là không có đơn.</span></div>
+                <div class="api-row"><b>GET /products/:productId</b><span>Frontend đang fetch thêm để render tên, ảnh, variant.</span></div>
+                <div class="api-row"><b>PUT /orders/:id</b><span>Hủy đơn, backend hoàn `quantityForSale`; chặn nếu Completed hoặc đã Cancelled.</span></div>
+                <div class="api-row"><b>GET /orders/:_id</b><span>Chi tiết đơn có kiểm tra quyền `canAccessOrder`.</span></div>
+              </div>
+              <div class="flow">
+                <div class="flow-step"><i>1</i><span>Tab lưu vào `sessionStorage.myorder_active_tab`.</span></div>
+                <div class="flow-step"><i>2</i><span>Phân trang client-side 10 đơn/trang vì endpoint trả toàn bộ đơn user.</span></div>
+                <div class="flow-step"><i>3</i><span>Nút hủy disable nếu `Cancelled`, `Completed` hoặc `Delivering`.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </article>
+  </main>
+
+  <div class="bottom-note">
+    Demo tĩnh theo contract backend hiện tại: `/`, `/product`, `/station`, `/dashboard`, `/myorder`.
+  </div>
+
+  <script>
+    const pages = ["home", "product", "station", "dashboard", "myorder"];
+
+    function showPage(name) {
+      const next = pages.includes(name) ? name : "home";
+      document.querySelectorAll(".page").forEach((page) => {
+        page.classList.toggle("active", page.id === `page-${next}`);
+      });
+      document.querySelectorAll("[data-page-link]").forEach((link) => {
+        link.classList.toggle("active", link.dataset.pageLink === next);
+      });
+      if (location.hash.replace("#", "") !== next) {
+        history.replaceState(null, "", `#${next}`);
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    document.querySelectorAll("[data-page-link]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        showPage(link.dataset.pageLink);
+      });
+    });
+
+    window.addEventListener("hashchange", () => {
+      showPage(location.hash.replace("#", ""));
+    });
+
+    showPage(location.hash.replace("#", "") || "home");
+  </script>
+</body>
+</html>

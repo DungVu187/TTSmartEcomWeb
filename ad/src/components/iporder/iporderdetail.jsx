@@ -2462,7 +2462,7 @@ const ImportOrderDetail = () => {
         onClose={handleCancelScanDialog}
         fullWidth={true}
         maxWidth={false}
-        PaperProps={{ sx: { width: "95vw", maxWidth: "95vw" } }}
+        PaperProps={{ sx: { width: "95vw", maxWidth: "95vw", height: "95vh", m: 0 } }}
       >
         <DialogTitle sx={{ 
           bgcolor: '#512da8', 
@@ -2475,8 +2475,8 @@ const ImportOrderDetail = () => {
           <AutoAwesomeIcon />
           <Typography variant="h6" fontWeight="bold">AI Trích xuất & Đối khớp Hóa đơn</Typography>
         </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          <Box sx={{ display: "flex", gap: 3, mt: 2, flexDirection: { xs: "column", md: "row" } }}>
+        <DialogContent sx={{ p: 2, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <Box sx={{ display: "flex", gap: 2, flex: 1, minHeight: 0, flexDirection: { xs: "column", md: "row" } }}>
             
             {/* Cột trái: Ảnh hóa đơn gốc */}
             <Box 
@@ -2485,16 +2485,16 @@ const ImportOrderDetail = () => {
               onMouseMove={handleScanMouseMove}
               onMouseUp={handleScanMouseUp}
               onMouseLeave={handleScanMouseUp}
-              sx={{ 
-                width: "40%", 
-                maxWidth: "40%", 
+              sx={{
+                width: "28%",
+                maxWidth: "28%",
                 flexShrink: 0,
-                border: "1px solid rgba(0,0,0,0.12)", 
-                borderRadius: "12px", 
-                overflow: "hidden", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center", 
+                border: "1px solid rgba(0,0,0,0.12)",
+                borderRadius: "12px",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 bgcolor: "#fafafa",
                 boxShadow: "inset 0 0 10px rgba(0,0,0,0.03)",
                 p: 1,
@@ -2506,10 +2506,10 @@ const ImportOrderDetail = () => {
                 <img
                   src={selectedScanImage}
                   alt="Invoice Preview"
-                  style={{ 
-                    maxWidth: "100%", 
-                    maxHeight: "650px", 
-                    objectFit: "contain", 
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
                     borderRadius: "8px",
                     transform: `scale(${scanZoomScale}) translate(${scanPanOffset.x / scanZoomScale}px, ${scanPanOffset.y / scanZoomScale}px)`,
                     transformOrigin: "center center",
@@ -2524,7 +2524,7 @@ const ImportOrderDetail = () => {
             </Box>
 
             {/* Cột phải: Danh sách kết quả từ AI */}
-            <Box sx={{ width: "60%", maxWidth: "60%", flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
               {isScanning ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
                   <CircularProgress size={50} thickness={4} sx={{ color: '#512da8' }} />
@@ -2540,18 +2540,18 @@ const ImportOrderDetail = () => {
                   <Typography variant="body2" color="text.secondary">Quá trình này có thể mất từ 5 - 15 giây.</Typography>
                 </Box>
               ) : scanResults.length > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "12px", maxHeight: "550px" }}>
-                  <Table stickyHeader>
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: "12px", height: "100%" }}>
+                  <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '60px' }}>STT</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', minWidth: '220px' }}>Sản phẩm khớp (DB)</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Tên trên hóa đơn</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '90px' }}>Số lượng</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Đơn giá</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Thành tiền</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '80px' }}>VAT</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '60px' }}>Xóa</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '44px', px: 0.5 }}>STT</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '30%', minWidth: '200px' }}>Sản phẩm khớp (DB)</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', minWidth: '240px' }}>Tên trên hóa đơn</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '76px', px: 0.5 }}>SL</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '110px', px: 1 }}>Đơn giá</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '110px', px: 1 }}>Thành tiền</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '64px', px: 0.5 }}>VAT</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '48px', px: 0.5 }}>Xóa</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -2576,8 +2576,8 @@ const ImportOrderDetail = () => {
                                   updated[index].stt = e.target.value;
                                   setScanResults(updated);
                                 }}
-                                inputProps={{ style: { textAlign: 'center', padding: '6px 4px' } }}
-                                sx={{ width: "50px" }}
+                                inputProps={{ style: { textAlign: 'center', padding: '6px 2px' } }}
+                                sx={{ width: "36px" }}
                               />
                             </TableCell>
                             <TableCell>
@@ -2603,7 +2603,7 @@ const ImportOrderDetail = () => {
                                   <TextField {...params} label="Chọn sản phẩm" size="small" variant="outlined" />
                                 )}
                                 size="small"
-                                sx={{ minWidth: "220px" }}
+                                sx={{ width: "100%", minWidth: "180px" }}
                               />
                               {matchedProduct && (
                                 <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'text.secondary', wordBreak: 'break-word', whiteSpace: 'normal' }}>
@@ -2638,8 +2638,8 @@ const ImportOrderDetail = () => {
                                   updated[index].quantity = Math.max(1, parseInt(e.target.value) || 1);
                                   setScanResults(updated);
                                 }}
-                                inputProps={{ min: 1, style: { textAlign: 'center' } }}
-                                sx={{ width: "80px" }}
+                                inputProps={{ min: 1, style: { textAlign: 'center', padding: '6px 4px' } }}
+                                sx={{ width: "64px" }}
                               />
                             </TableCell>
                             <TableCell align="right">
@@ -2654,7 +2654,8 @@ const ImportOrderDetail = () => {
                                   updated[index].price = parseInt(values.value) || 0;
                                   setScanResults(updated);
                                 }}
-                                sx={{ width: "120px" }}
+                                inputProps={{ style: { textAlign: 'right', padding: '6px 8px' } }}
+                                sx={{ width: "100%", minWidth: "90px" }}
                               />
                             </TableCell>
                             <TableCell align="right">
@@ -2671,8 +2672,8 @@ const ImportOrderDetail = () => {
                                   updated[index].vat = e.target.value;
                                   setScanResults(updated);
                                 }}
-                                inputProps={{ style: { textAlign: 'center', padding: '6px 4px' } }}
-                                sx={{ width: "70px" }}
+                                inputProps={{ style: { textAlign: 'center', padding: '6px 2px' } }}
+                                sx={{ width: "56px" }}
                               />
                             </TableCell>
                             <TableCell align="center">

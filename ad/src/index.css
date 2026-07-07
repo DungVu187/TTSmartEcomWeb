@@ -103,6 +103,13 @@ table {
   box-shadow: 0 2px 2px -1px rgba(0,0,0,0.05);
 }
 
+/* Ẩn thanh cuộn ngang phụ trên thiết bị di động */
+@media (max-width: 768px) {
+  .top-scrollbar-sticky {
+    display: none !important;
+  }
+}
+
 .sticky-table-header {
   position: sticky !important;
   z-index: 98 !important;
@@ -113,6 +120,11 @@ table {
 .admin-content-wrapper .MuiTableCell-root {
   padding: 6px 10px !important;
   font-size: 0.825rem !important;
+}
+
+.admin-content-wrapper .MuiTableCell-root.collapsible-cell {
+  padding: 0 !important;
+  border-bottom: none !important;
 }
 
 /* Ghim table headers cho tất cả các bảng (vì bảng cuộn nội bộ trong TableContainer nên top luôn là 0) */
@@ -129,6 +141,10 @@ table {
 .sticky-header > form {
   margin-bottom: 6px !important;
   gap: 10px !important;
+}
+
+.sticky-header > .MuiBox-root.create-order-btn-box {
+  margin-bottom: 20px !important;
 }
 
 /* Thu hẹp khoảng cách từ đường gạch dưới của sticky-header tới bảng hoặc phần tử tiếp theo */

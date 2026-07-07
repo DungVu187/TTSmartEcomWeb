@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Box } from '@mui/material';
 import Sidebar from './layout/sidebar';
@@ -6,6 +5,7 @@ import Products from './components/products';
 import Chips from './components/chips';
 import ProductDisplay from './components/productdisplay';
 import Orders from './components/orders';
+import SalesOrderDetail from './components/order/orderdetail';
 import Login from './components/login';
 import ProtectedRoute from './components/protectedroute';
 import RoleGuard from './components/RoleGuard';
@@ -49,6 +49,7 @@ const App = () => {
                     <Route path="/cluster" element={<Chips onlySection={true} />} />
                     <Route path="/product/:productId" element={<ProductDisplay />} />
                     <Route path="/order" element={<RoleGuard requiredFunction="order_management"><Orders /></RoleGuard>} />
+                    <Route path="/salesorder/:id" element={<RoleGuard requiredFunction="order_management"><SalesOrderDetail /></RoleGuard>} />
                     <Route path="/manage" element={<Manage />} />
                     <Route path="/sectiondisplay" element={<SectionDisplay />} />
                     <Route path="/soldproducts" element={<RoleGuard requiredFunction="order_management"><SoldProducts /></RoleGuard>} />

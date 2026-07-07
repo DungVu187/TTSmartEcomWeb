@@ -1,5 +1,8 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const { authenticateUser, authenticateAdmin, checkPermission, User } = require("./user");
 require("dotenv").config();
 const { Product } = require('./product');
@@ -44,9 +47,10 @@ const orderSchema = new mongoose.Schema(
       type: String,
       unique: true
     },
+    // Draft admin co the tao truoc thong tin khach; route nhap that van validate phone.
     userPhone: {
       type: String,
-      required: true,
+      default: "",
     },
     userName: {
       type: String,
@@ -81,16 +85,128 @@ const orderSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
       default: null
-    }
+    },
+    images: [{ type: String }]
   },
   { timestamps: true }
 );
 
 const Order = mongoose.model("Order", orderSchema);
 
+const isLockedOrder = (order) => {
+  return order.status === "Completed" || order.state === "Cancelled";
+};
+
 const parseOrderPrice = (price) => {
   if (typeof price === "number") return price;
   return Number(String(price || "0").replace(/\./g, "").replace(",", ".")) || 0;
+};
+
+async function computeOrderTotal(cartItems) {
+  let total = 0;
+  for (const it of cartItems || []) {
+    const p = await Product.findById(it.productId);
+    const v = p?.variant?.[it.variantIndex];
+    if (v) total += parseOrderPrice(v.price) * (it.quantity || 0);
+  }
+  return total;
+}
+
+async function enrichCartItems(cartItems) {
+  return Promise.all((cartItems || []).map(async (it) => {
+    const p = await Product.findById(it.productId);
+    const v = p?.variant?.[it.variantIndex] || {};
+    return {
+      productId: it.productId,
+      variantIndex: it.variantIndex,
+      quantity: it.quantity,
+      name: p?.name || "",
+      code: p?.code || "",
+      brand: p?.brand || "",
+      imgUrl: getUpdatedImgUrl(v.imgUrl) || "",
+      price: v.price || "0",
+    };
+  }));
+}
+
+const formatAdminOrderDetail = async (order) => ({
+  _id: order._id,
+  orderCode: order.orderCode,
+  userName: order.userName,
+  userPhone: order.userPhone,
+  status: order.status,
+  payment: order.payment,
+  state: order.state,
+  total: order.total,
+  completedAt: order.completedAt,
+  images: order.images || [],
+  cartItems: await enrichCartItems(order.cartItems),
+});
+
+const formatAdminOrderWithItems = async (order) => ({
+  ...order.toObject(),
+  cartItems: await enrichCartItems(order.cartItems),
+});
+
+const validateOrderItemInput = (item) => {
+  const quantity = Number(item.quantity);
+  const variantIndex = Number(item.variantIndex);
+
+  if (!mongoose.Types.ObjectId.isValid(item.productId)) {
+    return { message: "Sản phẩm không hợp lệ" };
+  }
+
+  if (!Number.isInteger(variantIndex) || variantIndex < 0) {
+    return { message: "Phiên bản sản phẩm không hợp lệ" };
+  }
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return { message: "Số lượng không hợp lệ" };
+  }
+
+  return {
+    value: {
+      productId: String(item.productId),
+      variantIndex,
+      quantity,
+    },
+  };
+};
+
+const invoiceStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "../upload/invoices");
+    fs.mkdir(uploadDir, { recursive: true }, (error) => cb(error, uploadDir));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || ".webp";
+    cb(null, `invoice-sale-${uniqueSuffix}${ext}`);
+  },
+});
+
+const uploadInvoice = multer({
+  storage: invoiceStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(jpe?g|png|webp)$/.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Chỉ chấp nhận file ảnh (jpg, png, webp)."));
+    }
+  },
+});
+
+const handleInvoiceUpload = (req, res, next) => {
+  uploadInvoice.single("invoice")(req, res, (error) => {
+    if (error) {
+      return res.status(400).json({
+        success: 0,
+        message: error.message || "File ảnh không hợp lệ",
+      });
+    }
+    next();
+  });
 };
 
 // API lấy danh sách đơn hàng với phân trang
@@ -217,6 +333,11 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
         return res.status(400).json({ success: false, message: 'Không thể hoàn thành đơn hàng đã bị hủy.' });
       }
 
+      // Không cho hoàn thành đơn nháp thiếu số điện thoại người đặt
+      if (value === "Completed" && !/^\d{10,11}$/.test(String(order.userPhone || ""))) {
+        return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại hợp lệ trước khi hoàn thành đơn.' });
+      }
+
       if (value === "Completed") {
         order.completedAt = new Date();
       } else {
@@ -298,7 +419,7 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
     res.json({ success: true, message: 'Order updated successfully', order });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Server error', error });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -415,6 +536,308 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('update_o
   } catch (error) {
     console.error("Error creating admin order:", error);
     res.status(500).json({ success: false, message: "Lỗi khi tạo đơn hàng" });
+  }
+});
+
+router.post("/admin-draft", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const counter = await Counter.findOneAndUpdate(
+      { id: "orderCode" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+
+    const savedOrder = await new Order({
+      orderCode,
+      userPhone: "",
+      userName: "",
+      cartItems: [],
+      total: 0,
+      status: "Processing",
+    }).save();
+
+    res.status(201).json({ success: true, order: savedOrder });
+  } catch (error) {
+    console.error("Error creating admin draft order:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi tạo đơn nháp" });
+  }
+});
+
+router.get("/admin-detail/:id", [authenticateAdmin, checkPermission('read_order')], async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    res.json({ success: true, order: await formatAdminOrderDetail(order) });
+  } catch (error) {
+    console.error("Error fetching admin order detail:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi lấy chi tiết đơn hàng" });
+  }
+});
+
+router.post("/:id/items", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const parsed = validateOrderItemInput(req.body);
+    if (parsed.message) {
+      return res.status(400).json({ success: false, message: parsed.message });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (isLockedOrder(order)) {
+      return res.status(400).json({ success: false, message: "Không thể chỉnh sửa đơn đã hoàn thành hoặc đã hủy." });
+    }
+
+    const { productId, variantIndex, quantity } = parsed.value;
+    const product = await Product.findById(productId);
+    const variant = product?.variant?.[variantIndex];
+    if (!product || !variant) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm hoặc phiên bản sản phẩm" });
+    }
+
+    if (variant.quantityForSale < quantity) {
+      return res.status(400).json({
+        success: false,
+        message: `Không đủ hàng. Tồn khả dụng hiện có: ${variant.quantityForSale}`,
+      });
+    }
+
+    variant.quantityForSale -= quantity;
+    await product.save();
+
+    order.cartItems.push({ productId, variantIndex, quantity });
+    order.total = await computeOrderTotal(order.cartItems);
+    await order.save();
+
+    res.json({ success: true, order: await formatAdminOrderWithItems(order) });
+  } catch (error) {
+    console.error("Error adding order item:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi thêm sản phẩm vào đơn hàng" });
+  }
+});
+
+router.put("/:id/items/:index", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const newQty = Number(req.body.quantity);
+    if (!Number.isInteger(newQty) || newQty <= 0) {
+      return res.status(400).json({ success: false, message: "Số lượng không hợp lệ" });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (isLockedOrder(order)) {
+      return res.status(400).json({ success: false, message: "Không thể chỉnh sửa đơn đã hoàn thành hoặc đã hủy." });
+    }
+
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0 || index >= order.cartItems.length) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy dòng sản phẩm" });
+    }
+
+    const line = order.cartItems[index];
+    const delta = newQty - line.quantity;
+    const product = await Product.findById(line.productId);
+    const variant = product?.variant?.[line.variantIndex];
+    if (!product || !variant) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm hoặc phiên bản sản phẩm" });
+    }
+
+    if (delta > 0) {
+      if (variant.quantityForSale < delta) {
+        return res.status(400).json({
+          success: false,
+          message: `Không đủ hàng. Tồn khả dụng hiện có: ${variant.quantityForSale}`,
+        });
+      }
+      variant.quantityForSale -= delta;
+    } else if (delta < 0) {
+      variant.quantityForSale += Math.abs(delta);
+    }
+
+    await product.save();
+    line.quantity = newQty;
+    order.markModified("cartItems");
+    order.total = await computeOrderTotal(order.cartItems);
+    await order.save();
+
+    res.json({ success: true, order: await formatAdminOrderWithItems(order) });
+  } catch (error) {
+    console.error("Error updating order item:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi cập nhật sản phẩm trong đơn hàng" });
+  }
+});
+
+router.delete("/:id/items/:index", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (isLockedOrder(order)) {
+      return res.status(400).json({ success: false, message: "Không thể chỉnh sửa đơn đã hoàn thành hoặc đã hủy." });
+    }
+
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0 || index >= order.cartItems.length) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy dòng sản phẩm" });
+    }
+
+    const [line] = order.cartItems.splice(index, 1);
+    const product = await Product.findById(line.productId);
+    const variant = product?.variant?.[line.variantIndex];
+    if (product && variant) {
+      variant.quantityForSale += line.quantity;
+      await product.save();
+    }
+
+    order.markModified("cartItems");
+    order.total = await computeOrderTotal(order.cartItems);
+    await order.save();
+
+    res.json({ success: true, order: await formatAdminOrderWithItems(order) });
+  } catch (error) {
+    console.error("Error deleting order item:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi xóa sản phẩm khỏi đơn hàng" });
+  }
+});
+
+router.put("/:id/reorder", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (isLockedOrder(order)) {
+      return res.status(400).json({ success: false, message: "Không thể chỉnh sửa đơn đã hoàn thành hoặc đã hủy." });
+    }
+
+    if (!Array.isArray(req.body.cartItems)) {
+      return res.status(400).json({ success: false, message: "Danh sách sản phẩm không hợp lệ" });
+    }
+
+    const parsedItems = [];
+    for (const item of req.body.cartItems) {
+      const parsed = validateOrderItemInput(item);
+      if (parsed.message) {
+        return res.status(400).json({ success: false, message: parsed.message });
+      }
+      parsedItems.push(parsed.value);
+    }
+
+    order.cartItems = parsedItems;
+    order.total = await computeOrderTotal(order.cartItems);
+    await order.save();
+
+    res.json({ success: true, order: await formatAdminOrderWithItems(order) });
+  } catch (error) {
+    console.error("Error reordering order items:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi lưu thứ tự sản phẩm" });
+  }
+});
+
+router.put("/:id/customer", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const { userName, userPhone } = req.body;
+    if (userPhone && !/^\d{10,11}$/.test(String(userPhone))) {
+      return res.status(400).json({ success: false, message: "Số điện thoại không hợp lệ" });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (isLockedOrder(order)) {
+      return res.status(400).json({ success: false, message: "Không thể chỉnh sửa đơn đã hoàn thành hoặc đã hủy." });
+    }
+
+    order.userName = userName ?? order.userName;
+    order.userPhone = userPhone ?? order.userPhone;
+    await order.save();
+
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error("Error updating order customer:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi lưu thông tin khách hàng" });
+  }
+});
+
+router.put("/:id/images", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const { images } = req.body;
+    if (!Array.isArray(images) || images.some((imageUrl) => typeof imageUrl !== "string")) {
+      return res.status(400).json({ success: false, message: "Danh sách ảnh không hợp lệ" });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+    }
+
+    if (isLockedOrder(order)) {
+      return res.status(400).json({ success: false, message: "Không thể chỉnh sửa đơn đã hoàn thành hoặc đã hủy." });
+    }
+
+    order.images = images;
+    await order.save();
+
+    res.json({ success: true, order: await formatAdminOrderWithItems(order) });
+  } catch (error) {
+    console.error("Error updating order images:", error);
+    res.status(500).json({ success: false, message: "Lỗi khi lưu danh sách ảnh" });
+  }
+});
+
+router.post(
+  "/upload-image",
+  [authenticateAdmin, checkPermission('update_order'), handleInvoiceUpload],
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: 0, message: "Không có file được tải lên" });
+      }
+
+      res.json({ success: 1, imageUrl: `/invoice-images/${req.file.filename}` });
+    } catch (error) {
+      console.error("Error uploading sale order image:", error);
+      res.status(500).json({ success: 0, message: "Lỗi khi tải ảnh lên" });
+    }
+  }
+);
+
+router.delete("/delete-image", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+  try {
+    const { imageUrl } = req.query;
+    if (!imageUrl) {
+      return res.status(400).json({ success: 0, message: "Thiếu thông tin imageUrl." });
+    }
+
+    const filename = path.basename(String(imageUrl));
+    const filePath = path.join(__dirname, "../upload/invoices", filename);
+
+    try {
+      await fs.promises.unlink(filePath);
+    } catch (fileError) {
+      if (fileError.code !== "ENOENT") {
+        throw fileError;
+      }
+    }
+
+    res.json({ success: 1, message: "Đã xóa ảnh nếu file tồn tại." });
+  } catch (error) {
+    console.error("Error deleting sale order image:", error);
+    res.status(500).json({ success: 0, message: "Lỗi khi xóa ảnh" });
   }
 });
 

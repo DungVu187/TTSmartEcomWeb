@@ -594,7 +594,8 @@ const IpOrders = () => {
                   {hasMissingProducts && (
                     <TableRow>
                       <TableCell
-                        style={{ paddingBottom: 0, paddingTop: 0 }}
+                        className="collapsible-cell"
+                        style={{ paddingBottom: 0, paddingTop: 0, borderBottom: "none" }}
                         colSpan={7}
                       >
                         <Collapse

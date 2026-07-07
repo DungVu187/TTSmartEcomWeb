@@ -663,7 +663,8 @@ const EpOrders = () => {
                       {hasMissingProducts && (
                         <TableRow>
                           <TableCell
-                            style={{ paddingBottom: 0, paddingTop: 0 }}
+                            className="collapsible-cell"
+                            style={{ paddingBottom: 0, paddingTop: 0, borderBottom: "none" }}
                             colSpan={9}
                           >
                             <Collapse

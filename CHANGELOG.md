@@ -6,6 +6,61 @@
 
 ---
 
+## 2026-07-07 — Codex (nâng cấp đầy đủ trang chi tiết đơn bán admin)
+- `be/components/order.js`: bổ sung `images` cho đơn bán, API admin-draft/admin-detail/items/reorder/customer/images, upload/xóa ảnh hóa đơn riêng cho đơn bán với `multer` 5MB, fileFilter ảnh, tự tạo thư mục `upload/invoices`, xóa ảnh idempotent bằng `path.basename`; siết route ghi qua cookie auth + `update_order`, chặn sửa khi đơn `Completed`/`Cancelled`, không lộ stack ở lỗi 500.
+- `ad/src/components/order/orderdetail.jsx`: mở rộng trang `/salesorder/:id` với Sao chép đơn, Xuất Excel, Nhập Excel + tải mẫu, Quét hóa đơn AI bản đơn bán, Thêm ảnh thủ công, dải ảnh đính kèm và lightbox; Excel/AI đều merge qua `/orders/:id/items` để tồn kho chỉ đổi theo logic đơn bán, không tạo sản phẩm mới/không sửa giá/không tăng kho.
+- `ad/src/components/orders.jsx`, `ad/src/App.jsx`: danh sách đơn bán tạo draft rồi điều hướng sang trang chi tiết, mỗi dòng mở `/salesorder/:id`; dọn warning hook ở các file liên quan và giữ cookie `credentials: "include"`.
+- `be/tests/sales_order_detail.test.js`: bổ sung regression cho ảnh đơn bán, upload thiếu file, xóa ảnh thiếu/query traversal/idempotent, khóa ảnh khi Completed/Cancelled, giữ các case draft/items/customer/Completed thiếu SĐT.
+- Verify: `cd be && npm test` pass — 21 suites, 110 tests; `cd be && npm test -- sales_order_detail.test.js` pass — 11 tests; `cd ad && npm run build` pass (còn warning chunk lớn cũ của Vite); `cd ad && npx eslint src/components/order/orderdetail.jsx src/components/orders.jsx src/App.jsx` pass; `pm2 restart ttsmart-api` thành công, service online.
+- Rủi ro còn lại: `cd ad && npm run lint -- ...` vẫn fail vì script chạy `eslint .` toàn repo và còn nhiều lỗi legacy ngoài phạm vi; chưa mở browser kiểm chứng UI thao tác thực tế, cần hard refresh admin để nạp bundle mới.
+
+---
+
+## 2026-07-07 — Claude (clone layout chi tiết đơn bán giống nhập/xuất + gộp nút + fix 404 deploy)
+- Nguyên nhân 404 khi bấm tạo đơn/mở chi tiết: PM2 `ttsmart-api` chạy bản cũ trong bộ nhớ và `ad/dist` là bundle cũ chưa có route `/salesorder/:id`. Đã `npm run build` + `pm2 restart ttsmart-api`; sau restart `POST /orders/admin-draft` và `GET /orders/admin-detail/:id` trả 401 (route sống) thay vì 404.
+- `ad/src/components/order/orderdetail.jsx`: viết lại clone bố cục `iporderdetail.jsx` — sticky-header, tiêu đề `Chi tiết đơn bán #orderCode` + Chip trạng thái, hàng Họ tên/SĐT người đặt + nút Lưu, hàng nút Thêm sản phẩm/Xóa đơn, bảng `DndContext` kéo-thả stickyHeader (cột Tên/Hình/Mã/Hãng/Giá/Số lượng/Thành tiền/Xóa), dialog Thêm sản phẩm tìm theo tên/mã, khóa sửa khi Completed/Cancelled. Bỏ AI/Excel/ảnh đính kèm theo yêu cầu.
+- `ad/src/components/orders.jsx`: gộp còn 1 nút "Tạo đơn hàng mới" gọi `admin-draft` rồi sang `/salesorder/:id`; mỗi dòng chỉ còn 1 nút "Chi tiết" điều hướng trang chi tiết; dọn dialog tạo đơn cũ + dialog xem read-only + nút "Sửa chi tiết" trùng.
+- `be/components/order.js`: `PUT /update-order/:_id` chặn hoàn thành đơn khi `userPhone` rỗng/sai định dạng (`^\d{10,11}$`) → 400. `be/tests/sales_order_detail.test.js`: thêm case chặn Completed thiếu SĐT rồi hoàn thành được sau khi lưu SĐT hợp lệ.
+- Verify: `cd be && npm test` pass — 21 suites, 106 tests; `cd ad && npm run build` pass (còn warning chunk lớn cũ của Vite).
+- Rủi ro còn lại: chưa mở browser kiểm chứng UI thực tế — cần hard refresh trình duyệt để nạp bundle mới. Đơn nháp rỗng tạo ra hiện ngay trong danh sách + tăng badge processing-count; bỏ dở giữa chừng sẽ để lại đơn rỗng (hệ quả của flow tạo-rỗng-rồi-điền giống nhập/xuất).
+
+---
+
+## 2026-07-07 — Codex (thêm màn hình chi tiết đơn bán hàng admin)
+- `be/components/order.js`: thêm API admin cho draft/detail/items/reorder/customer của đơn bán hàng, tính lại total từ giá variant, cập nhật `quantityForSale`, khóa sửa khi đơn `Completed` hoặc `Cancelled`; nới `userPhone` mặc định rỗng cho đơn nháp.
+- `ad/src/components/order/orderdetail.jsx`, `ad/src/App.jsx`, `ad/src/components/orders.jsx`: thêm trang `/salesorder/:id`, nút tạo đơn nhập chi tiết, nút sửa chi tiết, luồng thêm/sửa/xóa/kéo-thả sản phẩm và lưu thông tin người đặt bằng cookie `credentials: "include"`.
+- `be/tests/sales_order_detail.test.js`: thêm regression cho tạo draft, thêm/sửa/xóa dòng, vượt tồn không đổi DB, validate/lưu số điện thoại.
+- Verify: `cd be && npm test` pass — 21 suites, 105 tests; `cd ad && npm run build` pass. `cd ad && npm run lint` vẫn fail do lỗi legacy ngoài phạm vi (172 errors, 29 warnings); lint riêng các file đã sửa không có error, còn 2 warning hook cũ trong `orders.jsx`.
+- Rủi ro còn lại: chưa kiểm chứng UI trực tiếp trên trình duyệt; không clone Xuất Excel và đã bỏ toàn bộ phần quét hóa đơn AI theo yêu cầu.
+
+---
+
+## 2026-07-07 — Antigravity (Hoàn tác trang tạo đơn bán hàng mới về trạng thái ban đầu)
+- `be/components/order.js`: Khôi phục Schema và các API nguyên bản, loại bỏ các API CRUD admin order mới thêm.
+- `ad/src/App.jsx`: Khôi phục các route cũ, loại bỏ route động `/order/:id`.
+- `ad/src/components/orders.jsx`: Khôi phục lại Dialog tạo đơn bán hàng offline trực tiếp trên trang quản lý đơn, đổi sự kiện nút "Tạo đơn hàng mới" mở lại Dialog này.
+- `ad/src/components/CreateSaleOrder.jsx` & `ad/src/components/SaleOrderDetail.jsx`: Xóa 2 file component trang tạo đơn mới.
+- Verify: Chạy build lại thành công, PM2 backend restart thành công về code cũ.
+
+---
+
+## 2026-07-06 — Antigravity (Đồng bộ Đơn bán hàng trực tiếp trên DB giống Nhập/Xuất)
+- `be/components/order.js`: Cập nhật Schema `orderSchema` (thêm price, unit, note, status, images, orderName) và bổ sung 10 API CRUD chi tiết đơn bán hàng dành cho admin (tạo nháp, get chi tiết, thêm/sửa/xóa sản phẩm, reorder, status hoàn thành...).
+- `ad/src/components/SaleOrderDetail.jsx`: [NEW] Tạo component trang chi tiết đơn bán hàng online trực tiếp trên database bằng cách copy 100% logic và visual từ `ImportOrderDetail.jsx`.
+- `ad/src/App.jsx`: Thay thế route tạo đơn `/order/create` bằng route động `/order/:id`.
+- `ad/src/components/orders.jsx`: Cập nhật nút "Tạo đơn hàng mới" gọi API tạo đơn nháp trống rồi chuyển hướng sang `/order/:id`.
+- Verify: Chạy build thành công.
+
+## 2026-07-06 — Antigravity (Trang tạo đơn bán hàng mới riêng biệt)
+- `ad/src/components/CreateSaleOrder.jsx`: [NEW] Tạo component trang tạo đơn bán hàng mới riêng biệt, thiết kế giao diện rộng 1 cột chuẩn hóa đồng bộ 100% giống hệt trang Nhập/Xuất hàng. Tích hợp đầy đủ các tính năng đi kèm: Kéo thả sắp xếp thứ tự sản phẩm bằng dnd-kit, Tải file mẫu Excel, Nhập danh sách sản phẩm từ file Excel (bằng ExcelJS), Xuất Excel đơn bán hàng, cho phép chỉnh sửa đơn giá (NumericFormat), đơn vị, số lượng, ghi chú và checkbox trạng thái trực tiếp trên dòng, gọi API `admin-create-order`.
+- `ad/src/App.jsx`: Đăng ký Route `/order/create` bọc trong `RoleGuard` với quyền `order_management`.
+- `ad/src/components/orders.jsx`: Sửa nút "Tạo đơn hàng mới" để điều hướng sang trang riêng `/order/create` thay vì mở popup Dialog, xóa bỏ code render Dialog cũ để dọn dẹp tài nguyên.
+- Verify: Fix lỗi thiếu import (Dialog, DialogTitle, DialogContent, DialogActions, ArrowBackIcon, Autocomplete) và thiếu định nghĩa hàm handleDownloadTemplate gây crash màn hình trắng khi render trang tạo đơn hàng mới, chạy build lại thành công.
+
+## 2026-07-06 — Antigravity (Ẩn thanh cuộn ngang phụ trên mobile)
+- `ad/src/index.css`: Thêm CSS Media Query ẩn `.top-scrollbar-sticky` cho màn hình dưới 768px, khắc phục khoảng trống scrollbar ngang phụ thừa thãi khi xem bảng sản phẩm trên giao diện di động.
+- Verify: Build lại thành công.
+
 ## 2026-07-06 — Codex (data-driven intent cho voice/text search)
 - `be/config/voiceVocab.defaults.js`, `be/components/product.js`: thêm nhóm `intentAliases` cho 4 intent `search_product`, `add_to_cart`, `update_item`, `delete_item`; normalizer ưu tiên intent hợp lệ từ Gemini, nếu thiếu thì tự detect bằng alias trong transcript và vẫn giữ nguyên keyword/filter.
 - `be/components/voicevocab.js`, `ad/src/components/voicevocab.jsx`: mở rộng trang/admin API `/voice-vocabs` để quản lý `intentAliases` giống các nhóm alias khác, dùng cookie auth hiện có và không nối hành động thật cho thêm/sửa/xóa giỏ hàng.

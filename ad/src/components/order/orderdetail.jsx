@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -48,6 +47,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { usePermissions } from "../../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -109,6 +109,12 @@ const getStatusColor = (order) => {
   if (order.status === "Completed") return "success";
   if (order.status === "Delivering") return "info";
   return "warning";
+};
+
+const getLockedOrderMessage = (order) => {
+  if (order?.state === "Cancelled") return "Đơn đã hủy - chỉ xem";
+  if (order?.status === "Completed") return "Đơn đã hoàn thành - chỉ xem";
+  return "Đơn đang ở chế độ chỉ xem";
 };
 
 const resolveInvoiceImageUrl = (imageUrl) => {
@@ -304,6 +310,13 @@ const SortableTableRow = ({
 const SalesOrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can("order.create");
+  const canEdit = can("order.edit");
+  const canDelete = can("order.delete");
+  const canExcel = canEdit && can("order.excel");
+  const canScanAi = canEdit && can("order.scan_ai");
+  const canAddImage = canCreate || canEdit;
   const excelInputRef = useRef(null);
   const scanInputRef = useRef(null);
   const manualImageInputRef = useRef(null);
@@ -919,12 +932,12 @@ const SalesOrderDetail = () => {
         </Box>
 
         {locked && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Đơn đã hoàn thành/đã hủy - chỉ xem
+          <Alert severity="info" sx={{ mb: 4 }}>
+            {getLockedOrderMessage(order)}
           </Alert>
         )}
 
-        <Box display="flex" gap={2} flexWrap="wrap" mb={2}>
+        <Box display="flex" gap={2} flexWrap="wrap" mb={2} mt={1}>
           <TextField
             label="Họ tên người đặt"
             value={userName}
@@ -941,45 +954,61 @@ const SalesOrderDetail = () => {
             size="small"
             sx={{ minWidth: { xs: "100%", sm: 240 } }}
           />
-          <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveCustomer} disabled={locked}>
-            Lưu thông tin
-          </Button>
+          {canEdit && (
+            <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveCustomer} disabled={locked}>
+              Lưu thông tin
+            </Button>
+          )}
         </Box>
 
         <Box display="flex" gap={1.5} mb={2} flexWrap="wrap">
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)} disabled={locked || bulkProcessing}>
-            Thêm sản phẩm
-          </Button>
-          <Button variant="contained" color="primary" onClick={handleCopyOrder} disabled={bulkProcessing}>
-            Sao chép đơn
-          </Button>
-          <Button variant="outlined" color="error" onClick={handleDeleteOrder} disabled={locked || bulkProcessing}>
-            Xóa đơn
-          </Button>
-          <Button variant="outlined" color="info" startIcon={<CloudDownloadIcon />} onClick={handleExportExcel}>
-            Xuất Excel
-          </Button>
-          <Button variant="outlined" color="warning" component="label" startIcon={<CloudUploadIcon />} disabled={locked || bulkProcessing}>
-            Nhập Excel
-            <VisuallyHiddenInput ref={excelInputRef} type="file" accept=".xlsx,.xls" onChange={handleExcelImport} />
-          </Button>
-          <Button variant="outlined" onClick={handleDownloadTemplate}>
-            Tải file mẫu
-          </Button>
-          <Button
-            variant="contained"
-            component="label"
-            startIcon={<AutoAwesomeIcon />}
-            disabled={locked || bulkProcessing}
-            sx={{ bgcolor: "#673ab7", "&:hover": { bgcolor: "#512da8" } }}
-          >
-            Quét hóa đơn (AI)
-            <VisuallyHiddenInput ref={scanInputRef} type="file" accept="image/*" onChange={handleScanInvoiceSelect} />
-          </Button>
-          <Button variant="contained" component="label" startIcon={<CloudUploadIcon />} disabled={locked || bulkProcessing}>
-            Thêm ảnh thủ công
-            <VisuallyHiddenInput ref={manualImageInputRef} type="file" accept="image/*" multiple onChange={handleManualUploadSelect} />
-          </Button>
+          {canEdit && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)} disabled={locked || bulkProcessing}>
+              Thêm sản phẩm
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="contained" color="primary" onClick={handleCopyOrder} disabled={bulkProcessing}>
+              Sao chép đơn
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="outlined" color="error" onClick={handleDeleteOrder} disabled={locked || bulkProcessing}>
+              Xóa đơn
+            </Button>
+          )}
+          {canExcel && (
+            <>
+              <Button variant="outlined" color="info" startIcon={<CloudDownloadIcon />} onClick={handleExportExcel}>
+                Xuất Excel
+              </Button>
+              <Button variant="outlined" color="warning" component="label" startIcon={<CloudUploadIcon />} disabled={locked || bulkProcessing}>
+                Nhập Excel
+                <VisuallyHiddenInput ref={excelInputRef} type="file" accept=".xlsx,.xls" onChange={handleExcelImport} />
+              </Button>
+              <Button variant="outlined" onClick={handleDownloadTemplate}>
+                Tải file mẫu
+              </Button>
+            </>
+          )}
+          {canScanAi && (
+            <Button
+              variant="contained"
+              component="label"
+              startIcon={<AutoAwesomeIcon />}
+              disabled={locked || bulkProcessing}
+              sx={{ bgcolor: "#673ab7", "&:hover": { bgcolor: "#512da8" } }}
+            >
+              Quét hóa đơn (AI)
+              <VisuallyHiddenInput ref={scanInputRef} type="file" accept="image/*" onChange={handleScanInvoiceSelect} />
+            </Button>
+          )}
+          {canAddImage && (
+            <Button variant="contained" component="label" startIcon={<CloudUploadIcon />} disabled={locked || bulkProcessing}>
+              Thêm ảnh thủ công
+              <VisuallyHiddenInput ref={manualImageInputRef} type="file" accept="image/*" multiple onChange={handleManualUploadSelect} />
+            </Button>
+          )}
         </Box>
       </Box>
 
@@ -1013,7 +1042,7 @@ const SalesOrderDetail = () => {
                       key={`${item.productId}-${item.variantIndex}-${index}`}
                       item={item}
                       index={index}
-                      disabled={locked || bulkProcessing}
+                      disabled={locked || bulkProcessing || !canEdit}
                       tempQuantity={tempQuantity}
                       onQuantityChange={(rowIndex, value) =>
                         setTempQuantity((prev) => ({ ...prev, [rowIndex]: value }))

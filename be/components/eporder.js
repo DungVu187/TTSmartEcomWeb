@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require("./user");
 const router = express.Router();
 const { Product } = require("./product");
+const { StorageHistory } = require("./storagehistory");
 const path = require("path");
 const multer = require("multer");
 
@@ -48,9 +49,63 @@ epOrderSchema.pre("save", function (next) {
 
 const EpOrder = mongoose.model("EpOrder", epOrderSchema);
 
+const toQuantity = (value) => Number(value) || 0;
+
+const createRouteError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const adjustExportStock = async ({ productId, delta, req, order, note, isAIScan, source }) => {
+  if (!delta) return null;
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    throw createRouteError(404, `Product ${productId} not found`);
+  }
+
+  const variant = product.variant[0];
+  if (!variant) {
+    throw createRouteError(400, "Sản phẩm không có biến thể");
+  }
+
+  if (delta > 0) {
+    if (variant.quantityInStorage < delta || variant.quantityForSale < delta) {
+      throw createRouteError(400, `Không còn đủ số lượng trong kho cho sản phẩm: ${product.name}`);
+    }
+    variant.quantityInStorage -= delta;
+    variant.quantityForSale -= delta;
+  } else {
+    const returnQty = Math.abs(delta);
+    variant.quantityInStorage += returnQty;
+    variant.quantityForSale += returnQty;
+  }
+
+  await product.save();
+
+  try {
+    await new StorageHistory({
+      productId,
+      productName: product.name,
+      quantity: -delta,
+      userName: req.user?.name,
+      orderId: order._id.toString(),
+      orderName: order.orderName,
+      note,
+      isAIScan: !!isAIScan,
+      source,
+    }).save();
+  } catch (logErr) {
+    console.error("StorageHistory error (eporder stock adjustment):", logErr.message);
+  }
+
+  return product;
+};
+
 router.get(
   "/orders",
-  [authenticateAdmin, checkPermission("read_eporder")],
+  [authenticateAdmin, checkPermission("eporder.view")],
   async (req, res) => {
     try {
       const {
@@ -115,14 +170,14 @@ router.get(
         },
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
 
 router.post(
   "/orders",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.create")],
   async (req, res) => {
     try {
       const userName = req.user.name;
@@ -154,25 +209,38 @@ router.post(
 
 router.post(
   "/orders/:id/products",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       const newProduct = req.body;
+      const stockDelta = newProduct.skipStockUpdate ? 0 : toQuantity(newProduct.quantityEx);
+      if (stockDelta > 0) {
+        await adjustExportStock({
+          productId: newProduct.productId,
+          delta: stockDelta,
+          req,
+          order,
+          note: newProduct.isAIScan ? "Xuất kho (AI scan đơn xuất)" : "Xuất kho (thêm sản phẩm đơn xuất)",
+          isAIScan: newProduct.isAIScan,
+          source: "order_line_manual",
+        });
+      }
+
       order.productList.push(newProduct);
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(error.statusCode || 400).json({ message: error.message });
     }
   }
 );
 
 router.delete(
   "/orders/:id/products/:productIndex",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id);
@@ -200,7 +268,7 @@ router.delete(
 
 router.put(
   "/orders/:id",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id);
@@ -235,7 +303,7 @@ router.put(
 
 router.delete(
   "/orders/:id",
-  [authenticateAdmin, checkPermission("delete_eporder")],
+  [authenticateAdmin, checkPermission("eporder.delete")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id);
@@ -244,14 +312,14 @@ router.delete(
       await order.deleteOne();
       res.json({ message: "Order deleted successfully" });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
 
 router.put(
   "/orders/:id/status",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -270,7 +338,7 @@ router.put(
 
 router.put(
   "/orders/:id/setStatusAndQuantity",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -319,26 +387,42 @@ router.put(
           productItem.quantityEx = productItem.quantity;
 
           await product.save();
+
+          try {
+            await new StorageHistory({
+              productId: productItem.productId,
+              productName: product.name,
+              quantity: -requiredQty,
+              userName: req.user?.name,
+              orderId: order._id.toString(),
+              orderName: order.orderName,
+              note: "Xuất kho (đơn xuất hoàn thành)",
+              source: "order_bulk_complete",
+            }).save();
+          } catch (logErr) {
+            console.error("StorageHistory error (complete eporder):", logErr.message);
+          }
         }
 
         // Cập nhật trạng thái đơn
         order.status = true;
       } else {
         order.status = false;
+        order.completedAt = null;
       }
 
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
 
 router.put(
   "/orders/:id/products/:productIndex/status",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -361,7 +445,7 @@ router.put(
 
 router.put(
   "/orders/:id/products/:productIndex/setStatusAndQuantity",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -377,24 +461,65 @@ router.put(
         return res.status(400).json({ message: "Invalid product index" });
       }
 
-      order.productList[productIndex].status = status;
+      const productItem = order.productList[productIndex];
+      if (status !== true || productItem.status === true) {
+        return res.json(order);
+      }
 
-      if (status === true) {
-        order.productList[productIndex].quantityEx =
-          order.productList[productIndex].quantity;
+      const product = await Product.findById(productItem.productId);
+      if (!product) {
+        return res
+          .status(404)
+          .json({ message: `Product ${productItem.productId} not found` });
+      }
+
+      const variant = product.variant[0];
+      if (!variant) {
+        return res.status(400).json({ message: "Sản phẩm không có biến thể" });
+      }
+
+      const requiredQty = productItem.quantity - (productItem.quantityEx || 0);
+
+      if (variant.quantityInStorage < requiredQty) {
+        return res.status(400).json({
+          message: `Không còn đủ số lượng trong kho cho sản phẩm: ${product.name}`,
+        });
+      }
+
+      variant.quantityInStorage -= requiredQty;
+      variant.quantityForSale -= requiredQty;
+      productItem.quantityEx = productItem.quantity;
+      productItem.status = true;
+
+      await product.save();
+
+      try {
+        await new StorageHistory({
+          productId: productItem.productId,
+          productName: product.name,
+          quantity: -requiredQty,
+          userName: req.user?.name,
+          orderId: order._id.toString(),
+          orderName: order.orderName,
+          note: "Xuất kho (đơn xuất hoàn thành)",
+          source: "order_line_complete",
+        }).save();
+      } catch (logErr) {
+        console.error("StorageHistory error (complete eporder item):", logErr.message);
       }
 
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      console.error("Error updating export order item status:", error);
+      res.status(500).json({ message: "Lỗi server khi cập nhật trạng thái sản phẩm" });
     }
   }
 );
 
 router.get(
   "/orders/:id",
-  [authenticateAdmin, checkPermission("read_eporder")],
+  [authenticateAdmin, checkPermission("eporder.view")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id).lean();
@@ -419,14 +544,14 @@ router.get(
       });
     } catch (error) {
       console.error("Error fetching order:", error);
-      res.status(500).json({ message: "Server error", error: error.message });
+      res.status(500).json({ message: "Server error" });
     }
   }
 );
 
 router.put(
   "/orders/:id/products/:productIndex",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id);
@@ -439,6 +564,23 @@ router.put(
         productIndex >= order.productList.length
       ) {
         return res.status(404).json({ message: "Product index not found" });
+      }
+
+      const currentProduct = order.productList[productIndex];
+      const hasQuantityEx = Object.prototype.hasOwnProperty.call(req.body, "quantityEx");
+      const stockDelta = req.body.skipStockUpdate || !hasQuantityEx
+        ? 0
+        : toQuantity(req.body.quantityEx) - toQuantity(currentProduct.quantityEx);
+      if (stockDelta !== 0) {
+        await adjustExportStock({
+          productId: currentProduct.productId,
+          delta: stockDelta,
+          req,
+          order,
+          note: stockDelta > 0 ? "Xuất kho (cập nhật đơn xuất)" : "Hoàn kho (cập nhật đơn xuất)",
+          isAIScan: req.body.isAIScan,
+          source: "order_line_manual",
+        });
       }
 
       order.productList[productIndex] = {
@@ -458,14 +600,14 @@ router.put(
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(error.statusCode || 400).json({ message: error.message });
     }
   }
 );
 
 router.put(
   "/orders/:id/name",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const { orderName } = req.body;
@@ -483,7 +625,7 @@ router.put(
 
 router.put(
   "/orders/:id/reorder",
-  [authenticateAdmin, checkPermission("update_eporder")],
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const order = await EpOrder.findById(req.params.id);
@@ -531,7 +673,7 @@ router.put(
 
 router.get(
   "/products",
-  [authenticateAdmin, checkPermission("read_eporder")],
+  [authenticateAdmin, checkPermission("eporder.view")],
   async (req, res) => {
     try {
       const { page = 1 } = req.query;
@@ -588,7 +730,7 @@ router.get(
         },
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
@@ -615,7 +757,7 @@ const uploadInvoice = multer({
 
 router.post(
   "/upload-image",
-  [authenticateAdmin, uploadInvoice.single("invoice")],
+  [authenticateAdmin, checkPermission("eporder.edit"), uploadInvoice.single("invoice")],
   async (req, res) => {
     try {
       if (!req.file) {
@@ -624,14 +766,14 @@ router.post(
       const imageUrl = `/invoice-images/${req.file.filename}`;
       res.json({ success: 1, imageUrl });
     } catch (error) {
-      res.status(500).json({ message: "Lỗi upload ảnh", error: error.message });
+      res.status(500).json({ message: "Lỗi upload ảnh" });
     }
   }
 );
 
 router.delete(
   "/delete-image",
-  authenticateAdmin,
+  [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
       const { imageUrl } = req.query;
@@ -653,7 +795,7 @@ router.delete(
         return res.json({ success: 1, message: "File không tồn tại trên ổ cứng hoặc đã được xóa." });
       }
     } catch (error) {
-      res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh vật lý", error: error.message });
+      res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh vật lý" });
     }
   }
 );

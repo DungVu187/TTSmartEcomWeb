@@ -5,9 +5,10 @@ const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 
 // Router imports
-const { router: userRoutes } = require('./components/user');
+const { router: userRoutes, User, authenticateAdmin } = require('./components/user');
 const { router: productRoutes } = require('./components/product');
 const { router: orderRoutes } = require('./components/order');
 const { router: chipRoutes } = require('./components/chip');
@@ -19,6 +20,7 @@ const { router: stationRoutes } = require('./components/station');
 const { router: historyRoutes } = require('./components/storagehistory');
 const { router: activityLogRoutes } = require('./components/activitylog');
 const { router: zaloRoutes } = require('./components/zalo');
+const { router: telegramRoutes } = require('./components/telegram');
 const { router: voiceVocabRoutes, initVoiceVocab } = require('./components/voicevocab');
 
 // Tạo app + http server + socket.io
@@ -45,7 +47,7 @@ const checkOrigin = (origin, callback) => {
     process.env.NODE_ENV === 'development' ||
     !origin ||
     allowedOrigins.includes(origin) ||
-    origin.startsWith('http://192.168.') // Cho phép mọi IP trong mạng LAN nội bộ khi test
+    (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.')) // Cho phép IP LAN khi không ở production
   ) {
     callback(null, true);
   } else {
@@ -62,7 +64,42 @@ const io = new Server(server, {
   },
 });
 
+const parseCookieHeader = (cookieHeader = '') => {
+  return cookieHeader.split(';').reduce((cookies, part) => {
+    const [rawName, ...rawValue] = part.trim().split('=');
+    if (!rawName || rawValue.length === 0) return cookies;
+    cookies[rawName] = decodeURIComponent(rawValue.join('='));
+    return cookies;
+  }, {});
+};
+
+io.use(async (socket, next) => {
+  try {
+    const cookies = parseCookieHeader(socket.handshake.headers.cookie || '');
+    const token = cookies.authToken;
+    if (!token) {
+      return next(new Error('unauthorized'));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+    if (!user || !['superadmin', 'admin', 'staff'].includes(user.role)) {
+      return next(new Error('unauthorized'));
+    }
+
+    socket.data.user = {
+      id: user._id.toString(),
+      role: user.role,
+      phone: user.phone,
+    };
+    next();
+  } catch (error) {
+    next(new Error('unauthorized'));
+  }
+});
+
 io.on('connection', (socket) => {
+  socket.join('admins');
   console.log('Socket connected:', socket.id);
 
   socket.on('disconnect', (reason) => {
@@ -123,6 +160,7 @@ app.use('/stations', stationRoutes);
 app.use('/histories', historyRoutes);
 app.use('/activity-logs', activityLogRoutes);
 app.use('/zalo', zaloRoutes);
+app.use('/telegram', telegramRoutes);
 app.use('/voice-vocabs', voiceVocabRoutes);
 
 // Static files
@@ -135,7 +173,7 @@ if (!fs.existsSync(uploadInvoicesDir)) {
 app.use('/images', express.static(path.join(__dirname, 'upload', 'images')));
 app.use('/section-images', express.static(path.join(__dirname, 'upload', 'sections')));
 app.use('/station', express.static(path.join(__dirname, 'upload', 'stations')));
-app.use('/invoice-images', express.static(uploadInvoicesDir));
+app.use('/invoice-images', authenticateAdmin, express.static(uploadInvoicesDir));
 
 // Serve admin dashboard static files
 const adminDistPath = path.join(__dirname, '../ad/dist');
@@ -155,7 +193,7 @@ app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
-    '/histories', '/images', '/section-images', '/zalo', '/voice-vocabs'
+    '/histories', '/images', '/section-images', '/zalo', '/telegram', '/voice-vocabs'
   ];
   const isApi = apiPaths.some(path => req.path.startsWith(path));
   const isStaticFile = /\.(jpg|jpeg|png|gif|webp|svg|css|js|ico|map)$/i.test(req.path);

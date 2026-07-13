@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Box,
@@ -9,12 +9,12 @@ import {
   DialogActions,
   TextField,
   Avatar,
-  useMediaQuery,
   Autocomplete,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { usePermissions } from "../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -29,8 +29,10 @@ const removeVietnameseTones = (str) => {
 };
 
 const Station = () => {
-  const isMobile = useMediaQuery("(max-width:900px)");
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can("station.create");
+  const canDelete = can("station.delete");
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
@@ -205,17 +207,19 @@ const Station = () => {
           >
             Chi tiết
           </Button>
-          <Button
-            variant="contained"
-            color="error"
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteStation(params.row.id, params.row.name);
-            }}
-          >
-            Xóa
-          </Button>
+          {canDelete && (
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteStation(params.row.id, params.row.name);
+              }}
+            >
+              Xóa
+            </Button>
+          )}
           <Button
             variant="outlined"
             color="success"
@@ -247,14 +251,16 @@ const Station = () => {
       <div className="sticky-header">
         <h2>Quản lý danh sách trạm trộn</h2>
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", mt: 1, flexWrap: "wrap" }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => setOpenDialog(true)}
-            sx={{ height: 40 }}
-          >
-            Thêm trạm
-          </Button>
+          {canCreate && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setOpenDialog(true)}
+              sx={{ height: 40 }}
+            >
+              Thêm trạm
+            </Button>
+          )}
           <Autocomplete
             freeSolo
             size="small"

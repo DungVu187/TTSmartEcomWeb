@@ -96,3 +96,45 @@ table {
   height: 50px;
 }
 
+.product-image-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 14px;
+  min-height: 48px;
+}
+
+.product-image-picker__hint {
+  color: #666;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-image-picker__preview {
+  width: 120px;
+  height: 120px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+@media (max-width: 600px) {
+  .product-image-picker {
+    grid-template-columns: 1fr 120px;
+  }
+
+  .product-image-picker .MuiButton-root {
+    justify-self: start;
+  }
+
+  .product-image-picker__hint {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+

@@ -162,7 +162,7 @@ router.get("/callback", async (req, res) => {
     res.redirect(`${frontendUrl.replace(/\/$/, "")}/admin/zalo?link=success`);
   } catch (error) {
     console.error("Lỗi khi xử lý Callback OAuth Zalo:", error);
-    res.status(500).send(`Lỗi hệ thống khi liên kết Zalo: ${error.message}`);
+    res.status(500).send("Lỗi hệ thống khi liên kết Zalo");
   }
 });
 

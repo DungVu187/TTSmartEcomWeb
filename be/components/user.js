@@ -6,6 +6,14 @@ const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
 const CryptoJS = require("crypto-js");
 require("dotenv").config();
+const {
+  getAdminFixedPermissions,
+  getCatalogForClient,
+  isGrantablePermission,
+  getDependency,
+} = require("../config/permissions");
+
+const ADMIN_FULL_ACCESS = true; // B6 sẽ lật thành false khi hoàn tất đổi tên quyền + backfill quyền admin.
 
 const generateSecureToken = () => {
   return crypto.randomBytes(32).toString("hex");
@@ -67,6 +75,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  passwordChangedAt: {
+    type: Date,
+  },
   role: {
     type: String,
     required: true,
@@ -127,19 +138,6 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Hàm gán quyền dựa trên functions (giữ nguyên)
-const assignPermissionsForFunctions = (functions = []) => {
-  const functionPermissions = {
-    order_management: ["read_order", "update_order", "delete_order"],
-    iporder_management: ["read_iporder", "update_iporder", "delete_iporder"],
-    eporder_management: ["read_eporder", "update_eporder", "delete_eporder"],
-    product_management: ["read_product", "update_product", "delete_product"],
-  };
-  return functions.reduce((perms, func) => {
-    return [...perms, ...(functionPermissions[func] || [])];
-  }, []);
-};
-
 const getCookieOptions = (req, maxAge = 43200000) => {
   // req.secure đúng nhờ trust proxy=1 + Nginx X-Forwarded-Proto khi chạy HTTPS;
   // LAN/HTTP thì false. FE/BE cùng miền nên sameSite 'lax' là đủ và an toàn.
@@ -158,7 +156,117 @@ const getCookieOptions = (req, maxAge = 43200000) => {
   };
 };
 
+function hasPermission(user, requiredPermission) {
+  if (!user) return false;
+  if (user.role === "superadmin") return true;
+  if (user.role === "admin") {
+    if (ADMIN_FULL_ACCESS) return true;
+    if (getAdminFixedPermissions().includes(requiredPermission)) return true;
+    return Array.isArray(user.permissions) && user.permissions.includes(requiredPermission);
+  }
+  return Array.isArray(user.permissions) && user.permissions.includes(requiredPermission);
+}
+
 // Middleware xác thực admin (đọc token từ cookie)
+const VALID_ROLES = ["superadmin", "admin", "staff", "customer"];
+const ROLE_LEVELS = {
+  customer: 0,
+  staff: 1,
+  admin: 2,
+  superadmin: 3,
+};
+
+function getVisibleRolesFor(viewerRole) {
+  const viewerLevel = ROLE_LEVELS[viewerRole];
+  if (viewerLevel === undefined) return [];
+  return VALID_ROLES.filter((role) => ROLE_LEVELS[role] <= viewerLevel);
+}
+
+function validateGrantablePermissions(permissions) {
+  if (!Array.isArray(permissions)) {
+    return { valid: false, message: "Danh sách quyền phải là một mảng" };
+  }
+
+  const normalizedPermissions = [];
+  const seen = new Set();
+
+  for (const permission of permissions) {
+    if (typeof permission !== "string" || permission.trim() === "") {
+      return { valid: false, message: "Quyền không hợp lệ hoặc không được phép cấp: giá trị rỗng" };
+    }
+
+    const normalizedPermission = permission.trim();
+    if (!isGrantablePermission(normalizedPermission)) {
+      return {
+        valid: false,
+        message: `Quyền không hợp lệ hoặc không được phép cấp: ${normalizedPermission}`,
+      };
+    }
+
+    if (!seen.has(normalizedPermission)) {
+      seen.add(normalizedPermission);
+      normalizedPermissions.push(normalizedPermission);
+    }
+  }
+
+  for (const permission of normalizedPermissions) {
+    const dependency = getDependency(permission);
+    if (dependency && !seen.has(dependency)) {
+      return {
+        valid: false,
+        message: `Quyền ${permission} yêu cầu quyền ${dependency}`,
+      };
+    }
+  }
+
+  return { valid: true, permissions: normalizedPermissions };
+}
+
+const sanitizeUserForResponse = (user) => {
+  const userObj = user.toObject ? user.toObject() : { ...user };
+  delete userObj.password;
+  delete userObj.resetOtp;
+  delete userObj.resetOtpExpires;
+  delete userObj.logInString;
+  return userObj;
+};
+
+const hasNonStringField = (source, fields) => {
+  return fields.some((field) => (
+    source[field] !== undefined &&
+    source[field] !== null &&
+    typeof source[field] !== "string"
+  ));
+};
+
+const rejectInvalidStringFields = (res, source, fields) => {
+  if (hasNonStringField(source, fields)) {
+    res.status(400).json({ message: "Thông tin tìm kiếm không hợp lệ" });
+    return true;
+  }
+  return false;
+};
+
+const validatePasswordPolicy = (password) => {
+  if (typeof password !== "string" || password.length < 6) {
+    return { valid: false, message: "Mật khẩu phải có ít nhất 6 ký tự" };
+  }
+  return { valid: true };
+};
+
+const isTokenIssuedBeforePasswordChange = (decoded, user) => {
+  if (!decoded?.iat || !user?.passwordChangedAt) return false;
+  return decoded.iat * 1000 < user.passwordChangedAt.getTime();
+};
+
+const rejectExpiredPasswordSession = (res, decoded, user) => {
+  if (isTokenIssuedBeforePasswordChange(decoded, user)) {
+    res.status(401).json({ message: "Phiên đã hết hạn, vui lòng đăng nhập lại" });
+    return true;
+  }
+  return false;
+};
+
 const authenticateAdmin = async (req, res, next) => {
   const token = req.cookies.authToken; // Đọc token từ cookie
   if (!token) {
@@ -170,6 +278,7 @@ const authenticateAdmin = async (req, res, next) => {
     if (!user || user.role === "customer") {
       return res.status(403).json({ message: "Access denied, not an admin or staff" });
     }
+    if (rejectExpiredPasswordSession(res, decoded, user)) return;
     req.user = user;
     next();
   } catch (error) {
@@ -189,6 +298,7 @@ const authenticateAdminOnly = async (req, res, next) => {
     if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
       return res.status(403).json({ message: "Access denied, admin only" });
     }
+    if (rejectExpiredPasswordSession(res, decoded, user)) return;
     req.user = user;
     next();
   } catch (error) {
@@ -209,6 +319,7 @@ const authenticateUser = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: "Tài khoản không tồn tại hoặc đã bị xóa" });
     }
+    if (rejectExpiredPasswordSession(res, decoded, user)) return;
     // Giữ nguyên shape payload JWT (userId, ...) nhưng lấy giá trị tươi từ DB
     req.user = {
       userId: user._id.toString(),
@@ -238,12 +349,8 @@ const checkPermission = (requiredPermission) => async (req, res, next) => {
     if (!user) {
       return res.status(403).json({ message: "User not found" });
     }
-    if (user.role === "admin" || user.role === "superadmin") {
-      req.user = user;
-      return next();
-    }
-    const userPermissions = user.permissions || [];
-    if (!userPermissions.includes(requiredPermission)) {
+    if (rejectExpiredPasswordSession(res, decoded, user)) return;
+    if (!hasPermission(user, requiredPermission)) {
       return res.status(403).json({ message: `Access denied, missing permission: ${requiredPermission}` });
     }
     req.user = user;
@@ -252,6 +359,39 @@ const checkPermission = (requiredPermission) => async (req, res, next) => {
     console.error("Error in checkPermission:", error.message);
     if (error.name === "JsonWebTokenError" && error.message === "jwt malformed") {
       return res.status(400).json({ message: "Token JWT không hợp lệ hoặc sai định dạng" });
+    }
+    res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
+const checkAnyPermission = (requiredPermissions = []) => async (req, res, next) => {
+  const token = req.cookies.authToken;
+  if (!token) {
+    return res.status(401).json({ message: "Access denied, no token provided" });
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(403).json({ message: "User not found" });
+    }
+    if (rejectExpiredPasswordSession(res, decoded, user)) return;
+
+    const permissions = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
+    const allowed = permissions.some((permission) => hasPermission(user, permission));
+
+    if (!allowed) {
+      return res.status(403).json({
+        message: `Access denied, missing one of permissions: ${permissions.join(", ")}`,
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error("Error in checkAnyPermission:", error.message);
+    if (error.name === "JsonWebTokenError" && error.message === "jwt malformed") {
+      return res.status(400).json({ message: "Token JWT khÃ´ng há»£p lá»‡ hoáº·c sai Ä‘á»‹nh dáº¡ng" });
     }
     res.status(401).json({ message: "Invalid or expired token" });
   }
@@ -281,7 +421,12 @@ router.post("/register", authLimiter, (req, res, next) => {
   }
 }, async (req, res) => {
   try {
-    const { email, phone, name, password, role, functions, permissions, logInString, stationCode, inviteCode } = req.body;
+    if (rejectInvalidStringFields(res, req.body, ["phone", "email"])) return;
+    const { email, phone, name, password, role, permissions, logInString, stationCode, inviteCode } = req.body;
+    const passwordValidation = validatePasswordPolicy(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
+    }
     const existingUser = await User.findOne({
       $or: [
         { phone },
@@ -302,23 +447,38 @@ router.post("/register", authLimiter, (req, res, next) => {
     if (process.env.PUBLIC_SIGNUP_ENABLED !== "true" && req.user) {
       if (req.user.role === "superadmin") {
         finalRole = role || "customer";
-        finalPermissions = finalRole === "staff" && functions
-          ? permissions || assignPermissionsForFunctions(functions)
-          : permissions || [];
       } else if (req.user.role === "admin") {
         if (role === "superadmin" || role === "admin") {
           return res.status(403).json({ message: "Admin chỉ được phép tạo tài khoản Staff hoặc Customer" });
         }
         finalRole = role || "customer";
-        finalPermissions = finalRole === "staff" && functions
-          ? permissions || assignPermissionsForFunctions(functions)
-          : permissions || [];
+      } else if (req.user.role === "staff") {
+        if (role && role !== "customer") {
+          return res.status(403).json({ message: "Nhân viên chỉ được tạo tài khoản khách hàng" });
+        }
+        if (!hasPermission(req.user, "customer.create")) {
+          return res.status(403).json({ message: "Access denied, missing permission: customer.create" });
+        }
+        finalRole = "customer";
       } else {
         finalRole = "customer";
-        finalPermissions = [];
       }
     } else {
       finalRole = "customer";
+    }
+
+    // Chỉ admin/staff mới giữ permissions; customer/superadmin luôn rỗng.
+    if (finalRole === "admin" || finalRole === "staff") {
+      if (permissions !== undefined) {
+        const result = validateGrantablePermissions(permissions);
+        if (!result.valid) {
+          return res.status(400).json({ message: result.message });
+        }
+        finalPermissions = result.permissions;
+      } else {
+        finalPermissions = [];
+      }
+    } else {
       finalPermissions = [];
     }
 
@@ -357,27 +517,24 @@ router.post("/register", authLimiter, (req, res, next) => {
       name,
       password,
       role: finalRole,
-      functions: finalRole === "staff" ? functions || [] : [],
+      functions: [],
       permissions: finalPermissions,
       logInString: generateSecureToken(),
       station: userStations
     });
     await newUser.save();
-    const userObj = newUser.toObject();
-    delete userObj.password;
-    delete userObj.resetOtp;
-    delete userObj.resetOtpExpires;
-    delete userObj.logInString;
+    const userObj = sanitizeUserForResponse(newUser);
     res.status(201).json({ message: "User created successfully", logInString: newUser.logInString, user: userObj });
   } catch (error) {
     console.error("Error in register:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 // Đăng nhập người dùng (sử dụng cookie) - hỗ trợ đăng nhập bằng email hoặc SĐT
 router.post("/login", authLimiter, async (req, res) => {
   try {
+    if (rejectInvalidStringFields(res, req.body, ["phone", "email"])) return;
     const { phone, email, password, inviteCode } = req.body;
     const identifier = phone || email;
     if (!identifier) {
@@ -431,13 +588,14 @@ router.post("/login", authLimiter, async (req, res) => {
     res.json({ message: "Đăng nhập thành công" });
   } catch (error) {
     console.error("Lỗi trong đăng nhập:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 // Đăng nhập admin/staff (sử dụng cookie)
 router.post("/admin/login", authLimiter, async (req, res) => {
   try {
+    if (rejectInvalidStringFields(res, req.body, ["phone"])) return;
     const { phone, password } = req.body;
     const user = await User.findOne({ phone });
     if (!user || (user.role !== "superadmin" && user.role !== "admin" && user.role !== "staff")) {
@@ -464,7 +622,7 @@ router.post("/admin/login", authLimiter, async (req, res) => {
     res.cookie("authToken", token, getCookieOptions(req, 43200000));
     res.json({ message: "Đăng nhập admin thành công" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -477,6 +635,10 @@ router.post("/logout", (req, res) => {
 router.put("/change-password", authLimiter, authenticateUser, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    const passwordValidation = validatePasswordPolicy(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
+    }
 
     const user = await User.findById(req.user.userId);
     if (!user) {
@@ -490,19 +652,21 @@ router.put("/change-password", authLimiter, authenticateUser, async (req, res) =
 
     user.password = newPassword;
     user.logInString = generateSecureToken();
+    user.passwordChangedAt = new Date();
 
     await user.save();
 
     res.json({ message: "Đổi mật khẩu thành công" });
   } catch (error) {
     console.error("Lỗi khi đổi mật khẩu:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 // Yêu cầu OTP khôi phục mật khẩu qua Số Điện Thoại hoặc Email
 router.post("/forgot-password", authLimiter, async (req, res) => {
   try {
+    if (rejectInvalidStringFields(res, req.body, ["phone", "email", "identifier"])) return;
     const { phone, email, identifier } = req.body;
     // Hỗ trợ nhận trường identifier (SĐT hoặc Email) hoặc riêng lẻ phone/email
     const input = identifier || phone || email;
@@ -528,7 +692,7 @@ router.post("/forgot-password", authLimiter, async (req, res) => {
     }
 
     // Sinh mã OTP 6 chữ số ngẫu nhiên
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     
     // Lưu OTP và thời gian hết hạn (5 phút)
     user.resetOtp = otp;
@@ -546,17 +710,22 @@ router.post("/forgot-password", authLimiter, async (req, res) => {
     res.json({ message: `Mã OTP đã được gửi về email ${maskedEmail}`, phone: user.phone });
   } catch (error) {
     console.error("Lỗi khi yêu cầu OTP quên mật khẩu:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 // Đặt lại mật khẩu mới bằng OTP - hỗ trợ tìm user bằng phone hoặc email
 router.post("/reset-password", authLimiter, async (req, res) => {
   try {
+    if (rejectInvalidStringFields(res, req.body, ["phone", "email", "identifier"])) return;
     const { phone, email, identifier, otp, newPassword } = req.body;
     const input = identifier || phone || email;
     if (!input || !otp || !newPassword) {
       return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin yêu cầu" });
+    }
+    const passwordValidation = validatePasswordPolicy(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
     }
 
     // Tìm user theo SĐT hoặc Email
@@ -580,6 +749,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     // Đặt mật khẩu mới
     user.password = newPassword;
     user.logInString = generateSecureToken();
+    user.passwordChangedAt = new Date();
     user.resetOtp = undefined;
     user.resetOtpExpires = undefined;
     await user.save();
@@ -587,26 +757,43 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     res.json({ message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới." });
   } catch (error) {
     console.error("Lỗi khi đặt lại mật khẩu bằng OTP:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
+  }
+});
+
+router.get("/permission-catalog", authenticateAdminOnly, (req, res) => {
+  try {
+    res.json({
+      success: true,
+      catalog: getCatalogForClient(),
+      adminFixed: getAdminFixedPermissions(),
+    });
+  } catch (error) {
+    console.error("Error in get permission-catalog:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
 router.get("/all-users", authenticateAdminOnly, async (req, res) => {
   try {
-    const users = await User.find().select("-password -logInString -resetOtpExpires");
-    res.json(users);
+    const visibleRoles = getVisibleRolesFor(req.user?.role);
+    const users = await User.find({ role: { $in: visibleRoles } }).select("-password -logInString -resetOtp -resetOtpExpires");
+    res.json(users.map(sanitizeUserForResponse));
   } catch (error) {
     console.error("Error in get users:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 router.get("/profile", authenticateUser, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select("-password");;
-    res.json(user);
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+    res.json(sanitizeUserForResponse(user));
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -624,12 +811,9 @@ router.put("/profile", authenticateUser, async (req, res) => {
 
     await user.save();
     
-    const userObj = user.toObject();
-    delete userObj.password;
-    
-    res.json({ message: "Cập nhật thông tin cá nhân thành công", user: userObj });
+    res.json({ message: "Cập nhật thông tin cá nhân thành công", user: sanitizeUserForResponse(user) });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -655,7 +839,7 @@ router.post("/profile/addresses", authenticateUser, async (req, res) => {
     await user.save();
     res.status(201).json({ message: "Thêm địa chỉ thành công", addresses: user.addresses });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -682,7 +866,7 @@ router.put("/profile/addresses/:addressId", authenticateUser, async (req, res) =
     await user.save();
     res.json({ message: "Cập nhật địa chỉ thành công", addresses: user.addresses });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -710,7 +894,7 @@ router.delete("/profile/addresses/:addressId", authenticateUser, async (req, res
     await user.save();
     res.json({ message: "Xóa địa chỉ thành công", addresses: user.addresses });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -740,7 +924,7 @@ router.put("/profile/addresses/:addressId/default", authenticateUser, async (req
     await user.save();
     res.json({ message: "Đã đặt địa chỉ làm mặc định", addresses: user.addresses });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -748,7 +932,7 @@ router.put("/profile/addresses/:addressId/default", authenticateUser, async (req
 router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, functions, permissions, name, email, phone, password, logInString } = req.body;
+    const { role, permissions, name, email, phone, password } = req.body;
 
     if (req.user.role !== "superadmin" && req.user.role !== "admin") {
       return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
@@ -773,6 +957,28 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
       if (existingSuperadmin && existingSuperadmin._id.toString() !== id) {
         return res.status(400).json({ message: "Hệ thống chỉ được phép có duy nhất 1 tài khoản Super Admin" });
       }
+    }
+
+    // Validate quyền TRƯỚC khi thay đổi document; role mới quyết định nhóm quyền hợp lệ.
+    const finalRole = role || user.role;
+    if (!VALID_ROLES.includes(finalRole)) {
+      return res.status(400).json({ message: "Vai trò không hợp lệ" });
+    }
+    let validatedPermissions = null; // null = không đụng permissions hiện tại
+    if (finalRole === "admin" || finalRole === "staff") {
+      if (permissions !== undefined) {
+        const result = validateGrantablePermissions(permissions);
+        if (!result.valid) {
+          return res.status(400).json({ message: result.message });
+        }
+        validatedPermissions = result.permissions;
+      } else if (role) {
+        // Đổi sang admin/staff mà không gửi permissions -> đặt rỗng.
+        validatedPermissions = [];
+      }
+    } else {
+      // customer/superadmin: luôn xóa sạch quyền.
+      validatedPermissions = [];
     }
 
     // Lưu thông tin cũ để so sánh
@@ -813,21 +1019,23 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
     }
 
     if (password) {
+      const passwordValidation = validatePasswordPolicy(password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ message: passwordValidation.message });
+      }
       user.password = password; // Sẽ được mã hóa tự động bằng pre-save hook của userSchema
       user.logInString = generateSecureToken();
+      user.passwordChangedAt = new Date();
     }
 
     if (role) {
-      user.role = role;
-      if (role === "staff") {
-        if (functions) {
-          user.functions = functions;
-          user.permissions = permissions || assignPermissionsForFunctions(functions);
-        }
-      } else {
-        user.functions = [];
-        user.permissions = [];
-      }
+      user.role = finalRole;
+    }
+    if (validatedPermissions !== null) {
+      user.permissions = validatedPermissions;
+    }
+    if (role || permissions !== undefined) {
+      user.functions = [];
     }
 
     await user.save();
@@ -864,19 +1072,27 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
       }
     } catch (logErr) { console.error("ActivityLog error in permissions:", logErr.message); }
 
-    res.json({ message: "Cập nhật tài khoản thành công", user });
+    res.json({ message: "Cập nhật tài khoản thành công", user: sanitizeUserForResponse(user) });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server" });
   }
 });
 
 // 📌 Xoay token đăng nhập tự động (chỉ dành cho Admin)
-router.post("/:id/rotate-autologin-token", authenticateAdminOnly, async (req, res) => {
+router.post("/:id/rotate-autologin-token", authenticateAdmin, checkPermission("customer.edit"), async (req, res) => {
   try {
     const { id } = req.params;
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    if (user.role !== "customer" && req.user.role === "staff") {
+      return res.status(403).json({ message: "Không có quyền thao tác trên tài khoản này." });
+    }
+
+    if ((user.role === "admin" || user.role === "superadmin") && req.user.role !== "superadmin") {
+      return res.status(403).json({ message: "Không có quyền thao tác trên tài khoản này." });
     }
 
     const oldToken = user.logInString;
@@ -902,16 +1118,17 @@ router.post("/:id/rotate-autologin-token", authenticateAdminOnly, async (req, re
     });
   } catch (error) {
     console.error("Lỗi khi xoay mã đăng nhập tự động:", error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: "Lỗi server khi xoay mã đăng nhập tự động" });
   }
 });
 
 // Thêm tài khoản mới thủ công từ admin
 router.post("/admin-create", authenticateAdmin, async (req, res) => {
   try {
-    const { email, phone, name, password, role, functions, permissions } = req.body;
+    if (rejectInvalidStringFields(res, req.body, ["phone", "email"])) return;
+    const { email, phone, name, password, role, permissions } = req.body;
 
-    if (req.user.role !== "superadmin" && req.user.role !== "admin") {
+    if (req.user.role !== "superadmin" && req.user.role !== "admin" && req.user.role !== "staff") {
       return res.status(403).json({ message: "Bạn không có quyền thực hiện chức năng này" });
     }
 
@@ -919,10 +1136,21 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       if (role === "superadmin" || role === "admin") {
         return res.status(403).json({ message: "Admin chỉ được phép tạo tài khoản Staff hoặc Customer" });
       }
+    } else if (req.user.role === "staff") {
+      if (role && role !== "customer") {
+        return res.status(403).json({ message: "Nhân viên chỉ được tạo tài khoản khách hàng" });
+      }
+      if (!hasPermission(req.user, "customer.create")) {
+        return res.status(403).json({ message: "Access denied, missing permission: customer.create" });
+      }
     }
 
     if (!phone || !password) {
       return res.status(400).json({ message: "Số điện thoại và mật khẩu là bắt buộc" });
+    }
+    const passwordValidation = validatePasswordPolicy(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
     }
 
     const existingUser = await User.findOne({
@@ -935,7 +1163,7 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       return res.status(400).json({ message: "Email hoặc số điện thoại đã tồn tại" });
     }
 
-    const finalRole = role || "customer";
+    const finalRole = req.user.role === "staff" ? "customer" : role || "customer";
     if (finalRole === "superadmin") {
       const existingSuperadmin = await User.findOne({ role: "superadmin" });
       if (existingSuperadmin) {
@@ -943,9 +1171,16 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       }
     }
 
-    const finalPermissions = finalRole === "staff" && functions
-      ? permissions || assignPermissionsForFunctions(functions)
-      : [];
+    let finalPermissions = [];
+    if (finalRole === "admin" || finalRole === "staff") {
+      if (permissions !== undefined) {
+        const result = validateGrantablePermissions(permissions);
+        if (!result.valid) {
+          return res.status(400).json({ message: result.message });
+        }
+        finalPermissions = result.permissions;
+      }
+    }
 
     const newUser = new User({
       email: email ? email.toLowerCase() : undefined,
@@ -953,7 +1188,7 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       name,
       password,
       role: finalRole,
-      functions: finalRole === "staff" ? functions || [] : [],
+      functions: [],
       permissions: finalPermissions,
       logInString: generateSecureToken(),
     });
@@ -972,16 +1207,10 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
       }).save();
     } catch (logErr) { console.error("ActivityLog error in admin-create:", logErr.message); }
 
-    const userObj = newUser.toObject();
-    delete userObj.password;
-    delete userObj.resetOtp;
-    delete userObj.resetOtpExpires;
-    delete userObj.logInString;
-
-    res.status(201).json({ message: "Tạo tài khoản thành công", logInString: newUser.logInString, user: userObj });
+    res.status(201).json({ message: "Tạo tài khoản thành công", logInString: newUser.logInString, user: sanitizeUserForResponse(newUser) });
   } catch (error) {
     console.error("Lỗi khi admin tạo tài khoản:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1007,7 +1236,7 @@ router.put("/order-template/:index/display-name", authenticateUser, async (req, 
     });
   } catch (error) {
     console.error("Error in update order template display name:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1036,7 +1265,7 @@ router.put("/order-template/:index/products", authenticateUser, async (req, res)
     });
   } catch (error) {
     console.error("Error in update order template products:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1049,7 +1278,7 @@ router.get("/order-templates", authenticateUser, async (req, res) => {
     res.json({ orderTemplates: user.orderTemplate });
   } catch (error) {
     console.error("Error in get order templates:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1065,7 +1294,7 @@ router.post("/order-templates", authenticateUser, async (req, res) => {
     res.status(201).json({ index: newIndex, orderTemplate: user.orderTemplate[newIndex] });
   } catch (error) {
     console.error("Error in create order template:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1082,21 +1311,22 @@ router.delete("/order-template/:index", authenticateUser, async (req, res) => {
     res.json({ message: "Order template deleted successfully" });
   } catch (error) {
     console.error("Error in delete order template:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
-router.get("/customers", authenticateAdminOnly, async (req, res) => {
+router.get("/customers", authenticateAdmin, checkPermission("customer.view"), async (req, res) => {
   try {
-    const customers = await User.find({ role: "customer" }).select("-password");
-    res.json(customers);
+    const customers = await User.find({ role: "customer" }).select("-password -logInString -resetOtp -resetOtpExpires");
+    res.json(customers.map(sanitizeUserForResponse));
   } catch (error) {
-    res.status(500).json({ message: "Không thể lấy danh sách khách hàng", details: error.message });
+    res.status(500).json({ message: "Không thể lấy danh sách khách hàng" });
   }
 });
 
-router.put("/stations", authenticateAdmin, async (req, res) => {
+router.put("/stations", authenticateAdmin, checkPermission("customer.assign_station"), async (req, res) => {
   try {
+    if (rejectInvalidStringFields(res, req.body, ["phone"])) return;
     const { phone, stations } = req.body;
 
     if (req.user.role !== "superadmin" && req.user.role !== "admin") {
@@ -1138,11 +1368,11 @@ router.put("/stations", authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Lỗi khi cập nhật danh sách station:", error.message);
-    res.status(500).json({ message: "Không thể cập nhật danh sách station", details: error.message });
+    res.status(500).json({ message: "Không thể cập nhật danh sách station" });
   }
 });
 
-router.post("/:id/stations", authenticateAdmin, async (req, res) => {
+router.post("/:id/stations", authenticateAdmin, checkPermission("customer.assign_station"), async (req, res) => {
   try {
     const { id } = req.params;
     const { stationId } = req.body;
@@ -1163,7 +1393,7 @@ router.post("/:id/stations", authenticateAdmin, async (req, res) => {
     }
 
     if (user.station.includes(stationId)) {
-      return res.status(200).json({ message: "Trạm đã tồn tại trong user", user });
+      return res.status(200).json({ message: "Trạm đã tồn tại trong user", user: sanitizeUserForResponse(user) });
     }
 
     user.station.push(stationId);
@@ -1179,15 +1409,15 @@ router.post("/:id/stations", authenticateAdmin, async (req, res) => {
       }).save();
     } catch (logErr) { console.error("ActivityLog error in assign_user_stations post:", logErr.message); }
 
-    res.status(200).json({ message: "Đã thêm trạm", user });
+    res.status(200).json({ message: "Đã thêm trạm", user: sanitizeUserForResponse(user) });
   } catch (err) {
     console.error("Lỗi thêm trạm:", err.message);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 // Xóa người dùng theo ID
-router.delete("/:id", authenticateAdmin, async (req, res) => {
+router.delete("/:id", authenticateAdmin, checkPermission("customer.delete"), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1198,6 +1428,10 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
     const userToDelete = await User.findById(id);
     if (!userToDelete) {
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    if (["superadmin", "admin", "staff"].includes(userToDelete.role) && req.user.role !== "superadmin") {
+      return res.status(403).json({ message: "Chi Super Admin duoc xoa tai khoan Admin hoac Nhan vien" });
     }
 
     if (req.user.role === "admin") {
@@ -1224,12 +1458,12 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
     res.json({ message: "Xóa người dùng thành công" });
   } catch (error) {
     console.error("Lỗi khi xóa người dùng:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
 // Cập nhật thông tin người dùng (tên, email, số điện thoại)
-router.put("/:id", authenticateAdmin, async (req, res) => {
+router.put("/:id", authenticateAdmin, checkPermission("customer.edit"), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email, phone } = req.body;
@@ -1271,10 +1505,10 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
       }
     } catch (logErr) { console.error("ActivityLog error in update_user:", logErr.message); }
 
-    res.json({ message: "Cập nhật thông tin người dùng thành công", user });
+    res.json({ message: "Cập nhật thông tin người dùng thành công", user: sanitizeUserForResponse(user) });
   } catch (error) {
     console.error("Lỗi khi cập nhật thông tin người dùng:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1288,7 +1522,7 @@ router.get("/my-stations", authenticateUser, async (req, res) => {
     res.json({ stations: user.station });
   } catch (error) {
     console.error("Lỗi khi lấy danh sách station:", error.message);
-    res.status(500).json({ message: "Không thể lấy danh sách station", details: error.message });
+    res.status(500).json({ message: "Không thể lấy danh sách station" });
   }
 });
 
@@ -1315,7 +1549,7 @@ router.post("/autologin", authLimiter, async (req, res) => {
 
     // 2. Nếu không tìm thấy hoặc là token kiểu cũ (AES), giải mã và xác thực
     if (!user) {
-      const aesKey = process.env.AES_KEY || process.env.REACT_APP_AES_KEY || process.env.VITE_AES_KEY;
+      const aesKey = process.env.AES_KEY;
       if (aesKey) {
         try {
           const decodedToken = token.includes("%") ? decodeURIComponent(token) : token;
@@ -1387,5 +1621,7 @@ module.exports = {
   authenticateAdminOnly,
   authenticateUser,
   checkPermission,
+  checkAnyPermission,
+  hasPermission,
   getCookieOptions,
 };

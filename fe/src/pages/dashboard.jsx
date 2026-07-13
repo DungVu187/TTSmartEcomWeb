@@ -115,7 +115,7 @@ function Dashboard() {
 
   const SectionDisplayComponent = ({ sectionData, sectionName }) => {
     // Không hiển thị nếu display: false hoặc số lượng sản phẩm < 5
-    if (!sectionData.display || sectionData.productId.length < 5) return null;
+    if (!sectionData?.display || (sectionData.productId?.length || 0) < 5) return null;
 
     const sectionProducts = sectionData.productId
       .map((id) => products.find((p) => p._id === id))

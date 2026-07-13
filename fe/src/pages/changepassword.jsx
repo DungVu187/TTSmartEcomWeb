@@ -11,12 +11,14 @@ import {
   IconButton
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const ChangePassword = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -82,6 +84,12 @@ const ChangePassword = () => {
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+        try {
+          await fetch(`${apiUrl}/users/logout`, { method: 'POST', credentials: 'include' });
+        } catch (e) {
+          // Bỏ qua lỗi logout, session cũ đã bị vô hiệu và vẫn cần đưa người dùng về đăng nhập.
+        }
+        setTimeout(() => navigate('/login'), 1200);
       } else {
         toast.error(data.message || t('change_password_failed', 'Đổi mật khẩu thất bại'));
       }

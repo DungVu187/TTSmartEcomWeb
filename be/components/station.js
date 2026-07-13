@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const router = express.Router();
-const { authenticateAdmin } = require('./user');
+const { authenticateAdmin, checkPermission } = require('./user');
 const { ActivityLog } = require("./activitylog");
 require("dotenv").config();
 const multer = require("multer");
@@ -47,18 +47,21 @@ const findStationByInviteCode = async (inviteCode) => {
 
 const Station = mongoose.model("Station", stationSchema);
 
+const limitRegexInput = (value) => String(value || "").trim().slice(0, 100);
+const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const toPublicStation = (station) => {
     const obj = station.toObject ? station.toObject({ virtuals: false }) : { ...station };
     delete obj.inviteCode;
     return obj;
 };
 
-router.get("/", authenticateAdmin, async (req, res) => {
+router.get("/", authenticateAdmin, checkPermission("station.view"), async (req, res) => {
   try {
     const stations = await Station.find({});
     res.json(stations);
   } catch (error) {
-    res.status(500).json({ error: "Không thể lấy danh sách trạm", details: error.message });
+    res.status(500).json({ error: "Không thể lấy danh sách trạm" });
   }
 });
 
@@ -81,7 +84,7 @@ const uploadStationImage = multer({
   },
 });
 
-router.post("/:id/upload-image", authenticateAdmin, uploadStationImage.single("station"), async (req, res) => {
+router.post("/:id/upload-image", authenticateAdmin, checkPermission("station.edit"), uploadStationImage.single("station"), async (req, res) => {
   try {
     const stationId = req.params.id;
 
@@ -103,11 +106,11 @@ router.post("/:id/upload-image", authenticateAdmin, uploadStationImage.single("s
 
     res.json({ message: "Upload ảnh thành công", imgUrl, station });
   } catch (error) {
-    res.status(500).json({ message: "Không thể upload ảnh", error: error.message });
+    res.status(500).json({ message: "Không thể upload ảnh" });
   }
 });
 
-router.delete("/:id/remove-image", authenticateAdmin, async (req, res) => {
+router.delete("/:id/remove-image", authenticateAdmin, checkPermission("station.edit"), async (req, res) => {
   try {
     const station = await Station.findById(req.params.id);
 
@@ -129,7 +132,7 @@ router.delete("/:id/remove-image", authenticateAdmin, async (req, res) => {
 
     res.json({ message: "Xoá ảnh thành công", station });
   } catch (error) {
-    res.status(500).json({ message: "Không thể xoá ảnh", error: error.message });
+    res.status(500).json({ message: "Không thể xoá ảnh" });
   }
 });
 
@@ -138,23 +141,29 @@ router.get("/search", async (req, res) => {
     const { name, code } = req.query;
     const filter = {};
 
+    if (!name && !code) {
+      return res.status(400).json({ error: "Thiếu tên hoặc mã trạm để tìm kiếm" });
+    }
+
     if (name) {
-      filter.stationName = { $regex: name, $options: "i" };
+      const safeName = escapeRegex(limitRegexInput(name));
+      filter.stationName = { $regex: `^${safeName}$`, $options: "i" };
     }
 
     if (code) {
-      filter.stationCode = { $regex: code, $options: "i" };
+      const safeCode = escapeRegex(limitRegexInput(code));
+      filter.stationCode = { $regex: `^${safeCode}$`, $options: "i" };
     }
 
     const stations = await Station.find(filter);
     res.json({ stations: stations.map(toPublicStation) });
   } catch (error) {
-    res.status(500).json({ error: "Không thể tìm kiếm trạm", details: error.message });
+    res.status(500).json({ error: "Không thể tìm kiếm trạm" });
   }
 });
 
 // Tạo một station mới
-router.post("/", authenticateAdmin, async (req, res) => {
+router.post("/", authenticateAdmin, checkPermission("station.create"), async (req, res) => {
     try {
         const { stationName, stationCode, location, allowPublicSignup } = req.body;
         
@@ -185,12 +194,12 @@ router.post("/", authenticateAdmin, async (req, res) => {
 
         res.status(201).json(savedStation);
     } catch (error) {
-        res.status(500).json({ error: "Không thể tạo station", details: error.message });
+        res.status(500).json({ error: "Không thể tạo station" });
     }
 });
 
 // Cập nhật mảng productId
-router.put("/:id/products", authenticateAdmin, async (req, res) => {
+router.put("/:id/products", authenticateAdmin, checkPermission("station.edit"), async (req, res) => {
     try {
         const { productId } = req.body;
         const stationId = req.params.id;
@@ -224,12 +233,12 @@ router.put("/:id/products", authenticateAdmin, async (req, res) => {
 
         res.json(station);
     } catch (error) {
-        res.status(500).json({ error: "Không thể cập nhật products", details: error.message });
+        res.status(500).json({ error: "Không thể cập nhật products" });
     }
 });
 
 // Cập nhật thông tin station
-router.put("/:id", authenticateAdmin, async (req, res) => {
+router.put("/:id", authenticateAdmin, checkPermission("station.edit"), async (req, res) => {
     try {
         const { stationName, stationCode, location, allowPublicSignup } = req.body;
         const stationId = req.params.id;
@@ -278,12 +287,12 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
 
         res.json(station);
     } catch (error) {
-        res.status(500).json({ error: "Không thể cập nhật station", details: error.message });
+        res.status(500).json({ error: "Không thể cập nhật station" });
     }
 });
 
 // Xóa một station
-router.delete("/:id", authenticateAdmin, async (req, res) => {
+router.delete("/:id", authenticateAdmin, checkPermission("station.delete"), async (req, res) => {
     try {
         const stationId = req.params.id;
         const station = await Station.findByIdAndDelete(stationId);
@@ -304,7 +313,7 @@ router.delete("/:id", authenticateAdmin, async (req, res) => {
 
         res.json({ message: "Xóa station thành công" });
     } catch (error) {
-        res.status(500).json({ error: "Không thể xóa station", details: error.message });
+        res.status(500).json({ error: "Không thể xóa station" });
     }
 });
 
@@ -317,14 +326,14 @@ router.get("/public/:inviteCode", async (req, res) => {
         }
         res.json(toPublicStation(station));
     } catch (error) {
-        res.status(500).json({ error: "Không thể lấy thông tin station", details: error.message });
+        res.status(500).json({ error: "Không thể lấy thông tin station" });
     }
 });
 
 // Lấy thông tin station theo mã
 router.get("/code/:code", async (req, res, next) => {
     try {
-        const code = req.params.code;
+        const code = limitRegexInput(req.params.code);
         let station = await findStationByInviteCode(code);
 
         if (!station) {
@@ -336,7 +345,7 @@ router.get("/code/:code", async (req, res, next) => {
                     }
                     return res.json(station);
                 } catch (error) {
-                    return res.status(500).json({ error: "Không thể lấy thông tin station", details: error.message });
+                    return res.status(500).json({ error: "Không thể lấy thông tin station" });
                 }
             });
         }
@@ -347,19 +356,22 @@ router.get("/code/:code", async (req, res, next) => {
 
         res.json(station);
     } catch (error) {
-        res.status(500).json({ error: "Không thể lấy thông tin station", details: error.message });
+        res.status(500).json({ error: "Không thể lấy thông tin station" });
     }
 });
 
 router.get('/by-codes', async (req, res) => {
   try {
-    const codes = req.query.codes?.split(',') || [];
+    const codes = (req.query.codes?.split(',') || [])
+      .map((code) => limitRegexInput(code))
+      .filter(Boolean)
+      .slice(0, 50);
     if (!codes.length) return res.status(400).json({ error: 'Thiếu danh sách mã trạm' });
 
     const stations = await Station.find({ stationCode: { $in: codes } });
     res.json(stations);
   } catch (error) {
-    res.status(500).json({ error: 'Không thể lấy danh sách trạm', details: error.message });
+    res.status(500).json({ error: 'Không thể lấy danh sách trạm' });
   }
 });
 
@@ -373,7 +385,7 @@ router.post("/by-ids", async (req, res) => {
     const stations = await Station.find({ _id: { $in: ids } });
     res.json(stations);
   } catch (error) {
-    res.status(500).json({ error: "Không thể lấy danh sách trạm", details: error.message });
+    res.status(500).json({ error: "Không thể lấy danh sách trạm" });
   }
 });
 

@@ -216,10 +216,11 @@ router.get("/", async (req, res) => {
             data: manageData
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi lấy dữ liệu",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
@@ -255,7 +256,7 @@ const logManageRoute = (action, targetName) => {
 };
 
 // PUT: Cập nhật ảnh cho topPurchaseUrl, highestRatingUrl, hoặc newProductUrl
-router.put("/update", [authenticateAdmin, checkPermission('update_product')], logManageRoute("update_settings", "Cấu hình chung"), upload.array('manage', 1), async (req, res) => {
+router.put("/update", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_settings", "Cấu hình chung"), upload.array('manage', 1), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({
@@ -312,16 +313,17 @@ router.put("/update", [authenticateAdmin, checkPermission('update_product')], lo
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // POST: Thêm ảnh vào overViewImg
-router.post("/update-images", [authenticateAdmin, checkPermission('update_product')], upload.array('manage', 10), async (req, res) => {
+router.post("/update-images", [authenticateAdmin, checkPermission('storefront.manage')], upload.array('manage', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({
@@ -345,16 +347,17 @@ router.post("/update-images", [authenticateAdmin, checkPermission('update_produc
             data: manage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật mảng ảnh",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // POST: Thêm ảnh vào partners
-router.post("/update-partners", [authenticateAdmin, checkPermission('update_product')], upload.array('manage', 10), async (req, res) => {
+router.post("/update-partners", [authenticateAdmin, checkPermission('storefront.manage')], upload.array('manage', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({
@@ -378,16 +381,17 @@ router.post("/update-partners", [authenticateAdmin, checkPermission('update_prod
             data: manage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật ảnh đối tác",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // DELETE: Xóa ảnh
-router.delete("/delete-image", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.delete("/delete-image", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { imgUrl } = req.body;
 
@@ -479,16 +483,17 @@ router.delete("/delete-image", [authenticateAdmin, checkPermission('update_produ
             data: manage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi xóa ảnh",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật introduction
-router.put("/update-introduction", [authenticateAdmin, checkPermission('update_product')], logManageRoute("update_introduction", "Trang Giới thiệu"), async (req, res) => {
+router.put("/update-introduction", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_introduction", "Trang Giới thiệu"), async (req, res) => {
     try {
         const { introduction } = req.body;
 
@@ -518,16 +523,17 @@ router.put("/update-introduction", [authenticateAdmin, checkPermission('update_p
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật introduction",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật mainPolicy
-router.put("/update-policy", [authenticateAdmin, checkPermission('update_product')], logManageRoute("update_policy", "Trang Chính sách"), async (req, res) => {
+router.put("/update-policy", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_policy", "Trang Chính sách"), async (req, res) => {
     try {
         const { mainPolicy } = req.body;
 
@@ -557,16 +563,17 @@ router.put("/update-policy", [authenticateAdmin, checkPermission('update_product
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật mainPolicy",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section1
-router.put("/update-section1", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section1", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -621,16 +628,17 @@ router.put("/update-section1", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section1",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section2
-router.put("/update-section2", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section2", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -685,16 +693,17 @@ router.put("/update-section2", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section2",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section3
-router.put("/update-section3", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section3", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -749,16 +758,17 @@ router.put("/update-section3", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section3",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section4
-router.put("/update-section4", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section4", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -813,16 +823,17 @@ router.put("/update-section4", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section4",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section5
-router.put("/update-section5", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section5", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -877,16 +888,17 @@ router.put("/update-section5", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section5",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section6
-router.put("/update-section6", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section6", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -941,16 +953,17 @@ router.put("/update-section6", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section6",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section7
-router.put("/update-section7", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section7", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -1005,16 +1018,17 @@ router.put("/update-section7", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section7",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section8
-router.put("/update-section8", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section8", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -1069,16 +1083,17 @@ router.put("/update-section8", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section8",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section9
-router.put("/update-section9", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section9", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -1133,16 +1148,17 @@ router.put("/update-section9", [authenticateAdmin, checkPermission('update_produ
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section9",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // PUT: Cập nhật section10
-router.put("/update-section10", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/update-section10", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { name, productId, display } = req.body;
 
@@ -1197,10 +1213,11 @@ router.put("/update-section10", [authenticateAdmin, checkPermission('update_prod
             data: updatedManage
         });
     } catch (error) {
+        console.error("Server error:", error);
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật section10",
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });

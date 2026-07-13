@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -229,6 +229,11 @@ const IpOrderTemplate = () => {
       toast.error(err.message);
     }
   };
+
+  useEffect(() => {
+    if (index !== undefined) fetchTemplate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
 
   if (loading) return <Box display="flex" justifyContent="center" p={2}><CircularProgress /></Box>;
   if (error) return <Box p={2}><Alert severity="error">Error: {error}</Alert></Box>;

@@ -34,6 +34,39 @@ const removeVietnameseTones = (str) => {
     .toLowerCase();
 };
 
+const getHistoryLabel = (row) => {
+  const isImport = row.quantity > 0;
+
+  switch (row.source) {
+    case "order_line_manual":
+      return isImport ? "Nhập kho (gõ tay trong đơn)" : "Xuất kho (gõ tay trong đơn)";
+    case "order_line_complete":
+      return isImport ? "Nhập kho (tích hoàn thành SP)" : "Xuất kho (tích hoàn thành SP)";
+    case "order_bulk_complete":
+      return isImport ? "Nhập kho (hoàn thành cả đơn)" : "Xuất kho (hoàn thành cả đơn)";
+    case "product_manual":
+      return isImport ? "Nhập kho thủ công" : "Xuất kho thủ công";
+    case "online_sale":
+      return "Đơn hàng bán online";
+    case "online_sale_revert":
+      return "Hoàn tác đơn bán online";
+    default:
+      return row.note
+        ? row.note
+        : row.isAIScan
+        ? isImport
+          ? "Nhập đơn quét AI"
+          : "Xuất đơn quét AI"
+        : row.orderId
+        ? isImport
+          ? "Nhập kho theo đơn"
+          : "Xuất kho theo đơn"
+        : isImport
+        ? "Nhập kho thủ công"
+        : "Xuất kho thủ công";
+  }
+};
+
 const History = () => {
   const [histories, setHistories] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,18 +84,12 @@ const History = () => {
   // debounced values cho tìm kiếm chữ
   const [debouncedUserName, setDebouncedUserName] = useState("");
   const [debouncedOrderName, setDebouncedOrderName] = useState("");
+  const [filterOptions, setFilterOptions] = useState({
+    userNames: [],
+    orderNames: [],
+  });
 
   const navigate = useNavigate();
-
-  const uniqueUserNames = React.useMemo(() => {
-    const names = histories.map((h) => h.userName).filter(Boolean);
-    return Array.from(new Set(names));
-  }, [histories]);
-
-  const uniqueOrderNames = React.useMemo(() => {
-    const names = histories.map((h) => h.orderName).filter(Boolean);
-    return Array.from(new Set(names));
-  }, [histories]);
 
   // Debounce hiệu ứng gõ phím
   useEffect(() => {
@@ -112,6 +139,26 @@ const History = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, startDate, endDate, noteType, debouncedUserName, debouncedOrderName]);
 
+  const fetchFilterOptions = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/histories/filter-options`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Lá»—i khi táº£i gá»£i Ã½ lá»c lá»‹ch sá»­");
+      const data = await res.json();
+      setFilterOptions({
+        userNames: Array.isArray(data.userNames) ? data.userNames : [],
+        orderNames: Array.isArray(data.orderNames) ? data.orderNames : [],
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []);
+
   const handleResetFilters = () => {
     setUserName("");
     setOrderName("");
@@ -134,7 +181,7 @@ const History = () => {
         <Autocomplete
           freeSolo
           size="small"
-          options={uniqueUserNames}
+          options={filterOptions.userNames}
           value={userName}
           onInputChange={(event, newInputValue) => {
             setUserName(newInputValue);
@@ -163,7 +210,7 @@ const History = () => {
         <Autocomplete
           freeSolo
           size="small"
-          options={uniqueOrderNames}
+          options={filterOptions.orderNames}
           value={orderName}
           onInputChange={(event, newInputValue) => {
             setOrderName(newInputValue);
@@ -231,6 +278,10 @@ const History = () => {
           <option value="xuat_thu_cong">Xuất kho thủ công</option>
           <option value="nhap_ai">Nhập đơn quét AI</option>
           <option value="xuat_ai">Xuất đơn quét AI</option>
+          <option value="order_line_manual">Trong đơn - gõ tay</option>
+          <option value="order_line_complete">Trong đơn - tích hoàn thành SP</option>
+          <option value="order_bulk_complete">Trong đơn - hoàn thành cả đơn</option>
+          <option value="product_manual">Kho thủ công (trang SP)</option>
           <option value="ban_online">Đơn hàng bán online</option>
         </TextField>
         <Button variant="outlined" color="secondary" onClick={handleResetFilters}>
@@ -262,7 +313,7 @@ const History = () => {
             </FormControl>
           </Box>
 
-          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 280px)", overflowX: "auto" }}>
+          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 220px)", overflowX: "auto" }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
@@ -321,19 +372,7 @@ const History = () => {
                     </TableCell>
                     <TableCell align="center">{row.quantity}</TableCell>
                     <TableCell align="center">
-                      {row.note
-                        ? row.note
-                        : row.isAIScan
-                        ? row.quantity > 0
-                          ? "Nhập đơn quét AI"
-                          : "Xuất đơn quét AI"
-                        : row.orderId
-                        ? row.quantity > 0
-                          ? "Nhập kho theo đơn"
-                          : "Xuất kho theo đơn"
-                        : row.quantity > 0
-                        ? "Nhập kho thủ công"
-                        : "Xuất kho thủ công"}
+                      {getHistoryLabel(row)}
                     </TableCell>
                     <TableCell align="center">
                       {moment(row.createdAt).format("DD/MM/YYYY HH:mm")}

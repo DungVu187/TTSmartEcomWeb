@@ -1,9 +1,9 @@
 const express = require('express');
 const mongoose = require("mongoose");
 
-const authenticateAdmin = (req, res, next) => {
+const authenticateAdminOnly = (req, res, next) => {
     const userModule = require("./user");
-    return userModule.authenticateAdmin(req, res, next);
+    return userModule.authenticateAdminOnly(req, res, next);
 };
 
 // Định nghĩa schema
@@ -87,6 +87,12 @@ const ACTION_LABELS = {
     // Zalo settings
     update_zalo_settings: 'Cập nhật cấu hình Zalo OA',
 
+    // Telegram settings
+    update_telegram_settings: 'Cập nhật cấu hình Telegram',
+    create_telegram_recipient: 'Thêm người/nhóm nhận Telegram',
+    update_telegram_recipient: 'Sửa người/nhóm nhận Telegram',
+    delete_telegram_recipient: 'Xóa người/nhóm nhận Telegram',
+
     // Voice vocabulary (từ vựng tìm kiếm bằng giọng nói)
     create_voice_vocab: 'Thêm từ vựng voice',
     update_voice_vocab: 'Sửa từ vựng voice',
@@ -94,7 +100,7 @@ const ACTION_LABELS = {
 };
 
 // API lấy danh sách lịch sử hoạt động
-router.get("/", authenticateAdmin, async (req, res) => {
+router.get("/", authenticateAdminOnly, async (req, res) => {
     try {
         let { page = 1, limit = 20, startDate, endDate, userName, productName, action } = req.query;
 
@@ -149,7 +155,7 @@ router.get("/", authenticateAdmin, async (req, res) => {
         });
     } catch (error) {
         console.error("Error fetching activity logs:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
+        res.status(500).json({ message: "Server error" });
     }
 });
 

@@ -94,7 +94,6 @@ const sendNewOrderNotification = async (orderInfo) => {
       subject: `Đơn hàng mới #${orderId} — ${totalFormatted}`,
       html: htmlBody,
     });
-    console.log(`Đã gửi email thông báo đơn hàng mới đến ${adminEmail}`);
   } catch (err) {
     // Không throw — tránh làm hỏng response tạo đơn
     console.error('Gửi email thất bại:', err.message);

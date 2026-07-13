@@ -33,6 +33,18 @@ const storageHistorySchema = new mongoose.Schema({
     isAIScan: {
         type: Boolean,
         default: false
+    },
+    source: {
+        type: String,
+        enum: [
+            "order_line_manual",
+            "order_line_complete",
+            "order_bulk_complete",
+            "product_manual",
+            "online_sale",
+            "online_sale_revert",
+        ],
+        default: undefined,
     }
 }, { timestamps: true });
 
@@ -40,7 +52,13 @@ const StorageHistory = mongoose.models.StorageHistory || mongoose.model("Storage
 
 const router = express.Router();
 
-router.get("/", authenticateAdmin, async (req, res) => {
+const sortTextOptions = (items) =>
+    items
+        .filter((item) => typeof item === "string" && item.trim())
+        .map((item) => item.trim())
+        .sort((a, b) => a.localeCompare(b, "vi", { sensitivity: "base" }));
+
+router.get("/", authenticateAdmin, checkPermission("history.view"), async (req, res) => {
     try {
         let { page = 1, limit = 20, startDate, endDate, orderName, userName, noteType } = req.query;
 
@@ -77,28 +95,46 @@ router.get("/", authenticateAdmin, async (req, res) => {
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $nin: [null, ""] };
                 filter.isAIScan = { $ne: true };
+                filter.source = { $exists: false };
                 filter.note = { $nin: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] };
             } else if (noteType === 'xuat_don') {
                 filter.quantity = { $lt: 0 };
                 filter.orderName = { $nin: [null, ""] };
                 filter.isAIScan = { $ne: true };
+                filter.source = { $exists: false };
                 filter.note = { $nin: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] };
             } else if (noteType === 'nhap_thu_cong') {
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $in: [null, ""] };
                 filter.isAIScan = { $ne: true };
+                filter.source = { $exists: false };
             } else if (noteType === 'xuat_thu_cong') {
                 filter.quantity = { $lt: 0 };
                 filter.orderName = { $in: [null, ""] };
                 filter.isAIScan = { $ne: true };
+                filter.source = { $exists: false };
             } else if (noteType === 'nhap_ai') {
                 filter.quantity = { $gt: 0 };
                 filter.isAIScan = true;
             } else if (noteType === 'xuat_ai') {
                 filter.quantity = { $lt: 0 };
                 filter.isAIScan = true;
+            } else if (noteType === 'order_line_manual') {
+                filter.source = 'order_line_manual';
+            } else if (noteType === 'order_line_complete') {
+                filter.source = 'order_line_complete';
+            } else if (noteType === 'order_bulk_complete') {
+                filter.source = 'order_bulk_complete';
+            } else if (noteType === 'product_manual') {
+                filter.source = 'product_manual';
             } else if (noteType === 'ban_online') {
-                filter.note = { $in: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] };
+                filter.$or = [
+                    { source: { $in: ['online_sale', 'online_sale_revert'] } },
+                    {
+                        source: { $exists: false },
+                        note: { $in: ["Đơn hàng bán online", "Hoàn tác đơn bán online"] }
+                    }
+                ];
             }
         }
 
@@ -120,11 +156,29 @@ router.get("/", authenticateAdmin, async (req, res) => {
         });
     } catch (error) {
         console.error("Error fetching storage history:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
+        res.status(500).json({ message: "Server error" });
     }
 });
 
-router.get("/:id", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.get("/filter-options", authenticateAdmin, checkPermission("history.view"), async (req, res) => {
+    try {
+        const [userNames, orderNames] = await Promise.all([
+            StorageHistory.distinct("userName", { userName: { $nin: [null, ""] } }),
+            StorageHistory.distinct("orderName", { orderName: { $nin: [null, ""] } })
+        ]);
+
+        res.status(200).json({
+            success: true,
+            userNames: sortTextOptions(userNames),
+            orderNames: sortTextOptions(orderNames)
+        });
+    } catch (error) {
+        console.error("Error fetching storage history filter options:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+router.get("/:id", [authenticateAdmin, checkPermission("history.view")], async (req, res) => {
     try {
         const { id } = req.params;
         let { page = 1, limit = 20, startDate, endDate } = req.query;
@@ -167,11 +221,11 @@ router.get("/:id", [authenticateAdmin, checkPermission('update_product')], async
         });
     } catch (error) {
         console.error("Error fetching storage history by product:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
+        res.status(500).json({ message: "Server error" });
     }
 });
 
-router.put("/update-ordername", authenticateAdmin, async (req, res) => {
+router.put("/update-ordername", authenticateAdmin, checkPermission("history.view"), async (req, res) => {
     try {
         const { orderId, newOrderName } = req.body;
 
@@ -190,7 +244,7 @@ router.put("/update-ordername", authenticateAdmin, async (req, res) => {
         });
     } catch (error) {
         console.error("Error updating orderName:", error);
-        res.status(500).json({ success: false, message: "Server error", error: error.message });
+        res.status(500).json({ success: false, message: "Server error" });
     }
 });
 

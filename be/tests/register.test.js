@@ -126,7 +126,7 @@ describe('Registration API Tests (Phase 5 - Admin-only Register)', () => {
     expect(createdUser.role).toBe('customer'); // Bị ép về customer
   });
 
-  it('Test Case 5: Khi PUBLIC_SIGNUP_ENABLED=false, tài khoản staff đăng ký chỉ được tạo role=customer và permissions rỗng', async () => {
+  it('Test Case 5: Khi PUBLIC_SIGNUP_ENABLED=false, staff thiếu customer.create không được tạo tài khoản', async () => {
     process.env.PUBLIC_SIGNUP_ENABLED = 'false';
 
     // 1. Tạo staff
@@ -152,17 +152,14 @@ describe('Registration API Tests (Phase 5 - Admin-only Register)', () => {
         password: 'password123',
         name: 'Created by Staff',
         role: 'admin',
-        permissions: ['read_order', 'update_product']
+        permissions: ['read_order', 'product.edit']
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body.message).toBe('User created successfully');
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe('Nhân viên chỉ được tạo tài khoản khách hàng');
 
     const createdUser = await User.findOne({ phone: '0900000008' });
-    expect(createdUser).toBeDefined();
-    expect(createdUser.name).toBe('Created by Staff');
-    expect(createdUser.role).toBe('customer'); // Bị ép về customer
-    expect(createdUser.permissions).toEqual([]); // Bị ép về rỗng
+    expect(createdUser).toBeNull();
   });
 
   it('Test Case 6: Dang ky cong khai bang stationCode/inviteCode don gian phai thanh cong', async () => {

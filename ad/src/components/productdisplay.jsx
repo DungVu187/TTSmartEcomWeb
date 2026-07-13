@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   TextField,
@@ -19,7 +19,14 @@ import DownloadIcon from "@mui/icons-material/Download";
 import { NumericFormat } from "react-number-format";
 import toast from "react-hot-toast";
 import QRCode from "qrcode";
+import { usePermissions } from "../context/permissioncontext";
+import {
+  PRODUCT_IMAGE_ACCEPT,
+  PRODUCT_IMAGE_UPLOAD_SETTINGS,
+} from "../settings/imageUpload";
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join(", ");
 
 const hasValue = (value) => {
   const normalized = String(value ?? "")
@@ -39,9 +46,46 @@ const isProductAdjusted = (productData) => {
   );
 };
 
+const parseLocalizedNumber = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const normalized = String(value).replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const calculateSalePrice = (importPrice, earn, fallbackPrice) => {
+  const importPriceNum = parseLocalizedNumber(importPrice);
+  if (importPriceNum === null) return fallbackPrice || "";
+
+  const earnNum = Number(earn) || 0;
+  const rawPrice = importPriceNum * (1 + earnNum / 100);
+  return String(Math.ceil(rawPrice / 1000) * 1000);
+};
+
+const metricRowSx = {
+  display: "flex",
+  alignItems: "center",
+  gap: 1.5,
+  mt: 1.5,
+  maxWidth: 900,
+};
+
+const metricButtonSx = {
+  width: 180,
+  minWidth: 180,
+  flexShrink: 0,
+  justifyContent: "center",
+  whiteSpace: "nowrap",
+  textAlign: "center",
+};
+
 const ProductDisplay = () => {
   const { productId } = useParams();
+  const { can } = usePermissions();
+  const canEdit = can("product.edit");
+  const canDelete = can("product.delete");
   const [product, setProduct] = useState(null);
+  const [originalProduct, setOriginalProduct] = useState(null);
   const [brands, setBrands] = useState([]);
   const [types, setTypes] = useState([]);
   const [sections, setSections] = useState([]);
@@ -58,6 +102,7 @@ const ProductDisplay = () => {
       if (response.ok) {
         const data = await response.json();
         setProduct(data);
+        setOriginalProduct(data);
         setNoteInput(data.variant?.[0]?.note || "");
         setEarnInput(data.variant?.[0]?.earn || "");
       }
@@ -73,6 +118,24 @@ const ProductDisplay = () => {
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const extension = `.${file.name.split(".").pop()?.toLowerCase() || ""}`;
+    const hasAllowedExtension = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.includes(extension);
+    const hasAllowedMime = file.type
+      ? PRODUCT_IMAGE_UPLOAD_SETTINGS.mimeTypes.includes(file.type)
+      : true;
+
+    if (file.size > PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeBytes) {
+      toast.error(`Dung lượng ảnh tối đa ${PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeLabel}`);
+      e.target.value = "";
+      return;
+    }
+
+    if (!hasAllowedExtension || !hasAllowedMime) {
+      toast.error(`Chỉ chấp nhận ảnh: ${productImageExtensionsText}`);
+      e.target.value = "";
+      return;
+    }
 
     if (product?.variant?.[0]?.imgUrl) {
       try {
@@ -134,6 +197,15 @@ const ProductDisplay = () => {
       const variantData = updatedProduct.variant?.length
         ? updatedProduct.variant[0]
         : {};
+      const originalVariantData = originalProduct?.variant?.length
+        ? originalProduct.variant[0]
+        : {};
+      const nextEarn = earnInput !== "" ? Number(earnInput) : (Number(variantData.earn) || 0);
+      const nextPrice = calculateSalePrice(
+        variantData.importPrice,
+        nextEarn,
+        variantData.price
+      );
 
       const productData = {
         name: updatedProduct.name || "",
@@ -159,11 +231,11 @@ const ProductDisplay = () => {
         },
         variant: [
           {
-            price: variantData.price || "",
+            price: nextPrice,
             importPrice: variantData.importPrice || "",
-            earn: earnInput !== "" ? Number(earnInput) : (Number(variantData.earn) || 0),
-            quantityForSale: Number(variantData.quantityForSale) || 0,
-            quantityInStorage: Number(variantData.quantityInStorage) || 0,
+            earn: nextEarn,
+            quantityForSale: Number(originalVariantData.quantityForSale) || 0,
+            quantityInStorage: Number(originalVariantData.quantityInStorage) || 0,
             imgUrl: variantData.imgUrl || "",
             note: noteInput !== "" ? noteInput : (variantData.note || ""),
             color: variantData.color || "",
@@ -410,8 +482,8 @@ const ProductDisplay = () => {
     if (!product) return;
 
     try {
-    const qrContent = `${window.location.origin}/product/${productId}`;
-const url = await QRCode.toDataURL(qrContent);
+      const qrContent = `${window.location.origin}/product/${productId}`;
+      const url = await QRCode.toDataURL(qrContent);
       setQrCodeUrl(url);
       setOpenQRDialog(true);
     } catch (err) {
@@ -457,63 +529,71 @@ const url = await QRCode.toDataURL(qrContent);
               boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
             }}
           >
-            <Button
-              onClick={() => handleProductUpdate()}
-              variant="contained"
-              color="success"
-              size="small"
-            >
-              Cập nhật sản phẩm
-            </Button>
-            <Button
-              onClick={handleDeleteProduct}
-              variant="contained"
-              color="error"
-              size="small"
-            >
-              Xóa sản phẩm
-            </Button>
+            {canEdit && (
+              <Button
+                onClick={() => handleProductUpdate()}
+                variant="contained"
+                color="success"
+                size="small"
+              >
+                Cập nhật sản phẩm
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                onClick={handleDeleteProduct}
+                variant="contained"
+                color="error"
+                size="small"
+              >
+                Xóa sản phẩm
+              </Button>
+            )}
             <Button onClick={generateQRCode} variant="contained" size="small">
               Tạo mã QR
             </Button>
-            <Button variant="contained" component="label" size="small">
-              Thêm ảnh
-              <input
-                id="imageUpload"
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={handleImageUpload}
-              />
-            </Button>
-            <Box
-              onClick={handleToggleDisplay}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0,
-                border: "1px solid",
+            {canEdit && (
+              <Button variant="contained" component="label" size="small">
+                Thêm ảnh
+                <input
+                  id="imageUpload"
+                  type="file"
+                  accept={PRODUCT_IMAGE_ACCEPT}
+                  hidden
+                  onChange={handleImageUpload}
+                />
+              </Button>
+            )}
+            {canEdit && (
+              <Box
+                onClick={handleToggleDisplay}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0,
+                  border: "1px solid",
                   borderColor: "primary.main",
                   borderRadius: 1,
                   pl: 1,
                   pr: 0.5,
                   height: "30px",
                   cursor: "pointer",
-                userSelect: "none",
-                "&:hover": { backgroundColor: "rgba(25,118,210,0.08)" },
-              }}
-            >
+                  userSelect: "none",
+                  "&:hover": { backgroundColor: "rgba(25,118,210,0.08)" },
+                }}
+              >
                 <Typography sx={{ fontSize: "0.8125rem", color: "primary.main", lineHeight: 1 }}>Hiển thị</Typography>
-              <Checkbox
-                size="small"
-                checked={product.display}
-                color="primary"
-                disableRipple
-                onClick={(e) => e.stopPropagation()}
-                onChange={handleToggleDisplay}
-                sx={{ p: "4px" }}
-              />
-            </Box>
+                <Checkbox
+                  size="small"
+                  checked={product.display}
+                  color="primary"
+                  disableRipple
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={handleToggleDisplay}
+                  sx={{ p: "4px" }}
+                />
+              </Box>
+            )}
           </Box>
           <Box sx={{ height: 62, mb: 2 }} />
 
@@ -524,8 +604,10 @@ const url = await QRCode.toDataURL(qrContent);
                 sx={{ width: "400px", height: "300px", objectFit: "contain" }}
                 image={product.variant?.[0]?.imgUrl}
                 alt="Product image"
-                onClick={() => document.getElementById("imageUpload").click()}
-                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  if (canEdit) document.getElementById("imageUpload")?.click();
+                }}
+                style={{ cursor: canEdit ? "pointer" : "default" }}
               />
             </Card>
           ) : (
@@ -545,12 +627,7 @@ const url = await QRCode.toDataURL(qrContent);
           </Typography>
 
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              mt: 2,
-            }}
+            sx={{ ...metricRowSx, mt: 2 }}
           >
             <NumericFormat
               label="Giá nhà cung cấp"
@@ -569,28 +646,26 @@ const url = await QRCode.toDataURL(qrContent);
                   ],
                 })
               }
+              disabled={!canEdit}
               fullWidth
               size="small"
               sx={{ flex: 1 }}
             />
+            {canEdit && (
             <Button
               onClick={handleUpdateImportPrice}
               variant="contained"
               color="primary"
               size="small"
-              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+              sx={metricButtonSx}
             >
               Cập nhật giá nhập
             </Button>
+            )}
           </Box>
 
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              mt: 1.5,
-            }}
+            sx={metricRowSx}
           >
             <TextField
               type="number"
@@ -598,53 +673,24 @@ const url = await QRCode.toDataURL(qrContent);
               onChange={(e) => setEarnInput(e.target.value)}
               label="% Lợi nhuận"
               size="small"
+              disabled={!canEdit}
               sx={{ flex: 1 }}
             />
+            {canEdit && (
             <Button
               onClick={handleUpdateEarn}
               variant="contained"
               color="primary"
               size="small"
-              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+              sx={metricButtonSx}
             >
               Cập nhật % lợi nhuận
             </Button>
+            )}
           </Box>
 
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              mt: 1.5,
-            }}
-          >
-            <TextField
-              type="number"
-              value={quantityInput}
-              onChange={(e) => setQuantityInput(e.target.value)}
-              label="Nhập số lượng"
-              size="small"
-              sx={{ flex: 1 }}
-            />
-            <Button
-              onClick={handleUpdateQuantity}
-              variant="contained"
-              color="primary"
-              size="small"
-              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
-            >
-              Nhập số lượng
-            </Button>
-          </Box>
-
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              mt: 1.5,
-            }}
+            sx={metricRowSx}
           >
             <TextField
               multiline
@@ -652,21 +698,49 @@ const url = await QRCode.toDataURL(qrContent);
               onChange={(e) => setNoteInput(e.target.value)}
               label="Ghi chú"
               size="small"
+              disabled={!canEdit}
               sx={{ flex: 1 }}
             />
+            {canEdit && (
             <Button
               onClick={handleSaveNote}
               variant="contained"
               color="primary"
               size="small"
-              sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+              sx={metricButtonSx}
             >
               Lưu ghi chú
             </Button>
+            )}
+          </Box>
+
+          <Box
+            sx={metricRowSx}
+          >
+            <TextField
+              type="number"
+              value={quantityInput}
+              onChange={(e) => setQuantityInput(e.target.value)}
+              label="Nhập số lượng"
+              size="small"
+              disabled={!canEdit}
+              sx={{ flex: 1 }}
+            />
+            {canEdit && (
+            <Button
+              onClick={handleUpdateQuantity}
+              variant="contained"
+              color="primary"
+              size="small"
+              sx={metricButtonSx}
+            >
+              Nhập số lượng
+            </Button>
+            )}
           </Box>
 
           <TextField
-            label="Số lượng đang bán"
+            label="Số lượng đang bán (Hiển thị ở trang bán hàng)"
             value={product.variant?.[0]?.quantityForSale || ""}
             onChange={(e) =>
               setProduct({
@@ -679,6 +753,7 @@ const url = await QRCode.toDataURL(qrContent);
                 ],
               })
             }
+            disabled={!canEdit}
             fullWidth
             margin="normal"
             size="small"
@@ -698,6 +773,7 @@ const url = await QRCode.toDataURL(qrContent);
                 ],
               })
             }
+            disabled={!canEdit}
             fullWidth
             margin="normal"
             size="small"
@@ -708,6 +784,7 @@ const url = await QRCode.toDataURL(qrContent);
             <Autocomplete
               value={product.type || null}
               options={types}
+              disabled={!canEdit}
               onChange={(e, newValue) =>
                 setProduct({ ...product, type: newValue })
               }
@@ -725,6 +802,7 @@ const url = await QRCode.toDataURL(qrContent);
             <Autocomplete
               value={product.brand || null}
               options={brands}
+              disabled={!canEdit}
               onChange={(e, newValue) =>
                 setProduct({ ...product, brand: newValue })
               }
@@ -745,6 +823,7 @@ const url = await QRCode.toDataURL(qrContent);
             <Autocomplete
               value={product.section || null}
               options={sections}
+              disabled={!canEdit}
               onChange={(e, newValue) =>
                 setProduct({ ...product, section: newValue })
               }
@@ -765,7 +844,7 @@ const url = await QRCode.toDataURL(qrContent);
               onChange={(e, newValue) =>
                 setProduct({ ...product, value: newValue })
               }
-              disabled={values.length === 0}
+              disabled={!canEdit || values.length === 0}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -785,6 +864,7 @@ const url = await QRCode.toDataURL(qrContent);
             size="small"
             value={product.name || ""}
             onChange={(e) => setProduct({ ...product, name: e.target.value })}
+            disabled={!canEdit}
           />
           <TextField
             label="Mã sản phẩm"
@@ -793,6 +873,7 @@ const url = await QRCode.toDataURL(qrContent);
             size="small"
             value={product.code || ""}
             onChange={(e) => setProduct({ ...product, code: e.target.value })}
+            disabled={!canEdit}
           />
           <TextField
             label="VAT"
@@ -801,6 +882,7 @@ const url = await QRCode.toDataURL(qrContent);
             size="small"
             value={product.vat || ""}
             onChange={(e) => setProduct({ ...product, vat: e.target.value })}
+            disabled={!canEdit}
           />
           <TextField
             label="Bảo hành"
@@ -811,6 +893,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, warranty: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -822,6 +905,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, solution: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -833,6 +917,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, description: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -844,6 +929,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, features: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -855,6 +941,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, operatingMethod: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -866,6 +953,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, advantages: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -877,6 +965,7 @@ const url = await QRCode.toDataURL(qrContent);
             onChange={(e) =>
               setProduct({ ...product, specifications: e.target.value })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -891,6 +980,7 @@ const url = await QRCode.toDataURL(qrContent);
                 infoDoc: { ...product.infoDoc, manual: e.target.value },
               })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -905,6 +995,7 @@ const url = await QRCode.toDataURL(qrContent);
                 infoDoc: { ...product.infoDoc, dataSheet: e.target.value },
               })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -919,6 +1010,7 @@ const url = await QRCode.toDataURL(qrContent);
                 infoDoc: { ...product.infoDoc, catalog: e.target.value },
               })
             }
+            disabled={!canEdit}
           />
 
           <TextField
@@ -933,6 +1025,7 @@ const url = await QRCode.toDataURL(qrContent);
                 infoDoc: { ...product.infoDoc, others: e.target.value },
               })
             }
+            disabled={!canEdit}
           />
           <Dialog open={openQRDialog} onClose={handleCloseQRDialog}>
             <DialogTitle>QR Code</DialogTitle>

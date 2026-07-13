@@ -1,5 +1,4 @@
 
-import * as React from "react";
 import { useState } from "react";
 import { CssVarsProvider, extendTheme } from "@mui/joy/styles";
 import CssBaseline from "@mui/joy/CssBaseline";
@@ -100,7 +99,7 @@ export default function SignInPage() {
           toast.error(data.message || "Đăng nhập thất bại!");
         }
       }
-    } catch (error) {
+    } catch {
       setError("Không thể kết nối đến server. Vui lòng thử lại sau.");
       toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau!");
     } finally {
@@ -135,7 +134,7 @@ export default function SignInPage() {
       } else {
         toast.error(data.message);
       }
-    } catch (error) {
+    } catch {
       toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau!");
     } finally {
       setForgotLoading(false);
@@ -180,7 +179,7 @@ export default function SignInPage() {
       } else {
         toast.error(data.message);
       }
-    } catch (error) {
+    } catch {
       toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau!");
     } finally {
       setForgotLoading(false);

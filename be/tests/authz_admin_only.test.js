@@ -42,7 +42,7 @@ describe('Admin-only authorization regression tests', () => {
       name: 'Staff User',
       role: 'staff',
       functions: ['order_management'],
-      permissions: ['read_order']
+      permissions: ['order.view']
     });
     await staff.save();
 
@@ -115,6 +115,30 @@ describe('Admin-only authorization regression tests', () => {
     await customerAgent
       .get('/zalo/settings')
       .expect(403);
+  });
+
+  it('keeps activity logs admin-only', async () => {
+    await ActivityLog.create({
+      userName: 'Admin User',
+      action: 'create_product',
+      productName: 'Sample Product',
+    });
+
+    await adminAgent
+      .get('/activity-logs')
+      .expect(200);
+
+    await staffAgent
+      .get('/activity-logs')
+      .expect(403);
+
+    await customerAgent
+      .get('/activity-logs')
+      .expect(403);
+
+    await request(app)
+      .get('/activity-logs')
+      .expect(401);
   });
 
   it('still allows staff to access routes through granted permissions', async () => {

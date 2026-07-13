@@ -20,6 +20,45 @@ afterEach(async () => {
   await User.deleteMany({});
 });
 
+const createProductPayload = (overrides = {}) => ({
+  type: 'PLC',
+  name: `Permission Product ${Date.now()} ${Math.random()}`,
+  brand: 'Siemens',
+  section: 'Automation',
+  value: 'PLC',
+  code: `PERM-${Date.now()}-${Math.random()}`,
+  warranty: '12 months',
+  variant: [{
+    price: '100000',
+    color: 'Gray',
+    quantityForSale: 10,
+    quantityInStorage: 10
+  }],
+  ...overrides
+});
+
+const createProductDoc = async (overrides = {}) => Product.create(createProductPayload(overrides));
+
+const createStaffAgent = async ({ phone, permissions = [], functions = ['product_management'] }) => {
+  await new User({
+    phone,
+    password: 'password123',
+    name: `Staff ${phone}`,
+    role: 'staff',
+    functions,
+    permissions
+  }).save();
+
+  const agent = request.agent(app);
+  const loginRes = await agent
+    .post('/users/admin/login')
+    .send({ phone, password: 'password123' });
+
+  expect(loginRes.status).toBe(200);
+  expect(loginRes.headers['set-cookie']).toBeDefined();
+  return agent;
+};
+
 describe('Products API Tests (Phase 4)', () => {
   it('Test Case 7: GET /products phân trang và bộ lọc hoạt động chính xác', async () => {
     // 1. Thêm một vài sản phẩm mẫu trực tiếp vào DB test
@@ -234,6 +273,126 @@ describe('Products API Tests (Phase 4)', () => {
 
     expect(resNoFile.status).toBe(400);
     expect(resNoFile.body.message).toContain('Không nhận được file âm thanh nào');
+  });
+  it('staff with product.create can create products and staff without it gets 403', async () => {
+    const allowedAgent = await createStaffAgent({
+      phone: '0987654331',
+      permissions: ['product.create']
+    });
+    const blockedAgent = await createStaffAgent({
+      phone: '0987654332',
+      permissions: []
+    });
+
+    const allowed = await allowedAgent
+      .post('/products/create')
+      .send(createProductPayload({ name: 'Staff Product Create OK', code: 'STAFF-CREATE-OK' }));
+
+    expect(allowed.status).toBe(201);
+    expect(allowed.body.product.name).toBe('Staff Product Create OK');
+
+    const blocked = await blockedAgent
+      .post('/products/create')
+      .send(createProductPayload({ name: 'Staff Product Create Blocked', code: 'STAFF-CREATE-BLOCKED' }));
+
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.message).toBe('Access denied, missing permission: product.create');
+  });
+
+  it('staff with product.edit can edit products and create-only staff cannot edit', async () => {
+    const product = await createProductDoc({ name: 'Editable Product', code: 'EDITABLE-PRODUCT' });
+    const allowedAgent = await createStaffAgent({
+      phone: '0987654333',
+      permissions: ['product.edit']
+    });
+    const createOnlyAgent = await createStaffAgent({
+      phone: '0987654334',
+      permissions: ['product.create']
+    });
+
+    const allowed = await allowedAgent
+      .put(`/products/${product._id}`)
+      .send({ name: 'Edited Product' });
+
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.name).toBe('Edited Product');
+
+    const blocked = await createOnlyAgent
+      .put(`/products/${product._id}`)
+      .send({ name: 'Blocked Edit Product' });
+
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.message).toBe('Access denied, missing permission: product.edit');
+  });
+
+  it('staff with product.delete can delete products and staff without it gets 403', async () => {
+    const deletable = await createProductDoc({ name: 'Deletable Product', code: 'DELETABLE-PRODUCT' });
+    const protectedProduct = await createProductDoc({ name: 'Protected Product', code: 'PROTECTED-PRODUCT' });
+    const allowedAgent = await createStaffAgent({
+      phone: '0987654335',
+      permissions: ['product.delete']
+    });
+    const blockedAgent = await createStaffAgent({
+      phone: '0987654336',
+      permissions: ['product.edit']
+    });
+
+    const allowed = await allowedAgent.delete(`/products/${deletable._id}`);
+    expect(allowed.status).toBe(200);
+    expect(await Product.findById(deletable._id)).toBeNull();
+
+    const blocked = await blockedAgent.delete(`/products/${protectedProduct._id}`);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.message).toBe('Access denied, missing permission: product.delete');
+    expect(await Product.findById(protectedProduct._id)).toBeDefined();
+  });
+
+  it('scan invoice accepts any scan permission and blocks staff without scan permission', async () => {
+    const orderScanAgent = await createStaffAgent({
+      phone: '0987654337',
+      permissions: ['order.scan_ai']
+    });
+    const iporderScanAgent = await createStaffAgent({
+      phone: '0987654338',
+      permissions: ['iporder.scan_ai']
+    });
+    const eporderScanAgent = await createStaffAgent({
+      phone: '0987654339',
+      permissions: ['eporder.scan_ai']
+    });
+    const blockedAgent = await createStaffAgent({
+      phone: '0987654340',
+      permissions: []
+    });
+
+    const orderScan = await orderScanAgent.post('/products/scan-invoice');
+    expect(orderScan.status).not.toBe(403);
+
+    const iporderScan = await iporderScanAgent.post('/products/scan-invoice');
+    expect(iporderScan.status).not.toBe(403);
+
+    const eporderScan = await eporderScanAgent.post('/products/scan-invoice');
+    expect(eporderScan.status).not.toBe(403);
+
+    const blocked = await blockedAgent.post('/products/scan-invoice');
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.message).toBe(
+      'Access denied, missing one of permissions: order.scan_ai, iporder.scan_ai, eporder.scan_ai'
+    );
+  });
+
+  it('DELETE /products/clean-temp-image requires product.edit', async () => {
+    const agent = await createStaffAgent({
+      phone: '0987654341',
+      permissions: ['product.create']
+    });
+
+    const res = await agent
+      .delete('/products/clean-temp-image')
+      .query({ imageUrl: '/invoice-images/temp.webp' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe('Access denied, missing permission: product.edit');
   });
 });
 describe('Product code normalized duplicate validation', () => {

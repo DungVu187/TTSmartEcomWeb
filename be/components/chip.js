@@ -113,7 +113,7 @@ const Chip = mongoose.model("Chip", chipSchema);
 const Section = mongoose.model("Section", sectionSchema);
 const router = express.Router();
 
-router.post("/addValue", authenticateAdmin, async (req, res) => {
+router.post("/addValue", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const { type, value } = req.body;
     const chip = await Chip.findOne({});
@@ -137,11 +137,12 @@ router.post("/addValue", authenticateAdmin, async (req, res) => {
       res.status(200).json({ message: `New chip created with ${type}` });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Error adding chip value:", error);
+    res.status(500).json({ message: "Lỗi server khi thêm thuộc tính chip" });
   }
 });
 
-router.post("/removeValue", authenticateAdmin, async (req, res) => {
+router.post("/removeValue", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   const { type, value } = req.body;
   if (!type || !value) {
     return res.status(400).json({ message: "Cần có type và value để xóa." });
@@ -160,9 +161,10 @@ router.post("/removeValue", authenticateAdmin, async (req, res) => {
       res.status(404).json({ message: "Không tìm thấy chip phù hợp để xóa" });
     }
   } catch (error) {
+    console.error("Error removing chip value:", error);
     res
       .status(500)
-      .json({ message: "Có lỗi xảy ra khi xóa chip.", error: error.message });
+      .json({ message: "Có lỗi xảy ra khi xóa chip." });
   }
 });
 
@@ -180,7 +182,8 @@ router.get("/getValues", async (req, res) => {
       res.status(400).json({ message: "No chip found" });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Error fetching chip values:", error);
+    res.status(500).json({ message: "Lỗi server khi lấy thuộc tính chip" });
   }
 });
 
@@ -190,11 +193,12 @@ router.get("/brands", async (req, res) => {
     const brands = await Brand.find();
     res.status(200).json(brands);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error fetching brands:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy danh sách thương hiệu" });
   }
 });
 
-router.post("/brands", authenticateAdmin, async (req, res) => {
+router.post("/brands", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   const brand = new Brand({
     Brand: req.body.Brand,
   });
@@ -217,7 +221,7 @@ router.post("/brands", authenticateAdmin, async (req, res) => {
   }
 });
 
-router.delete("/brands/:id", authenticateAdmin, async (req, res) => {
+router.delete("/brands/:id", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const brand = await Brand.findByIdAndDelete(req.params.id);
     if (!brand) return res.status(404).json({ message: "Brand not found" });
@@ -234,7 +238,8 @@ router.delete("/brands/:id", authenticateAdmin, async (req, res) => {
 
     res.status(200).json({ message: "Brand deleted" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error deleting brand:", err);
+    res.status(500).json({ message: "Lỗi server khi xóa thương hiệu" });
   }
 });
 
@@ -244,11 +249,12 @@ router.get("/types", async (req, res) => {
     const types = await Type.find();
     res.status(200).json(types);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error fetching types:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy danh sách loại sản phẩm" });
   }
 });
 
-router.post("/types", authenticateAdmin, async (req, res) => {
+router.post("/types", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   const type = new Type({
     Type: req.body.Type,
   });
@@ -272,7 +278,7 @@ router.post("/types", authenticateAdmin, async (req, res) => {
   }
 });
 
-router.delete("/types/:id", authenticateAdmin, async (req, res) => {
+router.delete("/types/:id", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const type = await Type.findByIdAndDelete(req.params.id);
     if (!type) return res.status(404).json({ message: "Type not found" });
@@ -289,7 +295,8 @@ router.delete("/types/:id", authenticateAdmin, async (req, res) => {
 
     res.status(200).json({ message: "Type deleted" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error deleting type:", err);
+    res.status(500).json({ message: "Lỗi server khi xóa loại sản phẩm" });
   }
 });
 
@@ -312,7 +319,7 @@ const upload = multer({
   },
 });
 
-router.post("/upload-section-image", authenticateAdmin, upload.single("sectionImage"), (req, res) => {
+router.post("/upload-section-image", authenticateAdmin, checkPermission("product.create"), upload.single("sectionImage"), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "No file uploaded" });
   }
@@ -321,7 +328,7 @@ router.post("/upload-section-image", authenticateAdmin, upload.single("sectionIm
   res.status(200).json({ imgUrl });
 });
 
-router.delete("/delete-section-image/:filename", authenticateAdmin, (req, res) => {
+router.delete("/delete-section-image/:filename", authenticateAdmin, checkPermission("product.create"), (req, res) => {
   const filename = req.params.filename;
   const filepath = path.join(__dirname, "..", "upload", "sections", filename);
 
@@ -332,7 +339,8 @@ router.delete("/delete-section-image/:filename", authenticateAdmin, (req, res) =
 
     fs.unlink(filepath, (err) => {
       if (err) {
-        return res.status(500).json({ message: "Error deleting file", error: err.message });
+        console.error("Error deleting section image file:", err);
+        return res.status(500).json({ message: "Lỗi server khi xóa ảnh phân loại" });
       }
 
       res.status(200).json({ message: "File deleted successfully" });
@@ -348,11 +356,12 @@ router.get("/section", async (req, res) => {
     const sectionNames = doc.Section.map((sec) => sec.name);
     res.json(sectionNames);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching sections:", error);
+    res.status(500).json({ error: "Lỗi server khi lấy danh sách phân loại" });
   }
 });
 
-router.post("/section", authenticateAdmin, async (req, res) => {
+router.post("/section", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const { name } = req.body;
 
@@ -381,7 +390,8 @@ router.post("/section", authenticateAdmin, async (req, res) => {
 
     res.status(201).json(doc);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error creating section:", error);
+    res.status(500).json({ error: "Lỗi server khi tạo phân loại" });
   }
 });
 
@@ -391,11 +401,12 @@ router.get("/section-doc", async (req, res) => {
     if (!doc) return res.json({});
     res.json(doc);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error fetching section document:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy dữ liệu phân loại" });
   }
 });
 
-router.put("/section/:oldName", authenticateAdmin, async (req, res) => {
+router.put("/section/:oldName", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const { oldName } = req.params;
     const { name } = req.body;
@@ -423,11 +434,12 @@ router.put("/section/:oldName", authenticateAdmin, async (req, res) => {
 
     res.json(doc);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error updating section:", error);
+    res.status(500).json({ error: "Lỗi server khi cập nhật phân loại" });
   }
 });
 
-router.delete("/section/:name", authenticateAdmin, async (req, res) => {
+router.delete("/section/:name", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const { name } = req.params;
     const doc = await Section.findOne();
@@ -449,7 +461,8 @@ router.delete("/section/:name", authenticateAdmin, async (req, res) => {
 
     res.json(doc);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error deleting section:", error);
+    res.status(500).json({ error: "Lỗi server khi xóa phân loại" });
   }
 });
 
@@ -469,7 +482,8 @@ router.post("/sections/images", async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching section images:", error);
+    res.status(500).json({ error: "Lỗi server khi lấy ảnh phân loại" });
   }
 });
 
@@ -486,11 +500,12 @@ router.get("/:name/value", async (req, res) => {
 
     res.json(section.value);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error fetching section values:", error);
+    res.status(500).json({ error: "Lỗi server khi lấy giá trị phân loại" });
   }
 });
 
-router.post("/:name/value", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.post("/:name/value", [authenticateAdmin, checkPermission("product.create")], async (req, res) => {
   try {
     const { name } = req.params;
     const { value } = req.body;
@@ -518,11 +533,12 @@ router.post("/:name/value", [authenticateAdmin, checkPermission('update_product'
 
     res.json(doc);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error creating section value:", error);
+    res.status(500).json({ error: "Lỗi server khi thêm giá trị phân loại" });
   }
 });
 
-router.put("/:name/value", authenticateAdmin, async (req, res) => {
+router.put("/:name/value", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const { name } = req.params;
     const { oldValue, newValue, imgUrl } = req.body;
@@ -560,11 +576,12 @@ router.put("/:name/value", authenticateAdmin, async (req, res) => {
 
     res.json(doc);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error updating section value:", error);
+    res.status(500).json({ error: "Lỗi server khi cập nhật giá trị phân loại" });
   }
 });
 
-router.delete("/:name/value", authenticateAdmin, async (req, res) => {
+router.delete("/:name/value", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
   try {
     const { name } = req.params;
     const { value } = req.body;
@@ -592,7 +609,8 @@ router.delete("/:name/value", authenticateAdmin, async (req, res) => {
 
     res.json(doc);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error deleting section value:", error);
+    res.status(500).json({ error: "Lỗi server khi xóa giá trị phân loại" });
   }
 });
 

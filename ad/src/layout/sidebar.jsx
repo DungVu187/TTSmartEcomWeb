@@ -21,7 +21,6 @@ import {
 } from "@mui/icons-material";
 import {
   Inventory as ProductIcon,
-  Style as ChipIcon,
   ShoppingCart as OrderIcon,
   ListAlt as OrderListIcon,
   Sell as SoldIcon,
@@ -37,6 +36,7 @@ import ShoppingCartCheckoutIcon from "@mui/icons-material/ShoppingCartCheckout";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import toast from "react-hot-toast";
 import { useOrderContext } from "../context/ordercontext";
+import { usePermissions } from "../context/permissioncontext";
 import { io } from "socket.io-client";
 
 const apiUrl = import.meta.env.VITE_API_URL;
@@ -61,32 +61,24 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const [openItems, setOpenItems] = useState({});
   const [processingCount, setProcessingCount] = useState(0);
-  const [userFunctions, setUserFunctions] = useState([]);
-  const [userRole, setUserRole] = useState("");
-  const [userName, setUserName] = useState("");
-  const [userPhone, setUserPhone] = useState("");
+
+  const {
+    profile,
+    isAdminOrSuperadmin,
+    can,
+  } = usePermissions();
+
+  const userName = profile?.name || "";
+  const userPhone = profile?.phone || "";
+
+  const canViewOrders = can("order.view");
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/users/profile`, {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setUserFunctions(data.functions || []);
-          setUserRole(data.role || "");
-          setUserName(data.name || "");
-          setUserPhone(data.phone || "");
-        }
-      } catch (err) {
-        console.error("Lỗi khi lấy thông tin người dùng:", err);
-      }
-    };
-    fetchUserProfile();
-  }, []);
+    if (!canViewOrders) {
+      setProcessingCount(0);
+      return;
+    }
 
-  useEffect(() => {
     const fetchCount = async () => {
       try {
         const response = await fetch(`${apiUrl}/orders/processing-count`, {
@@ -96,14 +88,16 @@ const Sidebar = () => {
         if (data.success) {
           setProcessingCount(data.count);
         }
-      } catch (error) {
-        console.error("Lỗi lấy số lượng đơn đang xử lý:", error);
+      } catch {
+        // Silently ignore fetch errors for badge count
       }
     };
     fetchCount();
-  }, [orderChanged]);
+  }, [orderChanged, canViewOrders]);
 
   useEffect(() => {
+    if (!canViewOrders) return;
+
     let socketUrl = apiUrl;
     let socketOptions = {
       withCredentials: true,
@@ -116,8 +110,8 @@ const Sidebar = () => {
         socketUrl = parsedUrl.origin;
         socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
       }
-    } catch (e) {
-      console.warn("Lỗi phân tích cú pháp apiUrl cho socket:", e);
+    } catch {
+      // Silently ignore URL parse errors for socket
     }
 
     const socketInstance = io(socketUrl, socketOptions);
@@ -131,12 +125,11 @@ const Sidebar = () => {
         if (data.success) {
           setProcessingCount(data.count);
         }
-      } catch (error) {
-        console.error("Lỗi khi cập nhật số lượng đơn hàng:", error);
+      } catch {
+        // Silently ignore fetch errors for badge count
       }
     };
 
-    // Lắng nghe các sự kiện socket
     socketInstance.on("order_created", updateCount);
     socketInstance.on("order_updated", updateCount);
     socketInstance.on("order_cancelled", updateCount);
@@ -149,7 +142,7 @@ const Sidebar = () => {
       socketInstance.off("order_deleted", updateCount);
       socketInstance.disconnect();
     };
-  }, []);
+  }, [canViewOrders]);
 
   const handleClick = (index) => {
     setOpenItems((prev) => ({
@@ -172,17 +165,19 @@ const Sidebar = () => {
       } else {
         toast.error("Không thể đăng xuất. Vui lòng thử lại!");
       }
-    } catch (error) {
-      console.error("Error logging out:", error);
+    } catch {
       toast.error("Đã xảy ra lỗi khi đăng xuất!");
     }
   };
 
-  const canView = (func) => userRole === "admin" || userRole === "superadmin" || userFunctions.includes(func);
+  const stationSubItems = [
+    can("station.view") && { text: "Trạm", path: "/station", icon: <CabinIcon /> },
+    can("customer.view") && { text: "Khách hàng", path: "/stationuser", icon: <PersonIcon /> },
+  ].filter(Boolean);
 
   const menuItems = [
-    { text: "Sản phẩm", path: "/product", icon: <ProductIcon /> },
-    canView("order_management") && {
+    can("product.view") && { text: "Sản phẩm", path: "/product", icon: <ProductIcon /> },
+    canViewOrders && {
       text: "Đơn bán hàng",
       icon: (
         <div style={{ position: "relative" }}>
@@ -238,7 +233,7 @@ const Sidebar = () => {
         { text: "Sản phẩm bán", path: "/soldproducts", icon: <SoldIcon /> },
       ],
     },
-    canView("iporder_management") && {
+    can("iporder.view") && {
       text: "Đơn nhập hàng",
       icon: <AddShoppingCartIcon />,
       subItems: [
@@ -246,7 +241,7 @@ const Sidebar = () => {
         { text: "Sản phẩm nhập", path: "/orderedproducts", icon: <SoldIcon /> },
       ],
     },
-    canView("eporder_management") && {
+    can("eporder.view") && {
       text: "Đơn xuất hàng",
       icon: <ShoppingCartCheckoutIcon />,
       subItems: [
@@ -254,33 +249,33 @@ const Sidebar = () => {
         { text: "Sản phẩm xuất", path: "/exportedproducts", icon: <SoldIcon /> },
       ],
     },
-    {
+    stationSubItems.length > 0 && {
       text: "Khách - Trạm",
       icon: <ManageIcon />,
-      subItems: [
-        { text: "Trạm", path: "/station", icon: <CabinIcon /> },
-        { text: "Khách hàng", path: "/stationuser", icon: <PersonIcon /> },
-      ],
+      subItems: stationSubItems,
     },
-    { text: "Quản lý banner", path: "/manage", icon: <ManageIcon /> },
-    { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
-    (userRole === "admin" || userRole === "superadmin") && {
+    can("storefront.manage") && { text: "Quản lý banner", path: "/manage", icon: <ManageIcon /> },
+    can("storefront.manage") && { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
+    isAdminOrSuperadmin && {
       text: "Phân quyền",
       path: "/account",
       icon: <PersonIcon />,
     },
-    (userRole === "admin" || userRole === "superadmin") && {
-      text: "Cấu hình Zalo",
-      path: "/zalo",
+    isAdminOrSuperadmin && {
+      text: "Cấu hình tự động",
       icon: <ManageIcon />,
+      subItems: [
+        { text: "Zalo OA", path: "/zalo", icon: <ManageIcon /> },
+        { text: "Telegram", path: "/telegram", icon: <ManageIcon /> },
+      ],
     },
-    (userRole === "admin" || userRole === "superadmin") && {
+    can("voice.manage") && {
       text: "Từ vựng Voice",
       path: "/voice-vocab",
       icon: <RecordVoiceOverIcon />,
     },
-    { text: "Lịch sử kho", path: "/history", icon: <TocIcon /> },
-    { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },
+    can("history.view") && { text: "Lịch sử kho", path: "/history", icon: <TocIcon /> },
+    isAdminOrSuperadmin && { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },
     { text: "Đăng xuất", icon: <LogoutIcon />, action: "logout" },
   ].filter(Boolean);
 

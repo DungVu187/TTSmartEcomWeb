@@ -285,12 +285,6 @@ const EpOrders = () => {
     }
 
     try {
-      // 🔹 Tính số lượng còn thiếu cho từng sản phẩm TRƯỚC khi gọi API
-      const missingQuantities = order.productList.map((product) => ({
-        productId: product.productId,
-        missingQty: product.quantity - product.quantityEx, // cần xuất thêm
-      }));
-
       // 1. Cập nhật status đơn hàng và set quantityEx = quantity
       const res = await fetch(
         `${apiUrl}/eporders/orders/${order._id}/setStatusAndQuantity`,
@@ -307,20 +301,6 @@ const EpOrders = () => {
       if (!res.ok) {
         toast.error(data.message || "Có lỗi xảy ra"); // ✅ dùng message từ backend
         return;
-      }
-
-      const updatedOrder = data;
-
-      // 2. Cập nhật tồn kho cho từng sản phẩm (trừ kho)
-      for (const item of missingQuantities) {
-        if (item.missingQty > 0) {
-          await fetch(`${apiUrl}/products/${item.productId}/0`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ quantity: -item.missingQty }), // trừ kho
-          });
-        }
       }
 
       toast.success(data.message || "Cập nhật trạng thái & trừ kho thành công");
@@ -359,41 +339,42 @@ const EpOrders = () => {
             alignItems: "center",
             flexWrap: "wrap",
             gap: 2,
-            mb: 2,
+            mb: "12px !important",
           }}
         >
-          <Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
+          <Typography variant="h5" sx={{ whiteSpace: "nowrap", mb: "0 !important" }}>
             Quản lý đơn xuất
           </Typography>
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleOpenDialog}
-            >
-              Mẫu hóa đơn
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleOpenCreateDialog}
-            >
-              Tạo đơn mới
-            </Button>
-          </Box>
         </Box>
 
         {/* Bộ lọc */}
         <Box
           sx={{
             display: "flex",
-            gap: 1.5,
+            columnGap: 1.5,
+            rowGap: 4,
             mb: 0,
             flexWrap: "wrap",
             flexDirection: { xs: "column", sm: "row" },
             alignItems: { xs: "stretch", sm: "center" }
           }}
         >
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleOpenCreateDialog}
+            sx={{ height: "40px", minWidth: { xs: "100%", sm: 130 }, flexShrink: 0 }}
+          >
+            Tạo đơn mới
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleOpenDialog}
+            sx={{ height: "40px", minWidth: { xs: "100%", sm: 130 }, flexShrink: 0 }}
+          >
+            Mẫu hóa đơn
+          </Button>
           <Autocomplete
             freeSolo
             size="small"
@@ -575,7 +556,7 @@ const EpOrders = () => {
       ) : (
         <>
           {loading && <LinearProgress sx={{ mb: 1 }} />}
-          <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}>
+          <TableContainer component={Paper} sx={{ overflowX: "auto", height: "calc(100vh - 220px)" }}>
             <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow>
@@ -739,7 +720,7 @@ const EpOrders = () => {
           </TableContainer>
 
           {pagination.totalPages > 1 && (
-            <Box display="flex" justifyContent="center" mt={2}>
+            <Box display="flex" justifyContent="center" mt={1} mb={1}>
               <Pagination
                 count={pagination.totalPages}
                 page={currentPage}

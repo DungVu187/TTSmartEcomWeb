@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, Grid, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../context/languagecontext";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const MainPage = () => {
+  const { t } = useLanguage();
   const [sections, setSections] = useState([]);
   const navigate = useNavigate();
 
@@ -60,7 +62,7 @@ const MainPage = () => {
                   }}
                 >
                   <Typography variant="h5" align="center" color="#fff">
-                    {section.name}
+                    {t(section.name)}
                   </Typography>
                 </CardContent>
               </Card>

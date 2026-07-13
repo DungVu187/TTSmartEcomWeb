@@ -48,7 +48,7 @@ describe('Admin User Management API Tests', () => {
           name: 'Staff Member',
           email: 'staff@example.com',
           role: 'staff',
-          functions: ['order_management']
+          permissions: ['order.view']
         });
 
       expect(res.status).toBe(201);
@@ -57,7 +57,8 @@ describe('Admin User Management API Tests', () => {
       expect(res.body.user.phone).toBe('0909998887');
       expect(res.body.user.email).toBe('staff@example.com');
       expect(res.body.user.role).toBe('staff');
-      expect(res.body.user.functions).toContain('order_management');
+      expect(res.body.user.permissions).toEqual(['order.view']);
+      expect(res.body.user.functions).toEqual([]);
 
       // Đảm bảo mật khẩu trong DB đã được mã hóa
       const createdUser = await User.findOne({ phone: '0909998887' });
@@ -122,7 +123,7 @@ describe('Admin User Management API Tests', () => {
           email: 'new@example.com', // Thay đổi email
           password: 'newpassword789', // Đổi mật khẩu
           role: 'staff',
-          functions: ['order_management'] // Đổi chức năng
+          permissions: ['order.view'] // Đổi quyền
         });
 
       expect(res.status).toBe(200);
@@ -130,7 +131,8 @@ describe('Admin User Management API Tests', () => {
       expect(res.body.user.phone).toBe('0905556667');
       expect(res.body.user.name).toBe('New Name');
       expect(res.body.user.email).toBe('new@example.com');
-      expect(res.body.user.functions).toContain('order_management');
+      expect(res.body.user.permissions).toEqual(['order.view']);
+      expect(res.body.user.functions).toEqual([]);
 
       // Xác thực trong DB mật khẩu mới đã được mã hóa chính xác
       const updatedUser = await User.findById(user._id);

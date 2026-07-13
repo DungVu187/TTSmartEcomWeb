@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const rateLimit = require("express-rate-limit");
-const { authenticateUser, authenticateAdmin, checkPermission, User } = require('./user');
+const { authenticateUser, authenticateAdmin, checkPermission, checkAnyPermission, User } = require('./user');
 const { Station } = require('./station');
 const jwt = require('jsonwebtoken');
 const path = require('path');
@@ -11,6 +11,7 @@ const fs = require('fs').promises;
 const { StorageHistory } = require("./storagehistory");
 const { ActivityLog } = require("./activitylog");
 const voiceVocabDefaults = require('../config/voiceVocab.defaults');
+const { PRODUCT_IMAGE_UPLOAD_SETTINGS } = require('../config/imageUpload');
 
 function removeVietnameseTones(str) {
     if (!str) return '';
@@ -25,6 +26,14 @@ function normalizeProductCodeForCompare(code) {
     return String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
+function limitRegexInput(value) {
+    return String(value || '').slice(0, 100);
+}
+
+function escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Sinh Regex tự động chấp nhận các ký tự ngăn cách trong mã sản phẩm
 function generateFuzzyCodeRegex(rawCode) {
     if (!rawCode) return null;
@@ -37,24 +46,33 @@ function generateFuzzyCodeRegex(rawCode) {
 // Dựng khối $or fuzzy cho MỘT token tìm kiếm (name/nameUnsigned/code/brand).
 // Tách ra hàm riêng để phễu "thu hẹp dần" tái dùng đúng logic với AND gốc.
 function buildTokenQuery(token) {
-    const tokenUnsigned = removeVietnameseTones(token);
+    const limitedToken = limitRegexInput(token);
+    const tokenUnsigned = removeVietnameseTones(limitedToken);
+    const safeToken = escapeRegex(limitedToken);
+    const safeTokenUnsigned = escapeRegex(tokenUnsigned);
     // Hỗ trợ tìm kiếm song song "relay"/"rơ le", "xi"/"xy" (xi lanh/xy lanh), "ki"/"ky" cho từng từ khóa đơn lẻ
-    const fuzzyToken = token
-        .replace(/relay|rơ\s+le/gi, '(relay|rơ le)')
-        .replace(/^(xi|xy)$/gi, '(xi|xy)')
-        .replace(/^(ki|ky)$/gi, '(ki|ky)');
-    const fuzzyTokenUnsigned = tokenUnsigned
-        .replace(/relay|ro\s+le/gi, '(relay|ro le)')
-        .replace(/^(xi|xy)$/gi, '(xi|xy)')
-        .replace(/^(ki|ky)$/gi, '(ki|ky)');
+    const fuzzyToken = /^(relay|rơ\s+le)$/i.test(limitedToken)
+        ? '(relay|rơ\\s+le)'
+        : /^(xi|xy)$/i.test(limitedToken)
+            ? '(xi|xy)'
+            : /^(ki|ky)$/i.test(limitedToken)
+                ? '(ki|ky)'
+                : safeToken;
+    const fuzzyTokenUnsigned = /^(relay|ro\s+le)$/i.test(tokenUnsigned)
+        ? '(relay|ro\\s+le)'
+        : /^(xi|xy)$/i.test(tokenUnsigned)
+            ? '(xi|xy)'
+            : /^(ki|ky)$/i.test(tokenUnsigned)
+                ? '(ki|ky)'
+                : safeTokenUnsigned;
 
-    const fuzzyCodeRegex = generateFuzzyCodeRegex(token);
+    const fuzzyCodeRegex = generateFuzzyCodeRegex(limitedToken);
     return {
         $or: [
             { name: { $regex: fuzzyToken, $options: "i" } },
             { nameUnsigned: { $regex: fuzzyTokenUnsigned, $options: "i" } },
-            { code: fuzzyCodeRegex || { $regex: token, $options: "i" } },
-            { brand: { $regex: token, $options: "i" } }
+            { code: fuzzyCodeRegex || { $regex: safeToken, $options: "i" } },
+            { brand: { $regex: safeToken, $options: "i" } }
         ]
     };
 }
@@ -466,6 +484,51 @@ const getUpdatedImgUrl = (originalUrl) => {
     return originalUrl;
 };
 
+const stripPrivateVariantFields = (product) => {
+    const productObj = product?.toJSON ? product.toJSON() : { ...(product || {}) };
+    if (Array.isArray(productObj.variant)) {
+        productObj.variant = productObj.variant.map((variant) => {
+            const variantObj = variant?.toJSON ? variant.toJSON() : { ...variant };
+            delete variantObj.importPrice;
+            delete variantObj.earn;
+            return variantObj;
+        });
+    }
+    return productObj;
+};
+
+const PRODUCT_UPDATE_ALLOWED_FIELDS = [
+    'type',
+    'name',
+    'code',
+    'brand',
+    'section',
+    'value',
+    'warranty',
+    'waranty',
+    'vat',
+    'solution',
+    'description',
+    'features',
+    'operatingMethod',
+    'advantages',
+    'specifications',
+    'variant',
+    'infoDoc',
+    'adjusted',
+    'display',
+    'nameUnsigned',
+];
+
+function pickAllowedProductUpdateFields(body) {
+    return PRODUCT_UPDATE_ALLOWED_FIELDS.reduce((update, field) => {
+        if (body[field] !== undefined) {
+            update[field] = body[field];
+        }
+        return update;
+    }, {});
+}
+
 productSchema.post('init', function (doc) {
     if (doc.variant && Array.isArray(doc.variant)) {
         doc.variant.forEach(v => {
@@ -535,16 +598,33 @@ const imageStorage = multer.diskStorage({
 
 const uploadImage = multer({
     storage: imageStorage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeBytes },
     fileFilter: (req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-            return cb(new Error('Chỉ cho phép upload file ảnh!'));
+        const extension = path.extname(file.originalname || "").toLowerCase();
+        const isAllowedMime = PRODUCT_IMAGE_UPLOAD_SETTINGS.allowedMimeTypes.includes(file.mimetype);
+        const isAllowedExtension = PRODUCT_IMAGE_UPLOAD_SETTINGS.allowedExtensions.includes(extension);
+
+        if (!isAllowedMime || !isAllowedExtension) {
+            return cb(new Error(`Chỉ cho phép upload ảnh: ${PRODUCT_IMAGE_UPLOAD_SETTINGS.allowedExtensions.join(", ")}`));
         }
         cb(null, true);
     }
 });
 
-router.post("/upload/image", [authenticateAdmin, checkPermission('update_product')], uploadImage.single('product'), (req, res) => {
+const handleProductImageUpload = (req, res, next) => {
+    uploadImage.single('product')(req, res, (error) => {
+        if (error) {
+            const message = error.code === "LIMIT_FILE_SIZE"
+                ? `Dung lượng ảnh tối đa ${PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeLabel}`
+                : error.message || "File ảnh không hợp lệ";
+
+            return res.status(400).json({ success: 0, message });
+        }
+        next();
+    });
+};
+
+router.post("/upload/image", [authenticateAdmin, checkAnyPermission(['product.create', 'product.edit']), handleProductImageUpload], (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: 0, message: "Không có file được upload" });
     }
@@ -556,7 +636,7 @@ router.post("/upload/image", [authenticateAdmin, checkPermission('update_product
 });
 
 // API xóa ảnh
-router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
     try {
         const product = await Product.findById(id);
@@ -588,7 +668,7 @@ router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('u
 });
 
 // API tạo sản phẩm mới
-router.post('/create', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.post('/create', [authenticateAdmin, checkPermission('product.create')], async (req, res) => {
     try {
         const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted } = req.body;
 
@@ -627,7 +707,7 @@ router.post('/create', [authenticateAdmin, checkPermission('update_product')], a
                 message: `Mã sản phẩm "${dupCode}" đã tồn tại trong hệ thống. Vui lòng dùng mã khác.`
             });
         }
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
@@ -659,24 +739,29 @@ router.get("/", async (req, res) => {
 
         // Tạo bộ lọc
         const filter = {};
+        let requesterRole = null;
         // Tách riêng phần AND của "search" và của "code" để phễu thu hẹp dần chỉ
         // thay phần search, giữ nguyên các ràng buộc code/type/brand/trạm.
         const searchAndQueries = [];
         const codeAndQueries = [];
 
-        if (search && search.trim() !== "") {
+        const boundedSearch = limitRegexInput(search);
+        const boundedCode = limitRegexInput(code);
+
+        if (boundedSearch && boundedSearch.trim() !== "") {
             // Tách từ khóa tìm kiếm thành các từ đơn để so khớp AND tự do thứ tự
-            const tokens = search.split(/\s+/).filter(t => t.length > 0);
+            const tokens = boundedSearch.split(/\s+/).filter(t => t.length > 0);
             tokens.forEach(token => {
                 searchAndQueries.push(buildTokenQuery(token));
             });
         }
 
-        if (code && code !== "") {
-            const fuzzyCodeRegex = generateFuzzyCodeRegex(code);
+        if (boundedCode && boundedCode !== "") {
+            const fuzzyCodeRegex = generateFuzzyCodeRegex(boundedCode);
+            const safeCode = escapeRegex(boundedCode);
             const codeQuery = [
-                { code: fuzzyCodeRegex || { $regex: code, $options: "i" } },
-                { name: { $regex: code, $options: "i" } }
+                { code: fuzzyCodeRegex || { $regex: safeCode, $options: "i" } },
+                { name: { $regex: safeCode, $options: "i" } }
             ];
             codeAndQueries.push({ $or: codeQuery });
         }
@@ -697,6 +782,7 @@ router.get("/", async (req, res) => {
             try {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 const user = await User.findById(decoded.userId);
+                requesterRole = user?.role || null;
                 if (user && user.role === "customer") {
                     const userStations = user.station || [];
 
@@ -871,7 +957,9 @@ router.get("/", async (req, res) => {
         }
 
         const processedProducts = products.map(product => {
-            const productObj = product.toJSON();
+            const productObj = requesterRole === "customer"
+                ? stripPrivateVariantFields(product)
+                : product.toJSON();
             return {
                 ...productObj,
                 adjusted: calculateProductAdjustedStatus(productObj),
@@ -899,9 +987,10 @@ router.get('/top-purchased', async (req, res) => {
             .sort({ purchaseCount: -1 }) // Sắp xếp giảm dần theo purchaseCount
             .limit(10);
 
-        res.json(products);
+        res.json(products.map(stripPrivateVariantFields));
     } catch (error) {
-        res.status(500).json({ message: 'Lỗi server', error });
+        console.error("Error fetching top purchased products:", error);
+        res.status(500).json({ message: "Lỗi server khi lấy sản phẩm mua nhiều" });
     }
 });
 
@@ -912,9 +1001,9 @@ router.get('/:_id', async (req, res) => {
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
-        res.json(product);
+        res.json(stripPrivateVariantFields(product));
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
@@ -957,7 +1046,7 @@ router.post('/fetch-by-ids', async (req, res) => {
 
         // Xử lý kết quả để đảm bảo dữ liệu đầy đủ
         const processedProducts = products.map(product => {
-            const productObj = product.toJSON();
+            const productObj = stripPrivateVariantFields(product);
             return {
                 ...productObj,
                 purchaseCount: productObj.purchaseCount || 0,
@@ -977,12 +1066,12 @@ router.post('/fetch-by-ids', async (req, res) => {
         res.status(500).json({
             success: 0,
             message: 'Lỗi server khi lấy thông tin sản phẩm',
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
-router.put('/update-display-field', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put('/update-display-field', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     try {
         const result = await Product.updateMany(
             { display: { $exists: false } },
@@ -1003,13 +1092,13 @@ router.put('/update-display-field', [authenticateAdmin, checkPermission('update_
         console.error('Error updating display field:', error);
         res.status(500).json({
             message: 'Lỗi server khi cập nhật trường display',
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // API sửa thông tin sản phẩm
-router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put('/:_id', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     try {
         // Lấy dữ liệu cũ trước khi cập nhật để so sánh
         const oldProduct = await Product.findById(req.params._id);
@@ -1017,24 +1106,25 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
             return res.status(404).json({ message: 'Product not found' });
         }
         const oldData = oldProduct.toJSON();
+        const updateData = pickAllowedProductUpdateFields(req.body);
 
-        if (req.body.name !== undefined) {
-            req.body.nameUnsigned = removeVietnameseTones(req.body.name);
+        if (updateData.name !== undefined) {
+            updateData.nameUnsigned = removeVietnameseTones(updateData.name);
         }
 
-        if (req.body.code && req.body.code.trim()) {
-            const existing = await findProductByEquivalentCode(req.body.code, req.params._id);
+        if (updateData.code && updateData.code.trim()) {
+            const existing = await findProductByEquivalentCode(updateData.code, req.params._id);
             if (existing) {
                 return res.status(409).json({
-                    message: `Mã sản phẩm "${req.body.code.trim()}" đã tồn tại (${existing.name}). Vui lòng dùng mã khác.`
+                    message: `Mã sản phẩm "${updateData.code.trim()}" đã tồn tại (${existing.name}). Vui lòng dùng mã khác.`
                 });
             }
         }
 
         const updatedProduct = await Product.findByIdAndUpdate(
             req.params._id,
-            { $set: req.body },
-            { new: true, runValidators: false }
+            { $set: updateData },
+            { new: true, runValidators: true }
         );
         if (!updatedProduct) {
             return res.status(404).json({ message: 'Product not found' });
@@ -1047,7 +1137,7 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
             const newData = updatedProduct.toJSON();
 
             for (const field of fieldsToTrack) {
-                if (req.body[field] !== undefined) {
+                if (updateData[field] !== undefined) {
                     const oldVal = (oldData[field] || '').toString();
                     const newVal = (newData[field] || '').toString();
                     if (oldVal !== newVal) {
@@ -1057,7 +1147,7 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
             }
 
             // So sánh variant nếu có trong body
-            if (req.body.variant && Array.isArray(req.body.variant)) {
+            if (updateData.variant && Array.isArray(updateData.variant)) {
                 const oldVariants = oldData.variant || [];
                 const newVariants = newData.variant || [];
                 const variantFields = ['price', 'importPrice', 'earn', 'note', 'color', 'shape', 'buttonCount', 'frame'];
@@ -1089,12 +1179,12 @@ router.put('/:_id', [authenticateAdmin, checkPermission('update_product')], asyn
         res.json(updatedProduct);
     } catch (error) {
         console.error('[PUT /products/:_id] error =', error.message);
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
 // API tăng hoặc giảm số lượng sản phẩm đã mua
-router.put("/purchase/:_id", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put("/purchase/:_id", [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     try {
         const { action, amount } = req.body; // action: "increase" hoặc "decrease", amount: số lượng thay đổi
         const numericAmount = parseInt(amount, 10);
@@ -1118,12 +1208,12 @@ router.put("/purchase/:_id", [authenticateAdmin, checkPermission('update_product
         await product.save();
         res.json({ message: "Cập nhật thành công", purchaseCount: product.purchaseCount });
     } catch (error) {
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
 // API xóa ảnh tạm quét AI để tránh rác ổ cứng (Đặt trước API xóa sản phẩm có param /:_id)
-router.delete('/clean-temp-image', authenticateAdmin, async (req, res) => {
+router.delete('/clean-temp-image', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     try {
         const { imageUrl } = req.query;
         if (!imageUrl) {
@@ -1146,12 +1236,12 @@ router.delete('/clean-temp-image', authenticateAdmin, async (req, res) => {
         }
     } catch (error) {
         console.error('Lỗi khi xóa ảnh tạm:', error);
-        res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh tạm.", error: error.message });
+        res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh tạm." });
     }
 });
 
 // API xóa nhiều sản phẩm hàng loạt (bulk delete)
-router.post('/bulk-delete', [authenticateAdmin, checkPermission('delete_product')], async (req, res) => {
+router.post('/bulk-delete', [authenticateAdmin, checkPermission('product.delete')], async (req, res) => {
     try {
         const { ids } = req.body;
         if (!Array.isArray(ids) || ids.length === 0) {
@@ -1178,12 +1268,12 @@ router.post('/bulk-delete', [authenticateAdmin, checkPermission('delete_product'
 
         res.json({ message: `Đã xóa thành công ${deleteResult.deletedCount} sản phẩm.` });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
 // API xóa sản phẩm
-router.delete('/:_id', [authenticateAdmin, checkPermission('delete_product')], async (req, res) => {
+router.delete('/:_id', [authenticateAdmin, checkPermission('product.delete')], async (req, res) => {
     try {
         const product = await Product.findByIdAndDelete(req.params._id);
         if (!product) {
@@ -1203,12 +1293,12 @@ router.delete('/:_id', [authenticateAdmin, checkPermission('delete_product')], a
 
         res.json({ message: 'Product deleted successfully' });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
 // API thêm mới variant 
-router.post('/:id/variant', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.post('/:id/variant', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id } = req.params;
     const newVariant = req.body;
     try {
@@ -1242,7 +1332,7 @@ router.post('/:id/variant', [authenticateAdmin, checkPermission('update_product'
 });
 
 // API thay đổi thuộc tính display của sản phẩm
-router.put('/:_id/toggle-display', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put('/:_id/toggle-display', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     try {
         const { _id } = req.params;
         const product = await Product.findById(_id);
@@ -1273,13 +1363,13 @@ router.put('/:_id/toggle-display', [authenticateAdmin, checkPermission('update_p
         console.error('Error toggling display:', error);
         res.status(500).json({
             message: 'Lỗi server khi thay đổi display',
-            error: error.message
+            error: "Lỗi server"
         });
     }
 });
 
 // API để cập nhật số lượng bằng variantIndex
-router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
     const { quantity, orderId, orderName, isAIScan } = req.body;
     const userName = req.user.name;
@@ -1322,7 +1412,8 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('update_pr
             userName: userName,
             orderId: orderId,
             orderName: orderName,
-            isAIScan: !!isAIScan
+            isAIScan: !!isAIScan,
+            source: "product_manual"
         });
         await history.save();
 
@@ -1338,7 +1429,7 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('update_pr
 });
 
 // API chỉnh sửa variant đang tồn tại
-router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
     const variantData = req.body;
     try {
@@ -1395,7 +1486,7 @@ router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('update_pro
 });
 
 // API xóa variant
-router.delete('/:id/:variantIndex', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.delete('/:id/:variantIndex', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
     try {
         const product = await Product.findById(id);
@@ -1441,7 +1532,8 @@ router.get('/:_id/review', async (req, res) => {
         }
         res.json(product.reviews);
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching reviews', error });
+        console.error("Error fetching product reviews:", error);
+        res.status(500).json({ message: "Lỗi server khi lấy đánh giá sản phẩm" });
     }
 });
 
@@ -1476,7 +1568,7 @@ router.post('/:_id/review/create', authenticateUser, async (req, res) => {
         // Trả về review mới
         res.status(201).json({ message: 'Review added successfully', review: newReview });
     } catch (error) {
-        res.status(500).json({ message: 'Internal server error', error: error.message });
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
@@ -1514,7 +1606,7 @@ router.put('/:_id/review/:reviewId', authenticateUser, async (req, res) => {
 
         res.status(200).json({ message: 'Review updated successfully', review });
     } catch (error) {
-        res.status(500).json({ message: 'Internal server error', error: error.message });
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
@@ -1549,12 +1641,12 @@ router.delete('/:_id/review/:reviewId', authenticateUser, async (req, res) => {
 
         res.status(200).json({ message: 'Review deleted successfully', product });
     } catch (error) {
-        res.status(500).json({ message: 'Internal server error', error: error.message });
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
 // API thay đổi earn và cập nhật price (làm tròn lên hàng nghìn)
-router.put('/:id/:variantIndex/update-earn', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put('/:id/:variantIndex/update-earn', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
     const { earn } = req.body;
 
@@ -1621,11 +1713,11 @@ router.put('/:id/:variantIndex/update-earn', [authenticateAdmin, checkPermission
         });
     } catch (error) {
         console.error('Error updating earn and price:', error);
-        return res.status(500).json({ message: 'Server error', error: error.message });
+        return res.status(500).json({ message: 'Server error' });
     }
 });
 
-router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPermission('update_product')], async (req, res) => {
+router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
     const { importPrice } = req.body;
 
@@ -1701,7 +1793,7 @@ router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPe
         });
     } catch (error) {
         console.error('Error updating import price:', error);
-        return res.status(500).json({ message: 'Server error', error: error.message });
+        return res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -1736,7 +1828,7 @@ router.post('/by-codes', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching products by codes:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -1754,7 +1846,11 @@ const uploadMemory = multer({
 });
 
 // API quét ảnh hóa đơn bằng AI
-router.post('/scan-invoice', [authenticateAdmin, uploadMemory.single('invoice')], async (req, res) => {
+router.post('/scan-invoice', [
+    authenticateAdmin,
+    checkAnyPermission(['order.scan_ai', 'iporder.scan_ai', 'eporder.scan_ai']),
+    uploadMemory.single('invoice')
+], async (req, res) => {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
@@ -2146,8 +2242,8 @@ Hướng dẫn trích xuất:
         console.error('Lỗi khi quét hóa đơn bằng AI:', error);
         res.status(500).json({
             success: 0,
-            message: `Đã xảy ra lỗi khi phân tích hóa đơn bằng AI: ${error.message}`,
-            error: error.message
+            message: `Đã xảy ra lỗi khi phân tích hóa đơn bằng AI: ${"Lỗi server"}`,
+            error: "Lỗi server"
         });
     }
 });
@@ -2395,8 +2491,8 @@ Ví dụ cụ thể:
         console.error('Lỗi khi phân tích giọng nói bằng AI:', error);
         res.status(500).json({
             success: 0,
-            message: `Đã xảy ra lỗi khi phân tích giọng nói bằng AI: ${error.message}`,
-            error: error.message
+            message: `Đã xảy ra lỗi khi phân tích giọng nói bằng AI: ${"Lỗi server"}`,
+            error: "Lỗi server"
         });
     }
 });
@@ -2430,7 +2526,7 @@ router.post('/voice-query-text', authenticateUser, async (req, res) => {
         console.error('Lỗi khi phân tích câu tìm kiếm dạng chữ:', error);
         res.status(500).json({
             success: 0,
-            message: `Đã xảy ra lỗi khi phân tích câu tìm kiếm: ${error.message}`
+            message: `Đã xảy ra lỗi khi phân tích câu tìm kiếm: ${"Lỗi server"}`
         });
     }
 });

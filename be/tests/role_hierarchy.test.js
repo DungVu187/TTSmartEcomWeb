@@ -106,6 +106,38 @@ describe('Role Hierarchy & Authorization Tests', () => {
     });
   });
 
+  describe('Danh sach tai khoan (/users/all-users)', () => {
+    it('Super Admin nhin thay toan bo tai khoan quan tri', async () => {
+      const res = await request(app)
+        .get('/users/all-users')
+        .set('Cookie', superadminCookie);
+
+      expect(res.status).toBe(200);
+      const phones = res.body.map((user) => user.phone);
+      expect(phones).toEqual(expect.arrayContaining([
+        '0900000001',
+        '0900000002',
+        '0900000003',
+        '0900000004',
+      ]));
+    });
+
+    it('Admin khong nhin thay tai khoan Super Admin trong muc phan quyen', async () => {
+      const res = await request(app)
+        .get('/users/all-users')
+        .set('Cookie', adminCookie);
+
+      expect(res.status).toBe(200);
+      const phones = res.body.map((user) => user.phone);
+      expect(phones).not.toContain('0900000001');
+      expect(phones).toEqual(expect.arrayContaining([
+        '0900000002',
+        '0900000003',
+        '0900000004',
+      ]));
+    });
+  });
+
   describe('Tạo tài khoản thủ công (/users/admin-create)', () => {
     it('Super Admin có thể tạo tài khoản Admin', async () => {
       const res = await request(app)
@@ -258,6 +290,16 @@ describe('Role Hierarchy & Authorization Tests', () => {
       expect(checkUser).toBeNull();
     });
 
+    it('Super Admin co the xoa Staff', async () => {
+      const res = await request(app)
+        .delete(`/users/${staffId}`)
+        .set('Cookie', superadminCookie);
+      expect(res.status).toBe(200);
+
+      const checkUser = await User.findById(staffId);
+      expect(checkUser).toBeNull();
+    });
+
     it('Admin KHÔNG THỂ xóa Super Admin', async () => {
       const res = await request(app)
         .delete(`/users/${superadminId}`)
@@ -276,10 +318,10 @@ describe('Role Hierarchy & Authorization Tests', () => {
       const res = await request(app)
         .delete(`/users/${staffId}`)
         .set('Cookie', adminCookie);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(403);
       
       const checkUser = await User.findById(staffId);
-      expect(checkUser).toBeNull();
+      expect(checkUser).not.toBeNull();
     });
   });
 });

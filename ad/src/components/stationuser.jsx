@@ -28,10 +28,16 @@ import {
 import { ExpandMore, ExpandLess } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { usePermissions } from "../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const StationUser = () => {
+  const { can } = usePermissions();
+  const canCreate = can("customer.create");
+  const canEdit = can("customer.edit");
+  const canDelete = can("customer.delete");
+  const canAssignStation = can("customer.assign_station");
   const [users, setUsers] = useState([]);
   const [stations, setStations] = useState([]);
   const [stationMap, setStationMap] = useState({});
@@ -43,18 +49,13 @@ const StationUser = () => {
     password: "",
     confirmPassword: "",
   });
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   const [openStationDialog, setOpenStationDialog] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [selectedUserPhone, setSelectedUserPhone] = useState(null);
   const [stationSearch, setStationSearch] = useState({ name: "", code: "" });
-  const [stationResults, setStationResults] = useState([]);
-  const [stationLoading, setStationLoading] = useState(false);
-  const debounceTimeout = useRef(null);
   const navigate = useNavigate();
   const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
   const [encryptedString, setEncryptedString] = useState("");
   const encryptedInputRef = useRef(null);
 
@@ -221,46 +222,8 @@ const StationUser = () => {
   });
 
   const handleOpenPasswordDialog = (user) => {
-    setPasswordInput("");
     setEncryptedString(user.logInString || "");
-    setSelectedUserPhone(user.phone);
     setOpenPasswordDialog(true);
-  };
-  const copyToClipboard = async (text) => {
-    // Thử navigator.clipboard trước (cần HTTPS)
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return;
-      }
-    } catch (e) {
-      // Fallback bên dưới
-    }
-    // Fallback cho HTTP: dùng textarea + execCommand
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    // Đặt style để không nhìn thấy nhưng vẫn selectable
-    textArea.style.position = "fixed";
-    textArea.style.left = "0";
-    textArea.style.top = "0";
-    textArea.style.width = "2em";
-    textArea.style.height = "2em";
-    textArea.style.padding = "0";
-    textArea.style.border = "none";
-    textArea.style.outline = "none";
-    textArea.style.boxShadow = "none";
-    textArea.style.background = "transparent";
-    textArea.style.opacity = "0";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand("copy");
-    } catch (e) {
-      document.body.removeChild(textArea);
-      throw new Error("Không thể sao chép");
-    }
-    document.body.removeChild(textArea);
   };
 
   const handleCopy = () => {
@@ -273,7 +236,7 @@ const StationUser = () => {
       } else {
         toast.error("Không tìm thấy nội dung để sao chép");
       }
-    } catch (err) {
+    } catch {
       toast.error("Không thể sao chép!");
     }
   };
@@ -363,7 +326,6 @@ const StationUser = () => {
       if (!res.ok) throw new Error(data.message || "Xoay mã thất bại");
       toast.success("Đã xoay mã đăng nhập tự động thành công!");
       setOpenEditDialog(false);
-      setSelectedUserPhone(editUser.phone);
       setEncryptedString(data.logInString);
       setOpenPasswordDialog(true);
       fetchUsers();
@@ -380,13 +342,15 @@ const StationUser = () => {
         <Typography variant="h4" gutterBottom>
           Quản lý người dùng và trạm
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => setOpenDialog(true)}
-        >
-          Thêm người dùng mới
-        </Button>
+        {canCreate && (
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setOpenDialog(true)}
+          >
+            Thêm người dùng mới
+          </Button>
+        )}
       </div>
 
       <TableContainer component={Paper}>
@@ -419,41 +383,48 @@ const StationUser = () => {
                   <TableCell>{user.station?.length || 0}</TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1}>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        color="info"
-                        onClick={() => handleOpenEditDialog(user)}
-                      >
-                        Sửa
-                      </Button>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => {
-                          setSelectedUserId(user._id);
-                          setSelectedUserPhone(user.phone);
-                          setOpenStationDialog(true);
-                        }}
-                      >
-                        Thêm
-                      </Button>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteUser(user)}
-                      >
-                        Xóa
-                      </Button>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        color="success"
-                        onClick={() => handleOpenPasswordDialog(user)}
-                      >
-                        Xuất thông tin
-                      </Button>
+                      {canEdit && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          color="info"
+                          onClick={() => handleOpenEditDialog(user)}
+                        >
+                          Sửa
+                        </Button>
+                      )}
+                      {canAssignStation && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => {
+                            setSelectedUserId(user._id);
+                            setOpenStationDialog(true);
+                          }}
+                        >
+                          Thêm
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteUser(user)}
+                        >
+                          Xóa
+                        </Button>
+                      )}
+                      {canEdit && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          color="success"
+                          onClick={() => handleOpenPasswordDialog(user)}
+                        >
+                          Xuất thông tin
+                        </Button>
+                      )}
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -502,19 +473,21 @@ const StationUser = () => {
                                       >
                                         Chi tiết
                                       </Button>
-                                      <Button
-                                        size="small"
-                                        variant="contained"
-                                        color="error"
-                                        onClick={() =>
-                                          handleRemoveStation(
-                                            user.phone,
-                                            stationId
-                                          )
-                                        }
-                                      >
-                                        Xóa
-                                      </Button>
+                                      {canAssignStation && (
+                                        <Button
+                                          size="small"
+                                          variant="contained"
+                                          color="error"
+                                          onClick={() =>
+                                            handleRemoveStation(
+                                              user.phone,
+                                              stationId
+                                            )
+                                          }
+                                        >
+                                          Xóa
+                                        </Button>
+                                      )}
                                     </Stack>
                                   </TableCell>
                                 </TableRow>
@@ -658,7 +631,6 @@ const StationUser = () => {
             variant="outlined"
             onClick={() => {
               setOpenPasswordDialog(false);
-              setPasswordInput("");
               setEncryptedString("");
             }}
           >

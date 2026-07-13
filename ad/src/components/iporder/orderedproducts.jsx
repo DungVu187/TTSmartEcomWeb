@@ -102,7 +102,7 @@ const OrderedProducts = () => {
       };
 
       const query = new URLSearchParams(
-        Object.entries(queryParams).filter(([_, v]) => v !== undefined)
+        Object.entries(queryParams).filter(([, v]) => v !== undefined)
       ).toString();
 
       const data = await apiFetch(`${apiUrl}/iporders/orders?${query}`, {
@@ -154,7 +154,7 @@ const OrderedProducts = () => {
       });
 
       const productsWithDetails = await Promise.all(
-        Array.from(productMap.entries()).map(async ([key, product]) => {
+        Array.from(productMap.entries()).map(async ([, product]) => {
           const productData = await apiFetch(
             `${apiUrl}/products/${product.productId}`,
             { method: "GET", suppressToast: true }

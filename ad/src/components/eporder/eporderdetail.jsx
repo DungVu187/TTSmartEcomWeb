@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import {
@@ -45,6 +45,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { usePermissions } from "../../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -73,6 +74,7 @@ const SortableTableRow = ({
   handleExportQuantity,
   handleDeleteProduct,
   handleProductStatusChange,
+  canEdit,
 }) => {
   const {
     attributes,
@@ -83,7 +85,7 @@ const SortableTableRow = ({
     isDragging,
   } = useSortable({
     id: `${product.productId}-${index}`,
-    disabled: product.status,
+    disabled: product.status || !canEdit,
   });
 
   const style = {
@@ -100,12 +102,12 @@ const SortableTableRow = ({
         {...attributes}
         {...listeners}
         sx={{
-          cursor: product.status ? "not-allowed" : "grab",
+          cursor: product.status || !canEdit ? "not-allowed" : "grab",
           userSelect: "none",
           width: "40px",
           padding: "8px",
           "&:active": {
-            cursor: product.status ? "not-allowed" : "grabbing",
+            cursor: product.status || !canEdit ? "not-allowed" : "grabbing",
           },
           pointerEvents: "auto",
         }}
@@ -155,7 +157,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status}
+          disabled={product.status || !canEdit}
           sx={{ width: "120px" }}
         />
       </TableCell>
@@ -176,7 +178,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status}
+          disabled={product.status || !canEdit}
           sx={{ width: "70px" }}
         />
       </TableCell>
@@ -201,7 +203,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status}
+          disabled={product.status || !canEdit}
           sx={{ width: "100px" }}
         />
       </TableCell>
@@ -223,7 +225,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status}
+          disabled={product.status || !canEdit}
           sx={{ width: "50px", backgroundColor: "#a6e3b5" }}
           allowNegative={true}
         />
@@ -246,7 +248,7 @@ const SortableTableRow = ({
           }}
           size="small"
           multiline
-          disabled={product.status}
+          disabled={product.status || !canEdit}
         />
       </TableCell>
       <TableCell align="center">
@@ -254,16 +256,19 @@ const SortableTableRow = ({
           checked={product.status}
           color="success"
           onChange={() => handleProductStatusChange(index, product)}
+          disabled={!canEdit || product.status}
         />
       </TableCell>
       <TableCell align="center">
-        <IconButton
-          onClick={() => handleDeleteProduct(index)}
-          disabled={product.quantityEx > 0}
-          color="error"
-        >
-          <DeleteIcon />
-        </IconButton>
+        {canEdit && (
+          <IconButton
+            onClick={() => handleDeleteProduct(index)}
+            disabled={product.quantityEx > 0}
+            color="error"
+          >
+            <DeleteIcon />
+          </IconButton>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -273,6 +278,14 @@ const SortableTableRow = ({
 const ExportOrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can("eporder.create");
+  const canEdit = can("eporder.edit");
+  const canDelete = can("eporder.delete");
+  const canExcel = canEdit && can("eporder.excel");
+  const canScanAi = canEdit && can("eporder.scan_ai");
+  const canAddImage = canCreate || canEdit;
+  const canCreateRelatedOrder = canCreate || canEdit;
   const [order, setOrder] = useState(null);
   const [enrichedOrder, setEnrichedOrder] = useState(null);
   const [tempProductList, setTempProductList] = useState([]);
@@ -677,7 +690,7 @@ const ExportOrderDetail = () => {
   const performLevel1Matching = (scanItem, currentTempList, currentProductDetails) => {
     const tokenizeSpec = (text) => {
       if (!text) return new Set();
-      const regexModel = /(?=\d+[a-zA-Z]|[a-zA-Z]+\d)[a-zA-Z0-9\-\/]+/gi;
+      const regexModel = /(?=\d+[a-zA-Z]|[a-zA-Z]+\d)[a-zA-Z0-9\-/]+/gi;
       const regexPureNum = /\b\d{3,}\b/g;
 
       const tokens = new Set();
@@ -699,7 +712,7 @@ const ExportOrderDetail = () => {
     const tokenizeTypeWords = (text) => {
       if (!text) return new Set();
       const out = new Set();
-      const words = removeVietnameseTones(text).toLowerCase().split(/[\s,.\-\/()]+/);
+      const words = removeVietnameseTones(text).toLowerCase().split(/[\s,.\-/()]+/);
       for (const w of words) {
         // từ chữ: có chữ cái, KHÔNG chứa số, độ dài > 1 (lớn hơn hoặc bằng 2)
         if (w.length > 1 && /[a-z]/.test(w) && !/\d/.test(w)) {
@@ -741,8 +754,8 @@ const ExportOrderDetail = () => {
     };
 
     const fuzzyScore = (p, scanName) => {
-      const a = removeVietnameseTones(scanName).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
-      const b = removeVietnameseTones(p.name).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
+      const a = removeVietnameseTones(scanName).toLowerCase().split(/[\s,.\-/]+/).filter(w => w.length > 1);
+      const b = removeVietnameseTones(p.name).toLowerCase().split(/[\s,.\-/]+/).filter(w => w.length > 1);
       return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
     };
 
@@ -1097,6 +1110,8 @@ const ExportOrderDetail = () => {
             status: newQuantityEx === targetQty,
             note: row.note || existingProduct.note || "",
             vat: row.vat || existingProduct.vat || "",
+            isAIScan: true,
+            skipStockUpdate: isNewProduct,
           };
 
           const putUrl = `${apiUrl}/eporders/orders/${id}/products/${existingProductIndex}`;
@@ -1108,23 +1123,6 @@ const ExportOrderDetail = () => {
           if (resOrder) {
             updatedOrder = resOrder;
             addedCount++;
-
-            // Trừ kho
-            if (delta > 0) {
-              try {
-                await apiFetch(`${apiUrl}/products/${productId}/0`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    quantity: -delta,
-                    orderId: id,
-                    orderName: order.orderName,
-                    isAIScan: true,
-                  }),
-                });
-              } catch (err) {
-                console.error(`Lỗi cập nhật tồn kho cho sản phẩm ${productId}:`, err);
-              }
-            }
           } else {
             hasError = true;
           }
@@ -1155,6 +1153,8 @@ const ExportOrderDetail = () => {
             note: row.note || "",
             vat: row.vat || "",
             status: true,
+            isAIScan: true,
+            skipStockUpdate: isNewProduct,
           };
 
           const postUrl = `${apiUrl}/eporders/orders/${id}/products`;
@@ -1166,23 +1166,6 @@ const ExportOrderDetail = () => {
           if (resOrder) {
             updatedOrder = resOrder;
             addedCount++;
-
-            // Trừ kho (bỏ qua nếu là sản phẩm mới được tạo tự động)
-            if (scannedQty > 0 && !isNewProduct) {
-              try {
-                await apiFetch(`${apiUrl}/products/${productId}/0`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    quantity: -scannedQty,
-                    orderId: id,
-                    orderName: order.orderName,
-                    isAIScan: true,
-                  }),
-                });
-              } catch (err) {
-                console.error(`Lỗi cập nhật tồn kho cho sản phẩm ${productId}:`, err);
-              }
-            }
           } else {
             hasError = true;
           }
@@ -1542,22 +1525,10 @@ const ExportOrderDetail = () => {
         if (statusUpdate) updatedOrder.status = true;
       }
 
-      const inventoryResponse = await apiFetch(
-        `${apiUrl}/products/${productId}/0`,
-        {
-          method: "POST",
-          body: JSON.stringify({ quantity: -receivedNum }),
-        }
-      );
-
-      if (inventoryResponse) {
-        setOrder(updatedOrder);
-        setTempProductList(updatedOrder.productList);
-        setReceiveInput((prev) => ({ ...prev, [productIndex]: "" }));
-        toast.success("Cập nhật số lượng xuất thành công");
-      } else {
-        toast.error("Lỗi khi cập nhật tồn kho");
-      }
+      setOrder(updatedOrder);
+      setTempProductList(updatedOrder.productList);
+      setReceiveInput((prev) => ({ ...prev, [productIndex]: "" }));
+      toast.success("Cập nhật số lượng xuất thành công");
     }
   };
 
@@ -2132,7 +2103,7 @@ const ExportOrderDetail = () => {
   };
 
   const handleProductStatusChange = async (productIndex, product) => {
-    if (!order) return;
+    if (!order || product.status) return;
 
     if (!window.confirm("Bạn có chắc muốn cập nhật trạng thái sản phẩm này?")) {
       return;
@@ -2148,25 +2119,9 @@ const ExportOrderDetail = () => {
     );
 
     if (updatedOrder) {
-      // 2. Gọi API cập nhật tồn kho sản phẩm
-      const productId = product.productId;
-      const quantityToSub = product.quantityEx - product.quantity;
-
-      const inventoryResponse = await apiFetch(
-        `${apiUrl}/products/${productId}/0`,
-        {
-          method: "POST",
-          body: JSON.stringify({ quantity: quantityToSub }),
-        }
-      );
-
-      if (inventoryResponse) {
-        setOrder(updatedOrder);
-        setTempProductList(updatedOrder.productList);
-        toast.success("Cập nhật trạng thái & tồn kho thành công");
-      } else {
-        toast.error("Cập nhật tồn kho thất bại");
-      }
+      setOrder(updatedOrder);
+      setTempProductList(updatedOrder.productList);
+      toast.success("Cập nhật trạng thái & tồn kho thành công");
     } else {
       toast.error("Cập nhật trạng thái sản phẩm thất bại");
     }
@@ -2208,7 +2163,9 @@ const ExportOrderDetail = () => {
             }
             sx={{ width: "300px" }}
             size="small"
+            disabled={!canEdit}
           />
+          {canEdit && (
           <Button
             variant="contained"
             color="success"
@@ -2216,9 +2173,11 @@ const ExportOrderDetail = () => {
           >
             Lưu tên
           </Button>
+          )}
         </Box>
 
         <Box display="flex" gap={1.5} mb={2} flexWrap="wrap">
+          {canEdit && (
           <Button
             variant="outlined"
             color="primary"
@@ -2226,12 +2185,18 @@ const ExportOrderDetail = () => {
           >
             Thêm sản phẩm
           </Button>
+          )}
+          {canEdit && (
           <Button variant="contained" color="primary" onClick={handleCopyOrder}>
             Sao chép đơn
           </Button>
+          )}
+          {canDelete && (
           <Button variant="contained" color="error" onClick={handleDeleteOrder}>
             Xóa đơn
           </Button>
+          )}
+          {canCreateRelatedOrder && (
           <Button
             variant="contained"
             color="secondary"
@@ -2239,6 +2204,8 @@ const ExportOrderDetail = () => {
           >
             Nhập đơn
           </Button>
+          )}
+          {canExcel && (
           <Button
             variant="contained"
             color="info"
@@ -2247,6 +2214,8 @@ const ExportOrderDetail = () => {
           >
             Xuất Excel
           </Button>
+          )}
+          {canExcel && (
           <Button
             component="label"
             variant="contained"
@@ -2261,6 +2230,8 @@ const ExportOrderDetail = () => {
               onChange={handleFileUpload}
             />
           </Button>
+          )}
+          {canScanAi && (
           <Button
             component="label"
             variant="contained"
@@ -2278,6 +2249,8 @@ const ExportOrderDetail = () => {
               onChange={handleScanInvoiceSelect}
             />
           </Button>
+          )}
+          {canAddImage && (
           <Button
             component="label"
             variant="contained"
@@ -2293,6 +2266,7 @@ const ExportOrderDetail = () => {
               onChange={handleManualUploadSelect}
             />
           </Button>
+          )}
         </Box>
 
         {/* Hiển thị danh sách ảnh hóa đơn đính kèm */}
@@ -2332,6 +2306,7 @@ const ExportOrderDetail = () => {
                     style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
                     onClick={() => handleOpenLightbox(index)}
                   />
+                  {canAddImage && (
                   <IconButton 
                     size="small" 
                     color="error"
@@ -2346,6 +2321,7 @@ const ExportOrderDetail = () => {
                   >
                     <DeleteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
+                  )}
                 </Box>
               ))}
             </Box>
@@ -2360,7 +2336,7 @@ const ExportOrderDetail = () => {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
+        onDragEnd={canEdit ? handleDragEnd : undefined}
       >
         <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "auto", maxHeight: "calc(100vh - 320px)" }}>
           <Table stickyHeader>
@@ -2404,6 +2380,7 @@ const ExportOrderDetail = () => {
                       handleExportQuantity={handleExportQuantity}
                       handleDeleteProduct={handleDeleteProduct}
                       handleProductStatusChange={handleProductStatusChange}
+                      canEdit={canEdit}
                     />
                   ))
                 ) : (

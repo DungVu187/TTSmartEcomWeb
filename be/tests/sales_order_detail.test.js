@@ -44,6 +44,27 @@ const createAdminAgent = async () => {
   return agent;
 };
 
+const createStaffAgent = async ({ phone = '0912345688', permissions = [] } = {}) => {
+  await new User({
+    phone,
+    password: 'password123',
+    name: 'Staff Test',
+    role: 'staff',
+    functions: ['order_management'],
+    permissions,
+  }).save();
+
+  const agent = request.agent(app);
+  const response = await agent
+    .post('/users/admin/login')
+    .send({ phone, password: 'password123' });
+
+  expect(response.status).toBe(200);
+  expect(response.headers['set-cookie']).toBeDefined();
+  expect(response.headers['set-cookie'].join(';')).toContain('authToken=');
+  return agent;
+};
+
 const createProduct = async ({ quantityForSale = 10, price = '100.000' } = {}) => {
   return Product.create({
     type: 'PLC',
@@ -97,6 +118,34 @@ describe('Sales order detail admin API', () => {
 
     const updatedProduct = await Product.findById(product._id);
     expect(updatedProduct.variant[0].quantityForSale).toBe(8);
+  });
+
+  it('POST /orders/:id/items cho staff co order.edit sua chi tiet don', async () => {
+    const adminAgent = await createAdminAgent();
+    const staffAgent = await createStaffAgent({ permissions: ['order.edit'] });
+    const product = await createProduct({ quantityForSale: 10, price: '100.000' });
+    const order = await createDraftOrder(adminAgent);
+
+    const response = await staffAgent
+      .post(`/orders/${order._id}/items`)
+      .send({ productId: product._id.toString(), variantIndex: 0, quantity: 2 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.order.cartItems).toHaveLength(1);
+  });
+
+  it('POST /orders/:id/items chan staff co order.create nhung thieu order.edit', async () => {
+    const staffAgent = await createStaffAgent({ permissions: ['order.create'] });
+    const product = await createProduct({ quantityForSale: 10, price: '100.000' });
+    const order = await createDraftOrder(staffAgent);
+
+    const response = await staffAgent
+      .post(`/orders/${order._id}/items`)
+      .send({ productId: product._id.toString(), variantIndex: 0, quantity: 1 });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe('Access denied, missing permission: order.edit');
   });
 
   it('PUT /orders/:id/items/:index tang va giam so luong dieu chinh ton theo delta', async () => {

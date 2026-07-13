@@ -60,8 +60,8 @@ const Orders = () => {
     phone: "",
     name: "",
     id: location.state?.orderId || "",
-    startDate: moment().subtract(30, "days").format("YYYY-MM-DD"),
-    endDate: moment().format("YYYY-MM-DD"),
+    startDate: "",
+    endDate: "",
   });
   const { setOrderChanged } = useOrderContext();
 
@@ -262,6 +262,11 @@ const Orders = () => {
     setPage(0); // Reset về trang đầu tiên khi đổi bộ lọc
   };
 
+  const handleApplyFilters = () => {
+    setDebouncedFilters(filters);
+    setPage(0);
+  };
+
   // Xử lý phân trang
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -341,72 +346,59 @@ const Orders = () => {
   return (
     <Box p={3}>
       <div className="sticky-header">
-        <Typography variant="h4" mb={3}>
+        <Typography variant="h4" sx={{ mb: "12px !important" }}>
           Quản lý đơn hàng bán
         </Typography>
-        <Box display="flex" gap={2} flexWrap="wrap" className="create-order-btn-box">
-          <Button variant="contained" onClick={createAdminDraftOrder}>
-            Tạo đơn hàng mới
-          </Button>
-        </Box>
-
         <Box
           display="flex"
-          gap={2}
+          columnGap={2}
+          rowGap={4}
           mb={2}
           flexWrap="wrap"
           sx={{
             flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "stretch", sm: "center" }
+            alignItems: { xs: "stretch", sm: "flex-start" }
           }}
         >
-          <FormControl sx={{ minWidth: { xs: "100%", sm: 120 }, width: { xs: "100%", sm: 120 } }}>
-            <InputLabel>Trạng thái</InputLabel>
-            <Select
-              name="status"
-              value={filters.status}
-              onChange={handleFilterChange}
-              label="Trạng thái"
-              size="small"
-              MenuProps={{ disableScrollLock: true }}
-            >
-              <MenuItem value="Tất cả">Tất cả</MenuItem>
-              <MenuItem value="Processing">Đang xử lý</MenuItem>
-              <MenuItem value="Delivering">Đang giao</MenuItem>
-              <MenuItem value="Completed">Hoàn thành</MenuItem>
-            </Select>
-          </FormControl>
+          <Button
+            variant="contained"
+            onClick={createAdminDraftOrder}
+            sx={{
+              height: 40,
+              minWidth: { xs: "100%", sm: 170 },
+              flexShrink: 0,
+            }}
+          >
+            Tạo đơn hàng mới
+          </Button>
 
-          <FormControl sx={{ minWidth: { xs: "100%", sm: 120 }, width: { xs: "100%", sm: 120 } }}>
-            <InputLabel>Thanh toán</InputLabel>
-            <Select
-              name="payment"
-              value={filters.payment}
-              onChange={handleFilterChange}
-              label="Thanh toán"
-              size="small"
-              MenuProps={{ disableScrollLock: true }}
-            >
-              <MenuItem value="Tất cả">Tất cả</MenuItem>
-              <MenuItem value="true">Đã thanh toán</MenuItem>
-              <MenuItem value="false">Chưa thanh toán</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl sx={{ minWidth: { xs: "100%", sm: 120 }, width: { xs: "100%", sm: 120 } }}>
-            <InputLabel>Tình trạng</InputLabel>
-            <Select
-              name="state"
-              value={filters.state}
-              onChange={handleFilterChange}
-              label="Tình trạng"
-              size="small"
-              MenuProps={{ disableScrollLock: true }}
-            >
-              <MenuItem value="Processing">Đang chờ</MenuItem>
-              <MenuItem value="Cancelled">Đã hủy</MenuItem>
-            </Select>
-          </FormControl>
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={uniqueOrderCodes}
+            value={filters.id}
+            onInputChange={(event, newInputValue) => {
+              setFilters((prev) => ({ ...prev, id: newInputValue }));
+            }}
+            onChange={(event, newValue) => {
+              setFilters((prev) => ({ ...prev, id: newValue || "" }));
+            }}
+            filterOptions={(options, state) => {
+              const inputValue = removeVietnameseTones(state.inputValue);
+              return options.filter((option) =>
+                removeVietnameseTones(option).includes(inputValue)
+              );
+            }}
+            sx={{ width: { xs: "100%", sm: 200 } }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Mã đơn hàng"
+                placeholder="Nhập mã đơn..."
+                variant="outlined"
+              />
+            )}
+          />
 
           <Autocomplete
             freeSolo
@@ -425,7 +417,7 @@ const Orders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
-            sx={{ width: { xs: "100%", sm: 200 } }}
+            sx={{ width: { xs: "100%", sm: 175 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -453,7 +445,7 @@ const Orders = () => {
                 removeVietnameseTones(option).includes(inputValue)
               );
             }}
-            sx={{ width: { xs: "100%", sm: 200 } }}
+            sx={{ width: { xs: "100%", sm: 175 } }}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -464,33 +456,53 @@ const Orders = () => {
             )}
           />
 
-          <Autocomplete
-            freeSolo
-            size="small"
-            options={uniqueOrderCodes}
-            value={filters.id}
-            onInputChange={(event, newInputValue) => {
-              setFilters((prev) => ({ ...prev, id: newInputValue }));
-            }}
-            onChange={(event, newValue) => {
-              setFilters((prev) => ({ ...prev, id: newValue || "" }));
-            }}
-            filterOptions={(options, state) => {
-              const inputValue = removeVietnameseTones(state.inputValue);
-              return options.filter((option) =>
-                removeVietnameseTones(option).includes(inputValue)
-              );
-            }}
-            sx={{ width: { xs: "100%", sm: 235 } }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Mã đơn hàng"
-                placeholder="Nhập mã đơn..."
-                variant="outlined"
-              />
-            )}
-          />
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 110 }, width: { xs: "100%", sm: 110 } }}>
+            <InputLabel>Trạng thái</InputLabel>
+            <Select
+              name="status"
+              value={filters.status}
+              onChange={handleFilterChange}
+              label="Trạng thái"
+              size="small"
+              MenuProps={{ disableScrollLock: true }}
+            >
+              <MenuItem value="Tất cả">Tất cả</MenuItem>
+              <MenuItem value="Processing">Đang xử lý</MenuItem>
+              <MenuItem value="Delivering">Đang giao</MenuItem>
+              <MenuItem value="Completed">Hoàn thành</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 110 }, width: { xs: "100%", sm: 110 } }}>
+            <InputLabel>Thanh toán</InputLabel>
+            <Select
+              name="payment"
+              value={filters.payment}
+              onChange={handleFilterChange}
+              label="Thanh toán"
+              size="small"
+              MenuProps={{ disableScrollLock: true }}
+            >
+              <MenuItem value="Tất cả">Tất cả</MenuItem>
+              <MenuItem value="true">Đã thanh toán</MenuItem>
+              <MenuItem value="false">Chưa thanh toán</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: { xs: "100%", sm: 115 }, width: { xs: "100%", sm: 115 } }}>
+            <InputLabel>Tình trạng</InputLabel>
+            <Select
+              name="state"
+              value={filters.state}
+              onChange={handleFilterChange}
+              label="Tình trạng"
+              size="small"
+              MenuProps={{ disableScrollLock: true }}
+            >
+              <MenuItem value="Processing">Đang chờ</MenuItem>
+              <MenuItem value="Cancelled">Đã hủy</MenuItem>
+            </Select>
+          </FormControl>
 
           <TextField
             name="startDate"
@@ -501,7 +513,7 @@ const Orders = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: { xs: "100%", sm: 150 } }}
+            sx={{ width: { xs: "100%", sm: 140 } }}
           />
 
           <TextField
@@ -513,13 +525,25 @@ const Orders = () => {
             variant="outlined"
             size="small"
             InputLabelProps={{ shrink: true }}
-            sx={{ width: { xs: "100%", sm: 150 } }}
+            sx={{ width: { xs: "100%", sm: 140 } }}
           />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleApplyFilters}
+            sx={{
+              height: 40,
+              minWidth: { xs: "100%", sm: 80 },
+              flexShrink: 0,
+            }}
+          >
+            Lọc
+          </Button>
         </Box>
       </div>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 220px)" }}>
+        <Table stickyHeader sx={{ minWidth: 1000, tableLayout: "fixed" }}>
           <TableHead>
             <TableRow>
               <TableCell align="center">Mã đơn hàng</TableCell>

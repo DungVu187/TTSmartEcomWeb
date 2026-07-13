@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import {
@@ -46,6 +46,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { usePermissions } from "../../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -74,6 +75,7 @@ const SortableTableRow = ({
   handleReceiveQuantity,
   handleDeleteProduct,
   handleProductStatusChange,
+  canEdit,
 }) => {
   const {
     attributes,
@@ -84,7 +86,7 @@ const SortableTableRow = ({
     isDragging,
   } = useSortable({
     id: `${product.productId}-${index}`,
-    disabled: product.status,
+    disabled: product.status || !canEdit,
   });
 
   const style = {
@@ -101,12 +103,12 @@ const SortableTableRow = ({
         {...attributes}
         {...listeners}
         sx={{
-          cursor: product.status ? "not-allowed" : "grab",
+          cursor: product.status || !canEdit ? "not-allowed" : "grab",
           userSelect: "none",
           width: "40px",
           padding: "8px",
           "&:active": {
-            cursor: product.status ? "not-allowed" : "grabbing",
+            cursor: product.status || !canEdit ? "not-allowed" : "grabbing",
           },
           pointerEvents: "auto",
         }}
@@ -155,6 +157,7 @@ const SortableTableRow = ({
               handleTempUpdateProduct(index, "price", value, true);
             }
           }}
+          disabled={!canEdit}
           size="small"
           sx={{ width: "100px" }}
         />
@@ -175,6 +178,7 @@ const SortableTableRow = ({
               handleTempUpdateProduct(index, "unit", value, true);
             }
           }}
+          disabled={!canEdit}
           size="small"
           sx={{ width: "70px" }}
         />
@@ -199,6 +203,7 @@ const SortableTableRow = ({
               handleTempUpdateProduct(index, "quantity", value, true);
             }
           }}
+          disabled={!canEdit}
           size="small"
           sx={{ width: "100px" }}
         />
@@ -220,6 +225,7 @@ const SortableTableRow = ({
               handleReceiveQuantity(index, value);
             }
           }}
+          disabled={!canEdit}
           size="small"
           sx={{ width: "50px", backgroundColor: "#a6e3b5" }}
           allowNegative={true}
@@ -241,6 +247,7 @@ const SortableTableRow = ({
               handleTempUpdateProduct(index, "note", value, true);
             }
           }}
+          disabled={!canEdit}
           size="small"
           multiline
         />
@@ -250,16 +257,19 @@ const SortableTableRow = ({
           checked={product.status}
           color="success"
           onChange={() => handleProductStatusChange(index, product)}
+          disabled={!canEdit || product.status}
         />
       </TableCell>
       <TableCell align="center">
-        <IconButton
-          onClick={() => handleDeleteProduct(index)}
-          disabled={product.quantityRe > 0}
-          color="error"
-        >
-          <DeleteIcon />
-        </IconButton>
+        {canEdit && (
+          <IconButton
+            onClick={() => handleDeleteProduct(index)}
+            disabled={product.quantityRe > 0}
+            color="error"
+          >
+            <DeleteIcon />
+          </IconButton>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -269,6 +279,14 @@ const SortableTableRow = ({
 const ImportOrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can("iporder.create");
+  const canEdit = can("iporder.edit");
+  const canDelete = can("iporder.delete");
+  const canExcel = canEdit && can("iporder.excel");
+  const canScanAi = canEdit && can("iporder.scan_ai");
+  const canAddImage = canCreate || canEdit;
+  const canCreateRelatedOrder = canCreate || canEdit;
   const [order, setOrder] = useState(null);
   const [enrichedOrder, setEnrichedOrder] = useState(null);
   const [tempProductList, setTempProductList] = useState([]);
@@ -673,7 +691,7 @@ const ImportOrderDetail = () => {
   const performLevel1Matching = (scanItem, currentTempList, currentProductDetails) => {
     const tokenizeSpec = (text) => {
       if (!text) return new Set();
-      const regexModel = /(?=\d+[a-zA-Z]|[a-zA-Z]+\d)[a-zA-Z0-9\-\/]+/gi;
+      const regexModel = /(?=\d+[a-zA-Z]|[a-zA-Z]+\d)[a-zA-Z0-9\-/]+/gi;
       const regexPureNum = /\b\d{3,}\b/g;
 
       const tokens = new Set();
@@ -695,7 +713,7 @@ const ImportOrderDetail = () => {
     const tokenizeTypeWords = (text) => {
       if (!text) return new Set();
       const out = new Set();
-      const words = removeVietnameseTones(text).toLowerCase().split(/[\s,.\-\/()]+/);
+      const words = removeVietnameseTones(text).toLowerCase().split(/[\s,.\-/()]+/);
       for (const w of words) {
         // từ chữ: có chữ cái, KHÔNG chứa số, độ dài > 1 (lớn hơn hoặc bằng 2)
         if (w.length > 1 && /[a-z]/.test(w) && !/\d/.test(w)) {
@@ -779,8 +797,8 @@ const ImportOrderDetail = () => {
     };
 
     const fuzzyScore = (p, scanName) => {
-      const a = removeVietnameseTones(scanName).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
-      const b = removeVietnameseTones(p.name).toLowerCase().split(/[\s,.\-\/]+/).filter(w => w.length > 1);
+      const a = removeVietnameseTones(scanName).toLowerCase().split(/[\s,.\-/]+/).filter(w => w.length > 1);
+      const b = removeVietnameseTones(p.name).toLowerCase().split(/[\s,.\-/]+/).filter(w => w.length > 1);
       return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
     };
 
@@ -1110,7 +1128,6 @@ const ImportOrderDetail = () => {
           const targetQty = Number(existingProduct.quantity) || 0;
           const finalQtyRe = Math.min(scannedQty, targetQty);
           const newQuantityRe = Math.max(existingProduct.quantityRe || 0, finalQtyRe);
-          const delta = newQuantityRe - (existingProduct.quantityRe || 0);
 
           // Cập nhật số lượng và đơn giá mới
           const updatedProduct = {
@@ -1120,6 +1137,7 @@ const ImportOrderDetail = () => {
             status: newQuantityRe === targetQty,
             note: row.note || existingProduct.note || "",
             vat: row.vat || existingProduct.vat || "",
+            isAIScan: true,
           };
 
           const putUrl = `${apiUrl}/iporders/orders/${id}/products/${existingProductIndex}`;
@@ -1131,23 +1149,6 @@ const ImportOrderDetail = () => {
           if (resOrder) {
             updatedOrder = resOrder;
             addedCount++;
-
-            // Cập nhật kho
-            if (delta > 0) {
-              try {
-                await apiFetch(`${apiUrl}/products/${productId}/0`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    quantity: delta,
-                    orderId: id,
-                    orderName: order.orderName,
-                    isAIScan: true,
-                  }),
-                });
-              } catch (err) {
-                console.error(`Lỗi cập nhật tồn kho cho sản phẩm ${productId}:`, err);
-              }
-            }
           } else {
             hasError = true;
           }
@@ -1163,6 +1164,7 @@ const ImportOrderDetail = () => {
             note: row.note || "",
             vat: row.vat || "",
             status: true,
+            isAIScan: true,
           };
 
           const postUrl = `${apiUrl}/iporders/orders/${id}/products`;
@@ -1174,23 +1176,6 @@ const ImportOrderDetail = () => {
           if (resOrder) {
             updatedOrder = resOrder;
             addedCount++;
-
-            // Cập nhật kho
-            if (scannedQty > 0) {
-              try {
-                await apiFetch(`${apiUrl}/products/${productId}/0`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    quantity: scannedQty,
-                    orderId: id,
-                    orderName: order.orderName,
-                    isAIScan: true,
-                  }),
-                });
-              } catch (err) {
-                console.error(`Lỗi cập nhật tồn kho cho sản phẩm ${productId}:`, err);
-              }
-            }
           } else {
             hasError = true;
           }
@@ -1485,7 +1470,6 @@ const ImportOrderDetail = () => {
       return;
     }
 
-    const productId = order.productList[productIndex].productId;
     const updatedProduct = {
       ...order.productList[productIndex],
       quantityRe: newQuantityRe,
@@ -1513,24 +1497,10 @@ const ImportOrderDetail = () => {
         if (statusUpdate) updatedOrder.status = true;
       }
 
-      const inventoryResponse = await apiFetch(
-        `${apiUrl}/products/${productId}/0`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            quantity: receivedNum,
-            orderId: id,
-            orderName: order.orderName,
-          }),
-        }
-      );
-
-      if (inventoryResponse) {
-        setOrder(updatedOrder);
-        setTempProductList(updatedOrder.productList);
-        setReceiveInput((prev) => ({ ...prev, [productIndex]: "" }));
-        toast.success("Cập nhật số lượng thành công");
-      }
+      setOrder(updatedOrder);
+      setTempProductList(updatedOrder.productList);
+      setReceiveInput((prev) => ({ ...prev, [productIndex]: "" }));
+      toast.success("Cập nhật số lượng thành công");
     }
   };
 
@@ -2098,7 +2068,7 @@ const ImportOrderDetail = () => {
   };
 
   const handleProductStatusChange = async (productIndex, product) => {
-    if (!order) return;
+    if (!order || product.status) return;
 
     if (!window.confirm("Bạn có chắc muốn cập nhật trạng thái sản phẩm này?")) {
       return;
@@ -2114,25 +2084,9 @@ const ImportOrderDetail = () => {
     );
 
     if (updatedOrder) {
-      // 2. Gọi API cập nhật tồn kho sản phẩm
-      const productId = product.productId;
-      const quantityToAdd = product.quantity - product.quantityRe;
-
-      const inventoryResponse = await apiFetch(
-        `${apiUrl}/products/${productId}/0`,
-        {
-          method: "POST",
-          body: JSON.stringify({ quantity: quantityToAdd }),
-        }
-      );
-
-      if (inventoryResponse) {
-        setOrder(updatedOrder);
-        setTempProductList(updatedOrder.productList);
-        toast.success("Cập nhật trạng thái & tồn kho thành công");
-      } else {
-        toast.error("Cập nhật tồn kho thất bại");
-      }
+      setOrder(updatedOrder);
+      setTempProductList(updatedOrder.productList);
+      toast.success("Cập nhật trạng thái & tồn kho thành công");
     } else {
       toast.error("Cập nhật trạng thái sản phẩm thất bại");
     }
@@ -2172,7 +2126,9 @@ const ImportOrderDetail = () => {
             onChange={(e) => setOrder({ ...order, orderName: e.target.value })}
             sx={{ width: "300px" }}
             size="small"
+            disabled={!canEdit}
           />
+          {canEdit && (
           <Button
             variant="contained"
             color="success"
@@ -2180,9 +2136,11 @@ const ImportOrderDetail = () => {
           >
             Lưu tên
           </Button>
+          )}
         </Box>
 
         <Box display="flex" gap={1.5} mb={2} flexWrap="wrap">
+          {canEdit && (
           <Button
             variant="outlined"
             color="primary"
@@ -2190,12 +2148,18 @@ const ImportOrderDetail = () => {
           >
             Thêm sản phẩm
           </Button>
+          )}
+          {canEdit && (
           <Button variant="contained" color="primary" onClick={handleCopyOrder}>
             Sao chép đơn
           </Button>
+          )}
+          {canDelete && (
           <Button variant="contained" color="error" onClick={handleDeleteOrder}>
             Xóa đơn
           </Button>
+          )}
+          {canCreateRelatedOrder && (
           <Button
             variant="contained"
             color="secondary"
@@ -2203,6 +2167,8 @@ const ImportOrderDetail = () => {
           >
             Xuất đơn
           </Button>
+          )}
+          {canExcel && (
           <Button
             variant="contained"
             color="info"
@@ -2211,6 +2177,8 @@ const ImportOrderDetail = () => {
           >
             Xuất Excel
           </Button>
+          )}
+          {canExcel && (
           <Button
             component="label"
             variant="contained"
@@ -2225,6 +2193,8 @@ const ImportOrderDetail = () => {
               onChange={handleFileUpload}
             />
           </Button>
+          )}
+          {canScanAi && (
           <Button
             component="label"
             variant="contained"
@@ -2242,6 +2212,8 @@ const ImportOrderDetail = () => {
               onChange={handleScanInvoiceSelect}
             />
           </Button>
+          )}
+          {canAddImage && (
           <Button
             component="label"
             variant="contained"
@@ -2257,6 +2229,7 @@ const ImportOrderDetail = () => {
               onChange={handleManualUploadSelect}
             />
           </Button>
+          )}
         </Box>
 
         {/* Hiển thị danh sách ảnh hóa đơn đính kèm */}
@@ -2296,6 +2269,7 @@ const ImportOrderDetail = () => {
                     style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
                     onClick={() => handleOpenLightbox(index)}
                   />
+                  {canAddImage && (
                   <IconButton 
                     size="small" 
                     color="error"
@@ -2310,6 +2284,7 @@ const ImportOrderDetail = () => {
                   >
                     <DeleteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
+                  )}
                 </Box>
               ))}
             </Box>
@@ -2324,7 +2299,7 @@ const ImportOrderDetail = () => {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
+        onDragEnd={canEdit ? handleDragEnd : undefined}
       >
         <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "auto", maxHeight: "calc(100vh - 320px)" }}>
           <Table stickyHeader>
@@ -2368,6 +2343,7 @@ const ImportOrderDetail = () => {
                       handleReceiveQuantity={handleReceiveQuantity}
                       handleDeleteProduct={handleDeleteProduct}
                       handleProductStatusChange={handleProductStatusChange}
+                      canEdit={canEdit}
                     />
                   ))
                 ) : (

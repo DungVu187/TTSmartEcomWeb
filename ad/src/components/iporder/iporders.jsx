@@ -357,13 +357,6 @@ const IpOrders = () => {
     }
 
     try {
-      // 🔹 Tính số lượng còn thiếu cho từng sản phẩm TRƯỚC khi gọi API
-      const missingQuantities = order.productList.map((product) => ({
-        productId: product.productId,
-        missingQty: product.quantity - product.quantityRe,
-      }));
-
-      // 1. Cập nhật status đơn hàng và set quantityRe = quantity
       const res = await fetch(
         `${apiUrl}/iporders/orders/${order._id}/setStatusAndQuantity`,
         {
@@ -375,19 +368,7 @@ const IpOrders = () => {
       );
 
       if (!res.ok) throw new Error("Lỗi khi cập nhật đơn hàng");
-      const updatedOrder = await res.json();
-
-      // 2. Cập nhật tồn kho cho từng sản phẩm theo missingQty
-      for (const item of missingQuantities) {
-        if (item.missingQty > 0) {
-          await fetch(`${apiUrl}/products/${item.productId}/0`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ quantity: item.missingQty }),
-          });
-        }
-      }
+      await res.json();
 
       toast.success("Cập nhật trạng thái & tồn kho thành công");
       fetchOrders(currentPage); // reload danh sách
@@ -425,10 +406,10 @@ const IpOrders = () => {
             alignItems: "center",
             flexWrap: "wrap",
             gap: 2,
-            mb: { xs: 0, sm: 2 },
+            mb: "12px !important",
           }}
         >
-          <Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
+          <Typography variant="h5" sx={{ whiteSpace: "nowrap", mb: "0 !important" }}>
             Quản lý đơn nhập
           </Typography>
           
@@ -442,35 +423,35 @@ const IpOrders = () => {
             Bộ lọc & Chức năng
           </Button>
 
-          {/* Cụm nút tác vụ cho Desktop */}
-          <Box sx={{ display: { xs: "none", sm: "flex" }, gap: 1.5, flexWrap: "wrap" }}>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleOpenDialog}
-            >
-              Mẫu hóa đơn
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleOpenCreateDialog}
-            >
-              Tạo đơn mới
-            </Button>
-          </Box>
         </Box>
 
         {/* 1. Bộ lọc cho Desktop */}
         <Box
           sx={{
             display: { xs: "none", sm: "flex" },
-            gap: 1.5,
+            columnGap: 1.5,
+            rowGap: 4,
             mb: 0,
             flexWrap: "wrap",
             alignItems: "center"
           }}
         >
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleOpenCreateDialog}
+            sx={{ height: 40, minWidth: 130, flexShrink: 0 }}
+          >
+            Tạo đơn mới
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleOpenDialog}
+            sx={{ height: 40, minWidth: 130, flexShrink: 0 }}
+          >
+            Mẫu hóa đơn
+          </Button>
           <Autocomplete
             freeSolo
             size="small"
@@ -592,17 +573,6 @@ const IpOrders = () => {
             <Box display="flex" gap={1.5}>
               <Button
                 variant="contained"
-                color="secondary"
-                onClick={() => {
-                  setShowMobileFilters(false);
-                  handleOpenDialog();
-                }}
-                fullWidth
-              >
-                Mẫu hóa đơn
-              </Button>
-              <Button
-                variant="contained"
                 color="primary"
                 onClick={() => {
                   setShowMobileFilters(false);
@@ -611,6 +581,17 @@ const IpOrders = () => {
                 fullWidth
               >
                 Tạo đơn mới
+              </Button>
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={() => {
+                  setShowMobileFilters(false);
+                  handleOpenDialog();
+                }}
+                fullWidth
+              >
+                Mẫu hóa đơn
               </Button>
             </Box>
 
@@ -795,7 +776,7 @@ const IpOrders = () => {
       ) : (
         <>
           {loading && <LinearProgress sx={{ mb: 1 }} />}
-          <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}>
+          <TableContainer component={Paper} sx={{ overflowX: "auto", height: "calc(100vh - 220px)" }}>
           <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
             <TableHead>
               <TableRow>
@@ -958,7 +939,7 @@ const IpOrders = () => {
       )}
 
       {pagination.totalPages > 1 && (
-        <Box display="flex" justifyContent="center" mt={2}>
+        <Box display="flex" justifyContent="center" mt={1} mb={1}>
           <Pagination
             count={pagination.totalPages}
             page={currentPage}

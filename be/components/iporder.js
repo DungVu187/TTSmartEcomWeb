@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require("./user");
 const router = express.Router();
 const { Product } = require("./product");
+const { StorageHistory } = require("./storagehistory");
 const path = require("path");
 const multer = require("multer");
 
@@ -48,9 +49,66 @@ ipOrderSchema.pre("save", function (next) {
 
 const IpOrder = mongoose.model("IpOrder", ipOrderSchema);
 
+const toQuantity = (value) => Number(value) || 0;
+
+const createRouteError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const adjustImportStock = async ({ productId, delta, req, order, note, isAIScan, source }) => {
+  if (!delta) return null;
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    throw createRouteError(404, `Product ${productId} not found`);
+  }
+
+  const variant = product.variant[0];
+  if (!variant) {
+    throw createRouteError(400, "Sản phẩm không có biến thể");
+  }
+
+  if (delta > 0) {
+    variant.quantityInStorage += delta;
+    variant.quantityForSale += delta;
+  } else {
+    const removeQty = Math.abs(delta);
+    if (variant.quantityInStorage < removeQty || variant.quantityForSale < removeQty) {
+      throw createRouteError(
+        400,
+        `Số lượng đã nhập không còn đủ trong kho cho sản phẩm: ${product.name}`
+      );
+    }
+    variant.quantityInStorage -= removeQty;
+    variant.quantityForSale -= removeQty;
+  }
+
+  await product.save();
+
+  try {
+    await new StorageHistory({
+      productId,
+      productName: product.name,
+      quantity: delta,
+      userName: req.user?.name,
+      orderId: order._id.toString(),
+      orderName: order.orderName,
+      note,
+      isAIScan: !!isAIScan,
+      source,
+    }).save();
+  } catch (logErr) {
+    console.error("StorageHistory error (iporder stock adjustment):", logErr.message);
+  }
+
+  return product;
+};
+
 router.get(
   "/orders",
-  [authenticateAdmin, checkPermission("read_iporder")],
+  [authenticateAdmin, checkPermission("iporder.view")],
   async (req, res) => {
     try {
       const {
@@ -115,14 +173,14 @@ router.get(
         },
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
 
 router.post(
   "/orders",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.create")],
   async (req, res) => {
     try {
       const userName = req.user.name;
@@ -154,13 +212,25 @@ router.post(
 
 router.post(
   "/orders/:id/products",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       const newProduct = req.body;
+      const stockDelta = newProduct.skipStockUpdate ? 0 : toQuantity(newProduct.quantityRe);
+      if (stockDelta > 0) {
+        await adjustImportStock({
+          productId: newProduct.productId,
+          delta: stockDelta,
+          req,
+          order,
+          note: newProduct.isAIScan ? "Nhập kho (AI scan đơn nhập)" : "Nhập kho (thêm sản phẩm đơn nhập)",
+          isAIScan: newProduct.isAIScan,
+          source: "order_line_manual",
+        });
+      }
       order.productList.push(newProduct);
 
       // Tính toán lại tổng tiền của đơn hàng
@@ -176,14 +246,14 @@ router.post(
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(error.statusCode || 400).json({ message: error.message });
     }
   }
 );
 
 router.delete(
   "/orders/:id/products/:productIndex",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id);
@@ -211,7 +281,7 @@ router.delete(
 
 router.put(
   "/orders/:id",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id);
@@ -246,7 +316,7 @@ router.put(
 
 router.delete(
   "/orders/:id",
-  [authenticateAdmin, checkPermission("delete_iporder")],
+  [authenticateAdmin, checkPermission("iporder.delete")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id);
@@ -255,14 +325,14 @@ router.delete(
       await order.deleteOne();
       res.json({ message: "Order deleted successfully" });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
 
 router.put(
   "/orders/:id/status",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -281,24 +351,56 @@ router.put(
 
 router.put(
   "/orders/:id/setStatusAndQuantity",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
       const order = await IpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
-      // Cập nhật status của order
-      order.status = status;
-      order.completedAt = status ? new Date() : null;
-
-      // Nếu status = true thì set quantityRe = quantity cho tất cả sản phẩm
       if (status === true) {
-        order.productList = order.productList.map((product) => ({
-          ...product.toObject(),
-          quantityRe: product.quantity,
-          status: true,
-        }));
+        for (const productItem of order.productList) {
+          const product = await Product.findById(productItem.productId);
+          if (!product) {
+            return res
+              .status(404)
+              .json({ message: `Product ${productItem.productId} not found` });
+          }
+
+          const variant = product.variant[0];
+          if (!variant) {
+            return res.status(400).json({ message: "Sản phẩm không có biến thể" });
+          }
+
+          const addQty = productItem.quantity - (productItem.quantityRe || 0);
+          variant.quantityInStorage += addQty;
+          variant.quantityForSale += addQty;
+          productItem.quantityRe = productItem.quantity;
+          productItem.status = true;
+
+          await product.save();
+
+          try {
+            await new StorageHistory({
+              productId: productItem.productId,
+              productName: product.name,
+              quantity: addQty,
+              userName: req.user?.name,
+              orderId: order._id.toString(),
+              orderName: order.orderName,
+              note: "Nhập kho (đơn nhập hoàn thành)",
+              source: "order_bulk_complete",
+            }).save();
+          } catch (logErr) {
+            console.error("StorageHistory error (complete iporder):", logErr.message);
+          }
+        }
+
+        order.status = true;
+        order.completedAt = new Date();
+      } else {
+        order.status = false;
+        order.completedAt = null;
       }
 
       const updatedOrder = await order.save();
@@ -311,7 +413,7 @@ router.put(
 
 router.put(
   "/orders/:id/products/:productIndex/status",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -334,7 +436,7 @@ router.put(
 
 router.put(
   "/orders/:id/products/:productIndex/setStatusAndQuantity",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const { status } = req.body;
@@ -350,24 +452,58 @@ router.put(
         return res.status(400).json({ message: "Invalid product index" });
       }
 
-      order.productList[productIndex].status = status;
+      const productItem = order.productList[productIndex];
+      if (status !== true || productItem.status === true) {
+        return res.json(order);
+      }
 
-      if (status === true) {
-        order.productList[productIndex].quantityRe =
-          order.productList[productIndex].quantity;
+      const product = await Product.findById(productItem.productId);
+      if (!product) {
+        return res
+          .status(404)
+          .json({ message: `Product ${productItem.productId} not found` });
+      }
+
+      const variant = product.variant[0];
+      if (!variant) {
+        return res.status(400).json({ message: "Sản phẩm không có biến thể" });
+      }
+
+      const addQty = productItem.quantity - (productItem.quantityRe || 0);
+      variant.quantityInStorage += addQty;
+      variant.quantityForSale += addQty;
+      productItem.quantityRe = productItem.quantity;
+      productItem.status = true;
+
+      await product.save();
+
+      try {
+        await new StorageHistory({
+          productId: productItem.productId,
+          productName: product.name,
+          quantity: addQty,
+          userName: req.user?.name,
+          orderId: order._id.toString(),
+          orderName: order.orderName,
+          note: "Nhập kho (đơn nhập hoàn thành)",
+          source: "order_line_complete",
+        }).save();
+      } catch (logErr) {
+        console.error("StorageHistory error (complete iporder item):", logErr.message);
       }
 
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      console.error("Error updating import order item status:", error);
+      res.status(500).json({ message: "Lỗi server khi cập nhật trạng thái sản phẩm" });
     }
   }
 );
 
 router.get(
   "/orders/:id",
-  [authenticateAdmin, checkPermission("read_iporder")],
+  [authenticateAdmin, checkPermission("iporder.view")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id).lean();
@@ -392,14 +528,14 @@ router.get(
       });
     } catch (error) {
       console.error("Error fetching order:", error);
-      res.status(500).json({ message: "Server error", error: error.message });
+      res.status(500).json({ message: "Server error" });
     }
   }
 );
 
 router.put(
   "/orders/:id/products/:productIndex",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id);
@@ -412,6 +548,23 @@ router.put(
         productIndex >= order.productList.length
       ) {
         return res.status(404).json({ message: "Product index not found" });
+      }
+
+      const currentProduct = order.productList[productIndex];
+      const hasQuantityRe = Object.prototype.hasOwnProperty.call(req.body, "quantityRe");
+      const stockDelta = req.body.skipStockUpdate || !hasQuantityRe
+        ? 0
+        : toQuantity(req.body.quantityRe) - toQuantity(currentProduct.quantityRe);
+      if (stockDelta !== 0) {
+        await adjustImportStock({
+          productId: currentProduct.productId,
+          delta: stockDelta,
+          req,
+          order,
+          note: stockDelta > 0 ? "Nhập kho (cập nhật đơn nhập)" : "Điều chỉnh giảm nhập kho",
+          isAIScan: req.body.isAIScan,
+          source: "order_line_manual",
+        });
       }
 
       order.productList[productIndex] = {
@@ -431,14 +584,14 @@ router.put(
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(error.statusCode || 400).json({ message: error.message });
     }
   }
 );
 
 router.put(
   "/orders/:id/name",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const { orderName } = req.body;
@@ -456,7 +609,7 @@ router.put(
 
 router.put(
   "/orders/:id/reorder",
-  [authenticateAdmin, checkPermission("update_iporder")],
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const order = await IpOrder.findById(req.params.id);
@@ -504,7 +657,7 @@ router.put(
 
 router.get(
   "/products",
-  [authenticateAdmin, checkPermission("read_iporder")],
+  [authenticateAdmin, checkPermission("iporder.view")],
   async (req, res) => {
     try {
       const { page = 1 } = req.query;
@@ -561,7 +714,7 @@ router.get(
         },
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Lỗi server" });
     }
   }
 );
@@ -588,7 +741,7 @@ const uploadInvoice = multer({
 
 router.post(
   "/upload-image",
-  [authenticateAdmin, uploadInvoice.single("invoice")],
+  [authenticateAdmin, checkPermission("iporder.edit"), uploadInvoice.single("invoice")],
   async (req, res) => {
     try {
       if (!req.file) {
@@ -597,14 +750,14 @@ router.post(
       const imageUrl = `/invoice-images/${req.file.filename}`;
       res.json({ success: 1, imageUrl });
     } catch (error) {
-      res.status(500).json({ message: "Lỗi upload ảnh", error: error.message });
+      res.status(500).json({ message: "Lỗi upload ảnh" });
     }
   }
 );
 
 router.delete(
   "/delete-image",
-  authenticateAdmin,
+  [authenticateAdmin, checkPermission("iporder.edit")],
   async (req, res) => {
     try {
       const { imageUrl } = req.query;
@@ -626,7 +779,7 @@ router.delete(
         return res.json({ success: 1, message: "File không tồn tại trên ổ cứng hoặc đã được xóa." });
       }
     } catch (error) {
-      res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh vật lý", error: error.message });
+      res.status(500).json({ success: 0, message: "Lỗi server khi xóa ảnh vật lý" });
     }
   }
 );

@@ -123,7 +123,205 @@ describe('Backend security hardening regression tests', () => {
     for (const user of response.body) {
       expect(user).not.toHaveProperty('password');
       expect(user).not.toHaveProperty('logInString');
+      expect(user).not.toHaveProperty('resetOtp');
+      expect(user).not.toHaveProperty('resetOtpExpires');
     }
+  });
+
+  it('does not expose sensitive user fields through profile and customers', async () => {
+    await createUser({
+      phone: '0920000010',
+      email: 'admin-customers@example.com',
+      role: 'admin'
+    });
+    const customer = await createUser({
+      phone: '0920000011',
+      email: 'sensitive-customer@example.com'
+    });
+    await User.updateOne(
+      { _id: customer._id },
+      {
+        $set: {
+          logInString: 'secret-profile-token',
+          resetOtp: '123456',
+          resetOtpExpires: new Date()
+        }
+      }
+    );
+
+    const customerAgent = await loginAgent({ phone: '0920000011' });
+    const profileResponse = await customerAgent.get('/users/profile');
+    expect(profileResponse.status).toBe(200);
+    expect(profileResponse.body).not.toHaveProperty('password');
+    expect(profileResponse.body).not.toHaveProperty('logInString');
+    expect(profileResponse.body).not.toHaveProperty('resetOtp');
+    expect(profileResponse.body).not.toHaveProperty('resetOtpExpires');
+
+    const adminAgent = await loginAgent({ phone: '0920000010', role: 'admin' });
+    const customersResponse = await adminAgent.get('/users/customers');
+    expect(customersResponse.status).toBe(200);
+    expect(customersResponse.body[0]).not.toHaveProperty('password');
+    expect(customersResponse.body[0]).not.toHaveProperty('logInString');
+    expect(customersResponse.body[0]).not.toHaveProperty('resetOtp');
+    expect(customersResponse.body[0]).not.toHaveProperty('resetOtpExpires');
+  });
+
+  it('blocks staff with customer.edit from rotating admin autologin token', async () => {
+    const targetAdmin = await createUser({
+      phone: '0920000012',
+      email: 'target-admin@example.com',
+      role: 'admin'
+    });
+    await User.updateOne({ _id: targetAdmin._id }, { $set: { logInString: 'admin-token-before' } });
+    await createUser({
+      phone: '0920000013',
+      email: 'staff-editor@example.com',
+      role: 'staff',
+      permissions: ['customer.edit']
+    });
+
+    const staffAgent = await loginAgent({ phone: '0920000013', role: 'staff' });
+    const response = await staffAgent
+      .post(`/users/${targetAdmin._id}/rotate-autologin-token`)
+      .send();
+
+    expect(response.status).toBe(403);
+    const unchangedAdmin = await User.findById(targetAdmin._id);
+    expect(unchangedAdmin.logInString).toBe('admin-token-before');
+  });
+
+  it('blocks staff with customer.edit from rotating another staff autologin token', async () => {
+    const targetStaff = await createUser({
+      phone: '0920000015',
+      email: 'target-staff@example.com',
+      role: 'staff',
+      permissions: ['order.view']
+    });
+    await User.updateOne({ _id: targetStaff._id }, { $set: { logInString: 'staff-token-before' } });
+    await createUser({
+      phone: '0920000016',
+      email: 'staff-editor-2@example.com',
+      role: 'staff',
+      permissions: ['customer.edit']
+    });
+
+    const staffAgent = await loginAgent({ phone: '0920000016', role: 'staff' });
+    const response = await staffAgent
+      .post(`/users/${targetStaff._id}/rotate-autologin-token`)
+      .send();
+
+    expect(response.status).toBe(403);
+    const unchangedStaff = await User.findById(targetStaff._id);
+    expect(unchangedStaff.logInString).toBe('staff-token-before');
+  });
+
+  it('rejects object query fields on auth recovery routes', async () => {
+    await createUser({
+      phone: '0920000014',
+      email: 'nosql@example.com',
+      role: 'admin'
+    });
+    const adminAgent = await loginAgent({ phone: '0920000014', role: 'admin' });
+
+    await request(app)
+      .post('/users/login')
+      .send({ phone: { $ne: null }, password: 'password123' })
+      .expect(400);
+
+    await request(app)
+      .post('/users/admin/login')
+      .send({ phone: { $ne: null }, password: 'password123' })
+      .expect(400);
+
+    await adminAgent
+      .post('/users/register')
+      .send({ phone: { $ne: null }, password: 'password123', name: 'Bad Register' })
+      .expect(400);
+
+    await request(app)
+      .post('/users/forgot-password')
+      .send({ identifier: { $ne: null } })
+      .expect(400);
+
+    await request(app)
+      .post('/users/reset-password')
+      .send({ identifier: { $ne: null }, otp: '123456', newPassword: 'newpass123' })
+      .expect(400);
+  });
+
+  it('strips importPrice and earn from public product responses', async () => {
+    const product = await Product.create({
+      type: 'PLC',
+      name: 'Private Variant Product',
+      brand: 'Siemens',
+      section: 'Automation',
+      value: 'PLC',
+      warranty: '12 months',
+      variant: [{
+        price: '100000',
+        importPrice: '70000',
+        earn: 20,
+        quantityForSale: 10,
+        quantityInStorage: 10
+      }]
+    });
+
+    const detailResponse = await request(app).get(`/products/${product._id}`);
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.body.variant[0]).not.toHaveProperty('importPrice');
+    expect(detailResponse.body.variant[0]).not.toHaveProperty('earn');
+
+    const fetchResponse = await request(app)
+      .post('/products/fetch-by-ids')
+      .send({ ids: [product._id.toString()] });
+    expect(fetchResponse.status).toBe(200);
+    expect(fetchResponse.body.products[0].variant[0]).not.toHaveProperty('importPrice');
+    expect(fetchResponse.body.products[0].variant[0]).not.toHaveProperty('earn');
+  });
+
+  it('does not allow product.edit users to set purchaseCount through product update', async () => {
+    const product = await createProduct();
+    await createUser({
+      phone: '0920000017',
+      email: 'product-editor@example.com',
+      role: 'staff',
+      permissions: ['product.edit']
+    });
+    const staffAgent = await loginAgent({ phone: '0920000017', role: 'staff' });
+
+    const response = await staffAgent
+      .put(`/products/${product._id}`)
+      .send({ name: 'Allowed Rename', purchaseCount: 999 });
+
+    expect(response.status).toBe(200);
+    const updatedProduct = await Product.findById(product._id);
+    expect(updatedProduct.name).toBe('Allowed Rename');
+    expect(updatedProduct.purchaseCount).toBe(0);
+  });
+
+  it('rejects an old JWT after password change', async () => {
+    await createUser({
+      phone: '0920000018',
+      email: 'session-expiry@example.com'
+    });
+
+    const loginResponse = await request(app)
+      .post('/users/login')
+      .send({ phone: '0920000018', password: 'password123' });
+    expect(loginResponse.status).toBe(200);
+    const oldCookie = loginResponse.headers['set-cookie'][0].split(';')[0];
+
+    const changeResponse = await request(app)
+      .put('/users/change-password')
+      .set('Cookie', oldCookie)
+      .send({ currentPassword: 'password123', newPassword: 'newpassword123' });
+    expect(changeResponse.status).toBe(200);
+
+    const oldSessionResponse = await request(app)
+      .get('/users/profile')
+      .set('Cookie', oldCookie);
+
+    expect(oldSessionResponse.status).toBe(401);
   });
 
   it('requires authentication for purchase count updates', async () => {
@@ -180,13 +378,13 @@ describe('Backend security hardening regression tests', () => {
       .expect(200);
   });
 
-  it('allows update_eporder permission on product setStatusAndQuantity route', async () => {
+  it('allows eporder.edit permission on product setStatusAndQuantity route', async () => {
     const staff = await createUser({
       phone: '0920000008',
       email: 'ep-staff@example.com',
       role: 'staff',
       functions: ['eporder_management'],
-      permissions: ['update_eporder']
+      permissions: ['eporder.edit']
     });
     const staffAgent = await loginAgent({ phone: staff.phone, role: 'staff' });
     const order = await EpOrder.create({

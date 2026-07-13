@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const OrderedProducts = () => {
-  const [products, setProducts] = useState([]);
+  const [, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -109,7 +109,7 @@ const OrderedProducts = () => {
       });
 
       const productsWithDetails = await Promise.all(
-        Array.from(productMap.entries()).map(async ([key, product]) => {
+        Array.from(productMap.entries()).map(async ([, product]) => {
           try {
             const response = await fetch(`${apiUrl}/products/${product.productId}`, {
               headers: {

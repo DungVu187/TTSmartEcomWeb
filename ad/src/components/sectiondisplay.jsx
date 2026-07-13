@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   TextField,
   Button,
@@ -29,6 +29,7 @@ const apiUrl = import.meta.env.VITE_API_URL;
 const SectionDisplay = () => {
   const [manageData, setManageData] = useState(null);
   const [products, setProducts] = useState([]);
+  const [availableProducts, setAvailableProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -115,7 +116,7 @@ const SectionDisplay = () => {
     const query = new URLSearchParams({ search, page: pageNum, limit }).toString();
     const result = await apiFetch(`${apiUrl}/products/?${query}`);
     if (result?.products) {
-      setProducts(result.products);
+      setAvailableProducts(result.products);
     }
   };
 
@@ -148,7 +149,9 @@ const SectionDisplay = () => {
       return;
     }
 
-    const productToAdd = products.find((p) => p._id === productId);
+    const productToAdd =
+      availableProducts.find((p) => p._id === productId) ||
+      products.find((p) => p._id === productId);
     if (!productToAdd) {
       toast.error("Không tìm thấy sản phẩm để thêm");
       return;
@@ -160,6 +163,9 @@ const SectionDisplay = () => {
       if (updatedDisplay === null) return;
 
       setProducts((prev) =>
+        prev.map((p) => (p._id === productId ? { ...p, display: updatedDisplay } : p))
+      );
+      setAvailableProducts((prev) =>
         prev.map((p) => (p._id === productId ? { ...p, display: updatedDisplay } : p))
       );
     }
@@ -380,7 +386,7 @@ const SectionDisplay = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {products.map((product) => (
+                {availableProducts.map((product) => (
                   <TableRow
                     key={product._id}
                     hover
@@ -408,7 +414,7 @@ const SectionDisplay = () => {
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={products.length} // Cần backend trả về totalCount
+            count={availableProducts.length} // Cần backend trả về totalCount
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}

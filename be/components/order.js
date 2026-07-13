@@ -8,6 +8,7 @@ require("dotenv").config();
 const { Product } = require('./product');
 const { sendNewOrderNotification } = require('../mailer');
 const { sendZaloOrderNotification } = require('../zaloService');
+const { sendTelegramOrderNotification } = require('../telegramService');
 const { Station } = require('./station');
 const { StorageHistory } = require("./storagehistory");
 
@@ -112,6 +113,66 @@ async function computeOrderTotal(cartItems) {
   return total;
 }
 
+async function prepareOrderItemsForCreation(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { error: { status: 400, message: "Danh sách sản phẩm không hợp lệ" } };
+  }
+
+  const preparedItems = [];
+  const productCache = new Map();
+  const reservedStock = new Map();
+  let total = 0;
+
+  for (const rawItem of items) {
+    const parsed = validateOrderItemInput(rawItem);
+    if (parsed.message) {
+      return { error: { status: 400, message: parsed.message } };
+    }
+
+    const item = parsed.value;
+    let product = productCache.get(item.productId);
+    if (!product) {
+      product = await Product.findById(item.productId);
+      if (product) {
+        productCache.set(item.productId, product);
+      }
+    }
+    if (!product) {
+      return { error: { status: 404, message: `Sản phẩm với ID ${item.productId} không tồn tại.` } };
+    }
+
+    const variant = product.variant[item.variantIndex];
+    if (!variant) {
+      return { error: { status: 400, message: `Phiên bản sản phẩm không hợp lệ cho sản phẩm ${item.productId}.` } };
+    }
+
+    const stockKey = `${product._id.toString()}:${item.variantIndex}`;
+    const reservedQuantity = reservedStock.get(stockKey) || 0;
+    if (variant.quantityForSale - reservedQuantity < item.quantity) {
+      return {
+        error: {
+          status: 400,
+          message: `Không đủ hàng cho sản phẩm ${product.name}, variant ${variant.color || 'default'}.`
+        }
+      };
+    }
+    reservedStock.set(stockKey, reservedQuantity + item.quantity);
+
+    total += parseOrderPrice(variant.price) * item.quantity;
+    preparedItems.push({
+      product,
+      variant,
+      cartItem: item,
+    });
+  }
+
+  return {
+    preparedItems,
+    cartItems: preparedItems.map((item) => item.cartItem),
+    total,
+  };
+}
+
 async function enrichCartItems(cartItems) {
   return Promise.all((cartItems || []).map(async (it) => {
     const p = await Product.findById(it.productId);
@@ -210,7 +271,7 @@ const handleInvoiceUpload = (req, res, next) => {
 };
 
 // API lấy danh sách đơn hàng với phân trang
-router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, res) => {
+router.get("/", [authenticateAdmin, checkPermission('order.view')], async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -292,7 +353,7 @@ router.get("/", [authenticateAdmin, checkPermission('read_order')], async (req, 
 });
 
 // API cập nhật trạng thái hoặc thanh toán của đơn hàng
-router.get("/customer-suggestions", [authenticateAdmin, checkPermission('read_order')], async (req, res) => {
+router.get("/customer-suggestions", [authenticateAdmin, checkPermission('order.view')], async (req, res) => {
   try {
     const customers = await User.find({ role: "customer" }).select("name phone");
     res.json({
@@ -308,7 +369,7 @@ router.get("/customer-suggestions", [authenticateAdmin, checkPermission('read_or
   }
 });
 
-router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.put('/update-order/:_id', [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   const { _id } = req.params;
   const { field, value } = req.body;
   const io = req.app.get('io'); // 👈
@@ -345,36 +406,43 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
       }
 
       if (order.status !== value && value === "Completed") {
-        await Promise.all(
-          order.cartItems.map(async (item) => {
-            const product = await Product.findById(item.productId);
-            if (!product) throw new Error('Product not found');
-            const variant = product.variant[item.variantIndex];
-            if (!variant) throw new Error('Variant not found');
+        const stockUpdates = [];
+        for (const item of order.cartItems) {
+          const product = await Product.findById(item.productId);
+          if (!product) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm trong đơn hàng" });
+          }
+          const variant = product.variant[item.variantIndex];
+          if (!variant) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy phiên bản sản phẩm trong đơn hàng" });
+          }
+          if (variant.quantityInStorage < item.quantity) {
+            return res.status(400).json({ success: false, message: `Không đủ tồn kho cho sản phẩm ${product.name}` });
+          }
+          stockUpdates.push({ item, product, variant });
+        }
 
-            variant.quantityInStorage -= item.quantity;
-            if (variant.quantityInStorage < 0) {
-              throw new Error(`Not enough stock for product: ${product.name}`);
-            }
-            product.purchaseCount = (product.purchaseCount || 0) + item.quantity;
-            await product.save();
+        for (const { item, product, variant } of stockUpdates) {
+          variant.quantityInStorage -= item.quantity;
+          product.purchaseCount = (product.purchaseCount || 0) + item.quantity;
+          await product.save();
 
-            // Ghi lịch sử kho: xuất kho do đơn hàng bán online hoàn thành
-            try {
-              await new StorageHistory({
-                productId: item.productId,
-                productName: product.name,
-                quantity: -item.quantity,
-                userName: req.user?.name || "Hệ thống",
-                orderId: order.orderCode,
-                orderName: order.orderCode,
-                note: "Đơn hàng bán online",
-              }).save();
-            } catch (logErr) {
-              console.error("StorageHistory error (complete order):", logErr.message);
-            }
-          })
-        );
+          // Ghi lịch sử kho: xuất kho do đơn hàng bán online hoàn thành
+          try {
+            await new StorageHistory({
+              productId: item.productId,
+              productName: product.name,
+              quantity: -item.quantity,
+              userName: req.user?.name || "Hệ thống",
+              orderId: order.orderCode,
+              orderName: order.orderCode,
+              note: "Đơn hàng bán online",
+              source: "online_sale",
+            }).save();
+          } catch (logErr) {
+            console.error("StorageHistory error (complete order):", logErr.message);
+          }
+        }
       } else if (order.status === "Completed" && value !== "Completed") {
         await Promise.all(
           order.cartItems.map(async (item) => {
@@ -397,6 +465,7 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
                 orderId: order.orderCode,
                 orderName: order.orderCode,
                 note: "Hoàn tác đơn bán online",
+                source: "online_sale_revert",
               }).save();
             } catch (logErr) {
               console.error("StorageHistory error (revert order):", logErr.message);
@@ -410,7 +479,7 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
     await order.save();
 
     // Emit khi đơn hàng được cập nhật
-    io.emit("order_updated", {
+    io.to('admins').emit("order_updated", {
       orderId: order._id,
       updatedField: field,
       newValue: value,
@@ -424,7 +493,7 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('update_ord
 });
 
 // API tạo đơn hàng
-router.post("/admin-create-order", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.post("/admin-create-order", [authenticateAdmin, checkPermission('order.create')], async (req, res) => {
   const { userPhone, userName, items } = req.body;
   const io = req.app.get('io');
 
@@ -437,68 +506,12 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('update_o
   }
 
   try {
-    const preparedItems = [];
-    const productCache = new Map();
-    const reservedStock = new Map();
-    let total = 0;
-
-    for (const item of items) {
-      const quantity = Number(item.quantity);
-      const variantIndex = Number(item.variantIndex);
-
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        return res.status(400).json({ success: false, message: "Số lượng sản phẩm không hợp lệ" });
-      }
-
-      if (!mongoose.Types.ObjectId.isValid(item.productId)) {
-        return res.status(400).json({ success: false, message: "Sản phẩm không hợp lệ" });
-      }
-
-      if (!Number.isInteger(variantIndex) || variantIndex < 0) {
-        return res.status(400).json({ success: false, message: "Phiên bản sản phẩm không hợp lệ" });
-      }
-
-      const productId = String(item.productId);
-      let product = productCache.get(productId);
-      if (!product) {
-        product = await Product.findById(productId);
-        if (product) {
-          productCache.set(productId, product);
-        }
-      }
-      if (!product) {
-        return res.status(404).json({ success: false, message: `Sản phẩm với ID ${item.productId} không tồn tại.` });
-      }
-
-      const variant = product.variant[variantIndex];
-      if (!variant) {
-        return res.status(404).json({ success: false, message: `Variant không tồn tại cho sản phẩm ${item.productId}.` });
-      }
-
-      const stockKey = `${product._id.toString()}:${variantIndex}`;
-      const reservedQuantity = reservedStock.get(stockKey) || 0;
-      if (variant.quantityForSale - reservedQuantity < quantity) {
-        return res.status(400).json({
-          success: false,
-          message: `Không đủ hàng cho sản phẩm ${product.name}, variant ${variant.color || 'default'}.`
-        });
-      }
-      reservedStock.set(stockKey, reservedQuantity + quantity);
-
-      const price = parseOrderPrice(variant.price);
-      total += price * quantity;
-      preparedItems.push({
-        product,
-        variant,
-        cartItem: {
-          productId: product._id.toString(),
-          variantIndex,
-          quantity,
-        },
-      });
+    const preparedOrder = await prepareOrderItemsForCreation(items);
+    if (preparedOrder.error) {
+      return res.status(preparedOrder.error.status).json({ success: false, message: preparedOrder.error.message });
     }
 
-    for (const item of preparedItems) {
+    for (const item of preparedOrder.preparedItems) {
       item.variant.quantityForSale -= item.cartItem.quantity;
       await item.product.save();
     }
@@ -514,17 +527,17 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('update_o
       orderCode,
       userPhone: String(userPhone),
       userName,
-      cartItems: preparedItems.map((item) => item.cartItem),
-      total,
+      cartItems: preparedOrder.cartItems,
+      total: preparedOrder.total,
     });
     const savedOrder = await newOrder.save();
 
     // Đơn tạo nội bộ bở qua email/Zalo để không gửi thông báo như luồng khách tự đặt.
-    io.emit("order_created", {
+    io.to('admins').emit("order_created", {
       orderId: savedOrder._id,
       orderCode: savedOrder.orderCode,
       userPhone,
-      total,
+      total: preparedOrder.total,
       createdAt: savedOrder.createdAt,
     });
 
@@ -539,7 +552,7 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('update_o
   }
 });
 
-router.post("/admin-draft", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.post("/admin-draft", [authenticateAdmin, checkPermission('order.create')], async (req, res) => {
   try {
     const counter = await Counter.findOneAndUpdate(
       { id: "orderCode" },
@@ -564,7 +577,7 @@ router.post("/admin-draft", [authenticateAdmin, checkPermission('update_order')]
   }
 });
 
-router.get("/admin-detail/:id", [authenticateAdmin, checkPermission('read_order')], async (req, res) => {
+router.get("/admin-detail/:id", [authenticateAdmin, checkPermission('order.view')], async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) {
@@ -578,7 +591,7 @@ router.get("/admin-detail/:id", [authenticateAdmin, checkPermission('read_order'
   }
 });
 
-router.post("/:id/items", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.post("/:id/items", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const parsed = validateOrderItemInput(req.body);
     if (parsed.message) {
@@ -622,7 +635,7 @@ router.post("/:id/items", [authenticateAdmin, checkPermission('update_order')], 
   }
 });
 
-router.put("/:id/items/:index", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.put("/:id/items/:index", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const newQty = Number(req.body.quantity);
     if (!Number.isInteger(newQty) || newQty <= 0) {
@@ -676,7 +689,7 @@ router.put("/:id/items/:index", [authenticateAdmin, checkPermission('update_orde
   }
 });
 
-router.delete("/:id/items/:index", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.delete("/:id/items/:index", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) {
@@ -711,7 +724,7 @@ router.delete("/:id/items/:index", [authenticateAdmin, checkPermission('update_o
   }
 });
 
-router.put("/:id/reorder", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.put("/:id/reorder", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) {
@@ -746,7 +759,7 @@ router.put("/:id/reorder", [authenticateAdmin, checkPermission('update_order')],
   }
 });
 
-router.put("/:id/customer", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.put("/:id/customer", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const { userName, userPhone } = req.body;
     if (userPhone && !/^\d{10,11}$/.test(String(userPhone))) {
@@ -773,7 +786,7 @@ router.put("/:id/customer", [authenticateAdmin, checkPermission('update_order')]
   }
 });
 
-router.put("/:id/images", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.put("/:id/images", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const { images } = req.body;
     if (!Array.isArray(images) || images.some((imageUrl) => typeof imageUrl !== "string")) {
@@ -801,7 +814,7 @@ router.put("/:id/images", [authenticateAdmin, checkPermission('update_order')], 
 
 router.post(
   "/upload-image",
-  [authenticateAdmin, checkPermission('update_order'), handleInvoiceUpload],
+  [authenticateAdmin, checkPermission('order.edit'), handleInvoiceUpload],
   async (req, res) => {
     try {
       if (!req.file) {
@@ -816,7 +829,7 @@ router.post(
   }
 );
 
-router.delete("/delete-image", [authenticateAdmin, checkPermission('update_order')], async (req, res) => {
+router.delete("/delete-image", [authenticateAdmin, checkPermission('order.edit')], async (req, res) => {
   try {
     const { imageUrl } = req.query;
     if (!imageUrl) {
@@ -842,32 +855,21 @@ router.delete("/delete-image", [authenticateAdmin, checkPermission('update_order
 });
 
 router.post("/create-order", authenticateUser, async (req, res) => {
-  const { cartItems, total, stationCode } = req.body;
+  const { cartItems, stationCode } = req.body;
   const userPhone = req.user.phone;
   const userName = req.user.name;
 
   const io = req.app.get('io'); // 👈 lấy socket io từ app
 
   try {
-    for (let item of cartItems) {
-      const product = await Product.findById(item.productId);
-      if (!product) {
-        return res.status(404).json({ message: `Sản phẩm với ID ${item.productId} không tồn tại.` });
-      }
+    const preparedOrder = await prepareOrderItemsForCreation(cartItems);
+    if (preparedOrder.error) {
+      return res.status(preparedOrder.error.status).json({ message: preparedOrder.error.message });
+    }
 
-      const variant = product.variant[item.variantIndex];
-      if (!variant) {
-        return res.status(404).json({ message: `Variant không tồn tại cho sản phẩm ${item.productId}.` });
-      }
-
-      if (variant.quantityForSale < item.quantity) {
-        return res.status(400).json({
-          message: `Không đủ hàng cho sản phẩm ${product.name}, variant ${variant.color || 'default'}.`
-        });
-      }
-
-      variant.quantityForSale -= item.quantity;
-      await product.save();
+    for (const item of preparedOrder.preparedItems) {
+      item.variant.quantityForSale -= item.cartItem.quantity;
+      await item.product.save();
     }
 
     // Tự tăng số thứ tự và tạo mã dạng TTSM-01
@@ -882,16 +884,16 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       orderCode,
       userPhone,
       userName,
-      cartItems,
-      total,
+      cartItems: preparedOrder.cartItems,
+      total: preparedOrder.total,
     });
     const savedOrder = await newOrder.save();
     
-    if (cartItems && cartItems.length > 0) {
+    if (preparedOrder.cartItems.length > 0) {
       const user = await User.findById(req.user.userId);
       if (user) {
         user.cart = user.cart.filter((cartItem) => {
-          return !cartItems.some(
+          return !preparedOrder.cartItems.some(
             (orderedItem) =>
               orderedItem.productId.toString() === cartItem.productId.toString() &&
               orderedItem.variantIndex === cartItem.variantIndex
@@ -939,7 +941,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       orderId: savedOrder.orderCode || savedOrder._id,
       userPhone,
       userName,
-      total,
+      total: preparedOrder.total,
       createdAt: savedOrder.createdAt,
       stationNames: stationNamesStr,
       stationCodes: stationCodesStr,
@@ -950,16 +952,26 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       orderId: savedOrder.orderCode || savedOrder._id,
       userPhone,
       userName,
-      total,
+      total: preparedOrder.total,
       createdAt: savedOrder.createdAt,
     }).catch(err => console.error("Lỗi gửi thông báo Zalo:", err));
 
+    sendTelegramOrderNotification({
+      orderId: savedOrder.orderCode || savedOrder._id,
+      userPhone,
+      userName,
+      total: preparedOrder.total,
+      createdAt: savedOrder.createdAt,
+      stationNames: stationNamesStr,
+      stationCodes: stationCodesStr,
+    }).catch(err => console.error("Lỗi gửi thông báo Telegram:", err.message));
+
     // Emit khi tạo đơn hàng
-    io.emit("order_created", {
+    io.to('admins').emit("order_created", {
       orderId: savedOrder._id,
       orderCode: savedOrder.orderCode,
       userPhone,
-      total,
+      total: preparedOrder.total,
       createdAt: savedOrder.createdAt,
     });
     
@@ -1068,7 +1080,7 @@ router.get('/:_id', authenticateUser, async (req, res) => {
       payment: order.payment,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Lỗi server" });
   }
 });
 
@@ -1108,7 +1120,7 @@ router.delete("/:id", authenticateUser, async (req, res) => {
     await order.deleteOne();
 
     // Emit khi xóa đơn hàng
-    io.emit("order_deleted", { orderId: id });
+    io.to('admins').emit("order_deleted", { orderId: id });
 
     res.status(200).json({ message: "Order deleted and quantities restored if necessary." });
   } catch (error) {
@@ -1156,7 +1168,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
     await order.save();
 
     // Emit khi hủy đơn hàng
-    io.emit("order_cancelled", {
+    io.to('admins').emit("order_cancelled", {
       orderId: order._id,
       userPhone: order.userPhone,
     });

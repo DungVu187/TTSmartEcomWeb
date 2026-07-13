@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Autocomplete,
@@ -468,8 +468,7 @@ const fetchSectionDevices = async (sectionName) => {
     title,
     pagination,
     onPageChange,
-    onRowsPerPageChange,
-    selectedSection
+    onRowsPerPageChange
   ) => {
     const paginatedRows = rows.slice(
       pagination.page * pagination.rowsPerPage,

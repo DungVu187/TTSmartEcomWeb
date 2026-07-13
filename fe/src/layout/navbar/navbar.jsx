@@ -248,11 +248,6 @@ function Navbar() {
             </Link>
           </li>
           <li className="hamburger-filter">
-            <a href="tel:0813158383" style={linkStyle}>
-              Hotline: 0813158383
-            </a>
-          </li>
-          <li className="hamburger-filter">
             {isLoggedIn ? (
               <p
                 onClick={handleLogout}
@@ -266,8 +261,13 @@ function Navbar() {
               </Link>
             )}
           </li>
+          <li className="hamburger-filter" style={{ marginTop: "1rem", borderTop: "1px solid #ddd", paddingTop: "1rem" }}>
+            <a href="tel:0813158383" style={linkStyle}>
+              Hotline: 0813158383
+            </a>
+          </li>
           {/* Language Selector in Hamburger */}
-          <li className="hamburger-filter" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", marginTop: "1rem", borderTop: "1px solid #ddd", paddingTop: "1rem" }}>
+          <li className="hamburger-filter" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px" }}>
             <span style={{ fontWeight: "bold", fontSize: "14px", color: "#666" }}>
               {language === "vi" ? "NGÔN NGỮ" : language === "zh" ? "语言" : "LANGUAGE"}
             </span>

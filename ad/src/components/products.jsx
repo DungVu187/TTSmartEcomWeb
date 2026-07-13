@@ -23,7 +23,38 @@ import {
 } from "@mui/material";
 import "./style/products.css";
 import toast from "react-hot-toast";
+import { usePermissions } from "../context/permissioncontext";
+import {
+  PRODUCT_IMAGE_ACCEPT,
+  PRODUCT_IMAGE_UPLOAD_SETTINGS,
+} from "../settings/imageUpload";
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const createEmptyProduct = () => ({
+  type: "",
+  name: "",
+  code: "",
+  vat: "",
+  brand: "",
+  section: "",
+  value: "",
+  price: "",
+  infoDoc: {
+    manual: "",
+    dataSheet: "",
+    catalog: "",
+    others: "",
+  },
+  warranty: "",
+  solution: "",
+  description: "",
+  features: "",
+  operatingMethod: "",
+  advantages: "",
+  specifications: "",
+});
+
+const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join(", ");
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -36,6 +67,10 @@ const removeVietnameseTones = (str) => {
 };
 
 const Products = () => {
+  const { can } = usePermissions();
+  const canCreate = can("product.create");
+  const canEdit = can("product.edit");
+  const canDelete = can("product.delete");
   const [products, setProducts] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const topScrollRef = useRef(null);
@@ -94,29 +129,11 @@ const Products = () => {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [isBrandDialogOpen, setIsBrandDialogOpen] = useState(false);
   const [openSectionDialog, setOpenSectionDialog] = useState(false);
-  const [newProduct, setNewProduct] = useState({
-    type: "",
-    name: "",
-    code: "",
-    vat: "",
-    brand: "",
-    section: "",
-    value: "",
-    price: "",
-    infoDoc: {
-      manual: "",
-      dataSheet: "",
-      catalog: "",
-      others: "",
-    },
-    warranty: "",
-    solution: "",
-    description: "",
-    features: "",
-    operatingMethod: "",
-    advantages: "",
-    specifications: "",
-  });
+  const [newProduct, setNewProduct] = useState(createEmptyProduct);
+  const [newProductImageFile, setNewProductImageFile] = useState(null);
+  const [newProductImagePreviewUrl, setNewProductImagePreviewUrl] = useState("");
+  const [isUploadingProductImage, setIsUploadingProductImage] = useState(false);
+  const newProductImageInputRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -325,10 +342,11 @@ const Products = () => {
         credentials: "include",
       });
       const data = await response.json();
-      setProducts(data.products);
+      setProducts(data.products || []);
       setTotalPages(Math.ceil(data.total / limit));
     } catch (error) {
       console.error("Error fetching products:", error);
+      setProducts([]);
     }
   };
 
@@ -451,8 +469,31 @@ const Products = () => {
     fetchProducts(1);
   }, [showUnadjustedOnly]);
 
+  useEffect(() => {
+    if (!newProductImageFile) {
+      setNewProductImagePreviewUrl("");
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(newProductImageFile);
+    setNewProductImagePreviewUrl(previewUrl);
+
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [newProductImageFile]);
+
+  const resetNewProductForm = () => {
+    setNewProduct(createEmptyProduct());
+    setNewProductImageFile(null);
+    if (newProductImageInputRef.current) {
+      newProductImageInputRef.current.value = "";
+    }
+  };
+
   const openDialog = () => setIsDialogOpen(true);
-  const closeDialog = () => setIsDialogOpen(false);
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    resetNewProductForm();
+  };
   const openBrandDialog = () => setIsBrandDialogOpen(true);
   const closeBrandDialog = () => {
     setBrandName("");
@@ -491,50 +532,105 @@ const Products = () => {
     });
   };
 
+  const isAllowedProductImageFile = (file) => {
+    const extension = `.${file.name.split(".").pop()?.toLowerCase() || ""}`;
+    const hasAllowedExtension = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.includes(extension);
+    const hasAllowedMime = file.type
+      ? PRODUCT_IMAGE_UPLOAD_SETTINGS.mimeTypes.includes(file.type)
+      : true;
+
+    return hasAllowedExtension && hasAllowedMime;
+  };
+
+  const handleNewProductImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeBytes) {
+      toast.error(`Dung lượng ảnh tối đa ${PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeLabel}`);
+      e.target.value = "";
+      return;
+    }
+
+    if (!isAllowedProductImageFile(file)) {
+      toast.error(`Chỉ chấp nhận ảnh: ${productImageExtensionsText}`);
+      e.target.value = "";
+      return;
+    }
+
+    setNewProductImageFile(file);
+  };
+
+  const uploadNewProductImage = async () => {
+    if (!newProductImageFile) return "";
+
+    const formData = new FormData();
+    formData.append("product", newProductImageFile);
+
+    const response = await fetch(`${apiUrl}/products/upload/image`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Upload ảnh thất bại");
+    }
+
+    return data.imgUrl;
+  };
+
+  const buildProductPayload = (imgUrl = "") => {
+    if (!imgUrl) return { ...newProduct };
+
+    return {
+      ...newProduct,
+      variant: [
+        {
+          price: newProduct.price || "",
+          importPrice: "",
+          earn: 0,
+          imgUrl,
+          color: "",
+          shape: "",
+          buttonCount: "",
+          frame: "",
+          quantityForSale: 0,
+          quantityInStorage: 0,
+          note: "",
+        },
+      ],
+    };
+  };
+
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
+      setIsUploadingProductImage(true);
+      const imgUrl = await uploadNewProductImage();
+      const productPayload = buildProductPayload(imgUrl);
       const response = await fetch(`${apiUrl}/products/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ ...newProduct }),
+        body: JSON.stringify(productPayload),
       });
       const result = await response.json();
       if (response.status === 201) {
         toast.success("Thêm sản phẩm thành công");
         fetchProducts(currentPage);
         closeDialog();
-        setNewProduct({
-          type: "",
-          name: "",
-          code: "",
-          vat: "",
-          brand: "",
-          section: "",
-          value: "",
-          price: "",
-          infoDoc: {
-            manual: "",
-            dataSheet: "",
-            catalog: "",
-            others: "",
-          },
-          warranty: "",
-          solution: "",
-          description: "",
-          features: "",
-          operatingMethod: "",
-          advantages: "",
-          specifications: "",
-        });
       } else {
         toast.error(result.message || "Lỗi khi thêm sản phẩm");
       }
     } catch (error) {
       console.error("Lỗi khi thêm sản phẩm:", error);
+      toast.error(error.message || "Lỗi khi thêm sản phẩm");
+    } finally {
+      setIsUploadingProductImage(false);
     }
   };
 
@@ -935,49 +1031,59 @@ const Products = () => {
         <h2>Danh mục sản phẩm</h2>
         <div className="product-add-functions">
           <div className="product-add-button-add">
-            <Button
-              variant="contained"
-              color="primary"
-              className="open-product-add-dialog"
-              onClick={openDialog}
-            >
-              Thêm sản phẩm
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              className="open-product-add-dialog"
-              onClick={openBrandDialog}
-              sx={{ marginLeft: 2 }}
-            >
-              Thêm hãng
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              className="open-product-add-dialog"
-              onClick={openTypeDialog}
-              sx={{ marginLeft: 2 }}
-            >
-              Thêm loại sản phẩm
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              className="open-product-add-dialog"
-              sx={{ marginLeft: 2 }}
-              onClick={handleOpenSectionDialog}
-            >
-              Thêm cụm
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              sx={{ marginLeft: 2 }}
-              onClick={() => navigate("/cluster")}
-            >
-              Quản lý cụm thiết bị
-            </Button>
+            {canCreate && (
+              <Button
+                variant="contained"
+                color="primary"
+                className="open-product-add-dialog"
+                onClick={openDialog}
+              >
+                Thêm sản phẩm
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                variant="contained"
+                color="primary"
+                className="open-product-add-dialog"
+                onClick={openBrandDialog}
+                sx={{ marginLeft: 2 }}
+              >
+                Thêm hãng
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                variant="contained"
+                color="primary"
+                className="open-product-add-dialog"
+                onClick={openTypeDialog}
+                sx={{ marginLeft: 2 }}
+              >
+                Thêm loại sản phẩm
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                variant="contained"
+                color="primary"
+                className="open-product-add-dialog"
+                sx={{ marginLeft: 2 }}
+                onClick={handleOpenSectionDialog}
+              >
+                Thêm cụm
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                variant="contained"
+                color="primary"
+                sx={{ marginLeft: 2 }}
+                onClick={() => navigate("/cluster")}
+              >
+                Quản lý cụm thiết bị
+              </Button>
+            )}
             <Button
               variant={showUnadjustedOnly ? "contained" : "outlined"}
               color="warning"
@@ -986,7 +1092,7 @@ const Products = () => {
             >
               {showUnadjustedOnly ? "Hiển thị tất cả" : "Sản phẩm chưa điều chỉnh"}
             </Button>
-            {selectedProductIds.length > 0 && (
+            {canDelete && selectedProductIds.length > 0 && (
               <Button
                 variant="contained"
                 color="error"
@@ -1078,6 +1184,7 @@ const Products = () => {
                     onChange={handleSelectAllClick}
                     color="primary"
                     size="small"
+                    disabled={!canDelete}
                   />
                 </TableCell>
                 <TableCell align="center">Hiển thị</TableCell>
@@ -1115,17 +1222,22 @@ const Products = () => {
                       onChange={(e) => handleSelectRow(e, product._id)}
                       color="primary"
                       size="small"
+                      disabled={!canDelete}
                     />
                   </TableCell>
                   <TableCell
                     align="center"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <Checkbox
-                      checked={product.display}
-                      color="success"
-                      onChange={() => handleToggleDisplay(product._id)}
-                    />
+                    {canEdit ? (
+                      <Checkbox
+                        checked={product.display}
+                        color="success"
+                        onChange={() => handleToggleDisplay(product._id)}
+                      />
+                    ) : (
+                      <Checkbox checked={product.display} color="success" disabled />
+                    )}
                   </TableCell>
                   <TableCell align="center">{product.type}</TableCell>
                   <TableCell align="center">
@@ -1198,6 +1310,35 @@ const Products = () => {
         <DialogTitle>Thêm sản phẩm mới</DialogTitle>
         <DialogContent>
           <form onSubmit={handleAddProduct}>
+            <div className="product-image-picker">
+              <Button
+                type="button"
+                variant="outlined"
+                component="label"
+                disabled={isUploadingProductImage}
+              >
+                Thêm ảnh
+                <input
+                  ref={newProductImageInputRef}
+                  type="file"
+                  accept={PRODUCT_IMAGE_ACCEPT}
+                  hidden
+                  onChange={handleNewProductImageChange}
+                />
+              </Button>
+              <span className="product-image-picker__hint">
+                {newProductImageFile
+                  ? newProductImageFile.name
+                  : `${productImageExtensionsText} - tối đa ${PRODUCT_IMAGE_UPLOAD_SETTINGS.maxSizeLabel}`}
+              </span>
+              {newProductImagePreviewUrl && (
+                <img
+                  className="product-image-picker__preview"
+                  src={newProductImagePreviewUrl}
+                  alt="Ảnh sản phẩm"
+                />
+              )}
+            </div>
             <Autocomplete
               value={newProduct.type}
               onChange={(event, newValue) => {
@@ -1432,8 +1573,9 @@ const Products = () => {
             variant="contained"
             color="success"
             onClick={handleAddProduct}
+            disabled={isUploadingProductImage}
           >
-            Thêm
+            {isUploadingProductImage ? "Đang thêm..." : "Thêm"}
           </Button>
           <Button variant="outlined" color="secondary" onClick={closeDialog}>
             Hủy

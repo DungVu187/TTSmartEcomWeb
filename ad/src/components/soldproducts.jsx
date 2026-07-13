@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Table,
   TableBody,
@@ -151,7 +151,7 @@ const SoldProducts = () => {
           throw new Error("Không thể lấy chi tiết sản phẩm");
         }
 
-        const productsWithDetails = Array.from(productMap.entries()).map(([key, product]) => {
+        const productsWithDetails = Array.from(productMap.entries()).map(([, product]) => {
           const productData = productsData.products.find((p) => p._id === product.productId) || {};
           const variant = productData.variant?.[product.variantIndex] || {};
           return {
@@ -177,7 +177,7 @@ const SoldProducts = () => {
 
         setSoldProducts(productsWithDetails);
         setTotalProducts(data.totalProducts || productsWithDetails.length);
-      } catch (error) {
+      } catch {
         toast.error("Lỗi khi lấy danh sách sản phẩm đã bán");
       } finally {
         setLoading(false);

@@ -197,7 +197,7 @@ const ExportedProducts = () => {
         : productsWithDetails;
       setFilteredProducts(filtered);
       setTotalProducts(filtered.length);
-    } catch (error) {
+    } catch {
       toast.error("Lỗi khi lấy danh sách sản phẩm đã xuất");
     }
     setLoading(false);

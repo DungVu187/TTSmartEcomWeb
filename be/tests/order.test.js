@@ -190,6 +190,31 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(resSuccess.body.total).toBeDefined();
   });
 
+  it('Test Case 10b: staff can GET /orders only with order.view', async () => {
+    await createUser({
+      phone: '0987654329',
+      role: 'staff',
+      functions: ['order_management'],
+      permissions: ['order.view']
+    });
+    await createUser({
+      phone: '0987654330',
+      role: 'staff',
+      functions: ['order_management'],
+      permissions: []
+    });
+
+    const allowedAgent = await loginAgent({ phone: '0987654329', role: 'staff' });
+    const blockedAgent = await loginAgent({ phone: '0987654330', role: 'staff' });
+
+    const allowed = await allowedAgent.get('/orders');
+    expect(allowed.status).toBe(200);
+
+    const blocked = await blockedAgent.get('/orders');
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.message).toBe('Access denied, missing permission: order.view');
+  });
+
   it('Test Case 11: user A không xem, hủy, xóa được đơn của user B', async () => {
     const product = await createProduct();
     await createUser({ phone: '0900000001' });
@@ -422,13 +447,13 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(unchangedProduct.variant[0].quantityForSale).toBe(10);
   });
 
-  it('Test Case 19: staff co update_order tao don duoc, customer bi chan', async () => {
+  it('Test Case 19: staff co order.create tao don duoc, customer bi chan', async () => {
     const product = await createProduct();
     await createUser({
       phone: '0900000013',
       role: 'staff',
       functions: ['order_management'],
-      permissions: ['read_order', 'update_order']
+      permissions: ['order.create']
     });
     await createUser({ phone: '0900000014' });
     const staffAgent = await loginAgent({ phone: '0900000013', role: 'staff' });
@@ -451,6 +476,27 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(customerResponse.status).toBe(403);
   });
 
+  it('Test Case 19b: staff co order.view nhung thieu order.create bi chan tao don admin', async () => {
+    const product = await createProduct();
+    await createUser({
+      phone: '0900000018',
+      role: 'staff',
+      functions: ['order_management'],
+      permissions: ['order.view']
+    });
+    const staffAgent = await loginAgent({ phone: '0900000018', role: 'staff' });
+
+    const response = await staffAgent
+      .post('/orders/admin-create-order')
+      .send({
+        userPhone: '0911111118',
+        items: [{ productId: product._id.toString(), variantIndex: 0, quantity: 1 }]
+      });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe('Access denied, missing permission: order.create');
+  });
+
   it('Test Case 20: admin lay goi y khach hang chi tra customer name/phone', async () => {
     await createUser({ phone: '0900000015', role: 'admin' });
     await createUser({ phone: '0900000016', role: 'customer' });
@@ -464,5 +510,100 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(response.body.customers).toHaveLength(1);
     expect(response.body.customers[0].phone).toBe('0900000016');
     expect(response.body.customers[0]).not.toHaveProperty('password');
+  });
+
+  it('recomputes customer order total from DB price and ignores client total', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0900000021' });
+    const customerAgent = await loginAgent({ phone: '0900000021' });
+
+    const response = await customerAgent
+      .post('/orders/create-order')
+      .send({
+        cartItems: [{ productId: product._id.toString(), variantIndex: 0, quantity: 2 }],
+        total: 0
+      });
+
+    expect(response.status).toBe(201);
+    const savedOrder = await Order.findOne({ userPhone: '0900000021' });
+    expect(savedOrder.total).toBe(200000);
+  });
+
+  it('rejects invalid customer order quantity before changing stock', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0900000022' });
+    const customerAgent = await loginAgent({ phone: '0900000022' });
+
+    const response = await customerAgent
+      .post('/orders/create-order')
+      .send({
+        cartItems: [{ productId: product._id.toString(), variantIndex: 0, quantity: -5 }],
+        total: 0
+      });
+
+    expect(response.status).toBe(400);
+    const unchangedProduct = await Product.findById(product._id);
+    expect(unchangedProduct.variant[0].quantityForSale).toBe(10);
+    expect(await Order.countDocuments({ userPhone: '0900000022' })).toBe(0);
+  });
+
+  it('rejects invalid customer order variantIndex', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0900000023' });
+    const customerAgent = await loginAgent({ phone: '0900000023' });
+
+    const response = await customerAgent
+      .post('/orders/create-order')
+      .send({
+        cartItems: [{ productId: product._id.toString(), variantIndex: 99, quantity: 1 }],
+        total: 100000
+      });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('does not partially subtract inventory when completing order with an out-of-stock item', async () => {
+    const firstProduct = await createProduct();
+    const secondProduct = await Product.create({
+      type: 'PLC',
+      name: 'Low Stock Product',
+      brand: 'Test Brand',
+      section: 'Thiết bị tự động hóa',
+      value: 'PLC',
+      warranty: '12 tháng',
+      variant: [{
+        price: '100000',
+        color: 'Xám',
+        quantityForSale: 10,
+        quantityInStorage: 1
+      }]
+    });
+    await createUser({
+      phone: '0900000024',
+      role: 'admin',
+      permissions: ['order.edit']
+    });
+    const adminAgent = await loginAgent({ phone: '0900000024', role: 'admin' });
+    const order = await Order.create({
+      orderCode: 'TTSM-PARTIAL',
+      userPhone: '0911111124',
+      userName: 'Partial Test',
+      cartItems: [
+        { productId: firstProduct._id.toString(), variantIndex: 0, quantity: 1 },
+        { productId: secondProduct._id.toString(), variantIndex: 0, quantity: 2 }
+      ],
+      total: 300000,
+      status: 'Processing'
+    });
+
+    const response = await adminAgent
+      .put(`/orders/update-order/${order._id}`)
+      .send({ field: 'status', value: 'Completed' });
+
+    expect(response.status).toBe(400);
+    const unchangedFirstProduct = await Product.findById(firstProduct._id);
+    const unchangedSecondProduct = await Product.findById(secondProduct._id);
+    expect(unchangedFirstProduct.variant[0].quantityInStorage).toBe(10);
+    expect(unchangedSecondProduct.variant[0].quantityInStorage).toBe(1);
   });
 });

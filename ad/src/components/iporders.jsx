@@ -353,7 +353,14 @@ const IpOrders = () => {
       </Box>
 
       {/* Bộ lọc */}
-      <Box display="flex" gap={2} mb={2} alignItems="center">
+      <Box
+        display="flex"
+        columnGap={2}
+        rowGap={4}
+        mb={2}
+        alignItems="center"
+        flexWrap="wrap"
+      >
         <Autocomplete
           freeSolo
           size="small"
@@ -676,7 +683,7 @@ const IpOrders = () => {
       </TableContainer>
 
       {pagination.totalPages > 1 && (
-        <Box display="flex" justifyContent="center" mt={2}>
+        <Box display="flex" justifyContent="center" mt={1} mb={1}>
           <Pagination
             count={pagination.totalPages}
             page={currentPage}

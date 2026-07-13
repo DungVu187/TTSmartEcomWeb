@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const { authenticateAdminOnly } = require("./user");
+const { authenticateAdmin, checkPermission } = require("./user");
 const { ActivityLog } = require("./activitylog");
 const { refreshVoiceVocab } = require("./product");
 const voiceVocabDefaults = require("../config/voiceVocab.defaults");
@@ -176,7 +176,7 @@ function norm(s) {
 }
 
 // GET /voice-vocabs - trả toàn bộ vocab hiện tại để render bảng.
-router.get("/", authenticateAdminOnly, async (req, res) => {
+router.get("/", authenticateAdmin, checkPermission("voice.manage"), async (req, res) => {
   try {
     const doc = await getOrCreateVocab();
     res.json({
@@ -198,7 +198,7 @@ router.get("/", authenticateAdminOnly, async (req, res) => {
 });
 
 // POST /voice-vocabs/:group - thêm 1 mục vào nhóm.
-router.post("/:group", authenticateAdminOnly, async (req, res) => {
+router.post("/:group", authenticateAdmin, checkPermission("voice.manage"), async (req, res) => {
   const { group } = req.params;
   if (!ALL_GROUPS.includes(group)) {
     return res.status(400).json({ success: false, message: "Nhóm từ vựng không hợp lệ." });
@@ -302,7 +302,7 @@ router.post("/:group", authenticateAdminOnly, async (req, res) => {
 });
 
 // PUT /voice-vocabs/:group - sửa 1 mục (định danh bằng key/oldValue).
-router.put("/:group", authenticateAdminOnly, async (req, res) => {
+router.put("/:group", authenticateAdmin, checkPermission("voice.manage"), async (req, res) => {
   const { group } = req.params;
   if (!ALL_GROUPS.includes(group)) {
     return res.status(400).json({ success: false, message: "Nhóm từ vựng không hợp lệ." });
@@ -413,7 +413,7 @@ router.put("/:group", authenticateAdminOnly, async (req, res) => {
 });
 
 // DELETE /voice-vocabs/:group - xóa 1 mục (định danh bằng value/key trong body).
-router.delete("/:group", authenticateAdminOnly, async (req, res) => {
+router.delete("/:group", authenticateAdmin, checkPermission("voice.manage"), async (req, res) => {
   const { group } = req.params;
   if (!ALL_GROUPS.includes(group)) {
     return res.status(400).json({ success: false, message: "Nhóm từ vựng không hợp lệ." });

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -25,12 +25,16 @@ import {
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import ExcelJS from "exceljs";
+import { usePermissions } from "../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const StationDisplay = () => {
   const { code } = useParams();
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canEdit = can("station.edit");
+  const canDelete = can("station.delete");
   const [station, setStation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -423,9 +427,11 @@ const StationDisplay = () => {
       flex: 1,
       minWidth: 100,
       renderCell: (params) => (
-        <Button variant="contained" color="error" size="small" onClick={() => handleRemoveProduct(params.row._id)}>
-          Xóa
-        </Button>
+        canEdit ? (
+          <Button variant="contained" color="error" size="small" onClick={() => handleRemoveProduct(params.row._id)}>
+            Xóa
+          </Button>
+        ) : null
       ),
     },
   ];
@@ -451,66 +457,79 @@ const StationDisplay = () => {
           <img
             src={station.imgUrl}
             alt="Station"
-            onClick={handleUploadImage}
+            onClick={canEdit ? handleUploadImage : undefined}
             style={{
               width: 200,
               height: 120,
               objectFit: "cover",
               borderRadius: 8,
-              cursor: "pointer",
+              cursor: canEdit ? "pointer" : "default",
               border: "1px solid #ccc",
             }}
           />
         ) : (
-          <Button variant="outlined" onClick={handleUploadImage}>Thêm ảnh</Button>
+          canEdit ? <Button variant="outlined" onClick={handleUploadImage}>Thêm ảnh</Button> : null
         )}
-        <input type="file" accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileChange} />
+        {canEdit && <input type="file" accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileChange} />}
       </Box>
 
       <Stack spacing={2} maxWidth={400} mb={4}>
-        <TextField label="Mã trạm" value={form.stationCode} onChange={handleChange("stationCode")} fullWidth size="small" />
-        <TextField label="Tên trạm" value={form.stationName} onChange={handleChange("stationName")} fullWidth size="small" />
-        <TextField label="Vị trí" value={form.location} onChange={handleChange("location")} fullWidth size="small" />
+        <TextField label="Mã trạm" value={form.stationCode} onChange={handleChange("stationCode")} fullWidth size="small" disabled={!canEdit} />
+        <TextField label="Tên trạm" value={form.stationName} onChange={handleChange("stationName")} fullWidth size="small" disabled={!canEdit} />
+        <TextField label="Vị trí" value={form.location} onChange={handleChange("location")} fullWidth size="small" disabled={!canEdit} />
         <TextField label="Public link code" value={getInviteCode()} fullWidth size="small" InputProps={{ readOnly: true }} />
         <FormControlLabel
           control={
             <Switch
               checked={form.allowPublicSignup}
               onChange={(e) => setForm({ ...form, allowPublicSignup: e.target.checked })}
+              disabled={!canEdit}
             />
           }
           label="Cho phép đăng ký công khai"
         />
         <Stack direction="row" spacing={2}>
-          <Button variant="contained" onClick={handleUpdate} disabled={saving} sx={{ flex: 1 }}>
-            {saving ? "Đang cập nhật..." : "Cập nhật"}
-          </Button>
+          {canEdit && (
+            <Button variant="contained" onClick={handleUpdate} disabled={saving} sx={{ flex: 1 }}>
+              {saving ? "Đang cập nhật..." : "Cập nhật"}
+            </Button>
+          )}
 
-          <Button variant="contained" color="error" onClick={handleDeleteStation} sx={{ flex: 1 }}>
-            Xóa trạm
-          </Button>
+          {canDelete && (
+            <Button variant="contained" color="error" onClick={handleDeleteStation} sx={{ flex: 1 }}>
+              Xóa trạm
+            </Button>
+          )}
         </Stack>
       </Stack>
 
       <Typography variant="h6" gutterBottom>Danh sách sản phẩm</Typography>
       <Box display="flex" gap={2} mb={2}>
-        <Button variant="contained" onClick={() => setOpenProductDialog(true)}>Thêm sản phẩm</Button>
-        <Button variant="outlined" onClick={() => fileExcelRef.current?.click()} disabled={isImportingExcel}>
-          Nhập Excel
-        </Button>
-        <Button variant="outlined" onClick={handleOpenOrderDialog}>
-          Nhập Từ Đơn Hàng
-        </Button>
-        <Button variant="outlined" color="error" onClick={handleRemoveAllProducts}>
-          Xóa Toàn Bộ Sản Phẩm
-        </Button>
-        <input
-          type="file"
-          accept=".xlsx"
-          ref={fileExcelRef}
-          style={{ display: "none" }}
-          onChange={handleImportExcel}
-        />
+        {canEdit && <Button variant="contained" onClick={() => setOpenProductDialog(true)}>Thêm sản phẩm</Button>}
+        {canEdit && (
+          <Button variant="outlined" onClick={() => fileExcelRef.current?.click()} disabled={isImportingExcel}>
+            Nhập Excel
+          </Button>
+        )}
+        {canEdit && (
+          <Button variant="outlined" onClick={handleOpenOrderDialog}>
+            Nhập Từ Đơn Hàng
+          </Button>
+        )}
+        {canEdit && (
+          <Button variant="outlined" color="error" onClick={handleRemoveAllProducts}>
+            Xóa Toàn Bộ Sản Phẩm
+          </Button>
+        )}
+        {canEdit && (
+          <input
+            type="file"
+            accept=".xlsx"
+            ref={fileExcelRef}
+            style={{ display: "none" }}
+            onChange={handleImportExcel}
+          />
+        )}
       </Box>
 
       <DataGrid

@@ -23,7 +23,7 @@ import Account from './components/account';
 import StationUser from './components/stationuser';
 import Station from './components/station';
 import StationDisplay from './components/stationdisplay';
-import History from './components/history';
+import { HistoryExport, HistoryImport } from './components/history';
 import ActivityLog from './components/activitylog';
 import ZaloSettings from './components/ZaloSettings';
 import TelegramSettings from './components/TelegramSettings';
@@ -66,8 +66,9 @@ const App = () => {
                       <Route path="/stationuser" element={<RoleGuard requiredPermission="customer.view"><StationUser /></RoleGuard>} />
                       <Route path="/station" element={<RoleGuard requiredPermission="station.view"><Station /></RoleGuard>} />
                       <Route path="/station/:code" element={<RoleGuard requiredPermission="station.view"><StationDisplay /></RoleGuard>} />
-                      <Route path="/history" element={<RoleGuard requiredPermission="history.view"><History /></RoleGuard>} />
-                      <Route path="/activity-log" element={<RoleGuard adminOnly><ActivityLog /></RoleGuard>} />
+                      <Route path="/history/import" element={<RoleGuard requiredPermission="history_import.view"><HistoryImport /></RoleGuard>} />
+                      <Route path="/history/export" element={<RoleGuard requiredPermission="history_export.view"><HistoryExport /></RoleGuard>} />
+                      <Route path="/activity-log" element={<RoleGuard requiredPermission="activitylog.view"><ActivityLog /></RoleGuard>} />
                       <Route path="/zalo" element={<RoleGuard adminOnly><ZaloSettings /></RoleGuard>} />
                       <Route path="/telegram" element={<RoleGuard adminOnly><TelegramSettings /></RoleGuard>} />
                       <Route path="/voice-vocab" element={<RoleGuard requiredPermission="voice.manage"><VoiceVocab /></RoleGuard>} />

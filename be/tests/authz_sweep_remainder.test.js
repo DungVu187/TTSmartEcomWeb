@@ -189,22 +189,88 @@ describe('B4f remaining authorization sweep', () => {
   });
 
   describe('storage history permissions', () => {
-    it('allows staff with history.view to list histories and blocks staff without it', async () => {
-      const allowedAgent = await createStaffAgent({
+    it('allows only history_import.view to list import histories', async () => {
+      const [importHistory] = await StorageHistory.create([
+        {
+          productId: new mongoose.Types.ObjectId(),
+          productName: 'Import history product',
+          quantity: 5,
+        },
+        {
+          productId: new mongoose.Types.ObjectId(),
+          productName: 'Export history product',
+          quantity: -3,
+        },
+      ]);
+      const importAgent = await createStaffAgent({
         phone: '0931000201',
-        permissions: ['history.view'],
+        permissions: ['history_import.view'],
       });
       const blockedAgent = await createStaffAgent({
         phone: '0931000202',
         permissions: [],
       });
 
-      await allowedAgent
-        .get('/histories')
+      const allowed = await importAgent
+        .get('/histories?direction=import')
+        .expect(200);
+      expect(allowed.body.history).toHaveLength(1);
+      expect(allowed.body.history[0].quantity).toBeGreaterThan(0);
+
+      await importAgent
+        .get('/histories/filter-options')
+        .expect(200);
+      await importAgent
+        .get(`/histories/${importHistory.productId}`)
         .expect(200);
 
-      const blocked = await blockedAgent.get('/histories');
-      expectMissingPermission(blocked, 'history.view');
+      const blocked = await blockedAgent.get('/histories?direction=import');
+      expectMissingPermission(blocked, 'history_import.view');
+
+      const wrongDirection = await importAgent.get('/histories?direction=export');
+      expectMissingPermission(wrongDirection, 'history_export.view');
+    });
+
+    it('allows only history_export.view to list export histories', async () => {
+      const [, exportHistory] = await StorageHistory.create([
+        {
+          productId: new mongoose.Types.ObjectId(),
+          productName: 'Import history product',
+          quantity: 4,
+        },
+        {
+          productId: new mongoose.Types.ObjectId(),
+          productName: 'Export history product',
+          quantity: -2,
+        },
+      ]);
+      const exportAgent = await createStaffAgent({
+        phone: '0931000203',
+        permissions: ['history_export.view'],
+      });
+      const blockedAgent = await createStaffAgent({
+        phone: '0931000204',
+        permissions: [],
+      });
+
+      const allowed = await exportAgent
+        .get('/histories?direction=export')
+        .expect(200);
+      expect(allowed.body.history).toHaveLength(1);
+      expect(allowed.body.history[0].quantity).toBeLessThan(0);
+
+      await exportAgent
+        .get('/histories/filter-options')
+        .expect(200);
+      await exportAgent
+        .get(`/histories/${exportHistory.productId}`)
+        .expect(200);
+
+      const blocked = await blockedAgent.get('/histories?direction=export');
+      expectMissingPermission(blocked, 'history_export.view');
+
+      const wrongDirection = await exportAgent.get('/histories?direction=import');
+      expectMissingPermission(wrongDirection, 'history_import.view');
     });
   });
 

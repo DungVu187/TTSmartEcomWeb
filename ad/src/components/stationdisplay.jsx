@@ -541,7 +541,7 @@ const StationDisplay = () => {
         disableRowSelectionOnClick
       />
 
-      <Dialog open={openProductDialog} onClose={() => setOpenProductDialog(false)} maxWidth="sm">
+      <Dialog open={openProductDialog} onClose={() => setOpenProductDialog(false)} disableScrollLock maxWidth="sm">
         <DialogTitle>Tìm kiếm và thêm sản phẩm</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <TextField label="Tên sản phẩm" value={searchInput.name} onChange={(e) => setSearchInput({ ...searchInput, name: e.target.value })} fullWidth size="small" />
@@ -563,7 +563,7 @@ const StationDisplay = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openOrderDialog} onClose={() => setOpenOrderDialog(false)} maxWidth="md" fullWidth>
+      <Dialog open={openOrderDialog} onClose={() => setOpenOrderDialog(false)} disableScrollLock maxWidth="md" fullWidth>
         <DialogTitle>Chọn đơn hàng nhập/xuất để nhập sản phẩm</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
           <Tabs

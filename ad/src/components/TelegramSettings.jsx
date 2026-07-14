@@ -239,7 +239,7 @@ const TelegramSettings = () => {
         </TableContainer>
       )}
 
-      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} disableScrollLock fullWidth maxWidth="sm">
         <DialogTitle>{editingRecipient ? "Sửa người/nhóm nhận" : "Thêm người/nhóm nhận"}</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Box sx={{ display: "grid", gap: 2, pt: 1 }}>

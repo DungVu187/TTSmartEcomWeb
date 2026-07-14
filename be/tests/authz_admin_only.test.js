@@ -117,7 +117,7 @@ describe('Admin-only authorization regression tests', () => {
       .expect(403);
   });
 
-  it('keeps activity logs admin-only', async () => {
+  it('protects activity logs with activitylog.view', async () => {
     await ActivityLog.create({
       userName: 'Admin User',
       action: 'create_product',
@@ -128,9 +128,18 @@ describe('Admin-only authorization regression tests', () => {
       .get('/activity-logs')
       .expect(200);
 
-    await staffAgent
+    const blockedStaff = await staffAgent
       .get('/activity-logs')
       .expect(403);
+    expect(blockedStaff.body.message).toBe('Access denied, missing permission: activitylog.view');
+
+    const staff = await User.findOne({ phone: '0910000002' });
+    staff.permissions.push('activitylog.view');
+    await staff.save();
+
+    await staffAgent
+      .get('/activity-logs')
+      .expect(200);
 
     await customerAgent
       .get('/activity-logs')

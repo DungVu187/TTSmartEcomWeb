@@ -452,6 +452,7 @@ const Manage = () => {
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
+        disableScrollLock
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
       >

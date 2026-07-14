@@ -506,7 +506,7 @@ const StationUser = () => {
       </TableContainer>
 
       {/* Dialog tạo user */}
-      <Dialog open={openDialog} onClose={handleCloseDialog}>
+      <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
         <DialogTitle>Đăng ký người dùng</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ minWidth: 300 }}>
@@ -554,6 +554,7 @@ const StationUser = () => {
       <Dialog
         open={openStationDialog}
         onClose={() => setOpenStationDialog(false)}
+        disableScrollLock
         maxWidth="sm"
         fullWidth
       >
@@ -603,6 +604,7 @@ const StationUser = () => {
       <Dialog
         open={openPasswordDialog}
         onClose={() => setOpenPasswordDialog(false)}
+        disableScrollLock
         maxWidth="sm"
         fullWidth
       >
@@ -643,7 +645,7 @@ const StationUser = () => {
       </Dialog>
 
       {/* Dialog sửa thông tin khách hàng */}
-      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)}>
+      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} disableScrollLock>
         <DialogTitle>Sửa thông tin khách hàng</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ minWidth: 300, mt: 1 }}>

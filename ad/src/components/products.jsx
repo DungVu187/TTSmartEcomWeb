@@ -147,7 +147,7 @@ const Products = () => {
   const [brandName, setBrandName] = useState("");
   const [typeName, setTypeName] = useState("");
   const [newSectionName, setNewSectionName] = useState("");
-  const [error, setError] = useState("");
+  const [, setError] = useState("");
 
   const initialFilters = {
     search: "",
@@ -393,7 +393,7 @@ const Products = () => {
       }
       const data = await response.json();
       setValues(data);
-    } catch (error) {
+    } catch {
       toast.error("Mục này chưa có thiết bị");
       setValues([]);
     }
@@ -590,7 +590,7 @@ const Products = () => {
         {
           price: newProduct.price || "",
           importPrice: "",
-          earn: 0,
+          earn: 25,
           imgUrl,
           color: "",
           shape: "",
@@ -1280,7 +1280,7 @@ const Products = () => {
 )}
                   </TableCell>
                   <TableCell align="center">
-                    {product.variant?.[0]?.price
+                    {Number(product.variant?.[0]?.price) > 0
                       ? Number(product.variant[0].price).toLocaleString("vi-VN")
                       : product.variant?.[0]
                       ? "Liên hệ"
@@ -1306,7 +1306,7 @@ const Products = () => {
         </TableContainer>
       </div>
 
-      <Dialog open={isDialogOpen} onClose={closeDialog}>
+      <Dialog open={isDialogOpen} onClose={closeDialog} disableScrollLock>
         <DialogTitle>Thêm sản phẩm mới</DialogTitle>
         <DialogContent>
           <form onSubmit={handleAddProduct}>
@@ -1592,7 +1592,7 @@ const Products = () => {
         onPageChange={handlePageChange}
         onRowsPerPageChange={handleRowsPerPageChange}
       />
-      <Dialog open={isTypeDialogOpen} onClose={closeTypeDialog}>
+      <Dialog open={isTypeDialogOpen} onClose={closeTypeDialog} disableScrollLock>
         <DialogTitle>Thêm loại sản phẩm</DialogTitle>
         <DialogContent>
           <form action="javascript:void(0);">
@@ -1640,7 +1640,7 @@ const Products = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isBrandDialogOpen} onClose={closeBrandDialog}>
+      <Dialog open={isBrandDialogOpen} onClose={closeBrandDialog} disableScrollLock>
         <DialogTitle>Thêm loại sản phẩm</DialogTitle>
         <DialogContent>
           <form action="javascript:void(0);">
@@ -1689,7 +1689,7 @@ const Products = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={openSectionDialog} onClose={handleCloseSectionDialog}>
+      <Dialog open={openSectionDialog} onClose={handleCloseSectionDialog} disableScrollLock>
         <DialogTitle>Quản lý cụm sản phẩm</DialogTitle>
         <DialogContent>
           <form action="javascript:void(0);">
@@ -1758,6 +1758,7 @@ const Products = () => {
       <Dialog
         open={openSearchDialog}
         onClose={() => setOpenSearchDialog(false)}
+        disableScrollLock
         fullWidth
         maxWidth="sm"
       >

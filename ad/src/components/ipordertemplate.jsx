@@ -350,7 +350,7 @@ const IpOrderTemplate = () => {
       </TableContainer>
 
       {/* Dialog thêm sản phẩm */}
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)}>
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock>
         <DialogTitle>Thêm sản phẩm vào mẫu</DialogTitle>
         <DialogContent>
           <Box display="flex" gap={2} mb={2}>

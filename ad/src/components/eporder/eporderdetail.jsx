@@ -986,8 +986,11 @@ const ExportOrderDetail = () => {
         if (productId === "NEW_PRODUCT") {
           // Tạo sản phẩm mới
           const importPriceNum = Number(row.price) || 0;
-          const earnVal = 20;
-          const calculatedRetailPrice = Math.ceil((importPriceNum * (1 + earnVal / 100)) / 1000) * 1000;
+          const earnVal = 25;
+          const hasPrice = importPriceNum > 0;
+          const calculatedRetailPrice = hasPrice
+            ? Math.ceil((importPriceNum * (1 + earnVal / 100)) / 1000) * 1000
+            : 0;
 
           const newProductPayload = {
             type: "Chưa phân loại",
@@ -1001,8 +1004,8 @@ const ExportOrderDetail = () => {
             adjusted: false,
             variant: [
               {
-                price: calculatedRetailPrice.toString(),
-                importPrice: importPriceNum.toString(),
+                price: hasPrice ? calculatedRetailPrice.toString() : "",
+                importPrice: hasPrice ? importPriceNum.toString() : "",
                 earn: earnVal,
                 quantityForSale: 0,
                 quantityInStorage: 0,
@@ -1039,22 +1042,23 @@ const ExportOrderDetail = () => {
 
           // Cập nhật giá sản phẩm cũ
           const importPriceNum = Number(row.price) || 0;
-          const currentEarn = details.variant?.[0]?.earn !== undefined ? details.variant[0].earn : 0;
-          const calculatedRetailPrice = Math.ceil((importPriceNum * (1 + currentEarn / 100)) / 1000) * 1000;
+          const existingEarn = Number(details.variant?.[0]?.earn) || 0;
 
-          const updatedVariant = [
-            {
-              ...(details.variant?.[0] || {}),
-              importPrice: importPriceNum.toString(),
-              price: calculatedRetailPrice.toString(),
-            },
-          ];
-
-          const updatePayload = {
-            variant: updatedVariant,
-          };
-          if (row.vat !== undefined && row.vat !== null) {
-            updatePayload.vat = row.vat.toString();
+          const updatePayload = {};
+          // Chỉ cập nhật giá khi quét được giá nhập hợp lệ (> 0); nếu không, giữ nguyên giá cũ.
+          if (importPriceNum > 0) {
+            const calculatedRetailPrice = Math.ceil((importPriceNum * (1 + existingEarn / 100)) / 1000) * 1000;
+            updatePayload.variant = [
+              {
+                ...(details.variant?.[0] || {}),
+                importPrice: importPriceNum.toString(),
+                price: calculatedRetailPrice.toString(),
+              },
+            ];
+          }
+          const scannedVat = row.vat?.toString().trim();
+          if (scannedVat) {
+            updatePayload.vat = scannedVat;
           }
 
           try {
@@ -2396,7 +2400,7 @@ const ExportOrderDetail = () => {
         </TableContainer>
       </DndContext>
 
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)}>
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock>
         <DialogTitle>Thêm sản phẩm vào đơn xuất</DialogTitle>
         <DialogContent>
           <Box mb={2} mt={2} sx={{ display: 'grid', gap: 2}}>
@@ -2478,6 +2482,7 @@ const ExportOrderDetail = () => {
       <Dialog
         open={isScanDialogOpen}
         onClose={handleCancelScanDialog}
+        disableScrollLock
         fullWidth={true}
         maxWidth={false}
         PaperProps={{ sx: { width: "95vw", maxWidth: "95vw" } }}
@@ -2568,6 +2573,7 @@ const ExportOrderDetail = () => {
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '90px' }}>Số lượng</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Đơn giá</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Thành tiền</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '130px' }}>Tiền thuế</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '80px' }}>VAT</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '60px' }}>Xóa</TableCell>
                       </TableRow>
@@ -2612,7 +2618,7 @@ const ExportOrderDetail = () => {
                                 onChange={(event, newValue) => {
                                   const updated = [...scanResults];
                                   updated[index].matchedProductId = newValue ? newValue._id : null;
-                                  if (newValue && newValue.vat) {
+                                  if (newValue && newValue.vat && !updated[index].vat?.toString().trim()) {
                                     updated[index].vat = newValue.vat;
                                   }
                                   setScanResults(updated);
@@ -2680,6 +2686,21 @@ const ExportOrderDetail = () => {
                                 {((row.quantity || 0) * (row.price || 0)).toLocaleString("vi-VN")}
                               </Typography>
                             </TableCell>
+                            <TableCell align="right">
+                              <NumericFormat
+                                value={row.taxAmount || 0}
+                                customInput={TextField}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                size="small"
+                                onValueChange={(values) => {
+                                  const updated = [...scanResults];
+                                  updated[index].taxAmount = parseInt(values.value) || 0;
+                                  setScanResults(updated);
+                                }}
+                                sx={{ width: "120px" }}
+                              />
+                            </TableCell>
                             <TableCell align="center">
                               <TextField
                                 value={row.vat || ""}
@@ -2708,18 +2729,6 @@ const ExportOrderDetail = () => {
                           </TableRow>
                         );
                       })}
-                      {/* Dòng tổng cộng tự tính */}
-                      <TableRow sx={{ bgcolor: "#fafafa" }}>
-                        <TableCell colSpan={3} align="right" sx={{ fontWeight: "bold" }}>Tổng đơn trích xuất:</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                          {scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-                        </TableCell>
-                        <TableCell />
-                        <TableCell align="right" sx={{ fontWeight: "bold", color: "#512da8" }}>
-                          {scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ
-                        </TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -2733,22 +2742,40 @@ const ExportOrderDetail = () => {
           </Box>
         </DialogContent>
         {scanResults.length > 0 && !isScanning && (
-          <Box sx={{ 
-            display: "flex", 
-            justifyContent: "space-between", 
+          <Box sx={{
+            display: "flex",
+            justifyContent: "flex-end",
             alignItems: "center", 
-            px: 3, 
-            py: 1.5, 
-            bgcolor: "#f5f5f5", 
+            px: 3,
+            py: 2,
+            bgcolor: "#f5f5f5",
             borderTop: "1px solid rgba(0,0,0,0.08)",
             borderBottom: "1px solid rgba(0,0,0,0.08)"
           }}>
-            <Typography variant="body1" fontWeight="bold" color="text.primary">
-              Tổng số lượng: <span style={{ color: '#512da8' }}>{scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0).toLocaleString("vi-VN")}</span>
-            </Typography>
-            <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
-              Tổng đơn hàng trích xuất (tự tính): <span style={{ color: '#512da8', fontSize: '1.2rem' }}>{scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ</span>
-            </Typography>
+            <Box component="section" aria-label="Tổng kết hóa đơn AI" sx={{ width: { xs: "100%", sm: "440px" } }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 3, rowGap: 1, alignItems: "center" }}>
+                <Typography variant="body2" fontWeight="bold" textAlign="right">Tổng tiền hàng (chưa thuế):</Typography>
+                <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 2, fontVariantNumeric: "tabular-nums" }}>
+                  <Typography variant="caption" color="text.secondary">Tổng SL: <b>{scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0)}</b></Typography>
+                  <Typography variant="body2" fontWeight="bold" sx={{ minWidth: "120px", textAlign: "right" }}>
+                    {scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ
+                  </Typography>
+                </Box>
+                <Typography variant="body2" fontWeight="bold" textAlign="right">Tiền thuế GT:</Typography>
+                <Typography variant="body2" fontWeight="bold" sx={{ minWidth: "120px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  {scanResults.reduce((sum, item) => sum + (parseInt(item.taxAmount) || 0), 0).toLocaleString("vi-VN")}đ
+                </Typography>
+              </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 3, alignItems: "center", mt: 1.25, px: 1.5, py: 1, bgcolor: "#f0ebfa", borderRadius: 1 }}>
+                <Typography variant="subtitle1" fontWeight="bold" textAlign="right">Tổng tiền thanh toán:</Typography>
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ minWidth: "120px", textAlign: "right", color: "#512da8", fontSize: "1.2rem", fontVariantNumeric: "tabular-nums" }}>
+                  {(
+                    scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0) +
+                    scanResults.reduce((sum, item) => sum + (parseInt(item.taxAmount) || 0), 0)
+                  ).toLocaleString("vi-VN")}đ
+                </Typography>
+              </Box>
+            </Box>
           </Box>
         )}
         <DialogActions sx={{ p: 3, borderTop: scanResults.length > 0 && !isScanning ? 'none' : '1px solid rgba(0,0,0,0.08)' }}>
@@ -2781,6 +2808,7 @@ const ExportOrderDetail = () => {
       <Dialog 
         open={lightboxOpen} 
         onClose={() => setLightboxOpen(false)}
+        disableScrollLock
         maxWidth="lg"
         fullWidth
         PaperProps={{

@@ -274,8 +274,23 @@ const Sidebar = () => {
       path: "/voice-vocab",
       icon: <RecordVoiceOverIcon />,
     },
-    can("history.view") && { text: "Lịch sử kho", path: "/history", icon: <TocIcon /> },
-    isAdminOrSuperadmin && { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },
+    (can("history_import.view") || can("history_export.view")) && {
+      text: "Lịch sử kho",
+      icon: <TocIcon />,
+      subItems: [
+        can("history_import.view") && {
+          text: "Lịch sử nhập kho",
+          path: "/history/import",
+          icon: <OrderListIcon />,
+        },
+        can("history_export.view") && {
+          text: "Lịch sử xuất kho",
+          path: "/history/export",
+          icon: <ShoppingCartCheckoutIcon />,
+        },
+      ].filter(Boolean),
+    },
+    can("activitylog.view") && { text: "Lịch sử hoạt động", path: "/activity-log", icon: <HistoryEduIcon /> },
     { text: "Đăng xuất", icon: <LogoutIcon />, action: "logout" },
   ].filter(Boolean);
 

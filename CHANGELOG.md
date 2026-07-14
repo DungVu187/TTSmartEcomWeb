@@ -1,8 +1,176 @@
 # CHANGELOG — TTSmartEcomWeb
-
 > **File CHỈ NỐI THÊM (append-only).** Mỗi phiên làm việc ghi 3–5 dòng: đã làm gì, kết quả kiểm thử, rủi ro còn lại.
 > KHÔNG ghi diff chi tiết ở đây — chi tiết nằm trong `plan-bangiao-*.md` của từng việc. Hiện trạng mới nhất xem `PROJECT_STATE.md`.
 > Ghi mục mới nhất LÊN TRÊN CÙNG (mới → cũ).
+
+---
+
+## [F4-ui-fix2] Can deu cot checkbox bang cap quyen
+- `ad/src/components/account.jsx`: them `colgroup` cho bang ma tran quyen.
+- `ad/src/components/style/account.css`: dat cung width cho tat ca cot checkbox, gom ca cot `Day du`.
+- Test/build: account test va Vite build pass.
+
+---
+
+## [F4-ui-fix] Noi rong bang ma tran cap quyen
+- `ad/src/components/account.jsx`: doi dialog cap quyen sang `maxWidth="xl"` va gioi han width responsive de bang co them khong gian ngang.
+- `ad/src/components/style/account.css`: toi uu table-layout, padding va do rong cot chuc nang de giam nhu cau keo ngang.
+- Test/build: account test va Vite build deu pass.
+
+---
+
+## [F4-ui] Doi form cap quyen sang bang ma tran
+- `ad/src/components/account.jsx`: them bang ma tran quyen theo module/action, co cot Day du va checkbox dependency ro rang.
+- `ad/src/components/style/account.css`: bo cuc bang gon hon, header co dinh, cot chuc nang sticky va o khong co quyen duoc lam mo.
+- Test: cap nhat account test theo checkbox co nhan, giu regression dependency va payload permission.
+
+---
+
+## [History-fix] Goi y bo loc lich su kho theo toan he thong
+- `be/components/storagehistory.js`: them `GET /histories/filter-options` tra distinct `userName` va `orderName` tren toan bo StorageHistory.
+- `ad/src/components/history.jsx`: hai o goi y Nguoi dung/Ten don hang dung options toan he thong, khong con phu thuoc cac dong dang hien thi.
+- Test: bo sung regression cho endpoint filter-options.
+
+---
+
+## [F4-fix] An tai khoan cap cao hon trong Phan quyen
+- `be/components/user.js`: `GET /users/all-users` loc danh sach theo cap role; admin khong nhan ve superadmin, superadmin van thay tat ca.
+- `ad/src/components/account.jsx`: loc phong ve truoc khi render bang tai khoan trong muc Phan quyen.
+- Test: backend role hierarchy cho `/users/all-users`; frontend account khong render row superadmin khi user hien tai la admin.
+
+---
+
+## [F4] Cây phân quyền chi tiết cho trang Phân quyền
+- `ad/src/components/account.jsx`: thay bảng quyền cũ theo functions/read-update-delete bằng catalog động từ backend và cây quyền module.action.
+- Thiết kế lại dialog theo MUI: lựa chọn role rõ ràng, module grid responsive, chip quyền có trạng thái chọn/disabled/dependency, chọn toàn bộ module.
+- Admin hiển thị quyền cố định Phân quyền/Zalo/Lịch sử hoạt động dạng khóa; staff không thấy quyền fixed.
+- Bỏ gửi/lưu functions ở giao diện; payload chỉ gửi permission grantable hợp lệ.
+- Thêm account.css và test cây quyền: dependency, chọn tất cả, role hierarchy, payload.
+
+---
+
+## [F3] Sidebar hiển thị theo permission
+- `ad/src/layout/sidebar.jsx`: dùng usePermissions thay vì tự fetch profile/functions.
+- Ẩn/hiện toàn bộ menu theo quyền module.action; nhóm Khách - Trạm hiển thị submenu độc lập theo station.view/customer.view.
+- Phân quyền, Zalo và Lịch sử hoạt động chỉ hiện admin/superadmin; Voice và Lịch sử kho theo quyền cấp được.
+- Badge/socket đơn bán chỉ hoạt động khi có order.view.
+- Thêm test Sidebar theo các tổ hợp quyền tiêu biểu; sửa lại toàn bộ text tiếng Việt bị mất dấu.
+
+---
+
+## [F2] RoleGuard theo permission va cap nhat route admin
+- Viet lai `ad/src/components/RoleGuard.jsx` dung usePermissions (F1), prop requiredPermission (string hoac any-of array) va adminOnly, bo tu fetch profile.
+- `App.jsx`: chuyen route sang quyen module.action (order/iporder/eporder/product/station/customer/storefront/history/voice), giu account/zalo/activity-log admin-only.
+- Cap nhat RoleGuard.test.jsx theo API moi.
+- Admin/superadmin van full access toi B6; guard chuan bi cho staff.
+
+---
+
+## [F1] Permission Context dung chung cho admin frontend
+- Them `ad/src/context/permissioncontext.jsx`: fetch profile cookie mot lan, expose `can`, `canAny`, `canAll`, role flags va `refreshProfile`.
+- `App.jsx`: boc toan bo admin Router bang `PermissionProvider`; chua doi Sidebar/RoleGuard/nut UI.
+- Admin tam full access o frontend de dong bo `ADMIN_FULL_ACCESS=true`; se siet theo permissions sau B6.
+- Them test context cho superadmin/admin/staff/unauthenticated va refresh profile.
+
+---
+
+
+## [B5] Validate catalog quyen va chuan bi reset staff
+- `be/components/user.js`: bỏ sinh quyền legacy từ functions; chỉ lưu quyền grantable hợp lệ cho admin/staff và kiểm dependency Excel/Quét AI với quyền Sửa.
+- Chặn key quyền cũ, key không tồn tại và admin-fixed trong payload; customer/superadmin luôn có permissions/functions rỗng.
+- Thêm `be/scripts/reset-staff-permissions.js`: dry-run mặc định, chỉ reset staff khi chạy với `--apply`; chưa chạy migration trên dữ liệu thật.
+- Thêm test validation tạo/cập nhật quyền, dependency và regression sửa customer không gửi permissions.
+- Giữ `ADMIN_FULL_ACCESS=true`; chưa lật bypass admin (B6).
+
+---
+
+## [F5] Ẩn thao tác admin theo quyền chi tiết
+- Hoàn tất gate UI bằng `usePermissions`/`can()` cho chi tiết sản phẩm, đơn nhập, đơn xuất và chi tiết trạm.
+- Bảo toàn các gate đã có trên danh mục sản phẩm, chi tiết đơn bán, trạm và khách hàng.
+- Thao tác ghi dữ liệu chỉ hiện khi có quyền create/edit/delete tương ứng; Excel và AI cần đồng thời edit cùng quyền bổ sung.
+- Quyền xem giữ nguyên dữ liệu đọc, QR, tìm kiếm và dialog xem chi tiết.
+- Thêm/cập nhật regression test cho các tổ hợp permission gate.
+
+---
+
+## [B4f-fix] Siết lịch sử hoạt động admin-only
+- `be/components/activitylog.js`: đổi `GET /activity-logs` từ `authenticateAdmin` sang lazy `authenticateAdminOnly`.
+- Giữ `activitylog.view` là quyền cố định admin/superadmin; staff không xem được lịch sử hoạt động.
+- Test: admin 200, staff/customer 403, no-cookie 401 cho `/activity-logs`.
+
+---
+
+## [B4f] Sweep quyền cho station, customer, chip, storagehistory, voice
+- `be/components/station.js`: thêm `station.view/create/edit/delete` cho route admin, giữ route public.
+- `be/components/user.js` (route khách hàng): `customer.view/edit/delete/assign_station` + `customer.edit` cho rotate-token; giữ nguyên check phân cấp role nội bộ; không đụng account/permissions.
+- `be/components/chip.js`: route thêm/xóa hãng/loại/cụm/value dùng `product.create`.
+- `be/components/storagehistory.js`: `history.view` cho `GET /`, `GET /:id` và `update-ordername`.
+- `be/components/voicevocab.js`: đổi `authenticateAdminOnly` sang `voice.manage` (cấp được cho staff).
+- Test: `be/tests/authz_sweep_remainder.test.js` phủ staff có/thiếu quyền 200/403.
+
+---
+
+## [B4e] Sweep quyền storefront cho quản lý banner + hiển thị
+- `be/components/manage.js`: đổi toàn bộ route ghi từ `update_product` sang `storefront.manage` (ảnh bìa, đối tác, giới thiệu, chính sách, section1-10).
+- Giữ `GET /manages/` public không đổi.
+- Test: staff có/thiếu `storefront.manage` (200/403), GET public vẫn 200.
+
+---
+
+## [B4d] Sweep quyền mới cho sản phẩm và scan AI chung
+- `be/components/product.js`: đổi route admin từ `update_product`/`delete_product` sang `product.create`, `product.edit`, `product.delete`.
+- `be/components/user.js`: thêm `checkAnyPermission()` và dùng cho `/products/scan-invoice` với `order.scan_ai`/`iporder.scan_ai`/`eporder.scan_ai`.
+- Gắn `product.edit` cho dọn ảnh tạm; giữ các route GET/public product không đổi vì còn phục vụ storefront.
+- Cập nhật test product/scan sang quyền mới và thêm regression staff thiếu quyền bị 403.
+
+---
+
+## [B4c] Sweep quyền mới cho đơn xuất hàng
+- `be/components/eporder.js`: đổi route admin từ `read_eporder`/`update_eporder`/`delete_eporder` sang `eporder.view`, `eporder.create`, `eporder.edit`, `eporder.delete`.
+- Gắn `eporder.edit` cho upload/xóa ảnh hóa đơn đơn xuất; Excel vẫn là quyền frontend, nhập Excel đi qua `eporder.edit`.
+- Cập nhật test đơn xuất sang quyền mới và thêm regression staff thiếu quyền bị 403.
+- Chưa xử lý scan AI chung `/products/scan-invoice` (để B4d).
+
+---
+
+## [B4b] Sweep quyền mới cho đơn nhập hàng
+- `be/components/iporder.js`: đổi route admin từ `read_iporder`/`update_iporder`/`delete_iporder` sang `iporder.view`, `iporder.create`, `iporder.edit`, `iporder.delete`.
+- Gắn `iporder.edit` cho upload/xóa ảnh hóa đơn đơn nhập; Excel vẫn là quyền frontend, nhập Excel đi qua `iporder.edit`.
+- Cập nhật test đơn nhập sang quyền mới và thêm regression staff thiếu quyền bị 403.
+- Chưa xử lý scan AI chung `/products/scan-invoice` (để B4d).
+
+---
+
+## [B4a] Sweep quyền mới cho đơn bán hàng
+- `be/components/order.js`: đổi route admin từ `read_order`/`update_order` sang `order.view`, `order.create`, `order.edit` theo catalog B1.
+- Giữ route user/customer-facing (`create-order`, `userOrders`, `/:id`) không đổi; Excel vẫn là quyền frontend, nhập Excel đi qua `order.edit`.
+- Cập nhật test order admin sang quyền mới (`order.view/create/edit`) và thêm regression staff thiếu quyền bị 403.
+- Chưa xử lý scan AI chung `/products/scan-invoice` (để B4d).
+
+---
+
+## [B3] Endpoint permission-catalog cho frontend
+- `be/components/user.js`: thêm `GET /users/permission-catalog` (`authenticateAdminOnly`) trả `{ success, catalog, adminFixed }` từ `config/permissions`.
+- Đặt route trước các route động `/:id` để không bị nuốt.
+- Test: `be/tests/permission_catalog.test.js` (superadmin/admin 200, staff/customer 403, no-cookie 401, đủ 37 action, `adminFixed` đúng, `dependsOn` `order.excel` -> `order.edit`).
+- Chưa đổi tên quyền route (B4).
+
+---
+
+## [B2] Lõi phân quyền tập trung + phân cấp tạo tài khoản
+- `be/components/user.js`: thêm `hasPermission()` tập trung, cờ `ADMIN_FULL_ACCESS=true` giữ hành vi admin cũ tới B6, `checkPermission` gọi `hasPermission`.
+- Phân cấp tạo tài khoản: staff chỉ tạo customer khi có `customer.create`; chặn staff tạo staff/admin; giữ nguyên admin/superadmin. Siết `/register` và `/admin-create`.
+- Chưa đổi tên quyền route (B4), chưa gỡ bypass admin (B6).
+- Test: `be/tests/authz_permission_core.test.js` phủ `hasPermission`, phân cấp tạo tài khoản và regression route quyền cũ.
+
+---
+
+## [B1] Thêm catalog phân quyền chi tiết
+- Tạo `be/config/permissions.js`: nguồn chân lý cho hệ quyền `module.action`.
+- Định nghĩa 9 module cấp được cho staff/admin và 3 module cố định admin (`account`, `zalo`, `activitylog`).
+- Thêm dependency: `order`/`iporder`/`eporder` `.excel` và `.scan_ai` phụ thuộc `.edit`.
+- Kèm hàm tiện ích: `getAllPermissions`, `getGrantablePermissions`, `getAdminFixedPermissions`, `isValidPermission`, `getPermissionLabel`, `getDependency`, `getCatalogForClient`.
+- Chưa đụng `checkPermission`/route để dành cho bước B2, B3.
 
 ---
 
@@ -25,6 +193,7 @@
 - Rủi ro còn lại: chưa mở browser kiểm chứng UI thực tế — cần hard refresh trình duyệt để nạp bundle mới. Đơn nháp rỗng tạo ra hiện ngay trong danh sách + tăng badge processing-count; bỏ dở giữa chừng sẽ để lại đơn rỗng (hệ quả của flow tạo-rỗng-rồi-điền giống nhập/xuất).
 
 ---
+
 
 ## 2026-07-07 — Codex (thêm màn hình chi tiết đơn bán hàng admin)
 - `be/components/order.js`: thêm API admin cho draft/detail/items/reorder/customer của đơn bán hàng, tính lại total từ giá variant, cập nhật `quantityForSale`, khóa sửa khi đơn `Completed` hoặc `Cancelled`; nới `userPhone` mặc định rỗng cho đơn nháp.

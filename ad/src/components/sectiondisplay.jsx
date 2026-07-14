@@ -360,7 +360,7 @@ const SectionDisplay = () => {
         <Typography>Không có dữ liệu để hiển thị</Typography>
       )}
 
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="md" fullWidth>
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock maxWidth="md" fullWidth>
         <DialogTitle>Thêm sản phẩm vào {activeSection}</DialogTitle>
         <DialogContent>
           <Box display="flex" gap={2} mb={2}>
@@ -426,7 +426,7 @@ const SectionDisplay = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)} disableScrollLock>
         <DialogTitle>Xác nhận xóa</DialogTitle>
         <DialogContent>
           Bạn có chắc chắn muốn xóa sản phẩm này khỏi {activeSection}?

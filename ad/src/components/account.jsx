@@ -51,6 +51,7 @@ const MODULE_ICONS = {
   customer: <PersonIcon fontSize="small" />,
   storefront: <DisplaySettingsIcon fontSize="small" />,
   history: <TocIcon fontSize="small" />,
+  activitylog: <TocIcon fontSize="small" />,
   voice: <RecordVoiceOverIcon fontSize="small" />,
 };
 
@@ -97,11 +98,11 @@ const Account = () => {
 
   const availableRoles = isSuperadmin
     ? [
-        { value: "admin", title: "Admin", desc: "Quản trị viên hệ thống, có quyền cố định quản lý tài khoản, Zalo và lịch sử hoạt động." },
-        { value: "staff", title: "Nhân viên", desc: "Chỉ có quyền được cấp cụ thể, không truy cập được các trang quản trị." },
+        { value: "admin", title: "Admin", desc: "Quản trị viên hệ thống, có quyền cố định quản lý tài khoản và Zalo." },
+        { value: "staff", title: "Nhân viên", desc: "Chỉ có các quyền được cấp cụ thể." },
       ]
     : [
-        { value: "staff", title: "Nhân viên", desc: "Chỉ có quyền được cấp cụ thể, không truy cập được các trang quản trị." },
+        { value: "staff", title: "Nhân viên", desc: "Chỉ có các quyền được cấp cụ thể." },
       ];
 
   const grantableModules = useMemo(
@@ -447,7 +448,7 @@ const Account = () => {
   ];
 
   const renderRoleSelector = () => (
-    <Box sx={{ mb: 2 }}>
+    <Box className="acc-dialog-section">
       <Typography className="acc-section-heading">Vai trò</Typography>
       <div className="acc-role-options">
         {availableRoles.map((r) => (
@@ -529,7 +530,7 @@ const Account = () => {
     }
 
     return (
-      <Box sx={{ mt: 2 }}>
+      <Box className="acc-dialog-section">
         <Typography className="acc-section-heading">Quyền chi tiết</Typography>
         {renderFixedBlock()}
         <div className="acc-permission-table-wrap">
@@ -597,13 +598,12 @@ const Account = () => {
 
                       return (
                         <td key={column.key}>
-                          {disabled ? (
-                            <Tooltip title={`Cần chọn quyền ${depAction?.label || "Cập nhật"} trước`} arrow>
-                              <span className="acc-checkbox-tooltip">{checkbox}</span>
-                            </Tooltip>
-                          ) : (
-                            checkbox
-                          )}
+                          <Tooltip
+                            title={disabled ? `Cần chọn quyền ${depAction?.label || "Cập nhật"} trước` : ""}
+                            arrow
+                          >
+                            <span className="acc-checkbox-tooltip">{checkbox}</span>
+                          </Tooltip>
                         </td>
                       );
                     })}
@@ -661,62 +661,65 @@ const Account = () => {
       <Dialog
         open={open}
         onClose={handleClose}
+        disableScrollLock
         fullWidth
         maxWidth="xl"
         PaperProps={{ sx: { width: "min(1280px, calc(100vw - 32px))" } }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>
           {selectedUser
             ? isEditingSuperadmin
               ? "Xem tài khoản Super Admin"
               : "Chỉnh sửa tài khoản"
             : "Thêm tài khoản mới"}
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
-            <Typography className="acc-section-heading">Thông tin tài khoản</Typography>
-            <div className="acc-fields-grid">
-              <TextField
-                label="Họ và tên"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                fullWidth
-                variant="outlined"
-                size="small"
-                disabled={isEditingSuperadmin && !isSuperadmin}
-              />
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                fullWidth
-                variant="outlined"
-                size="small"
-                disabled={isEditingSuperadmin && !isSuperadmin}
-              />
-              <TextField
-                label="Số điện thoại"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                fullWidth
-                variant="outlined"
-                size="small"
-                required
-                disabled={isEditingSuperadmin && !isSuperadmin}
-              />
-              <TextField
-                label={selectedUser ? "Mật khẩu mới (để trống nếu không đổi)" : "Mật khẩu"}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                fullWidth
-                variant="outlined"
-                size="small"
-                required={!selectedUser}
-                disabled={isEditingSuperadmin && !isSuperadmin}
-              />
-            </div>
+        <DialogContent sx={{ pt: 1, pb: 1.5 }}>
+          <Box className="acc-dialog-stack">
+            <Box className="acc-dialog-section">
+              <Typography className="acc-section-heading">Thông tin tài khoản</Typography>
+              <div className="acc-fields-grid">
+                <TextField
+                  label="Họ và tên"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  disabled={isEditingSuperadmin && !isSuperadmin}
+                />
+                <TextField
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  disabled={isEditingSuperadmin && !isSuperadmin}
+                />
+                <TextField
+                  label="Số điện thoại"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  required
+                  disabled={isEditingSuperadmin && !isSuperadmin}
+                />
+                <TextField
+                  label={selectedUser ? "Mật khẩu mới (để trống nếu không đổi)" : "Mật khẩu"}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  required={!selectedUser}
+                  disabled={isEditingSuperadmin && !isSuperadmin}
+                />
+              </div>
+            </Box>
 
             {isEditingSuperadmin ? (
               renderSuperadminBlock()

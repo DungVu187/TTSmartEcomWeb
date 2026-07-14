@@ -103,6 +103,55 @@ describe('Station API Automated Tests (Module 5)', () => {
     expect(adminRes.body[0].stationCode).toBe('TRAM-02');
   });
 
+  it('TC-STA-005: Không cho tạo hai trạm có cùng mã, kể cả khác hoa thường và khoảng trắng', async () => {
+    await new Station({
+      stationName: 'Trạm đã tồn tại',
+      stationCode: 'TRAM-DUP',
+      location: 'Hà Nội'
+    }).save();
+
+    const duplicateRes = await request(app)
+      .post('/stations')
+      .set('Cookie', adminCookie)
+      .send({
+        stationName: 'Trạm bị trùng',
+        stationCode: '  tram-dup  ',
+        location: 'Hải Phòng'
+      });
+
+    expect(duplicateRes.status).toBe(409);
+    expect(duplicateRes.body.error).toContain('đã tồn tại');
+    expect(await Station.countDocuments({})).toBe(1);
+  });
+
+  it('TC-STA-006: Không cho cập nhật một trạm sang mã của trạm khác', async () => {
+    const firstStation = await new Station({
+      stationName: 'Trạm thứ nhất',
+      stationCode: 'TRAM-FIRST',
+      location: 'Hà Nội'
+    }).save();
+    const secondStation = await new Station({
+      stationName: 'Trạm thứ hai',
+      stationCode: 'TRAM-SECOND',
+      location: 'Hải Phòng'
+    }).save();
+
+    const duplicateRes = await request(app)
+      .put(`/stations/${secondStation._id}`)
+      .set('Cookie', adminCookie)
+      .send({
+        stationName: secondStation.stationName,
+        stationCode: ` ${firstStation.stationCode.toLowerCase()} `,
+        location: secondStation.location
+      });
+
+    expect(duplicateRes.status).toBe(409);
+    expect(duplicateRes.body.error).toContain('đã tồn tại');
+
+    const unchangedStation = await Station.findById(secondStation._id);
+    expect(unchangedStation.stationCode).toBe('TRAM-SECOND');
+  });
+
   it('TC-STA-004: Truy cập công khai qua link inviteCode (GET /stations/public/:inviteCode)', async () => {
     // Tạo trạm mẫu
     const station = new Station({

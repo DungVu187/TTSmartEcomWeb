@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require("mongoose");
-const { authenticateAdmin, checkPermission } = require('./user');
+const { authenticateAdmin, checkPermission, checkAnyPermission } = require('./user');
 
 // Định nghĩa schema
 const storageHistorySchema = new mongoose.Schema({
@@ -58,9 +58,24 @@ const sortTextOptions = (items) =>
         .map((item) => item.trim())
         .sort((a, b) => a.localeCompare(b, "vi", { sensitivity: "base" }));
 
-router.get("/", authenticateAdmin, checkPermission("history.view"), async (req, res) => {
+const checkImportHistoryPermission = checkPermission("history_import.view");
+const checkExportHistoryPermission = checkPermission("history_export.view");
+const checkEitherHistoryPermission = checkAnyPermission([
+    "history_import.view",
+    "history_export.view",
+]);
+
+const checkHistoryPermission = (req, res, next) => {
+    const permissionMiddleware = req.query.direction === "export"
+        ? checkExportHistoryPermission
+        : checkImportHistoryPermission;
+
+    return permissionMiddleware(req, res, next);
+};
+
+router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
     try {
-        let { page = 1, limit = 20, startDate, endDate, orderName, userName, noteType } = req.query;
+        let { page = 1, limit = 20, startDate, endDate, orderName, userName, noteType, direction } = req.query;
 
         page = Math.max(1, parseInt(page));
         limit = [20, 50, 100].includes(parseInt(limit)) ? parseInt(limit) : 20;
@@ -107,12 +122,13 @@ router.get("/", authenticateAdmin, checkPermission("history.view"), async (req, 
                 filter.quantity = { $gt: 0 };
                 filter.orderName = { $in: [null, ""] };
                 filter.isAIScan = { $ne: true };
-                filter.source = { $exists: false };
+                // Kho thủ công trên trang SP: gồm dòng cũ (chưa có source) và dòng mới (source=product_manual).
+                filter.$or = [{ source: { $exists: false } }, { source: "product_manual" }];
             } else if (noteType === 'xuat_thu_cong') {
                 filter.quantity = { $lt: 0 };
                 filter.orderName = { $in: [null, ""] };
                 filter.isAIScan = { $ne: true };
-                filter.source = { $exists: false };
+                filter.$or = [{ source: { $exists: false } }, { source: "product_manual" }];
             } else if (noteType === 'nhap_ai') {
                 filter.quantity = { $gt: 0 };
                 filter.isAIScan = true;
@@ -138,6 +154,12 @@ router.get("/", authenticateAdmin, checkPermission("history.view"), async (req, 
             }
         }
 
+        if (direction === "import") {
+            filter.quantity = { $gt: 0 };
+        } else if (direction === "export") {
+            filter.quantity = { $lt: 0 };
+        }
+
         const [history, total] = await Promise.all([
             StorageHistory.find(filter)
                 .sort({ createdAt: -1 })
@@ -160,7 +182,7 @@ router.get("/", authenticateAdmin, checkPermission("history.view"), async (req, 
     }
 });
 
-router.get("/filter-options", authenticateAdmin, checkPermission("history.view"), async (req, res) => {
+router.get("/filter-options", authenticateAdmin, checkEitherHistoryPermission, async (req, res) => {
     try {
         const [userNames, orderNames] = await Promise.all([
             StorageHistory.distinct("userName", { userName: { $nin: [null, ""] } }),
@@ -178,7 +200,7 @@ router.get("/filter-options", authenticateAdmin, checkPermission("history.view")
     }
 });
 
-router.get("/:id", [authenticateAdmin, checkPermission("history.view")], async (req, res) => {
+router.get("/:id", [authenticateAdmin, checkEitherHistoryPermission], async (req, res) => {
     try {
         const { id } = req.params;
         let { page = 1, limit = 20, startDate, endDate } = req.query;
@@ -225,7 +247,7 @@ router.get("/:id", [authenticateAdmin, checkPermission("history.view")], async (
     }
 });
 
-router.put("/update-ordername", authenticateAdmin, checkPermission("history.view"), async (req, res) => {
+router.put("/update-ordername", authenticateAdmin, checkEitherHistoryPermission, async (req, res) => {
     try {
         const { orderId, newOrderName } = req.body;
 

@@ -197,7 +197,7 @@ const Chips = ({ onlySection = false }) => {
         />
 
         {/* Dialog chỉnh sửa/xóa */}
-        <Dialog open={selectedDevice !== null} onClose={handleClose}>
+        <Dialog open={selectedDevice !== null} onClose={handleClose} disableScrollLock>
           <DialogTitle>Chỉnh sửa thiết bị</DialogTitle>
           <DialogContent>
             <TextField
@@ -661,7 +661,7 @@ const fetchSectionDevices = async (sectionName) => {
             )}
           </div>
 
-          <Dialog open={openDialog} onClose={handleCloseDialog}>
+          <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
             <DialogTitle>Thêm Chip</DialogTitle>
             <DialogContent>
               <FormControl fullWidth sx={{ marginTop: 2 }}>
@@ -707,6 +707,7 @@ const fetchSectionDevices = async (sectionName) => {
           <Dialog
             open={openDeleteDialog}
             onClose={() => setOpenDeleteDialog(false)}
+            disableScrollLock
           >
             <DialogTitle>Xác nhận xóa</DialogTitle>
             <DialogContent>
@@ -732,7 +733,7 @@ const fetchSectionDevices = async (sectionName) => {
       )}
 
       {/* Dialog thêm thiết bị */}
-      <Dialog open={openValueDialog} onClose={handleCloseValueDialog}>
+      <Dialog open={openValueDialog} onClose={handleCloseValueDialog} disableScrollLock>
         <DialogTitle>Thêm thiết bị</DialogTitle>
         <DialogContent>
           <TextField

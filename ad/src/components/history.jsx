@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   CircularProgress,
@@ -24,6 +24,27 @@ import { useNavigate } from "react-router-dom";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const importNoteTypeOptions = [
+  { value: "", label: "Tất cả" },
+  { value: "nhap_don", label: "Nhập kho theo đơn" },
+  { value: "nhap_thu_cong", label: "Nhập kho thủ công" },
+  { value: "nhap_ai", label: "Nhập đơn quét AI" },
+  { value: "order_line_manual", label: "Trong đơn - gõ tay" },
+  { value: "order_line_complete", label: "Trong đơn - tích hoàn thành SP" },
+  { value: "order_bulk_complete", label: "Trong đơn - hoàn thành cả đơn" },
+];
+
+const exportNoteTypeOptions = [
+  { value: "", label: "Tất cả" },
+  { value: "xuat_don", label: "Xuất kho theo đơn" },
+  { value: "xuat_thu_cong", label: "Xuất kho thủ công" },
+  { value: "xuat_ai", label: "Xuất đơn quét AI" },
+  { value: "order_line_manual", label: "Trong đơn - gõ tay" },
+  { value: "order_line_complete", label: "Trong đơn - tích hoàn thành SP" },
+  { value: "order_bulk_complete", label: "Trong đơn - hoàn thành cả đơn" },
+  { value: "ban_online", label: "Đơn hàng bán online" },
+];
+
 const removeVietnameseTones = (str) => {
   if (!str) return "";
   return str
@@ -36,6 +57,11 @@ const removeVietnameseTones = (str) => {
 
 const getHistoryLabel = (row) => {
   const isImport = row.quantity > 0;
+
+  // Quét AI luôn ưu tiên nhãn quét AI, không dán kèm nhãn khác dù có source gì.
+  if (row.isAIScan) {
+    return isImport ? "Nhập đơn quét AI" : "Xuất đơn quét AI";
+  }
 
   switch (row.source) {
     case "order_line_manual":
@@ -53,10 +79,6 @@ const getHistoryLabel = (row) => {
     default:
       return row.note
         ? row.note
-        : row.isAIScan
-        ? isImport
-          ? "Nhập đơn quét AI"
-          : "Xuất đơn quét AI"
         : row.orderId
         ? isImport
           ? "Nhập kho theo đơn"
@@ -67,7 +89,11 @@ const getHistoryLabel = (row) => {
   }
 };
 
-const History = () => {
+const History = ({ direction = "import" }) => {
+  const historyDirection = direction === "export" ? "export" : "import";
+  const noteTypeOptions = historyDirection === "export"
+    ? exportNoteTypeOptions
+    : importNoteTypeOptions;
   const [histories, setHistories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -112,6 +138,7 @@ const History = () => {
       const query = new URLSearchParams({
         page: currentPage,
         limit,
+        direction: historyDirection,
         ...(currentUserName && { userName: currentUserName }),
         ...(currentOrderName && { orderName: currentOrderName }),
         ...(startDate && { startDate }),
@@ -137,7 +164,7 @@ const History = () => {
   useEffect(() => {
     fetchHistories(page, debouncedUserName, debouncedOrderName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, limit, startDate, endDate, noteType, debouncedUserName, debouncedOrderName]);
+  }, [page, limit, startDate, endDate, noteType, debouncedUserName, debouncedOrderName, historyDirection]);
 
   const fetchFilterOptions = async () => {
     try {
@@ -172,7 +199,7 @@ const History = () => {
     <Box p={2}>
       <div className="sticky-header">
         <Typography variant="h5" gutterBottom>
-          Lịch sử nhập/xuất kho
+          {historyDirection === "export" ? "Lịch sử xuất kho" : "Lịch sử nhập kho"}
         </Typography>
       </div>
 
@@ -271,18 +298,11 @@ const History = () => {
           SelectProps={{ native: true }}
           InputLabelProps={{ shrink: true }}
         >
-          <option value="">Tất cả</option>
-          <option value="nhap_don">Nhập kho theo đơn</option>
-          <option value="xuat_don">Xuất kho theo đơn</option>
-          <option value="nhap_thu_cong">Nhập kho thủ công</option>
-          <option value="xuat_thu_cong">Xuất kho thủ công</option>
-          <option value="nhap_ai">Nhập đơn quét AI</option>
-          <option value="xuat_ai">Xuất đơn quét AI</option>
-          <option value="order_line_manual">Trong đơn - gõ tay</option>
-          <option value="order_line_complete">Trong đơn - tích hoàn thành SP</option>
-          <option value="order_bulk_complete">Trong đơn - hoàn thành cả đơn</option>
-          <option value="product_manual">Kho thủ công (trang SP)</option>
-          <option value="ban_online">Đơn hàng bán online</option>
+          {noteTypeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </TextField>
         <Button variant="outlined" color="secondary" onClick={handleResetFilters}>
           Xóa bộ lọc
@@ -396,5 +416,9 @@ const History = () => {
     </Box>
   );
 };
+
+export const HistoryImport = () => <History direction="import" />;
+
+export const HistoryExport = () => <History direction="export" />;
 
 export default History;

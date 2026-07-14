@@ -385,7 +385,9 @@ const ProductDisplay = () => {
                 </div>
                 <p style={{ fontWeight: 500 }}>{product.code}</p>
                 <p className="product-display-price">
-                  {Number(selectedVariant?.price).toLocaleString("vi-VN")} VND
+                  {Number(selectedVariant?.price) > 0
+                    ? `${Number(selectedVariant.price).toLocaleString("vi-VN")} VND`
+                    : "Liên hệ"}
                 </p>
                 {(selectedVariant?.quantityForSale || 0) <= 0 ? (
                   <>

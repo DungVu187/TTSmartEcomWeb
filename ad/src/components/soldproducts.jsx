@@ -402,7 +402,7 @@ const SoldProducts = () => {
         onRowsPerPageChange={handleChangeRowsPerPage}
       />
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock maxWidth="md" fullWidth>
         <DialogTitle>Đơn hàng chứa sản phẩm: {selectedProductName}</DialogTitle>
         <DialogContent>
           <TableContainer component={Paper}>

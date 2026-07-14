@@ -88,15 +88,6 @@ const PERMISSION_CATALOG = [
     ],
   },
   {
-    key: "history",
-    label: "Lịch sử kho",
-    group: "system",
-    scope: "grantable",
-    actions: [
-      { key: "history.view", label: "Xem" },
-    ],
-  },
-  {
     key: "voice",
     label: "Từ vựng Voice",
     group: "system",
@@ -124,10 +115,28 @@ const PERMISSION_CATALOG = [
     ],
   },
   {
+    key: "history_import",
+    label: "Lịch sử nhập kho",
+    group: "system",
+    scope: "grantable",
+    actions: [
+      { key: "history_import.view", label: "Xem" },
+    ],
+  },
+  {
+    key: "history_export",
+    label: "Lịch sử xuất kho",
+    group: "system",
+    scope: "grantable",
+    actions: [
+      { key: "history_export.view", label: "Xem" },
+    ],
+  },
+  {
     key: "activitylog",
     label: "Lịch sử hoạt động",
     group: "admin",
-    scope: "adminFixed",
+    scope: "grantable",
     actions: [
       { key: "activitylog.view", label: "Xem" },
     ],

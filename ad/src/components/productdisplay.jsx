@@ -98,13 +98,17 @@ const ProductDisplay = () => {
 
   const fetchProduct = async () => {
     try {
-      const response = await fetch(`${apiUrl}/products/${productId}`);
+      const endpoint = canEdit
+        ? `${apiUrl}/products/${productId}/admin-detail`
+        : `${apiUrl}/products/${productId}`;
+      const response = await fetch(endpoint, { credentials: "include" });
       if (response.ok) {
         const data = await response.json();
         setProduct(data);
         setOriginalProduct(data);
         setNoteInput(data.variant?.[0]?.note || "");
-        setEarnInput(data.variant?.[0]?.earn || "");
+        const existingEarn = Number(data.variant?.[0]?.earn);
+        setEarnInput((existingEarn > 0 ? existingEarn : 25).toString());
       }
     } catch (err) {
       console.error("Error fetching product:", err);
@@ -113,7 +117,7 @@ const ProductDisplay = () => {
 
   useEffect(() => {
     fetchProduct();
-  }, [productId]);
+  }, [productId, canEdit]);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -341,6 +345,32 @@ const ProductDisplay = () => {
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Failed to save note");
+    }
+  };
+
+  const handleUpdateVat = async () => {
+    if (!product) return;
+
+    try {
+      const response = await fetch(`${apiUrl}/products/${productId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ vat: product.vat || "" }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update VAT");
+      }
+
+      toast.success("Cập nhật VAT thành công");
+      fetchProduct();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Failed to update VAT");
     }
   };
 
@@ -689,6 +719,29 @@ const ProductDisplay = () => {
             )}
           </Box>
 
+          <Box sx={metricRowSx}>
+            <TextField
+              label="VAT"
+              fullWidth
+              size="small"
+              value={product.vat || ""}
+              onChange={(e) => setProduct({ ...product, vat: e.target.value })}
+              disabled={!canEdit}
+              sx={{ flex: 1 }}
+            />
+            {canEdit && (
+              <Button
+                onClick={handleUpdateVat}
+                variant="contained"
+                color="primary"
+                size="small"
+                sx={metricButtonSx}
+              >
+                Cập nhật VAT
+              </Button>
+            )}
+          </Box>
+
           <Box
             sx={metricRowSx}
           >
@@ -876,15 +929,6 @@ const ProductDisplay = () => {
             disabled={!canEdit}
           />
           <TextField
-            label="VAT"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.vat || ""}
-            onChange={(e) => setProduct({ ...product, vat: e.target.value })}
-            disabled={!canEdit}
-          />
-          <TextField
             label="Bảo hành"
             fullWidth
             margin="normal"
@@ -1027,7 +1071,7 @@ const ProductDisplay = () => {
             }
             disabled={!canEdit}
           />
-          <Dialog open={openQRDialog} onClose={handleCloseQRDialog}>
+          <Dialog open={openQRDialog} onClose={handleCloseQRDialog} disableScrollLock>
             <DialogTitle>QR Code</DialogTitle>
             <DialogContent>
               {qrCodeUrl && (

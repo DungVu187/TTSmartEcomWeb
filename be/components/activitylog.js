@@ -1,9 +1,14 @@
 const express = require('express');
 const mongoose = require("mongoose");
 
-const authenticateAdminOnly = (req, res, next) => {
+const authenticateAdmin = (req, res, next) => {
     const userModule = require("./user");
-    return userModule.authenticateAdminOnly(req, res, next);
+    return userModule.authenticateAdmin(req, res, next);
+};
+
+const checkActivityLogPermission = (req, res, next) => {
+    const userModule = require("./user");
+    return userModule.checkPermission("activitylog.view")(req, res, next);
 };
 
 // Định nghĩa schema
@@ -100,7 +105,7 @@ const ACTION_LABELS = {
 };
 
 // API lấy danh sách lịch sử hoạt động
-router.get("/", authenticateAdminOnly, async (req, res) => {
+router.get("/", authenticateAdmin, checkActivityLogPermission, async (req, res) => {
     try {
         let { page = 1, limit = 20, startDate, endDate, userName, productName, action } = req.query;
 

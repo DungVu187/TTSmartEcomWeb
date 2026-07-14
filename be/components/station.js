@@ -49,6 +49,23 @@ const Station = mongoose.model("Station", stationSchema);
 
 const limitRegexInput = (value) => String(value || "").trim().slice(0, 100);
 const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalizeStationCode = (value) => String(value || "").trim();
+
+const findStationByEquivalentCode = (stationCode, excludeId = null) => {
+    const normalizedCode = normalizeStationCode(stationCode);
+    if (!normalizedCode) return null;
+
+    const filter = {
+        stationCode: {
+            $regex: `^${escapeRegex(normalizedCode)}$`,
+            $options: "i"
+        }
+    };
+    if (excludeId) {
+        filter._id = { $ne: excludeId };
+    }
+    return Station.findOne(filter);
+};
 
 const toPublicStation = (station) => {
     const obj = station.toObject ? station.toObject({ virtuals: false }) : { ...station };
@@ -166,15 +183,23 @@ router.get("/search", async (req, res) => {
 router.post("/", authenticateAdmin, checkPermission("station.create"), async (req, res) => {
     try {
         const { stationName, stationCode, location, allowPublicSignup } = req.body;
+        const normalizedStationCode = normalizeStationCode(stationCode);
         
         // Kiểm tra các trường bắt buộc
-        if (!stationName || !stationCode) {
+        if (!stationName || !normalizedStationCode) {
             return res.status(400).json({ error: "Tên và mã station là bắt buộc" });
+        }
+
+        const existingStation = await findStationByEquivalentCode(normalizedStationCode);
+        if (existingStation) {
+            return res.status(409).json({
+                error: `Mã trạm "${normalizedStationCode}" đã tồn tại (${existingStation.stationName || "Không có tên"}). Vui lòng dùng mã khác.`
+            });
         }
 
         const newStation = new Station({
             stationName,
-            stationCode,
+            stationCode: normalizedStationCode,
             allowPublicSignup: allowPublicSignup !== undefined ? allowPublicSignup : true,
             location,
             productId: []
@@ -194,6 +219,9 @@ router.post("/", authenticateAdmin, checkPermission("station.create"), async (re
 
         res.status(201).json(savedStation);
     } catch (error) {
+        if (error.code === 11000 && error.keyPattern?.stationCode) {
+            return res.status(409).json({ error: "Mã trạm đã tồn tại. Vui lòng dùng mã khác." });
+        }
         res.status(500).json({ error: "Không thể tạo station" });
     }
 });
@@ -242,10 +270,21 @@ router.put("/:id", authenticateAdmin, checkPermission("station.edit"), async (re
     try {
         const { stationName, stationCode, location, allowPublicSignup } = req.body;
         const stationId = req.params.id;
+        const normalizedStationCode = normalizeStationCode(stationCode);
 
         const oldStation = await Station.findById(stationId);
         if (!oldStation) {
             return res.status(404).json({ error: "Không tìm thấy station" });
+        }
+        if (!normalizedStationCode) {
+            return res.status(400).json({ error: "Mã station là bắt buộc" });
+        }
+
+        const existingStation = await findStationByEquivalentCode(normalizedStationCode, stationId);
+        if (existingStation) {
+            return res.status(409).json({
+                error: `Mã trạm "${normalizedStationCode}" đã tồn tại (${existingStation.stationName || "Không có tên"}). Vui lòng dùng mã khác.`
+            });
         }
         const oldData = {
             stationName: oldStation.stationName,
@@ -254,7 +293,7 @@ router.put("/:id", authenticateAdmin, checkPermission("station.edit"), async (re
             allowPublicSignup: oldStation.allowPublicSignup
         };
 
-        const update = { stationName, stationCode, location };
+        const update = { stationName, stationCode: normalizedStationCode, location };
         if (allowPublicSignup !== undefined) {
             update.allowPublicSignup = allowPublicSignup;
         }
@@ -287,6 +326,9 @@ router.put("/:id", authenticateAdmin, checkPermission("station.edit"), async (re
 
         res.json(station);
     } catch (error) {
+        if (error.code === 11000 && error.keyPattern?.stationCode) {
+            return res.status(409).json({ error: "Mã trạm đã tồn tại. Vui lòng dùng mã khác." });
+        }
         res.status(500).json({ error: "Không thể cập nhật station" });
     }
 });

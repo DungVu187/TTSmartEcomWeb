@@ -191,6 +191,7 @@ Virtual: `inviteCode` trả về `stationCode`. Helper: `findStationByInviteCode
 | `RATE_LIMIT_MAX` | Không | Số request tối đa/cửa sổ, mặc định `100` |
 | `PUBLIC_SIGNUP_ENABLED` | Không | `"true"` cho phép đăng ký công khai không cần admin |
 | `ZALO_DEMO_MODE` | Không | `"true"` để mock Zalo API khi dev/test |
+| `TELEGRAM_BOT_TOKEN` | Không | Token Telegram Bot dùng để gửi thông báo đơn hàng |
 
 ### Frontend Admin (`ad/.env`)
 | Biến | Mô tả |

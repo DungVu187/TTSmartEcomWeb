@@ -55,11 +55,11 @@ describe("Permission validation", () => {
         phone: "0940000002",
         password: "password123",
         role: "staff",
-        permissions: ["order.edit", "order.excel", "order.edit"],
+        permissions: ["order.edit", "order.excel", "activitylog.view", "order.edit"],
       })
       .expect(201);
 
-    expect(response.body.user.permissions).toEqual(["order.edit", "order.excel"]);
+    expect(response.body.user.permissions).toEqual(["order.edit", "order.excel", "activitylog.view"]);
     expect(response.body.user.functions).toEqual([]);
   });
 

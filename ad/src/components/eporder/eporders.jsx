@@ -475,7 +475,7 @@ const EpOrders = () => {
       </div>
 
       {/* Dialog danh sách mẫu hóa đơn (chỉnh sửa mẫu) */}
-      <Dialog open={openDialog} onClose={handleCloseDialog}>
+      <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
         <DialogTitle>Danh sách mẫu hóa đơn</DialogTitle>
         <DialogContent>
           {orderTemplates.length > 0 ? (
@@ -510,7 +510,7 @@ const EpOrders = () => {
       </Dialog>
 
       {/* Dialog tạo đơn mới với mẫu */}
-      <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog}>
+      <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog} disableScrollLock>
         <DialogTitle>Chọn mẫu hóa đơn để tạo đơn</DialogTitle>
         <DialogContent>
           {orderTemplates.length > 0 ? (

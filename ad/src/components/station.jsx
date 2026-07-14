@@ -108,9 +108,18 @@ const Station = () => {
 
   const handleCreateStation = async () => {
     const { stationCode, stationName, location } = newStation;
+    const normalizedStationCode = stationCode.trim();
 
-    if (!stationCode || !stationName) {
+    if (!normalizedStationCode || !stationName.trim()) {
       alert("Mã trạm và tên trạm là bắt buộc");
+      return;
+    }
+
+    const duplicateStation = stations.find(
+      (station) => station.code?.trim().toLocaleLowerCase("vi-VN") === normalizedStationCode.toLocaleLowerCase("vi-VN")
+    );
+    if (duplicateStation) {
+      alert(`Mã trạm "${normalizedStationCode}" đã tồn tại (${duplicateStation.name || "Không có tên"}). Vui lòng dùng mã khác.`);
       return;
     }
 
@@ -122,8 +131,8 @@ const Station = () => {
         },
         credentials: "include",
         body: JSON.stringify({
-          stationCode,
-          stationName,
+          stationCode: normalizedStationCode,
+          stationName: stationName.trim(),
           location,
         }),
       });
@@ -305,13 +314,12 @@ const Station = () => {
         </Box>
       </div>
 
-      <Box sx={{ width: "100%" }}>
+      <Box sx={{ width: "100%", height: "calc(100vh - 180px)", minHeight: 360 }}>
         <DataGrid
           rows={filteredStations}
           columns={columns}
           pageSize={5}
           rowsPerPageOptions={[5]}
-          autoHeight
           loading={loading}
           disableColumnMenu
           disableRowSelectionOnClick
@@ -330,6 +338,7 @@ const Station = () => {
       <Dialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
+        disableScrollLock
         maxWidth="xs"
         fullWidth
       >

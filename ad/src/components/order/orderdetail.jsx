@@ -1101,7 +1101,7 @@ const SalesOrderDetail = () => {
         </Box>
       )}
 
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="md" fullWidth>
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock maxWidth="md" fullWidth>
         <DialogTitle>Thêm sản phẩm</DialogTitle>
         <DialogContent>
           <Box display="flex" gap={2} flexDirection={{ xs: "column", sm: "row" }} mt={1} mb={2}>
@@ -1169,7 +1169,7 @@ const SalesOrderDetail = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={isScanDialogOpen} onClose={handleCancelScanDialog} maxWidth="lg" fullWidth>
+      <Dialog open={isScanDialogOpen} onClose={handleCancelScanDialog} disableScrollLock maxWidth="lg" fullWidth>
         <DialogTitle>Quét hóa đơn đơn bán</DialogTitle>
         <DialogContent>
           <Box display="flex" gap={2} flexDirection={{ xs: "column", md: "row" }}>
@@ -1278,7 +1278,7 @@ const SalesOrderDetail = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={lightboxOpen} onClose={() => setLightboxOpen(false)} maxWidth="lg" fullWidth>
+      <Dialog open={lightboxOpen} onClose={() => setLightboxOpen(false)} disableScrollLock maxWidth="lg" fullWidth>
         <DialogContent sx={{ bgcolor: "#111", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "75vh" }}>
           {orderImages[currentImgIndex] && (
             <img

@@ -290,7 +290,7 @@ const VoiceVocab = () => {
   const renderSimpleTable = (group) => {
     const rows = data[group.key] || [];
     return (
-      <Table size="small">
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell>Giá trị</TableCell>
@@ -322,7 +322,7 @@ const VoiceVocab = () => {
   const renderBrandAliasTable = (group) => {
     const rows = data.brandAliases || [];
     return (
-      <Table size="small">
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell sx={{ width: 200 }}>Thương hiệu</TableCell>
@@ -362,7 +362,7 @@ const VoiceVocab = () => {
   const renderTypeAliasTable = (group) => {
     const rows = data.typeAliases || [];
     return (
-      <Table size="small">
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell sx={{ width: 180 }}>Loại</TableCell>
@@ -404,7 +404,7 @@ const VoiceVocab = () => {
   const renderIntentAliasTable = (group) => {
     const rows = data.intentAliases || [];
     return (
-      <Table size="small">
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell sx={{ width: 180 }}>Intent</TableCell>
@@ -446,7 +446,7 @@ const VoiceVocab = () => {
   const renderCodeMapTable = (group) => {
     const rows = data.codeMap || [];
     return (
-      <Table size="small">
+      <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell sx={{ width: 140 }}>Mã</TableCell>
@@ -685,7 +685,16 @@ const VoiceVocab = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, md: 2 } }}>
+    <Box
+      sx={{
+        p: { xs: 1, md: 2 },
+        height: { xs: "calc(100vh - 90px)", md: "calc(100vh - 40px)" },
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <Typography variant="h5" sx={{ fontWeight: "bold", mb: 0.5 }}>
         Từ vựng tìm kiếm giọng nói
       </Typography>
@@ -694,24 +703,34 @@ const VoiceVocab = () => {
       </Typography>
 
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1, py: 6 }}>
           <CircularProgress />
         </Box>
       ) : (
-        <Paper variant="outlined" sx={{ p: { xs: 1, md: 2 } }}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: { xs: 1, md: 2 },
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
           <Tabs
             value={tab}
             onChange={(e, v) => setTab(v)}
             variant="scrollable"
             scrollButtons="auto"
-            sx={{ mb: 1 }}
+            sx={{ mb: 1, flexShrink: 0 }}
           >
             {GROUPS.map((g) => (
               <Tab key={g.key} label={`${g.label} (${(data[g.key] || []).length})`} />
             ))}
           </Tabs>
 
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1, flexShrink: 0 }}>
             <Typography variant="body2" sx={{ color: "text.secondary", flex: 1, minWidth: 240 }}>
               {currentGroup.hint}
             </Typography>
@@ -720,14 +739,14 @@ const VoiceVocab = () => {
             </Button>
           </Box>
 
-          <Box sx={{ overflowX: "auto" }}>
+          <Box sx={{ overflow: "auto", flex: 1, minHeight: 0 }}>
             {renderTable(currentGroup)}
           </Box>
         </Paper>
       )}
 
       {/* Dialog thêm/sửa */}
-      <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
+      <Dialog open={dialogOpen} onClose={closeDialog} disableScrollLock fullWidth maxWidth="sm">
         <DialogTitle>
           {dialogMode === "add" ? "Thêm" : "Sửa"} - {activeGroup.label}
         </DialogTitle>
@@ -741,7 +760,7 @@ const VoiceVocab = () => {
       </Dialog>
 
       {/* Dialog xác nhận xóa */}
-      <Dialog open={deleteOpen} onClose={() => setDeleteOpenSafe(false)}>
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpenSafe(false)} disableScrollLock>
         <DialogTitle>Xác nhận xóa</DialogTitle>
         <DialogContent>
           <Typography>Bạn có chắc chắn muốn xóa mục này khỏi từ vựng?</Typography>

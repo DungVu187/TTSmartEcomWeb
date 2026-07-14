@@ -38,3 +38,12 @@ backups/
 # wdata: dữ liệu backup runtime trên server production (upload/hóa đơn/ảnh trạm...),
 # sinh mỗi ngày — là data, không phải mã nguồn, không đưa vào repo.
 wdata/
+
+# Deployment exclusions
+/AGENT.md
+/CHANGELOG.md
+/CLAUDE.md
+/PROJECT_STATE.md
+/scripts/
+/skills/
+

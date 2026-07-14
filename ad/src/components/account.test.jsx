@@ -107,11 +107,11 @@ const MOCK_CATALOG = {
       key: "activitylog",
       label: "Lich su hoat dong",
       group: "admin",
-      scope: "adminFixed",
+      scope: "grantable",
       actions: [{ key: "activitylog.view", label: "Xem" }],
     },
   ],
-  adminFixed: ["account.manage", "zalo.manage", "activitylog.view"],
+  adminFixed: ["account.manage", "zalo.manage"],
 };
 
 const MOCK_USERS = [
@@ -173,6 +173,7 @@ describe("Account", () => {
 
     await waitFor(() => expect(screen.getByText("San pham")).toBeInTheDocument());
     expect(screen.getByText("Don ban hang")).toBeInTheDocument();
+    expect(screen.getByText("Lich su hoat dong")).toBeInTheDocument();
     expect(screen.getByText("Tạo mới")).toBeInTheDocument();
     expect(screen.getByText("Cập nhật")).toBeInTheDocument();
     const dialog = getDialog();
@@ -180,6 +181,7 @@ describe("Account", () => {
     expect(dialog.getByLabelText("San pham - Them")).toBeInTheDocument();
     expect(dialog.getByLabelText("San pham - Sua")).toBeInTheDocument();
     expect(dialog.getByLabelText("San pham - Xoa")).toBeInTheDocument();
+    expect(dialog.getByLabelText("Lich su hoat dong - Xem")).toBeInTheDocument();
   });
 
   it("selects and deselects all permissions for a module", async () => {
@@ -223,8 +225,18 @@ describe("Account", () => {
     await waitFor(() => expect(screen.getByText("Don ban hang")).toBeInTheDocument());
 
     const dialog = getDialog();
+    let excelCheckbox = dialog.getByLabelText("Don ban hang - Excel");
+    let scanCheckbox = dialog.getByLabelText("Don ban hang - Quet AI");
+    expect(excelCheckbox.closest(".acc-checkbox-tooltip")).toBeInTheDocument();
+    expect(scanCheckbox.closest(".acc-checkbox-tooltip")).toBeInTheDocument();
+
     fireEvent.click(dialog.getByLabelText("Don ban hang - Sua"));
-    expect(dialog.getByLabelText("Don ban hang - Excel")).not.toBeDisabled();
+    excelCheckbox = dialog.getByLabelText("Don ban hang - Excel");
+    scanCheckbox = dialog.getByLabelText("Don ban hang - Quet AI");
+    expect(excelCheckbox).not.toBeDisabled();
+    expect(scanCheckbox).not.toBeDisabled();
+    expect(excelCheckbox.closest(".acc-checkbox-tooltip")).toBeInTheDocument();
+    expect(scanCheckbox.closest(".acc-checkbox-tooltip")).toBeInTheDocument();
   });
 
   it("auto-removes dependent when dependency is unchecked", async () => {
@@ -267,7 +279,7 @@ describe("Account", () => {
 
     expect(screen.getByText("Phan quyen - Quan ly")).toBeInTheDocument();
     expect(screen.getByText("Cau hinh Zalo - Quan ly")).toBeInTheDocument();
-    expect(screen.getByText("Lich su hoat dong - Xem")).toBeInTheDocument();
+    expect(screen.queryByText("Lich su hoat dong - Xem")).not.toBeInTheDocument();
   });
 
   it("does not show fixed block for staff role", async () => {
@@ -297,6 +309,7 @@ describe("Account", () => {
     fireEvent.change(passInput, { target: { value: "123456" } });
 
     fireEvent.click(dialog.getByLabelText("San pham - Xem"));
+    fireEvent.click(dialog.getByLabelText("Lich su hoat dong - Xem"));
 
     fireEvent.click(dialog.getByText("Lưu"));
 
@@ -307,10 +320,10 @@ describe("Account", () => {
       expect(createCall).toBeDefined();
       const body = JSON.parse(createCall[1].body);
       expect(body.permissions).toContain("product.view");
+      expect(body.permissions).toContain("activitylog.view");
       expect(body.functions).toBeUndefined();
       expect(body.permissions).not.toContain("account.manage");
       expect(body.permissions).not.toContain("zalo.manage");
-      expect(body.permissions).not.toContain("activitylog.view");
     });
   });
 

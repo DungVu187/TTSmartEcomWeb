@@ -228,7 +228,7 @@ router.post(
           order,
           note: newProduct.isAIScan ? "Nhập kho (AI scan đơn nhập)" : "Nhập kho (thêm sản phẩm đơn nhập)",
           isAIScan: newProduct.isAIScan,
-          source: "order_line_manual",
+          source: newProduct.isAIScan ? undefined : "order_line_manual",
         });
       }
       order.productList.push(newProduct);
@@ -563,7 +563,7 @@ router.put(
           order,
           note: stockDelta > 0 ? "Nhập kho (cập nhật đơn nhập)" : "Điều chỉnh giảm nhập kho",
           isAIScan: req.body.isAIScan,
-          source: "order_line_manual",
+          source: req.body.isAIScan ? undefined : "order_line_manual",
         });
       }
 

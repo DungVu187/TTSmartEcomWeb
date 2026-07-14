@@ -119,19 +119,50 @@ describe('Sidebar', () => {
     render(<Sidebar />);
 
     expect(screen.getByText('Phân quyền')).toBeInTheDocument();
-    expect(screen.getByText('Cấu hình Zalo')).toBeInTheDocument();
+    expect(screen.getByText('Cấu hình tự động')).toBeInTheDocument();
     expect(screen.getByText('Lịch sử hoạt động')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Cấu hình tự động'));
+
+    expect(screen.getByText('Zalo OA')).toBeInTheDocument();
+    expect(screen.getByText('Telegram')).toBeInTheDocument();
   });
 
   it('shows voice and history menus for staff with those permissions', () => {
     mockPermissions.can = vi.fn((perm) =>
-      perm === 'voice.manage' || perm === 'history.view'
+      perm === 'voice.manage' ||
+      perm === 'history_import.view' ||
+      perm === 'history_export.view'
     );
 
     render(<Sidebar />);
 
     expect(screen.getByText('Từ vựng Voice')).toBeInTheDocument();
     expect(screen.getByText('Lịch sử kho')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Lịch sử kho'));
+
+    expect(screen.getByText('Lịch sử nhập kho')).toBeInTheDocument();
+    expect(screen.getByText('Lịch sử xuất kho')).toBeInTheDocument();
+  });
+
+  it('shows only the permitted history submenu for staff', () => {
+    mockPermissions.can = vi.fn((perm) => perm === 'history_import.view');
+
+    render(<Sidebar />);
+
+    fireEvent.click(screen.getByText('Lịch sử kho'));
+
+    expect(screen.getByText('Lịch sử nhập kho')).toBeInTheDocument();
+    expect(screen.queryByText('Lịch sử xuất kho')).not.toBeInTheDocument();
+  });
+
+  it('shows activity history for staff with activitylog.view', () => {
+    mockPermissions.can = vi.fn((perm) => perm === 'activitylog.view');
+
+    render(<Sidebar />);
+
+    expect(screen.getByText('Lịch sử hoạt động')).toBeInTheDocument();
   });
 
   it('always shows logout regardless of permissions', () => {

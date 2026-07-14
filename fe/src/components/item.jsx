@@ -68,7 +68,7 @@ function Item({ product }) {
         </Typography>
         <Rating name="rating" value={product.averageReviews} readOnly />
         <Typography variant="body2" color="text.secondary">
-          {product.variant?.[0]?.price
+          {Number(product.variant?.[0]?.price) > 0
             ? Number(product.variant[0].price).toLocaleString("vi-VN") + "VNĐ"
             : product.variant?.[0]
             ? "Liên hệ"

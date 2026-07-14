@@ -325,6 +325,8 @@ function normalizeVoiceQueryResult(raw = {}) {
 }
 
 
+const DEFAULT_PRODUCT_EARN = 25;
+
 const productSchema = new mongoose.Schema({
     type: {
         type: String,
@@ -378,7 +380,7 @@ const productSchema = new mongoose.Schema({
             {
                 price: { type: String, default: "" },
                 importPrice: { type: String, default: "" },
-                earn: { type: Number, default: 0 },
+                earn: { type: Number, default: DEFAULT_PRODUCT_EARN },
                 imgUrl: { type: String, default: "" },
                 color: { type: String, default: "" },
                 shape: { type: String, default: "" },
@@ -670,7 +672,7 @@ router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('p
 // API tạo sản phẩm mới
 router.post('/create', [authenticateAdmin, checkPermission('product.create')], async (req, res) => {
     try {
-        const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted } = req.body;
+        const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted, vat } = req.body;
 
         // Kiểm tra trùng lặp mã sản phẩm trước khi tạo mới để tránh trùng lặp
         if (code && code.trim()) {
@@ -682,8 +684,16 @@ router.post('/create', [authenticateAdmin, checkPermission('product.create')], a
             }
         }
 
+        const normalizedVariant = Array.isArray(variant) && variant.length > 0
+            ? variant.map((item) => (
+                item && typeof item === 'object' && (item.earn === undefined || item.earn === null || item.earn === '')
+                    ? { ...item, earn: DEFAULT_PRODUCT_EARN }
+                    : item
+            ))
+            : undefined;
+
         const newProduct = new Product({
-            type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted
+            type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant: normalizedVariant, section, value, infoDoc, adjusted, vat
         });
         await newProduct.save();
 
@@ -991,6 +1001,18 @@ router.get('/top-purchased', async (req, res) => {
     } catch (error) {
         console.error("Error fetching top purchased products:", error);
         res.status(500).json({ message: "Lỗi server khi lấy sản phẩm mua nhiều" });
+    }
+});
+
+router.get('/:_id/admin-detail', [authenticateUser, checkPermission('product.edit')], async (req, res) => {
+    try {
+        const product = await Product.findById(req.params._id);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        res.json(product);
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi server" });
     }
 });
 
@@ -1390,6 +1412,9 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('product.e
         const change = Number(quantity);
         if (isNaN(change)) {
             return res.status(400).json({ message: "Quantity must be a number" });
+        }
+        if (change === 0) {
+            return res.status(400).json({ message: "Số lượng thay đổi phải khác 0" });
         }
 
         const newQuantityForSale = variant.quantityForSale + change;
@@ -1884,7 +1909,7 @@ router.post('/scan-invoice', [
 
         // 3. Chuẩn bị prompt trích xuất thông tin từ ảnh (Cực kỳ ngắn gọn để giảm thiểu token và tăng tốc độ)
         const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn/phiếu xuất kho chuyên nghiệp, xử lý được nhiều định dạng khác nhau: hóa đơn bán lẻ viết tay, hóa đơn in từ máy tính tiền, phiếu xuất kho có mã PO, và hóa đơn in kim (dot-matrix).
-Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat) và ghi chú (note).
+Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat), tiền thuế của dòng (taxAmount) và ghi chú (note).
 
 Hướng dẫn trích xuất:
 - NHIỀU HÓA ĐƠN TRONG 1 ẢNH: Một ảnh có thể chứa NHIỀU hóa đơn độc lập đặt cạnh nhau (ví dụ 2 tờ "Đơn 1", "Đơn 2" chụp chung 1 khung hình — mỗi tờ có bảng "Tên hàng/Số lượng/Đơn giá/Thành tiền" và dòng "Cộng" riêng). Khi đó, hãy trích xuất TẤT CẢ sản phẩm của mọi hóa đơn vào cùng một mảng JSON, theo thứ tự từ trái sang phải, trên xuống dưới. Đối chiếu tổng tiền (xem mục dưới) phải thực hiện RIÊNG cho từng hóa đơn, không cộng gộp các hóa đơn với nhau.
@@ -1893,6 +1918,7 @@ Hướng dẫn trích xuất:
 - BẮT BUỘC ĐỌC ĐỦ MÃ HÀNG TỪNG DÒNG (CỰC KỲ QUAN TRỌNG): Hóa đơn thường có một cột "Mã hàng"/"Mã SP"/"Model" riêng biệt (tách rời với cột "Mã số PO"). Gần như MỌI dòng sản phẩm đều có mã hàng thực ở cột này. Bạn phải quét kỹ cột đó cho TỪNG dòng và điền vào trường \`code\`. TUYỆT ĐỐI KHÔNG để trống \`code\` khi trong dòng đó có bất kỳ chuỗi nào trông giống mã model (có chứa cả chữ và số, hoặc có dấu gạch nối "-", dấu gạch chéo "/", ví dụ: "NFO-40 500/5A", "GW1S-3E20", "RN2S-NL-D24", "S-T10 AC200V"). Nếu nét chữ ở cột mã hàng bị mờ/khó đọc, hãy cố suy luận và đọc gần đúng nhất chứ KHÔNG được bỏ trống trường \`code\`. Chỉ để \`code\` là chuỗi rỗng khi dòng đó thật sự không có cột mã hàng hoặc là dòng tiêu đề phân loại.
 - LƯU Ý PHÂN BIỆT CỘT: Đừng vì cột "Mã số PO" (mã dài lặp lại như "SOHL260618A52FC4") nằm sát bên trái mà bỏ qua hoặc nhầm lẫn cột "Mã hàng" thực nằm ngay cạnh nó. Hai cột này độc lập: cột PO thì loại bỏ, cột mã hàng thì phải đọc và giữ lại.
 - Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được). Nếu hóa đơn không có cột thuế riêng từng dòng mà chỉ ghi MỘT mức thuế suất chung ở cuối (ví dụ "Thuế suất GTGT: 8%"), hãy áp mức đó cho \`vat\` của TẤT CẢ các dòng thuộc hóa đơn.
+- Trường \`taxAmount\` là SỐ TIỀN THUẾ GTGT của riêng dòng sản phẩm đó (cột "Tiền thuế"/"Tiền thuế GTGT" trên hóa đơn), là một số nguyên (đơn vị VND), ví dụ cột ghi "57,754" -> 57754. Nếu hóa đơn có sẵn cột "Tiền thuế" cho từng dòng thì lấy đúng con số đó. Nếu hóa đơn CHỈ có cột \`% Thuế\`/thuế suất mà KHÔNG có cột tiền thuế riêng, hãy tự tính: \`taxAmount = round([Thành tiền] x [thuế suất %] / 100)\` (ví dụ Thành tiền 721.920, thuế 8% -> taxAmount = 57754). Nếu dòng không chịu thuế hoặc không đọc được thuế suất, để \`taxAmount\` là 0. Hãy đối chiếu tổng các \`taxAmount\` của mọi dòng với dòng "Tiền thuế GTGT" tổng ở cuối hóa đơn (nếu có) để tự kiểm tra và sửa các dòng đọc sai trước khi xuất JSON.
 - Trường \`price\` là đơn giá thực tế của sản phẩm. Nếu hóa đơn không có cột Đơn giá (hoặc các giá trị tương đương), bạn phải để trống hoặc gán null cho trường \`price\`. Tuyệt đối KHÔNG tự ý suy đoán đơn giá hoặc lấy các con số khác (ví dụ: số mét đầu/cuối của cuộn dây cáp ở cột Ghi chú như "1050 - 750", số thứ tự, số lượng, hoặc số điện thoại) để điền vào trường \`price\`.
 - Trường \`quantity\` là số dương, KHÔNG bắt buộc phải nguyên: với đơn vị đo lường (kg, mét, lít, m2...) có thể là số thập phân (ví dụ "2,2kg" -> 2.2); với đơn vị đếm (cái, bộ, đôi, chiếc...) phải là số nguyên. Hãy loại bỏ dấu chấm phân cách hàng nghìn và đơn vị VND, nhưng GIỮ ĐÚNG dấu phẩy/chấm thập phân theo ngữ cảnh (tuyệt đối không nhầm "2,2" thành "22").
 - Trường \`unit\` là đơn vị tính đọc được trên hóa đơn (ví dụ: cái, bộ, mét...). Một số hóa đơn KHÔNG có cột đơn vị riêng mà viết chung số lượng với đơn vị trong 1 ô (ví dụ "1kg", "5 đôi", "2,2kg", "40"): khi đó hãy TÁCH phần số vào \`quantity\` và phần chữ vào \`unit\`. Nếu ô chỉ có số thì để \`unit\` rỗng.
@@ -1901,7 +1927,8 @@ Hướng dẫn trích xuất:
   + KHÔNG GỘP TIÊU ĐỀ NHÓM: Các dòng ghi tiêu đề nhóm hoặc thông tin phụ (Ví dụ: "8.8 Đen" ở hóa đơn 1, "8.8 Mạ" ở hóa đơn 2) không có ký tự "*" ở đầu và dòng đó trống trơn số liệu (số lượng/giá). Đây là dòng tiêu đề phân loại hoặc ghi chú chứ không phải tên dài xuống dòng (vì chữ viết còn rất ngắn chưa chạm mép lề). Bạn BẮT BUỘC phải xuất dòng tiêu đề này thành một phần tử riêng trong JSON với "quantity" là 0 và "price" là 0. TUYỆT ĐỐI KHÔNG gộp dòng này với sản phẩm có dấu "*" ở phía dưới (như "* 30x120+ê VP"), vì sẽ làm đẩy lệch toàn bộ cột số lượng và đơn giá của các sản phẩm bên dưới lên 1 hàng.
   + ĐỐI VỚI CÁC SẢN PHẨM ĐỘC LẬP: Xuất kết quả nghiêm ngặt theo từng dòng vật lý (line-by-line). Nếu một sản phẩm bị trống số lượng hoặc giá tiền, bạn vẫn phải xuất dòng đó thành một sản phẩm riêng biệt và gán giá trị 0 cho "quantity" và "price". Tuyệt đối KHÔNG lấy số liệu của các dòng phía dưới để điền bù lên dòng trống này.
   + TÊN SẢN PHẨM TRÀN XUỐNG DÒNG DƯỚI: Nếu một dòng phía dưới KHÔNG có ký tự "*" ở đầu, KHÔNG có số liệu riêng (số lượng/giá trống), mà chữ ở dòng trên đã chạm sát lề phải → đây là phần tên bị xuống dòng của sản phẩm phía trên. Hãy GỘP phần chữ đó vào cuối "rawScannedName" của dòng trên, KHÔNG tách thành sản phẩm mới.
-- BỎ QUA DÒNG KHÔNG PHẢI SẢN PHẨM: Không xuất các dòng tổng kết hoặc phụ phí thành mặt hàng, ví dụ: "Cộng", "Tổng cộng", "Tổng cộng tiền thanh toán", "Thành tiền", "V.chuyển"/"Vận chuyển"/phí ship, "Mang sang"/"Chuyển sang", dòng thuế GTGT tổng. Các dòng này chỉ dùng để đối chiếu tổng tiền (xem mục dưới), KHÔNG đưa vào danh sách items.
+- BỎ QUA DÒNG KHÔNG PHẢI SẢN PHẨM: Không xuất các dòng tổng kết hoặc phụ phí thành mặt hàng, ví dụ: "Cộng", "Tổng cộng", "Tổng cộng tiền thanh toán", "Thành tiền", "V.chuyển"/"Vận chuyển"/phí ship, "Mang sang"/"Chuyển sang", dòng thuế GTGT tổng. Các dòng này chỉ dùng để đối chiếu tổng tiền (xem mục dưới), KHÔNG đưa vào danh sách items. (NGOẠI LỆ QUAN TRỌNG: xem quy tắc ngay bên dưới về sản phẩm viết chen vào ô/dòng "Cộng" — không được vì thấy chữ "Cộng" mà bỏ luôn sản phẩm thật viết cạnh nó.)
+- SẢN PHẨM VIẾT CHEN VÀO Ô/DÒNG "CỘNG" (LỖI RẤT THƯỜNG GẶP Ở HÓA ĐƠN VIẾT TAY - CỰC KỲ QUAN TRỌNG): Khi người viết dùng hết các dòng trống của bảng, họ thường viết chèn thêm 1-2 sản phẩm cuối cùng vào CHÍNH ô "Cộng" hoặc khoảng trống ngay cạnh/phía trên dòng "Cộng" (ví dụ các mặt hàng ngắn như "ecu", "ren", "long đen" kèm số lượng/đơn giá). Do đó, dòng có chữ "Cộng" KHÔNG mặc nhiên là dòng cuối cùng và KHÔNG phải toàn bộ dòng đó đều là dòng tổng kết. Bạn BẮT BUỘC phải quét thật kỹ vùng bên trong và xung quanh ô "Cộng": nếu ở đó có tên hàng viết tay đi kèm số lượng và/hoặc đơn giá, thì đó là SẢN PHẨM THẬT, phải tách thành (các) phần tử riêng trong JSON, TUYỆT ĐỐI KHÔNG được bỏ qua. Chỉ được bỏ đúng chữ "Cộng" và con số tổng tiền tương ứng của nó mà thôi. Đồng thời, việc có chữ "Cộng" ở khu vực này TUYỆT ĐỐI KHÔNG được làm bạn cắt mất hoặc đọc lệch (dịch lên/xuống 1 hàng) cột số lượng và đơn giá của các dòng sản phẩm cuối cùng nằm sát dòng "Cộng"; hãy neo từng con số theo đúng hàng vật lý của nó rồi mới xét dòng "Cộng".
 - BỎ QUA KÝ HIỆU KIỂM TRA NỘI BỘ: Các dấu tick/check (✓, √) hoặc dấu gạch chéo (×) xuất hiện lặp lại bên cạnh cột số lượng/đơn giá là ký hiệu nhân viên đã đối chiếu — KHÔNG phải dữ liệu, bỏ qua hoàn toàn, không đưa vào bất kỳ trường nào. LƯU Ý PHÂN BIỆT với con số viết tay trong ngoặc đơn cạnh 1 dòng cụ thể (ví dụ "(2)", "(10)") — đây thường là chú thích số lượng thực giao/thiếu, hãy xử lý theo mục "Ghi chú tay" bên dưới.
 - GHI CHÚ TAY GẮN VỚI DÒNG CỤ THỂ: Nếu hóa đơn có ghi chú viết tay ở lề hoặc cuối trang đề cập một STT/mục cụ thể (ví dụ "Giao thiếu mục 5: 2 cái"), hãy gắn nội dung đó vào trường "note" của ĐÚNG dòng có STT tương ứng (note của dòng STT=5 → "Giao thiếu 2 cái so với hóa đơn"). TUYỆT ĐỐI KHÔNG thay đổi "quantity" gốc của dòng đó — quantity giữ nguyên theo số hóa đơn ghi, ghi chú chỉ bổ sung thông tin. Trường "note" CHỈ dùng cho: (a) ghi chú tay có thật trên hóa đơn gắn với dòng đó, hoặc (b) diễn giải điều chỉnh do phép nhân toán học (xem mục dưới). Không tự bịa thêm diễn giải.
 - KIỂM TRA PHÉP NHÂN TOÁN HỌC (CỰC KỲ QUAN TRỌNG): Đối với hóa đơn viết tay, các nét chữ số lượng và đơn giá rất dễ bị nhận diện nhầm (ví dụ: số 42 trông giống số 12, hoặc số 4.000 bị nhầm với số 40.000). Bạn BẮT BUỘC phải thực hiện phép nhân nhẩm: [Số lượng (quantity)] x [Đơn giá (price)] và đối chiếu xem kết quả có trùng khớp với con số ở cột [Thành tiền] được ghi trên hóa đơn cho dòng sản phẩm đó hay không. Nếu không khớp, hãy dùng phép tính toán học để suy ngược lại và tự điều chỉnh số lượng hoặc đơn giá cho chính xác trước khi xuất kết quả JSON (Ví dụ: nếu đơn giá là 12.500 và thành tiền ghi là 525.000, thì số lượng bắt buộc phải là 42 chứ không thể là 12). Khi tự điều chỉnh như vậy, hãy ghi lại vào "note" của dòng đó (ví dụ: "Đã tự điều chỉnh số lượng từ 12 thành 42 theo thành tiền 525.000"). Nếu cả 3 giá trị đều mờ/khó đọc, ưu tiên giữ con số [Thành tiền] rõ/đậm nhất làm chuẩn để suy ngược.
@@ -1918,6 +1945,7 @@ Hướng dẫn trích xuất:
     "price": 150000,
     "unit": "cái",
     "vat": "10%",
+    "taxAmount": 150000,
     "note": "Ghi chú nếu có"
   }
 ]`;

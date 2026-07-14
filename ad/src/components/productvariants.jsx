@@ -198,7 +198,7 @@ const ProductVariants = ({ variants }) => {
           </Card>
         );
       })}
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} disableScrollLock>
         <DialogTitle>Variant Details</DialogTitle>
         <DialogContent>
           {selectedVariant && (

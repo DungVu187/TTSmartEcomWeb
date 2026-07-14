@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const app = require('../index');
 const { Product } = require('../components/product');
 const { User } = require('../components/user');
+const { StorageHistory } = require('../components/storagehistory');
 
 beforeAll(async () => {
   const url = 'mongodb://localhost:27017/EcomTest';
@@ -18,6 +19,7 @@ afterAll(async () => {
 afterEach(async () => {
   await Product.deleteMany({});
   await User.deleteMany({});
+  await StorageHistory.deleteMany({});
 });
 
 const createProductPayload = (overrides = {}) => ({
@@ -136,6 +138,7 @@ describe('Products API Tests (Phase 4)', () => {
       brand: 'Siemens',
       section: 'Thiết bị hiển thị',
       value: 'HMI',
+      vat: '10%',
       warranty: '12 tháng',
       variant: [{
         price: '8000000',
@@ -193,11 +196,15 @@ describe('Products API Tests (Phase 4)', () => {
     expect(resSuccess.status).toBe(201);
     expect(resSuccess.body.message).toBe('Product created successfully');
     expect(resSuccess.body.product.name).toBe('Màn hình Siemens HMI KTP700');
+    expect(resSuccess.body.product.vat).toBe('10%');
+    expect(resSuccess.body.product.variant[0].earn).toBe(25);
 
     // Kiểm tra xem sản phẩm đã lưu vào cơ sở dữ liệu chưa
     const productInDb = await Product.findOne({ name: 'Màn hình Siemens HMI KTP700' });
     expect(productInDb).toBeDefined();
     expect(productInDb.brand).toBe('Siemens');
+    expect(productInDb.vat).toBe('10%');
+    expect(productInDb.variant[0].earn).toBe(25);
   });
 
   it('Test Case 9: POST /products/create ngăn chặn tạo trùng mã sản phẩm và trả về 409', async () => {
@@ -393,6 +400,26 @@ describe('Products API Tests (Phase 4)', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.message).toBe('Access denied, missing permission: product.edit');
+  });
+
+  it('POST /products/:id/:variantIndex rejects a zero inventory change without writing history', async () => {
+    const product = await createProductDoc({ name: 'Zero Change Product', code: 'ZERO-CHANGE-PRODUCT' });
+    const agent = await createStaffAgent({
+      phone: '0987654342',
+      permissions: ['product.edit']
+    });
+
+    const res = await agent
+      .post(`/products/${product._id}/0`)
+      .send({ quantity: 0 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ message: 'Số lượng thay đổi phải khác 0' });
+
+    const unchangedProduct = await Product.findById(product._id);
+    expect(unchangedProduct.variant[0].quantityForSale).toBe(10);
+    expect(unchangedProduct.variant[0].quantityInStorage).toBe(10);
+    expect(await StorageHistory.countDocuments({ productId: product._id })).toBe(0);
   });
 });
 describe('Product code normalized duplicate validation', () => {

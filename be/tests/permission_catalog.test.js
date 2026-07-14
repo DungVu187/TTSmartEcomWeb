@@ -60,16 +60,34 @@ describe('GET /users/permission-catalog', () => {
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.catalog)).toBe(true);
     expect(res.body.catalog.length).toBeGreaterThan(0);
-    expect(countActions(res.body.catalog)).toBe(37);
+    expect(countActions(res.body.catalog)).toBe(38);
     expect(res.body.adminFixed).toEqual([
       'account.manage',
       'zalo.manage',
-      'activitylog.view',
     ]);
     expect(findAction(res.body.catalog, 'order.excel')).toMatchObject({
       key: 'order.excel',
       dependsOn: 'order.edit',
     });
+    expect(findAction(res.body.catalog, 'history_import.view')).toMatchObject({
+      key: 'history_import.view',
+    });
+    expect(findAction(res.body.catalog, 'history_export.view')).toMatchObject({
+      key: 'history_export.view',
+    });
+    expect(res.body.catalog.find((moduleItem) => moduleItem.key === 'activitylog')).toMatchObject({
+      scope: 'grantable',
+      actions: [{ key: 'activitylog.view', label: 'Xem' }],
+    });
+    const grantableModuleKeys = res.body.catalog
+      .filter((moduleItem) => moduleItem.scope === 'grantable')
+      .map((moduleItem) => moduleItem.key);
+    expect(grantableModuleKeys.slice(-4)).toEqual([
+      'voice',
+      'history_import',
+      'history_export',
+      'activitylog',
+    ]);
   });
 
   it('allows admin', async () => {

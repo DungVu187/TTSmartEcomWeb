@@ -39,7 +39,7 @@ describe('Password Recovery API Tests', () => {
     // 2. Request OTP
     const forgotRes = await request(app)
       .post('/users/forgot-password')
-      .send({ phone: '0987654321' });
+      .send({ phone: '0987 654 321' });
 
     expect(forgotRes.status).toBe(200);
     expect(forgotRes.body.message).toContain('Mã OTP đã được gửi');
@@ -54,7 +54,7 @@ describe('Password Recovery API Tests', () => {
     const resetRes = await request(app)
       .post('/users/reset-password')
       .send({
-        phone: '0987654321',
+        phone: '+84987654321',
         otp: otp,
         newPassword: 'newPassword123',
         logInString: 'someLoginString'

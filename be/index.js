@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const { resolveMongoUri } = require('./config/database');
 
 // Router imports
 const { router: userRoutes, User, authenticateAdmin } = require('./components/user');
@@ -134,19 +135,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Kết nối MongoDB
-if (process.env.NODE_ENV !== 'test') {
-  const password = process.env.DB_PASSWORD;
-  const uri = `mongodb://localhost:27017/`;
-  mongoose.connect(uri)
-    .then(() => {
-      console.log('Connected to MongoDB!');
-      // Nạp từ vựng voice từ DB vào cache runtime của product.js (seed từ defaults nếu chưa có).
-      initVoiceVocab();
-    })
-    .catch(err => console.error('MongoDB connection error:', err));
-}
-
 // Routes
 app.use('/users', userRoutes);
 app.use('/products', productRoutes);
@@ -216,12 +204,33 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal server error' });
 });
 
-// Start server with socket
-if (process.env.NODE_ENV !== 'test') {
+const startServer = async () => {
   const PORT = process.env.PORT || 5000;
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  const mongoUri = resolveMongoUri();
+
+  await mongoose.connect(mongoUri);
+  console.log(`Connected to MongoDB database: ${mongoose.connection.name}`);
+
+  // Nạp từ vựng voice từ DB vào cache runtime của product.js (seed từ defaults nếu chưa có).
+  await initVoiceVocab();
+
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(PORT, () => {
+      server.removeListener('error', reject);
+      console.log(`Server running on port ${PORT}`);
+      resolve(server);
+    });
+  });
+};
+
+// Start server with socket only after the database is ready.
+if (process.env.NODE_ENV !== 'test') {
+  startServer().catch((error) => {
+    console.error('Server startup failed:', error.message);
+    process.exit(1);
   });
 }
 
 module.exports = app;
+module.exports.startServer = startServer;

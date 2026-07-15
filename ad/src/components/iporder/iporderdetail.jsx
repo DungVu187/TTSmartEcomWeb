@@ -50,6 +50,17 @@ import { usePermissions } from "../../context/permissioncontext";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const removeTonesLocal = (value) => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/đ/g, "d")
+  .replace(/Đ/g, "D");
+
+const brandKeyOf = (value) => removeTonesLocal(value)
+  .toLowerCase()
+  .replace(/\s+/g, "")
+  .trim();
+
 // Ẩn input file
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
@@ -574,15 +585,20 @@ const ImportOrderDetail = () => {
   // Hàm gọi API chung với xử lý lỗi
   const apiFetch = async (url, options = {}) => {
     try {
-      const headers = { ...(options.headers || {}) };
-      if (!(options.body instanceof FormData)) {
+      const { ignoredStatuses = [], ...requestOptions } = options;
+      const headers = { ...(requestOptions.headers || {}) };
+      if (!(requestOptions.body instanceof FormData)) {
         headers["Content-Type"] = headers["Content-Type"] || "application/json";
       }
       const response = await fetch(url, {
-        ...options,
+        ...requestOptions,
         headers,
         credentials: "include",
       });
+
+      if (ignoredStatuses.includes(response.status)) {
+        return { ignoredStatus: response.status };
+      }
 
       if (response.status === 401 || response.status === 403) {
         setError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -1021,6 +1037,37 @@ const ImportOrderDetail = () => {
         return map;
       }, {});
 
+      const brandMap = new Map();
+      validItems
+        .filter((row) => row.brandIsNew === true)
+        .map((row) => String(row.brand || "").trim())
+        .filter(Boolean)
+        .forEach((brand) => {
+          const key = brandKeyOf(brand);
+          if (key && !brandMap.has(key)) {
+            brandMap.set(key, brand);
+          }
+        });
+      const newBrands = [...brandMap.values()];
+
+      let brandFailCount = 0;
+      for (const brand of newBrands) {
+        try {
+          const brandResult = await apiFetch(`${apiUrl}/chips/brands`, {
+            method: "POST",
+            body: JSON.stringify({ Brand: brand }),
+            ignoredStatuses: [400],
+          });
+          if (!brandResult) {
+            brandFailCount++;
+            console.warn(`Không tạo được hãng mới (bỏ qua, vẫn nhập tiếp): ${brand}`);
+          }
+        } catch (error) {
+          brandFailCount++;
+          console.warn(`Lỗi khi tạo hãng mới (bỏ qua, vẫn nhập tiếp): ${brand}`, error);
+        }
+      }
+
       for (const row of validItems) {
         let productId = row.matchedProductId;
         let details = null;
@@ -1038,7 +1085,7 @@ const ImportOrderDetail = () => {
             type: "Chưa phân loại",
             name: row.rawScannedName || "Sản phẩm mới AI quét",
             code: row.code || "",
-            brand: "Chưa rõ",
+            brand: row.brand && row.brand.trim() ? row.brand.trim() : "Chưa rõ",
             section: "Chưa phân loại",
             value: "Chưa rõ",
             vat: row.vat ? row.vat.toString() : "",
@@ -1101,6 +1148,11 @@ const ImportOrderDetail = () => {
           const scannedVat = row.vat?.toString().trim();
           if (scannedVat) {
             updatePayload.vat = scannedVat;
+          }
+          const scannedBrand = String(row.brand || "").trim();
+          const currentBrand = String(details.brand || "").trim().toLowerCase();
+          if (scannedBrand && (!currentBrand || currentBrand === "n/a" || currentBrand === "chưa rõ")) {
+            updatePayload.brand = scannedBrand;
           }
 
           try {
@@ -1242,7 +1294,9 @@ const ImportOrderDetail = () => {
       if (hasError) {
         toast.error("Có lỗi xảy ra khi nhập một số sản phẩm.");
       } else {
-        toast.success(`Đã tự động nhập/cập nhật thành công ${addedCount} sản phẩm từ hóa đơn!`);
+        toast.success(
+          `Đã tự động nhập/cập nhật thành công ${addedCount} sản phẩm từ hóa đơn${brandFailCount > 0 ? ` (${brandFailCount} hãng chưa tạo được)` : ""}!`
+        );
       }
       setIsScanDialogOpen(false);
     } catch (err) {
@@ -2531,7 +2585,6 @@ const ImportOrderDetail = () => {
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '76px', px: 0.5 }}>SL</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '110px', px: 1 }}>Đơn giá</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '110px', px: 1 }}>Thành tiền</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '110px', px: 1 }}>Tiền thuế</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '64px', px: 0.5 }}>VAT</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: '48px', px: 0.5 }}>Xóa</TableCell>
                       </TableRow>
@@ -2645,22 +2698,6 @@ const ImportOrderDetail = () => {
                                 {((row.quantity || 0) * (row.price || 0)).toLocaleString("vi-VN")}
                               </Typography>
                             </TableCell>
-                            <TableCell align="right">
-                              <NumericFormat
-                                value={row.taxAmount || 0}
-                                customInput={TextField}
-                                thousandSeparator="."
-                                decimalSeparator=","
-                                size="small"
-                                onValueChange={(values) => {
-                                  const updated = [...scanResults];
-                                  updated[index].taxAmount = parseInt(values.value) || 0;
-                                  setScanResults(updated);
-                                }}
-                                inputProps={{ style: { textAlign: 'right', padding: '6px 8px' } }}
-                                sx={{ width: "100%", minWidth: "90px" }}
-                              />
-                            </TableCell>
                             <TableCell align="center">
                               <TextField
                                 value={row.vat || ""}
@@ -2704,38 +2741,20 @@ const ImportOrderDetail = () => {
         {scanResults.length > 0 && !isScanning && (
           <Box sx={{
             display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center", 
+            justifyContent: "space-between",
+            alignItems: "center",
             px: 3,
-            py: 2,
+            py: 1.5,
             bgcolor: "#f5f5f5",
             borderTop: "1px solid rgba(0,0,0,0.08)",
             borderBottom: "1px solid rgba(0,0,0,0.08)"
           }}>
-            <Box component="section" aria-label="Tổng kết hóa đơn AI" sx={{ width: { xs: "100%", sm: "440px" } }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 3, rowGap: 1, alignItems: "center" }}>
-                <Typography variant="body2" fontWeight="bold" textAlign="right">Tổng tiền hàng (chưa thuế):</Typography>
-                <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 2, fontVariantNumeric: "tabular-nums" }}>
-                  <Typography variant="caption" color="text.secondary">Tổng SL: <b>{scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0)}</b></Typography>
-                  <Typography variant="body2" fontWeight="bold" sx={{ minWidth: "120px", textAlign: "right" }}>
-                    {scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ
-                  </Typography>
-                </Box>
-                <Typography variant="body2" fontWeight="bold" textAlign="right">Tiền thuế GT:</Typography>
-                <Typography variant="body2" fontWeight="bold" sx={{ minWidth: "120px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                  {scanResults.reduce((sum, item) => sum + (parseInt(item.taxAmount) || 0), 0).toLocaleString("vi-VN")}đ
-                </Typography>
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 3, alignItems: "center", mt: 1.25, px: 1.5, py: 1, bgcolor: "#f0ebfa", borderRadius: 1 }}>
-                <Typography variant="subtitle1" fontWeight="bold" textAlign="right">Tổng tiền thanh toán:</Typography>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ minWidth: "120px", textAlign: "right", color: "#512da8", fontSize: "1.2rem", fontVariantNumeric: "tabular-nums" }}>
-                  {(
-                    scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0) +
-                    scanResults.reduce((sum, item) => sum + (parseInt(item.taxAmount) || 0), 0)
-                  ).toLocaleString("vi-VN")}đ
-                </Typography>
-              </Box>
-            </Box>
+            <Typography variant="body1" fontWeight="bold" color="text.primary">
+              Tổng số lượng: <span style={{ color: '#512da8' }}>{scanResults.reduce((sum, item) => sum + (item.quantity || 0), 0).toLocaleString("vi-VN")}</span>
+            </Typography>
+            <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
+              Tổng đơn hàng trích xuất (tự tính): <span style={{ color: '#512da8', fontSize: '1.2rem' }}>{scanResults.reduce((sum, item) => sum + (item.quantity || 0) * (item.price || 0), 0).toLocaleString("vi-VN")}đ</span>
+            </Typography>
           </Box>
         )}
         <DialogActions sx={{ p: 3, borderTop: scanResults.length > 0 && !isScanning ? 'none' : '1px solid rgba(0,0,0,0.08)' }}>

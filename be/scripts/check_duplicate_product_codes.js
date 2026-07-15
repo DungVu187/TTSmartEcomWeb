@@ -1,18 +1,19 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const { Product } = require('../components/product');
+const { resolveMongoUri } = require('../config/database');
 
 function normalizeProductCodeForCompare(code) {
   return String(code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 }
 
 async function main() {
-  const dbName = process.env.DB_NAME || 'test';
-  const uri = process.env.MONGO_URI || `mongodb://localhost:27017/${dbName}`;
-  console.log(`Connecting to database: ${uri}`);
+  const uri = resolveMongoUri();
+  console.log('Connecting to the configured database...');
 
   try {
     await mongoose.connect(uri);
+    const dbName = mongoose.connection.name;
     console.log('Connected successfully. Querying for duplicate normalized product codes...');
 
     const products = await Product.find({

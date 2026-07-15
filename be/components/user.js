@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
+    validate: {
+      validator: (v) => isValidVietnamPhone(v),
+      message: "Số điện thoại không hợp lệ",
+    },
   },
   name: {
     type: String,
@@ -247,6 +251,27 @@ const rejectInvalidStringFields = (res, source, fields) => {
   return false;
 };
 
+const canonicalizePhone = (raw) => {
+  if (typeof raw !== "string") return null;
+
+  const normalized = raw.replace(/[\s.\-()]/g, "");
+  if (normalized.startsWith("+84")) {
+    return `0${normalized.slice(3)}`;
+  }
+  if (/^84\d{9,10}$/.test(normalized)) {
+    return `0${normalized.slice(2)}`;
+  }
+  return normalized;
+};
+
+const isValidVietnamPhone = (raw) => {
+  const phone = canonicalizePhone(raw);
+  if (!phone) return false;
+  return /^0\d{9,10}$/.test(phone);
+};
+
+const INVALID_PHONE_MESSAGE = "Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam gồm 10-11 chữ số, bắt đầu bằng 0.";
+
 const validatePasswordPolicy = (password) => {
   if (typeof password !== "string" || password.length < 6) {
     return { valid: false, message: "Mật khẩu phải có ít nhất 6 ký tự" };
@@ -427,9 +452,13 @@ router.post("/register", authLimiter, (req, res, next) => {
     if (!passwordValidation.valid) {
       return res.status(400).json({ message: passwordValidation.message });
     }
+    const canonicalPhone = canonicalizePhone(phone);
+    if (!isValidVietnamPhone(phone)) {
+      return res.status(400).json({ message: INVALID_PHONE_MESSAGE });
+    }
     const existingUser = await User.findOne({
       $or: [
-        { phone },
+        { phone: canonicalPhone },
         ...(email ? [{ email: email.toLowerCase() }] : [])
       ]
     });
@@ -513,7 +542,7 @@ router.post("/register", authLimiter, (req, res, next) => {
 
     const newUser = new User({
       email,
-      phone,
+      phone: canonicalPhone,
       name,
       password,
       role: finalRole,
@@ -544,7 +573,7 @@ router.post("/login", authLimiter, async (req, res) => {
     // Tìm user theo SĐT hoặc Email
     let user;
     if (phone) {
-      user = await User.findOne({ phone });
+      user = await User.findOne({ phone: canonicalizePhone(phone) });
     } else if (email) {
       user = await User.findOne({ email: email.toLowerCase() });
     }
@@ -597,7 +626,7 @@ router.post("/admin/login", authLimiter, async (req, res) => {
   try {
     if (rejectInvalidStringFields(res, req.body, ["phone"])) return;
     const { phone, password } = req.body;
-    const user = await User.findOne({ phone });
+    const user = await User.findOne({ phone: canonicalizePhone(phone) });
     if (!user || (user.role !== "superadmin" && user.role !== "admin" && user.role !== "staff")) {
       return res.status(403).json({ message: "Truy cập bị từ chối. Chỉ dành cho admin hoặc nhân viên" });
     }
@@ -680,7 +709,7 @@ router.post("/forgot-password", authLimiter, async (req, res) => {
     if (isEmail) {
       user = await User.findOne({ email: input.toLowerCase() });
     } else {
-      user = await User.findOne({ phone: input });
+      user = await User.findOne({ phone: canonicalizePhone(input) });
     }
 
     if (!user) {
@@ -734,7 +763,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     if (isEmail) {
       user = await User.findOne({ email: input.toLowerCase() });
     } else {
-      user = await User.findOne({ phone: input });
+      user = await User.findOne({ phone: canonicalizePhone(input) });
     }
 
     if (!user) {
@@ -991,13 +1020,21 @@ router.put("/:id/permissions", authenticateAdmin, async (req, res) => {
       permissions: [...(user.permissions || [])]
     };
 
+    let canonicalPhone;
+    if (phone !== undefined) {
+      canonicalPhone = canonicalizePhone(phone);
+      if (!isValidVietnamPhone(phone)) {
+        return res.status(400).json({ message: INVALID_PHONE_MESSAGE });
+      }
+    }
+
     // Kiểm tra trùng lặp Số điện thoại (nếu thay đổi)
-    if (phone && phone !== user.phone) {
-      const phoneExists = await User.findOne({ phone });
+    if (canonicalPhone && canonicalPhone !== user.phone) {
+      const phoneExists = await User.findOne({ phone: canonicalPhone });
       if (phoneExists) {
         return res.status(400).json({ message: "Số điện thoại đã tồn tại ở tài khoản khác" });
       }
-      user.phone = phone;
+      user.phone = canonicalPhone;
     }
 
     // Kiểm tra trùng lặp Email (nếu thay đổi và không rỗng)
@@ -1148,6 +1185,10 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
     if (!phone || !password) {
       return res.status(400).json({ message: "Số điện thoại và mật khẩu là bắt buộc" });
     }
+    const canonicalPhone = canonicalizePhone(phone);
+    if (!isValidVietnamPhone(phone)) {
+      return res.status(400).json({ message: INVALID_PHONE_MESSAGE });
+    }
     const passwordValidation = validatePasswordPolicy(password);
     if (!passwordValidation.valid) {
       return res.status(400).json({ message: passwordValidation.message });
@@ -1155,7 +1196,7 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
 
     const existingUser = await User.findOne({
       $or: [
-        { phone },
+        { phone: canonicalPhone },
         ...(email ? [{ email: email.toLowerCase() }] : [])
       ]
     });
@@ -1184,7 +1225,7 @@ router.post("/admin-create", authenticateAdmin, async (req, res) => {
 
     const newUser = new User({
       email: email ? email.toLowerCase() : undefined,
-      phone,
+      phone: canonicalPhone,
       name,
       password,
       role: finalRole,
@@ -1337,7 +1378,7 @@ router.put("/stations", authenticateAdmin, checkPermission("customer.assign_stat
       return res.status(400).json({ message: "Thiếu số điện thoại hoặc danh sách trạm không hợp lệ" });
     }
 
-    const user = await User.findOne({ phone });
+    const user = await User.findOne({ phone: canonicalizePhone(phone) });
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng với số điện thoại đã cung cấp" });
     }
@@ -1483,9 +1524,24 @@ router.put("/:id", authenticateAdmin, checkPermission("customer.edit"), async (r
 
     const oldUserData = { name: user.name, email: user.email, phone: user.phone };
 
+    let canonicalPhone;
+    if (phone !== undefined) {
+      canonicalPhone = canonicalizePhone(phone);
+      if (!isValidVietnamPhone(phone)) {
+        return res.status(400).json({ message: INVALID_PHONE_MESSAGE });
+      }
+
+      if (canonicalPhone !== user.phone) {
+        const phoneExists = await User.findOne({ phone: canonicalPhone });
+        if (phoneExists) {
+          return res.status(400).json({ message: "Số điện thoại đã tồn tại ở tài khoản khác" });
+        }
+      }
+    }
+
     if (name !== undefined) user.name = name;
     if (email !== undefined) user.email = email;
-    if (phone !== undefined) user.phone = phone;
+    if (canonicalPhone !== undefined) user.phone = canonicalPhone;
 
     await user.save();
 
@@ -1624,4 +1680,6 @@ module.exports = {
   checkAnyPermission,
   hasPermission,
   getCookieOptions,
+  canonicalizePhone,
+  isValidVietnamPhone,
 };

@@ -12,6 +12,10 @@ const { StorageHistory } = require("./storagehistory");
 const { ActivityLog } = require("./activitylog");
 const voiceVocabDefaults = require('../config/voiceVocab.defaults');
 const { PRODUCT_IMAGE_UPLOAD_SETTINGS } = require('../config/imageUpload');
+const {
+    applyStockAdjustments,
+    rollbackOrThrow,
+} = require('../services/inventory');
 
 function removeVietnameseTones(str) {
     if (!str) return '';
@@ -20,6 +24,31 @@ function removeVietnameseTones(str) {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/đ/g, 'd')
         .replace(/Đ/g, 'D');
+}
+
+function normalizeBrandKey(brand) {
+    return removeVietnameseTones(String(brand || ''))
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .trim();
+}
+
+function resolveBrand(scannedBrand, brandDocs) {
+    const brand = String(scannedBrand || '').trim();
+    if (!brand) {
+        return { brand: '', brandIsNew: false };
+    }
+
+    const brandKey = normalizeBrandKey(brand);
+    const canonicalBrand = (Array.isArray(brandDocs) ? brandDocs : []).find(
+        (doc) => normalizeBrandKey(doc && doc.Brand) === brandKey
+    );
+
+    if (canonicalBrand) {
+        return { brand: canonicalBrand.Brand, brandIsNew: false };
+    }
+
+    return { brand, brandIsNew: true };
 }
 
 function normalizeProductCodeForCompare(code) {
@@ -350,8 +379,13 @@ const productSchema = new mongoose.Schema({
     code: {
         type: String,
         trim: true,
-        sparse: true,  // Cho phép nhiều sản phẩm không có mã (null/"") cùng tồn tại
-        unique: true   // Nhưng nếu có mã thì không được trùng nhau
+        set: value => {
+            if (value === undefined || value === null) return undefined;
+            const normalized = String(value).trim();
+            return normalized || undefined;
+        },
+        sparse: true,  // Sản phẩm chưa có mã sẽ không được đưa vào unique index.
+        unique: true   // Nếu có mã thì không được trùng nhau.
     },
     vat: {
         type: String,
@@ -386,8 +420,8 @@ const productSchema = new mongoose.Schema({
                 shape: { type: String, default: "" },
                 buttonCount: { type: String, default: "" },
                 frame: { type: String, default: "" },
-                quantityForSale: { type: Number, default: 0 },
-                quantityInStorage: { type: Number, default: 0 },
+                quantityForSale: { type: Number, default: 0, min: 0 },
+                quantityInStorage: { type: Number, default: 0, min: 0 },
                 note: { type: String, default: "" }
             }
         ],
@@ -401,7 +435,14 @@ const productSchema = new mongoose.Schema({
             quantityForSale: 0,
             quantityInStorage: 0,
             note: ""
-        }]
+        }],
+        validate: {
+            validator: (variants) => {
+                const ids = (variants || []).map((item) => String(item?._id || ''));
+                return ids.length === new Set(ids).size;
+            },
+            message: 'Mỗi phiên bản sản phẩm phải có định danh riêng biệt',
+        },
     },
     infoDoc: {
         type: {
@@ -415,6 +456,7 @@ const productSchema = new mongoose.Schema({
         type: Number,
         required: true,
         default: 0,
+        min: 0,
     },
     reviews: [
         {
@@ -515,11 +557,22 @@ const PRODUCT_UPDATE_ALLOWED_FIELDS = [
     'operatingMethod',
     'advantages',
     'specifications',
-    'variant',
     'infoDoc',
     'adjusted',
     'display',
     'nameUnsigned',
+];
+
+const VARIANT_METADATA_FIELDS = [
+    'price',
+    'importPrice',
+    'earn',
+    'imgUrl',
+    'note',
+    'color',
+    'shape',
+    'buttonCount',
+    'frame',
 ];
 
 function pickAllowedProductUpdateFields(body) {
@@ -529,6 +582,40 @@ function pickAllowedProductUpdateFields(body) {
         }
         return update;
     }, {});
+}
+
+function pickVariantMetadata(body) {
+    return VARIANT_METADATA_FIELDS.reduce((update, field) => {
+        if (body && body[field] !== undefined) {
+            update[field] = body[field];
+        }
+        return update;
+    }, {});
+}
+
+async function updateExistingVariantMetadata(productId, incomingVariants, currentProduct) {
+    if (!Array.isArray(incomingVariants)) return;
+
+    for (let index = 0; index < incomingVariants.length; index += 1) {
+        const incomingVariant = incomingVariants[index];
+        const currentVariant = incomingVariant?._id
+            ? currentProduct.variant.id(incomingVariant._id)
+            : currentProduct.variant[index];
+        if (!currentVariant) continue;
+
+        const metadata = pickVariantMetadata(incomingVariant);
+        const setUpdate = Object.entries(metadata).reduce((update, [field, value]) => {
+            update[`variant.$[target].${field}`] = value;
+            return update;
+        }, {});
+        if (Object.keys(setUpdate).length === 0) continue;
+
+        await Product.updateOne(
+            { _id: productId, "variant._id": currentVariant._id },
+            { $set: setUpdate },
+            { arrayFilters: [{ "target._id": currentVariant._id }], runValidators: true }
+        );
+    }
 }
 
 productSchema.post('init', function (doc) {
@@ -685,11 +772,13 @@ router.post('/create', [authenticateAdmin, checkPermission('product.create')], a
         }
 
         const normalizedVariant = Array.isArray(variant) && variant.length > 0
-            ? variant.map((item) => (
-                item && typeof item === 'object' && (item.earn === undefined || item.earn === null || item.earn === '')
-                    ? { ...item, earn: DEFAULT_PRODUCT_EARN }
-                    : item
-            ))
+            ? variant.map((item) => {
+                if (!item || typeof item !== 'object') return item;
+                const { _id: ignoredVariantId, ...safeItem } = item;
+                return safeItem.earn === undefined || safeItem.earn === null || safeItem.earn === ''
+                    ? { ...safeItem, earn: DEFAULT_PRODUCT_EARN }
+                    : safeItem;
+            })
             : undefined;
 
         const newProduct = new Product({
@@ -716,6 +805,9 @@ router.post('/create', [authenticateAdmin, checkPermission('product.create')], a
             return res.status(409).json({
                 message: `Mã sản phẩm "${dupCode}" đã tồn tại trong hệ thống. Vui lòng dùng mã khác.`
             });
+        }
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ message: error.message });
         }
         res.status(500).json({ message: "Lỗi server" });
     }
@@ -1129,6 +1221,7 @@ router.put('/:_id', [authenticateAdmin, checkPermission('product.edit')], async 
         }
         const oldData = oldProduct.toJSON();
         const updateData = pickAllowedProductUpdateFields(req.body);
+        const incomingVariants = req.body.variant;
 
         if (updateData.name !== undefined) {
             updateData.nameUnsigned = removeVietnameseTones(updateData.name);
@@ -1143,7 +1236,7 @@ router.put('/:_id', [authenticateAdmin, checkPermission('product.edit')], async 
             }
         }
 
-        const updatedProduct = await Product.findByIdAndUpdate(
+        let updatedProduct = await Product.findByIdAndUpdate(
             req.params._id,
             { $set: updateData },
             { new: true, runValidators: true }
@@ -1151,6 +1244,13 @@ router.put('/:_id', [authenticateAdmin, checkPermission('product.edit')], async 
         if (!updatedProduct) {
             return res.status(404).json({ message: 'Product not found' });
         }
+
+        await updateExistingVariantMetadata(
+            req.params._id,
+            incomingVariants,
+            oldProduct
+        );
+        updatedProduct = await Product.findById(req.params._id);
 
         // So sánh và ghi log các trường thay đổi
         try {
@@ -1169,7 +1269,7 @@ router.put('/:_id', [authenticateAdmin, checkPermission('product.edit')], async 
             }
 
             // So sánh variant nếu có trong body
-            if (updateData.variant && Array.isArray(updateData.variant)) {
+            if (Array.isArray(incomingVariants)) {
                 const oldVariants = oldData.variant || [];
                 const newVariants = newData.variant || [];
                 const variantFields = ['price', 'importPrice', 'earn', 'note', 'color', 'shape', 'buttonCount', 'frame'];
@@ -1211,23 +1311,32 @@ router.put("/purchase/:_id", [authenticateAdmin, checkPermission('product.edit')
         const { action, amount } = req.body; // action: "increase" hoặc "decrease", amount: số lượng thay đổi
         const numericAmount = parseInt(amount, 10);
 
+        if (!mongoose.Types.ObjectId.isValid(req.params._id)) {
+            return res.status(400).json({ message: "Mã sản phẩm không hợp lệ" });
+        }
         if (!["increase", "decrease"].includes(action) || isNaN(numericAmount) || numericAmount <= 0) {
             return res.status(400).json({ message: "Dữ liệu không hợp lệ" });
         }
 
-        const product = await Product.findById(req.params._id);
+        const delta = action === "increase" ? numericAmount : -numericAmount;
+        const filter = { _id: req.params._id };
+        if (delta < 0) {
+            filter.purchaseCount = { $gte: numericAmount };
+        }
+        const product = await Product.findOneAndUpdate(
+            filter,
+            { $inc: { purchaseCount: delta } },
+            { new: true, runValidators: true }
+        );
         if (!product) {
-            return res.status(404).json({ message: "Sản phẩm không tồn tại" });
+            const exists = await Product.exists({ _id: req.params._id });
+            return res.status(exists ? 400 : 404).json({
+                message: exists
+                    ? "Số lượng đã mua không đủ để giảm"
+                    : "Sản phẩm không tồn tại",
+            });
         }
 
-        // Cập nhật purchaseCount theo amount
-        if (action === "increase") {
-            product.purchaseCount += numericAmount;
-        } else if (action === "decrease") {
-            product.purchaseCount = Math.max(0, product.purchaseCount - numericAmount); // Đảm bảo không âm
-        }
-
-        await product.save();
         res.json({ message: "Cập nhật thành công", purchaseCount: product.purchaseCount });
     } catch (error) {
         res.status(500).json({ message: "Lỗi server" });
@@ -1322,14 +1431,16 @@ router.delete('/:_id', [authenticateAdmin, checkPermission('product.delete')], a
 // API thêm mới variant 
 router.post('/:id/variant', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id } = req.params;
-    const newVariant = req.body;
+    const { _id: ignoredVariantId, ...newVariant } = req.body || {};
     try {
-        const product = await Product.findById(id);
+        const product = await Product.findByIdAndUpdate(
+            id,
+            { $push: { variant: newVariant } },
+            { new: true, runValidators: true }
+        );
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
-        product.variant.push(newVariant);
-        await product.save();
 
         // Ghi log hoạt động
         try {
@@ -1349,7 +1460,9 @@ router.post('/:id/variant', [authenticateAdmin, checkPermission('product.edit')]
         });
     } catch (err) {
         console.error(err);
-        return res.status(500).json({ message: 'Server error' });
+        return res.status(err.name === 'ValidationError' ? 400 : 500).json({
+            message: err.name === 'ValidationError' ? err.message : 'Server error',
+        });
     }
 });
 
@@ -1397,7 +1510,8 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('product.e
     const userName = req.user.name;
 
     try {
-        const product = await Product.findById(id);
+        const product = await Product.findById(id)
+            .select('name variant._id variant.quantityForSale variant.quantityInStorage');
         if (!product) {
             return res.status(404).json({ message: "Product not found" });
         }
@@ -1407,8 +1521,6 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('product.e
             return res.status(400).json({ message: "Invalid variant index" });
         }
 
-        const variant = product.variant[index];
-
         const change = Number(quantity);
         if (isNaN(change)) {
             return res.status(400).json({ message: "Quantity must be a number" });
@@ -1417,46 +1529,49 @@ router.post("/:id/:variantIndex", [authenticateAdmin, checkPermission('product.e
             return res.status(400).json({ message: "Số lượng thay đổi phải khác 0" });
         }
 
-        const newQuantityForSale = variant.quantityForSale + change;
-        const newQuantityInStorage = variant.quantityInStorage + change;
+        const appliedAdjustments = await applyStockAdjustments([{
+            productId: id,
+            variantIndex: index,
+            expectedVariantId: product.variant[index]._id,
+            quantityForSaleDelta: change,
+            quantityInStorageDelta: change,
+        }]);
 
-        if (newQuantityForSale < 0 || newQuantityInStorage < 0) {
-            return res.status(400).json({
-                message: `Không còn đủ số lượng trong kho cho sản phẩm: ${product.name}`
-            });
+        let history;
+        try {
+            history = await new StorageHistory({
+                productId: id,
+                productName: product.name,
+                quantity: change,
+                userName: userName,
+                orderId: orderId,
+                orderName: orderName,
+                isAIScan: !!isAIScan,
+                source: "product_manual"
+            }).save();
+        } catch (error) {
+            await rollbackOrThrow(appliedAdjustments, error);
         }
 
-        variant.quantityForSale = newQuantityForSale;
-        variant.quantityInStorage = newQuantityInStorage;
-        await product.save();
-
-        const history = new StorageHistory({
-            productId: id,
-            productName: product.name,
-            quantity: change,
-            userName: userName,
-            orderId: orderId,
-            orderName: orderName,
-            isAIScan: !!isAIScan,
-            source: "product_manual"
-        });
-        await history.save();
+        const updatedProduct = await Product.findById(id);
 
         return res.status(200).json({
             message: "Quantity updated & history saved",
-            product,
+            product: updatedProduct,
             history
         });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(error.statusCode || 500).json({
+            message: error.statusCode ? error.message : "Server error"
+        });
     }
 });
 
 // API chỉnh sửa variant đang tồn tại
 router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
-    const variantData = req.body;
+    const variantData = pickVariantMetadata(req.body);
     try {
         const product = await Product.findById(id);
         if (!product) {
@@ -1469,12 +1584,30 @@ router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('product.ed
 
         // Lưu dữ liệu cũ để so sánh
         const oldVariant = { ...product.variant[index].toJSON() };
+        const variantId = product.variant[index]._id;
+        const setUpdate = Object.entries(variantData).reduce((update, [field, value]) => {
+            update[`variant.$[target].${field}`] = value;
+            return update;
+        }, {});
 
-        product.variant[index] = {
-            ...product.variant[index],
-            ...variantData,
-        };
-        await product.save();
+        let updatedProduct = product;
+        if (Object.keys(setUpdate).length > 0) {
+            updatedProduct = await Product.findOneAndUpdate(
+                { _id: id, "variant._id": variantId },
+                { $set: setUpdate },
+                {
+                    new: true,
+                    runValidators: true,
+                    arrayFilters: [{ "target._id": variantId }],
+                }
+            );
+        }
+
+        if (!updatedProduct) {
+            return res.status(409).json({
+                message: 'Phiên bản sản phẩm đã thay đổi, vui lòng tải lại dữ liệu.'
+            });
+        }
 
         // Ghi log hoạt động
         try {
@@ -1493,8 +1626,8 @@ router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('product.ed
                 await new ActivityLog({
                     userName: req.user.name,
                     action: 'update_variant',
-                    productId: product._id,
-                    productName: product.name,
+                    productId: updatedProduct._id,
+                    productName: updatedProduct.name,
                     details
                 }).save();
             }
@@ -1502,7 +1635,7 @@ router.put('/:id/:variantIndex', [authenticateAdmin, checkPermission('product.ed
 
         return res.status(200).json({
             message: 'Variant updated successfully',
-            product,
+            product: updatedProduct,
         });
     } catch (err) {
         console.error(err);
@@ -1523,24 +1656,60 @@ router.delete('/:id/:variantIndex', [authenticateAdmin, checkPermission('product
             return res.status(404).json({ message: 'Variant not found' });
         }
 
+        if (product.variant.length === 1) {
+            return res.status(400).json({
+                message: 'Sản phẩm phải còn ít nhất một phiên bản.'
+            });
+        }
+        if (index !== product.variant.length - 1) {
+            return res.status(400).json({
+                message: 'Chỉ được xóa phiên bản cuối cùng để không làm lệch phiên bản trong các đơn hàng cũ.'
+            });
+        }
+
         const deletedVariant = product.variant[index];
-        product.variant.splice(index, 1);
-        await product.save();
+        if (
+            Number(deletedVariant.quantityForSale || 0) !== 0 ||
+            Number(deletedVariant.quantityInStorage || 0) !== 0
+        ) {
+            return res.status(400).json({
+                message: 'Không thể xóa phiên bản vẫn còn tồn kho hoặc tồn khả dụng.'
+            });
+        }
+        const updatedProduct = await Product.findOneAndUpdate(
+            {
+                _id: id,
+                variant: {
+                    $elemMatch: {
+                        _id: deletedVariant._id,
+                        quantityForSale: 0,
+                        quantityInStorage: 0,
+                    },
+                },
+            },
+            { $pull: { variant: { _id: deletedVariant._id } } },
+            { new: true, runValidators: true }
+        );
+        if (!updatedProduct) {
+            return res.status(409).json({
+                message: 'Phiên bản vừa được thay đổi bởi thao tác khác, vui lòng tải lại dữ liệu.'
+            });
+        }
 
         // Ghi log hoạt động
         try {
             await new ActivityLog({
                 userName: req.user.name,
                 action: 'delete_variant',
-                productId: product._id,
-                productName: product.name,
+                productId: updatedProduct._id,
+                productName: updatedProduct.name,
                 details: [{ field: `variant[${index}]`, oldValue: `Giá: ${deletedVariant.price || '0'}, Giá nhập: ${deletedVariant.importPrice || '0'}`, newValue: '' }]
             }).save();
         } catch (logErr) { console.error('ActivityLog error:', logErr.message); }
 
         return res.status(200).json({
             message: 'Variant deleted successfully',
-            product,
+            product: updatedProduct,
         });
     } catch (err) {
         console.error(err);
@@ -1909,12 +2078,13 @@ router.post('/scan-invoice', [
 
         // 3. Chuẩn bị prompt trích xuất thông tin từ ảnh (Cực kỳ ngắn gọn để giảm thiểu token và tăng tốc độ)
         const systemPrompt = `Bạn là một AI phân tích hình ảnh hóa đơn/phiếu xuất kho chuyên nghiệp, xử lý được nhiều định dạng khác nhau: hóa đơn bán lẻ viết tay, hóa đơn in từ máy tính tiền, phiếu xuất kho có mã PO, và hóa đơn in kim (dot-matrix).
-Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat), tiền thuế của dòng (taxAmount) và ghi chú (note).
+Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên và trích xuất danh sách các mặt hàng (sản phẩm), bao gồm các thông tin: số thứ tự (stt), tên sản phẩm đọc được (rawScannedName), mã sản phẩm nếu có (code), hãng/nhà sản xuất nếu có (brand), số lượng (quantity), đơn giá (price), đơn vị tính (unit), thuế suất VAT (vat), tiền thuế của dòng (taxAmount) và ghi chú (note).
 
 Hướng dẫn trích xuất:
 - NHIỀU HÓA ĐƠN TRONG 1 ẢNH: Một ảnh có thể chứa NHIỀU hóa đơn độc lập đặt cạnh nhau (ví dụ 2 tờ "Đơn 1", "Đơn 2" chụp chung 1 khung hình — mỗi tờ có bảng "Tên hàng/Số lượng/Đơn giá/Thành tiền" và dòng "Cộng" riêng). Khi đó, hãy trích xuất TẤT CẢ sản phẩm của mọi hóa đơn vào cùng một mảng JSON, theo thứ tự từ trái sang phải, trên xuống dưới. Đối chiếu tổng tiền (xem mục dưới) phải thực hiện RIÊNG cho từng hóa đơn, không cộng gộp các hóa đơn với nhau.
 - Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Nếu cột số thứ tự trên hóa đơn bị để trống hoặc không được ghi số thứ tự cụ thể (chỉ ghi dấu * hoặc bỏ trống), bạn BẮT BUỘC phải tự động đánh số thứ tự tuần tự tăng dần từ 1 cho đến hết (1, 2, 3, 4...) cho các dòng mặt hàng. Ngược lại, nếu hóa đơn CÓ ghi STT nhưng KHÔNG liên tục (ví dụ 1, 6, 7, 12...), hãy GIỮ NGUYÊN số gốc, không tự "sửa" lại cho liền mạch.
 - Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "GW1S-3E20", "NFO-40 500/5A"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order - ví dụ: "SOHL2606183B1D4B"), mã đơn mua hàng, số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này. Nếu phát hiện một mã PO/mã quản lý giống hệt nhau lặp đi lặp lại ở tất cả các dòng của hóa đơn, bạn phải LOẠI BỎ hoàn toàn phần mã lặp lại đó ra khỏi trường \`code\`, chỉ giữ lại phần model thực của sản phẩm ở phía sau.
+- Trường \`brand\` là tên hãng/nhà sản xuất được ghi trên hóa đơn cho sản phẩm đó (ví dụ: Siemens, Mitsubishi, LS, Schneider). Nếu hóa đơn không ghi hãng hoặc không đọc chắc chắn được thì đặt là null. TUYỆT ĐỐI không suy đoán hoặc bịa hãng.
 - BẮT BUỘC ĐỌC ĐỦ MÃ HÀNG TỪNG DÒNG (CỰC KỲ QUAN TRỌNG): Hóa đơn thường có một cột "Mã hàng"/"Mã SP"/"Model" riêng biệt (tách rời với cột "Mã số PO"). Gần như MỌI dòng sản phẩm đều có mã hàng thực ở cột này. Bạn phải quét kỹ cột đó cho TỪNG dòng và điền vào trường \`code\`. TUYỆT ĐỐI KHÔNG để trống \`code\` khi trong dòng đó có bất kỳ chuỗi nào trông giống mã model (có chứa cả chữ và số, hoặc có dấu gạch nối "-", dấu gạch chéo "/", ví dụ: "NFO-40 500/5A", "GW1S-3E20", "RN2S-NL-D24", "S-T10 AC200V"). Nếu nét chữ ở cột mã hàng bị mờ/khó đọc, hãy cố suy luận và đọc gần đúng nhất chứ KHÔNG được bỏ trống trường \`code\`. Chỉ để \`code\` là chuỗi rỗng khi dòng đó thật sự không có cột mã hàng hoặc là dòng tiêu đề phân loại.
 - LƯU Ý PHÂN BIỆT CỘT: Đừng vì cột "Mã số PO" (mã dài lặp lại như "SOHL260618A52FC4") nằm sát bên trái mà bỏ qua hoặc nhầm lẫn cột "Mã hàng" thực nằm ngay cạnh nó. Hai cột này độc lập: cột PO thì loại bỏ, cột mã hàng thì phải đọc và giữ lại.
 - Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được). Nếu hóa đơn không có cột thuế riêng từng dòng mà chỉ ghi MỘT mức thuế suất chung ở cuối (ví dụ "Thuế suất GTGT: 8%"), hãy áp mức đó cho \`vat\` của TẤT CẢ các dòng thuộc hóa đơn.
@@ -1941,6 +2111,7 @@ Hướng dẫn trích xuất:
     "stt": "1",
     "rawScannedName": "Tên sản phẩm đọc được từ ảnh hóa đơn",
     "code": "Mã sản phẩm đọc được từ ảnh hóa đơn (nếu có)",
+    "brand": "Siemens",
     "quantity": 10,
     "price": 150000,
     "unit": "cái",
@@ -2185,8 +2356,14 @@ Hướng dẫn trích xuất:
             return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
         };
 
+        const BrandModel = mongoose.models.Brand;
+        const brandDocs = BrandModel
+            ? await BrandModel.find().select('Brand').lean()
+            : [];
+
         // 5. Tự động so khớp sản phẩm trong Database bằng Javascript (Nhanh và chính xác)
         const matchedItems = items.map(item => {
+            const resolvedBrand = resolveBrand(item.brand, brandDocs);
             const scanName = item.rawScannedName || '';
             const scanCodeKind = codeKind(item.code);
             const scanSpec = tokenizeSpec(`${scanName} ${scanCodeKind === 'model' ? item.code : ''}`);
@@ -2254,6 +2431,8 @@ Hướng dẫn trích xuất:
 
             return {
                 ...item,
+                brand: resolvedBrand.brand,
+                brandIsNew: resolvedBrand.brandIsNew,
                 matchedProductId: matchedProductId || "NEW_PRODUCT",
                 confidence: matchedProductId ? confidence : 'high'
             };
@@ -2568,5 +2747,7 @@ module.exports = {
     stripSearchStopwords,
     buildTokenQuery,
     greedyNarrowTokens,
-    refreshVoiceVocab
+    refreshVoiceVocab,
+    normalizeBrandKey,
+    resolveBrand
 };

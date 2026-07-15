@@ -6,6 +6,14 @@ const { Product } = require("./product");
 const { StorageHistory } = require("./storagehistory");
 const path = require("path");
 const multer = require("multer");
+const {
+  InventoryError,
+  applyStockAdjustments,
+  isVersionConflict,
+  rollbackOrThrow,
+} = require("../services/inventory");
+
+const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const epOrderSchema = new mongoose.Schema(
   {
@@ -17,8 +25,18 @@ const epOrderSchema = new mongoose.Schema(
         productId: { type: String },
         price: { type: String },
         unit: { type: String },
-        quantity: { type: Number },
-        quantityEx: { type: Number, default: 0 },
+        quantity: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        quantityEx: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        stockAppliedQuantity: { type: Number, min: 0, default: undefined },
+        stockUpdateSkipped: { type: Boolean, default: false },
         note: { type: String },
         vat: { type: String, default: "" },
       },
@@ -28,7 +46,7 @@ const epOrderSchema = new mongoose.Schema(
     status: { type: Boolean, default: 0 },
     completedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true, optimisticConcurrency: true }
 );
 
 epOrderSchema.pre("save", function (next) {
@@ -58,9 +76,10 @@ const createRouteError = (statusCode, message) => {
 };
 
 const adjustExportStock = async ({ productId, delta, req, order, note, isAIScan, source }) => {
-  if (!delta) return null;
+  if (!delta) return { appliedAdjustments: [], historyData: null };
 
-  const product = await Product.findById(productId);
+  const product = await Product.findById(productId)
+    .select("name variant._id variant.quantityForSale variant.quantityInStorage");
   if (!product) {
     throw createRouteError(404, `Product ${productId} not found`);
   }
@@ -70,22 +89,17 @@ const adjustExportStock = async ({ productId, delta, req, order, note, isAIScan,
     throw createRouteError(400, "Sản phẩm không có biến thể");
   }
 
-  if (delta > 0) {
-    if (variant.quantityInStorage < delta || variant.quantityForSale < delta) {
-      throw createRouteError(400, `Không còn đủ số lượng trong kho cho sản phẩm: ${product.name}`);
-    }
-    variant.quantityInStorage -= delta;
-    variant.quantityForSale -= delta;
-  } else {
-    const returnQty = Math.abs(delta);
-    variant.quantityInStorage += returnQty;
-    variant.quantityForSale += returnQty;
-  }
+  const appliedAdjustments = await applyStockAdjustments([{
+    productId,
+    variantIndex: 0,
+    expectedVariantId: variant._id,
+    quantityInStorageDelta: -delta,
+    quantityForSaleDelta: -delta,
+  }]);
 
-  await product.save();
-
-  try {
-    await new StorageHistory({
+  return {
+    appliedAdjustments,
+    historyData: {
       productId,
       productName: product.name,
       quantity: -delta,
@@ -95,12 +109,118 @@ const adjustExportStock = async ({ productId, delta, req, order, note, isAIScan,
       note,
       isAIScan: !!isAIScan,
       source,
-    }).save();
-  } catch (logErr) {
-    console.error("StorageHistory error (eporder stock adjustment):", logErr.message);
-  }
+    },
+  };
+};
 
-  return product;
+const EXPORT_LINE_EDITABLE_FIELDS = ["price", "unit", "quantity", "quantityEx", "note", "vat"];
+
+const parseExportLineQuantities = (line) => {
+  const quantity = Number(line?.quantity);
+  const quantityEx = line?.quantityEx === undefined || line?.quantityEx === null
+    ? 0
+    : Number(line.quantityEx);
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw createRouteError(400, "Số lượng cần xuất phải là số nguyên lớn hơn 0");
+  }
+  if (!Number.isInteger(quantityEx) || quantityEx < 0 || quantityEx > quantity) {
+    throw createRouteError(400, "Số lượng đã xuất phải nằm trong khoảng từ 0 đến số lượng cần xuất");
+  }
+  return { quantity, quantityEx };
+};
+
+const getStockAppliedQuantity = (line) => {
+  const progress = toQuantity(line?.quantityEx);
+  const hasExplicitValue = line?.stockAppliedQuantity !== undefined &&
+    line?.stockAppliedQuantity !== null;
+  const applied = hasExplicitValue
+    ? Number(line.stockAppliedQuantity)
+    : progress;
+  if (!Number.isFinite(applied) || applied < 0 || applied > progress) {
+    throw createRouteError(409, "Dữ liệu số lượng đã trừ kho của dòng xuất không hợp lệ");
+  }
+  return applied;
+};
+
+const isExportLineFullyApplied = (line) => {
+  const quantity = toQuantity(line?.quantity);
+  const progress = toQuantity(line?.quantityEx);
+  if (progress !== quantity) return false;
+  return getStockAppliedQuantity(line) === quantity || line?.stockUpdateSkipped === true;
+};
+
+const pickExportLineFields = (line) => EXPORT_LINE_EDITABLE_FIELDS.reduce(
+  (picked, field) => {
+    if (line?.[field] !== undefined) picked[field] = line[field];
+    return picked;
+  },
+  {}
+);
+
+const buildNewExportLine = (line, stockAppliedQuantity, stockUpdateSkipped = false) => {
+  const { quantity, quantityEx } = parseExportLineQuantities(line);
+  if (!mongoose.Types.ObjectId.isValid(line?.productId)) {
+    throw createRouteError(400, "Mã sản phẩm không hợp lệ");
+  }
+  return {
+    productId: String(line.productId),
+    ...pickExportLineFields(line),
+    quantity,
+    quantityEx,
+    status: quantityEx === quantity,
+    stockAppliedQuantity,
+    stockUpdateSkipped,
+  };
+};
+
+const assertSkippableAIScanExport = async (line) => {
+  if (line?.skipStockUpdate !== true || line?.isAIScan !== true) {
+    throw createRouteError(400, "Không được phép bỏ qua cập nhật tồn kho");
+  }
+  const product = await Product.findById(line.productId)
+    .select("variant.quantityForSale variant.quantityInStorage");
+  const variant = product?.variant?.[0];
+  if (!product || !variant) {
+    throw createRouteError(404, "Không tìm thấy sản phẩm hoặc phiên bản sản phẩm");
+  }
+  if (toQuantity(variant.quantityForSale) !== 0 || toQuantity(variant.quantityInStorage) !== 0) {
+    throw createRouteError(
+      400,
+      "Chỉ được bỏ qua tồn kho cho sản phẩm mới do AI tạo và chưa có tồn"
+    );
+  }
+};
+
+const saveWithStockRollback = async (order, appliedAdjustments) => {
+  try {
+    return await order.save();
+  } catch (error) {
+    await rollbackOrThrow(appliedAdjustments, error);
+  }
+};
+
+const saveStockHistories = async (historyEntries) => {
+  for (const historyEntry of historyEntries.filter(Boolean)) {
+    try {
+      await new StorageHistory(historyEntry).save();
+    } catch (logErr) {
+      console.error("StorageHistory error (eporder stock adjustment):", logErr.message);
+    }
+  }
+};
+
+const getRouteErrorStatus = (error) => {
+  if (error?.statusCode) return error.statusCode;
+  if (isVersionConflict(error)) return 409;
+  return 500;
+};
+
+const getRouteErrorMessage = (error, fallback) => {
+  if (error?.statusCode) return error.message;
+  if (isVersionConflict(error)) {
+    return "Đơn xuất vừa được thay đổi bởi thao tác khác, vui lòng tải lại.";
+  }
+  return fallback;
 };
 
 router.get(
@@ -121,8 +241,8 @@ router.get(
       const skip = (page - 1) * limit;
 
       let query = {};
-      if (orderName) query.orderName = { $regex: orderName, $options: "i" };
-      if (userName) query.userName = { $regex: userName, $options: "i" };
+      if (orderName) query.orderName = { $regex: escapeRegex(orderName), $options: "i" };
+      if (userName) query.userName = { $regex: escapeRegex(userName), $options: "i" };
       
       if (byCompletedDate === "true") {
         query.status = true;
@@ -182,14 +302,30 @@ router.post(
     try {
       const userName = req.user.name;
       const { productList, orderName } = req.body;
+      if (productList !== undefined && !Array.isArray(productList)) {
+        throw createRouteError(400, "productList phải là một mảng");
+      }
+      const normalizedProductList = (productList || []).map((line) => {
+        const { quantityEx } = parseExportLineQuantities(line);
+        if (
+          quantityEx !== 0 ||
+          (Object.prototype.hasOwnProperty.call(line, "status") && line.status !== false)
+        ) {
+          throw createRouteError(
+            400,
+            "Đơn xuất mới chỉ được khởi tạo với số lượng đã xuất bằng 0"
+          );
+        }
+        return buildNewExportLine(line, 0, false);
+      });
       const newOrder = new EpOrder({
         orderName: orderName || "",
         userName,
-        productList: productList || [],
+        productList: normalizedProductList,
       });
 
-      if (productList && productList.length > 0) {
-        newOrder.total = productList
+      if (normalizedProductList.length > 0) {
+        newOrder.total = normalizedProductList
           .reduce((sum, item) => {
             const priceNum = parseFloat(
               item.price?.replace(/\./g, "").replace(",", ".") || 0
@@ -216,9 +352,19 @@ router.post(
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       const newProduct = req.body;
-      const stockDelta = newProduct.skipStockUpdate ? 0 : toQuantity(newProduct.quantityEx);
+      const { quantityEx } = parseExportLineQuantities(newProduct);
+      const requestedSkip = newProduct.skipStockUpdate !== undefined;
+      const shouldSkipStockUpdate = requestedSkip && newProduct.skipStockUpdate === true;
+      if (requestedSkip && typeof newProduct.skipStockUpdate !== "boolean") {
+        throw createRouteError(400, "skipStockUpdate phải là boolean");
+      }
+      if (shouldSkipStockUpdate) {
+        await assertSkippableAIScanExport(newProduct);
+      }
+      const stockDelta = shouldSkipStockUpdate ? 0 : quantityEx;
+      let stockResult = { appliedAdjustments: [], historyData: null };
       if (stockDelta > 0) {
-        await adjustExportStock({
+        stockResult = await adjustExportStock({
           productId: newProduct.productId,
           delta: stockDelta,
           req,
@@ -229,11 +375,21 @@ router.post(
         });
       }
 
-      order.productList.push(newProduct);
-      const updatedOrder = await order.save();
+      order.productList.push(buildNewExportLine(
+        newProduct,
+        stockDelta,
+        shouldSkipStockUpdate
+      ));
+      const updatedOrder = await saveWithStockRollback(
+        order,
+        stockResult.appliedAdjustments
+      );
+      await saveStockHistories([stockResult.historyData]);
       res.json(updatedOrder);
     } catch (error) {
-      res.status(error.statusCode || 400).json({ message: error.message });
+      res.status(getRouteErrorStatus(error)).json({
+        message: getRouteErrorMessage(error, "Lỗi khi thêm sản phẩm vào đơn xuất"),
+      });
     }
   }
 );
@@ -247,6 +403,17 @@ router.delete(
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       const index = parseInt(req.params.productIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= order.productList.length) {
+        return res.status(400).json({ message: "Invalid product index" });
+      }
+      if (
+        toQuantity(order.productList[index].quantityEx) > 0 ||
+        getStockAppliedQuantity(order.productList[index]) > 0
+      ) {
+        return res.status(400).json({
+          message: "Không thể xóa sản phẩm đã phát sinh xuất kho. Hãy hoàn số lượng xuất về 0 trước.",
+        });
+      }
       order.productList.splice(index, 1);
 
       order.total = order.productList
@@ -275,14 +442,17 @@ router.put(
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       // Whitelist fields to prevent Mass Assignment
-      const { orderName, productList, images, status } = req.body;
-      if (orderName !== undefined) order.orderName = orderName;
-      if (productList !== undefined) order.productList = productList;
-      if (images !== undefined) order.images = images;
-      if (status !== undefined) {
-        order.status = status;
-        order.completedAt = status ? new Date() : null;
+      if (
+        Object.prototype.hasOwnProperty.call(req.body, "productList") ||
+        Object.prototype.hasOwnProperty.call(req.body, "status")
+      ) {
+        return res.status(400).json({
+          message: "Hãy dùng API sản phẩm hoặc trạng thái chuyên biệt để cập nhật đơn xuất",
+        });
       }
+      const { orderName, images } = req.body;
+      if (orderName !== undefined) order.orderName = orderName;
+      if (images !== undefined) order.images = images;
 
       order.total = order.productList
         .reduce((sum, item) => {
@@ -309,6 +479,14 @@ router.delete(
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
+      if (order.productList.some(
+        (item) => toQuantity(item.quantityEx) > 0 || getStockAppliedQuantity(item) > 0
+      )) {
+        return res.status(400).json({
+          message: "Không thể xóa đơn đã phát sinh xuất kho. Hãy hoàn tác các dòng xuất trước.",
+        });
+      }
+
       await order.deleteOne();
       res.json({ message: "Order deleted successfully" });
     } catch (error) {
@@ -323,8 +501,20 @@ router.put(
   async (req, res) => {
     try {
       const { status } = req.body;
+      if (typeof status !== "boolean") {
+        return res.status(400).json({ message: "status phải là boolean" });
+      }
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
+
+      if (
+        status === true &&
+        !order.productList.every((item) => isExportLineFullyApplied(item))
+      ) {
+        return res.status(400).json({
+          message: "Chỉ có thể hoàn tất đơn khi tất cả sản phẩm đã xuất đủ.",
+        });
+      }
 
       order.status = status;
       order.completedAt = status ? new Date() : null;
@@ -342,54 +532,56 @@ router.put(
   async (req, res) => {
     try {
       const { status } = req.body;
+      if (typeof status !== "boolean") {
+        return res.status(400).json({ message: "status phải là boolean" });
+      }
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
-      // Cập nhật status của order và completedAt
-      order.status = status;
-      order.completedAt = status ? new Date() : null;
-
-      // Nếu set status = true thì kiểm tra tồn kho trước
+      let appliedAdjustments = [];
+      const historyEntries = [];
       if (status === true) {
+        const adjustments = [];
         for (let i = 0; i < order.productList.length; i++) {
           const productItem = order.productList[i];
-          const product = await Product.findById(productItem.productId);
+          const product = await Product.findById(productItem.productId)
+            .select("name variant._id variant.quantityForSale variant.quantityInStorage");
           if (!product) {
-            return res
-              .status(404)
-              .json({ message: `Product ${productItem.productId} not found` });
-          }
-
-          const variant = product.variant[0];
-          const requiredQty = productItem.quantity - productItem.quantityEx;
-
-          // Kiểm tra tồn kho
-          if (variant.quantityInStorage < requiredQty) {
-            return res.status(400).json({
-              message: `Không còn đủ số lượng trong kho cho sản phẩm: ${product.name}`,
+            throw new InventoryError(`Product ${productItem.productId} not found`, {
+              statusCode: 404,
+              code: "PRODUCT_NOT_FOUND",
             });
           }
-        }
 
-        // Nếu tất cả sản phẩm đủ tồn kho thì trừ kho và set status
-        for (let i = 0; i < order.productList.length; i++) {
-          const productItem = order.productList[i];
-          const product = await Product.findById(productItem.productId);
           const variant = product.variant[0];
-          const requiredQty = productItem.quantity - productItem.quantityEx;
+          if (!variant) {
+            throw new InventoryError("Sản phẩm không có biến thể", {
+              statusCode: 400,
+              code: "VARIANT_NOT_FOUND",
+            });
+          }
+          const { quantity, quantityEx } = parseExportLineQuantities(productItem);
+          const currentApplied = getStockAppliedQuantity(productItem);
+          const untrackedQuantity = Math.max(0, quantityEx - currentApplied);
+          const targetApplied = Math.max(0, quantity - untrackedQuantity);
+          const requiredQty = targetApplied - currentApplied;
 
-          // Trừ kho
-          variant.quantityInStorage -= requiredQty;
-          variant.quantityForSale -= requiredQty;
+          if (!Number.isFinite(requiredQty) || requiredQty < 0) {
+            throw new InventoryError("Số lượng xuất còn lại không hợp lệ.", {
+              statusCode: 400,
+              code: "INVALID_EXPORT_QUANTITY",
+            });
+          }
 
-          // Cập nhật trạng thái sản phẩm trong đơn
-          productItem.status = true;
-          productItem.quantityEx = productItem.quantity;
-
-          await product.save();
-
-          try {
-            await new StorageHistory({
+          if (requiredQty > 0) {
+            adjustments.push({
+              productId: product._id,
+              variantIndex: 0,
+              expectedVariantId: variant._id,
+              quantityInStorageDelta: -requiredQty,
+              quantityForSaleDelta: -requiredQty,
+            });
+            historyEntries.push({
               productId: productItem.productId,
               productName: product.name,
               quantity: -requiredQty,
@@ -398,24 +590,31 @@ router.put(
               orderName: order.orderName,
               note: "Xuất kho (đơn xuất hoàn thành)",
               source: "order_bulk_complete",
-            }).save();
-          } catch (logErr) {
-            console.error("StorageHistory error (complete eporder):", logErr.message);
+            });
           }
+
+          // Cập nhật trạng thái sản phẩm trong đơn
+          productItem.status = true;
+          productItem.quantityEx = quantity;
+          productItem.stockAppliedQuantity = targetApplied;
         }
 
-        // Cập nhật trạng thái đơn
+        appliedAdjustments = await applyStockAdjustments(adjustments);
         order.status = true;
+        order.completedAt = new Date();
       } else {
         order.status = false;
         order.completedAt = null;
       }
 
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveWithStockRollback(order, appliedAdjustments);
+      await saveStockHistories(historyEntries);
       res.json(updatedOrder);
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: "Lỗi server" });
+      res.status(getRouteErrorStatus(error)).json({
+        message: getRouteErrorMessage(error, "Lỗi khi hoàn tất đơn xuất"),
+      });
     }
   }
 );
@@ -426,15 +625,30 @@ router.put(
   async (req, res) => {
     try {
       const { status } = req.body;
+      if (typeof status !== "boolean") {
+        return res.status(400).json({ message: "status phải là boolean" });
+      }
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
-      const productIndex = req.params.productIndex;
-      if (productIndex >= order.productList.length) {
+      const productIndex = Number(req.params.productIndex);
+      if (
+        !Number.isInteger(productIndex) ||
+        productIndex < 0 ||
+        productIndex >= order.productList.length
+      ) {
         return res.status(400).json({ message: "Invalid product index" });
       }
 
-      order.productList[productIndex].status = status;
+      const productItem = order.productList[productIndex];
+      const isQuantityComplete = isExportLineFullyApplied(productItem);
+      if (status === true && !isQuantityComplete) {
+        return res.status(400).json({
+          message: "Hãy dùng thao tác xuất kho để hoàn tất sản phẩm.",
+        });
+      }
+
+      productItem.status = status;
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
@@ -449,6 +663,9 @@ router.put(
   async (req, res) => {
     try {
       const { status } = req.body;
+      if (typeof status !== "boolean") {
+        return res.status(400).json({ message: "status phải là boolean" });
+      }
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -466,7 +683,8 @@ router.put(
         return res.json(order);
       }
 
-      const product = await Product.findById(productItem.productId);
+      const product = await Product.findById(productItem.productId)
+        .select("name variant._id variant.quantityForSale variant.quantityInStorage");
       if (!product) {
         return res
           .status(404)
@@ -478,23 +696,32 @@ router.put(
         return res.status(400).json({ message: "Sản phẩm không có biến thể" });
       }
 
-      const requiredQty = productItem.quantity - (productItem.quantityEx || 0);
+      const { quantity, quantityEx } = parseExportLineQuantities(productItem);
+      const currentApplied = getStockAppliedQuantity(productItem);
+      const untrackedQuantity = Math.max(0, quantityEx - currentApplied);
+      const targetApplied = Math.max(0, quantity - untrackedQuantity);
+      const requiredQty = targetApplied - currentApplied;
 
-      if (variant.quantityInStorage < requiredQty) {
-        return res.status(400).json({
-          message: `Không còn đủ số lượng trong kho cho sản phẩm: ${product.name}`,
-        });
+      if (!Number.isFinite(requiredQty) || requiredQty < 0) {
+        return res.status(400).json({ message: "Số lượng xuất còn lại không hợp lệ" });
       }
 
-      variant.quantityInStorage -= requiredQty;
-      variant.quantityForSale -= requiredQty;
-      productItem.quantityEx = productItem.quantity;
+      const appliedAdjustments = requiredQty > 0
+        ? await applyStockAdjustments([{
+          productId: product._id,
+          variantIndex: 0,
+          expectedVariantId: variant._id,
+          quantityInStorageDelta: -requiredQty,
+          quantityForSaleDelta: -requiredQty,
+        }])
+        : [];
+      productItem.quantityEx = quantity;
       productItem.status = true;
+      productItem.stockAppliedQuantity = targetApplied;
 
-      await product.save();
-
-      try {
-        await new StorageHistory({
+      const updatedOrder = await saveWithStockRollback(order, appliedAdjustments);
+      if (requiredQty > 0) {
+        await saveStockHistories([{
           productId: productItem.productId,
           productName: product.name,
           quantity: -requiredQty,
@@ -503,16 +730,14 @@ router.put(
           orderName: order.orderName,
           note: "Xuất kho (đơn xuất hoàn thành)",
           source: "order_line_complete",
-        }).save();
-      } catch (logErr) {
-        console.error("StorageHistory error (complete eporder item):", logErr.message);
+        }]);
       }
-
-      const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {
       console.error("Error updating export order item status:", error);
-      res.status(500).json({ message: "Lỗi server khi cập nhật trạng thái sản phẩm" });
+      res.status(getRouteErrorStatus(error)).json({
+        message: getRouteErrorMessage(error, "Lỗi server khi cập nhật trạng thái sản phẩm"),
+      });
     }
   }
 );
@@ -567,12 +792,29 @@ router.put(
       }
 
       const currentProduct = order.productList[productIndex];
-      const hasQuantityEx = Object.prototype.hasOwnProperty.call(req.body, "quantityEx");
-      const stockDelta = req.body.skipStockUpdate || !hasQuantityEx
-        ? 0
-        : toQuantity(req.body.quantityEx) - toQuantity(currentProduct.quantityEx);
+      if (
+        req.body.productId !== undefined &&
+        String(req.body.productId) !== String(currentProduct.productId)
+      ) {
+        return res.status(400).json({
+          message: "Không được đổi sản phẩm của dòng đã tạo; hãy xóa dòng cũ và thêm dòng mới",
+        });
+      }
+
+      const editableFields = pickExportLineFields(req.body);
+      const candidateLine = {
+        ...currentProduct.toObject(),
+        ...editableFields,
+      };
+      const { quantity, quantityEx } = parseExportLineQuantities(candidateLine);
+      const currentProgress = toQuantity(currentProduct.quantityEx);
+      const currentApplied = getStockAppliedQuantity(currentProduct);
+      const untrackedQuantity = Math.max(0, currentProgress - currentApplied);
+      const targetApplied = Math.max(0, quantityEx - untrackedQuantity);
+      const stockDelta = targetApplied - currentApplied;
+      let stockResult = { appliedAdjustments: [], historyData: null };
       if (stockDelta !== 0) {
-        await adjustExportStock({
+        stockResult = await adjustExportStock({
           productId: currentProduct.productId,
           delta: stockDelta,
           req,
@@ -584,8 +826,13 @@ router.put(
       }
 
       order.productList[productIndex] = {
-        ...order.productList[productIndex],
-        ...req.body,
+        ...order.productList[productIndex].toObject(),
+        ...editableFields,
+        productId: currentProduct.productId,
+        quantity,
+        quantityEx,
+        status: quantityEx === quantity,
+        stockAppliedQuantity: targetApplied,
       };
 
       order.total = order.productList
@@ -597,10 +844,16 @@ router.put(
         }, 0)
         .toString();
 
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveWithStockRollback(
+        order,
+        stockResult.appliedAdjustments
+      );
+      await saveStockHistories([stockResult.historyData]);
       res.json(updatedOrder);
     } catch (error) {
-      res.status(error.statusCode || 400).json({ message: error.message });
+      res.status(getRouteErrorStatus(error)).json({
+        message: getRouteErrorMessage(error, "Lỗi khi cập nhật đơn xuất"),
+      });
     }
   }
 );
@@ -652,7 +905,43 @@ router.put(
         return res.status(400).json({ message: "Invalid productList format" });
       }
 
-      order.productList = productList;
+      const toLineKey = (item) => JSON.stringify({
+        productId: String(item.productId),
+        price: item.price || "",
+        unit: item.unit || "",
+        quantity: Number(item.quantity),
+        quantityEx: Number(item.quantityEx),
+        status: Boolean(item.status),
+        note: item.note || "",
+        vat: item.vat || "",
+      });
+      const countLines = (items) => items.reduce((counts, item) => {
+        const key = toLineKey(item);
+        counts.set(key, (counts.get(key) || 0) + 1);
+        return counts;
+      }, new Map());
+      const currentCounts = countLines(order.productList);
+      const reorderedCounts = countLines(productList);
+      const isSameLines = currentCounts.size === reorderedCounts.size &&
+        [...currentCounts.entries()].every(
+          ([key, count]) => reorderedCounts.get(key) === count
+        );
+      if (!isSameLines) {
+        return res.status(400).json({
+          message: "API sắp xếp chỉ được thay đổi thứ tự sản phẩm.",
+        });
+      }
+
+      const currentLineBuckets = order.productList.reduce((buckets, item) => {
+        const key = toLineKey(item);
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(item.toObject());
+        return buckets;
+      }, new Map());
+      order.productList = productList.map((item) => {
+        const key = toLineKey(item);
+        return currentLineBuckets.get(key).shift();
+      });
 
       order.total = order.productList
         .reduce((sum, item) => {

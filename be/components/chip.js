@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require("./user");
 const { ActivityLog } = require("./activitylog");
+const { normalizeBrandKey } = require("./product");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -199,10 +200,22 @@ router.get("/brands", async (req, res) => {
 });
 
 router.post("/brands", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
-  const brand = new Brand({
-    Brand: req.body.Brand,
-  });
   try {
+    const incoming = String(req.body.Brand || "").trim();
+    if (!incoming) {
+      return res.status(400).json({ message: "Thiếu tên thương hiệu" });
+    }
+
+    const brandKey = normalizeBrandKey(incoming);
+    const existingBrands = await Brand.find().select("Brand").lean();
+    const duplicateBrand = existingBrands.find(
+      (existingBrand) => normalizeBrandKey(existingBrand.Brand) === brandKey
+    );
+    if (duplicateBrand) {
+      return res.status(200).json(duplicateBrand);
+    }
+
+    const brand = new Brand({ Brand: incoming });
     const newBrand = await brand.save();
 
     // Ghi log hoạt động
@@ -215,9 +228,9 @@ router.post("/brands", authenticateAdmin, checkPermission("product.create"), asy
       }).save();
     } catch (logErr) { console.error("ActivityLog error in create_brand:", logErr.message); }
 
-    res.status(201).json(newBrand);
+    return res.status(201).json(newBrand);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message });
   }
 });
 

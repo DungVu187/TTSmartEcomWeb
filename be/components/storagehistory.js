@@ -52,6 +52,8 @@ const StorageHistory = mongoose.models.StorageHistory || mongoose.model("Storage
 
 const router = express.Router();
 
+const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const sortTextOptions = (items) =>
     items
         .filter((item) => typeof item === "string" && item.trim())
@@ -98,11 +100,11 @@ router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
         }
 
         if (orderName) {
-            filter.orderName = { $regex: orderName, $options: "i" };
+            filter.orderName = { $regex: escapeRegex(orderName), $options: "i" };
         }
 
         if (userName) {
-            filter.userName = { $regex: userName, $options: "i" };
+            filter.userName = { $regex: escapeRegex(userName), $options: "i" };
         }
 
         if (noteType) {

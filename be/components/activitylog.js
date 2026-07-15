@@ -44,6 +44,8 @@ const ActivityLog = mongoose.models.ActivityLog || mongoose.model("ActivityLog",
 
 const router = express.Router();
 
+const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Nhãn hiển thị tiếng Việt cho các action
 const ACTION_LABELS = {
     create_product: 'Tạo sản phẩm',
@@ -130,11 +132,11 @@ router.get("/", authenticateAdmin, checkActivityLogPermission, async (req, res) 
         }
 
         if (userName) {
-            filter.userName = { $regex: userName, $options: "i" };
+            filter.userName = { $regex: escapeRegex(userName), $options: "i" };
         }
 
         if (productName) {
-            filter.productName = { $regex: productName, $options: "i" };
+            filter.productName = { $regex: escapeRegex(productName), $options: "i" };
         }
 
         if (action) {

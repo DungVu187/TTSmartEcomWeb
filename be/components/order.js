@@ -11,8 +11,16 @@ const { sendZaloOrderNotification } = require('../zaloService');
 const { sendTelegramOrderNotification } = require('../telegramService');
 const { Station } = require('./station');
 const { StorageHistory } = require("./storagehistory");
+const {
+  InventoryError,
+  applyStockAdjustments,
+  isVersionConflict,
+  rollbackOrThrow,
+} = require('../services/inventory');
 
 const router = express.Router();
+
+const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const getUpdatedImgUrl = (originalUrl) => {
   if (!originalUrl) return originalUrl;
@@ -89,7 +97,7 @@ const orderSchema = new mongoose.Schema(
     },
     images: [{ type: String }]
   },
-  { timestamps: true }
+  { timestamps: true, optimisticConcurrency: true }
 );
 
 const Order = mongoose.model("Order", orderSchema);
@@ -172,6 +180,68 @@ async function prepareOrderItemsForCreation(items) {
     total,
   };
 }
+
+const createReservationAdjustments = (preparedItems) => preparedItems.map((item) => ({
+  productId: item.product._id,
+  variantIndex: item.cartItem.variantIndex,
+  expectedVariantId: item.variant._id,
+  quantityForSaleDelta: -item.cartItem.quantity,
+}));
+
+async function buildOrderStockAdjustments(cartItems, createDeltas, { skipMissing = false } = {}) {
+  const adjustments = [];
+  const entries = [];
+
+  for (const item of cartItems) {
+    const product = await Product.findById(item.productId)
+      .select('name variant._id variant.quantityForSale variant.quantityInStorage purchaseCount');
+    const variant = product?.variant?.[item.variantIndex];
+    if (!product || !variant) {
+      if (skipMissing) continue;
+      throw new InventoryError(
+        !product
+          ? "Không tìm thấy sản phẩm trong đơn hàng."
+          : "Không tìm thấy phiên bản sản phẩm trong đơn hàng.",
+        {
+          statusCode: 404,
+          code: !product ? "PRODUCT_NOT_FOUND" : "VARIANT_NOT_FOUND",
+        }
+      );
+    }
+
+    adjustments.push({
+      productId: product._id,
+      variantIndex: item.variantIndex,
+      expectedVariantId: variant._id,
+      ...createDeltas(item),
+    });
+    entries.push({ item, product });
+  }
+
+  return { adjustments, entries };
+}
+
+async function saveWithStockRollback(document, appliedAdjustments) {
+  try {
+    return await document.save();
+  } catch (error) {
+    await rollbackOrThrow(appliedAdjustments, error);
+  }
+}
+
+const getRouteErrorStatus = (error) => {
+  if (error?.statusCode) return error.statusCode;
+  if (isVersionConflict(error)) return 409;
+  return 500;
+};
+
+const getRouteErrorMessage = (error, fallback) => {
+  if (error?.statusCode) return error.message;
+  if (isVersionConflict(error)) {
+    return "Đơn hàng vừa được thay đổi bởi thao tác khác, vui lòng tải lại.";
+  }
+  return fallback;
+};
 
 async function enrichCartItems(cartItems) {
   return Promise.all((cartItems || []).map(async (it) => {
@@ -292,7 +362,7 @@ router.get("/", [authenticateAdmin, checkPermission('order.view')], async (req, 
       if (mongoose.Types.ObjectId.isValid(id)) {
         filter._id = id;
       } else {
-        filter.orderCode = new RegExp(id, "i");
+        filter.orderCode = new RegExp(escapeRegex(id), "i");
       }
     }
 
@@ -304,8 +374,8 @@ router.get("/", [authenticateAdmin, checkPermission('order.view')], async (req, 
 
     if (payment) filter.payment = payment === "true";
     if (state) filter.state = state;
-    if (phone) filter.userPhone = new RegExp(phone, "i");
-    if (name) filter.userName = new RegExp(name, "i");
+    if (phone) filter.userPhone = new RegExp(escapeRegex(phone), "i");
+    if (name) filter.userName = new RegExp(escapeRegex(name), "i");
 
     if (startDate || endDate) {
       const dateFilter = {};
@@ -384,6 +454,9 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('order.edit
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    let appliedAdjustments = [];
+    let stockHistoryEntries = [];
+
     if (field === 'status') {
       if (!["Processing", "Delivering", "Completed"].includes(value)) {
         return res.status(400).json({ success: false, message: 'Invalid status value' });
@@ -406,77 +479,59 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('order.edit
       }
 
       if (order.status !== value && value === "Completed") {
-        const stockUpdates = [];
-        for (const item of order.cartItems) {
-          const product = await Product.findById(item.productId);
-          if (!product) {
-            return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm trong đơn hàng" });
-          }
-          const variant = product.variant[item.variantIndex];
-          if (!variant) {
-            return res.status(404).json({ success: false, message: "Không tìm thấy phiên bản sản phẩm trong đơn hàng" });
-          }
-          if (variant.quantityInStorage < item.quantity) {
-            return res.status(400).json({ success: false, message: `Không đủ tồn kho cho sản phẩm ${product.name}` });
-          }
-          stockUpdates.push({ item, product, variant });
-        }
-
-        for (const { item, product, variant } of stockUpdates) {
-          variant.quantityInStorage -= item.quantity;
-          product.purchaseCount = (product.purchaseCount || 0) + item.quantity;
-          await product.save();
-
-          // Ghi lịch sử kho: xuất kho do đơn hàng bán online hoàn thành
-          try {
-            await new StorageHistory({
-              productId: item.productId,
-              productName: product.name,
-              quantity: -item.quantity,
-              userName: req.user?.name || "Hệ thống",
-              orderId: order.orderCode,
-              orderName: order.orderCode,
-              note: "Đơn hàng bán online",
-              source: "online_sale",
-            }).save();
-          } catch (logErr) {
-            console.error("StorageHistory error (complete order):", logErr.message);
-          }
-        }
-      } else if (order.status === "Completed" && value !== "Completed") {
-        await Promise.all(
-          order.cartItems.map(async (item) => {
-            const product = await Product.findById(item.productId);
-            if (!product) throw new Error('Product not found');
-            const variant = product.variant[item.variantIndex];
-            if (!variant) throw new Error('Variant not found');
-
-            variant.quantityInStorage += item.quantity;
-            product.purchaseCount = Math.max(0, (product.purchaseCount || 0) - item.quantity);
-            await product.save();
-
-            // Ghi lịch sử kho: nhập lại do hoàn tác đơn bán online
-            try {
-              await new StorageHistory({
-                productId: item.productId,
-                productName: product.name,
-                quantity: item.quantity,
-                userName: req.user?.name || "Hệ thống",
-                orderId: order.orderCode,
-                orderName: order.orderCode,
-                note: "Hoàn tác đơn bán online",
-                source: "online_sale_revert",
-              }).save();
-            } catch (logErr) {
-              console.error("StorageHistory error (revert order):", logErr.message);
-            }
+        const { adjustments, entries } = await buildOrderStockAdjustments(
+          order.cartItems,
+          (item) => ({
+            quantityInStorageDelta: -item.quantity,
+            purchaseCountDelta: item.quantity,
           })
         );
+        appliedAdjustments = await applyStockAdjustments(adjustments);
+        stockHistoryEntries = entries.map(({ item, product }) => ({
+          productId: item.productId,
+          productName: product.name,
+          quantity: -item.quantity,
+          note: "Đơn hàng bán online",
+          source: "online_sale",
+        }));
+      } else if (order.status === "Completed" && value !== "Completed") {
+        const { adjustments, entries } = await buildOrderStockAdjustments(
+          order.cartItems,
+          (item) => ({
+            quantityInStorageDelta: item.quantity,
+            purchaseCountDelta: -item.quantity,
+          })
+        );
+        appliedAdjustments = await applyStockAdjustments(adjustments);
+        stockHistoryEntries = entries.map(({ item, product }) => ({
+          productId: item.productId,
+          productName: product.name,
+          quantity: item.quantity,
+          note: "Hoàn tác đơn bán online",
+          source: "online_sale_revert",
+        }));
       }
     }
 
     order[field] = value;
-    await order.save();
+    try {
+      await order.save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
+
+    for (const historyEntry of stockHistoryEntries) {
+      try {
+        await new StorageHistory({
+          ...historyEntry,
+          userName: req.user?.name || "Hệ thống",
+          orderId: order.orderCode,
+          orderName: order.orderCode,
+        }).save();
+      } catch (logErr) {
+        console.error("StorageHistory error (order status stock adjustment):", logErr.message);
+      }
+    }
 
     // Emit khi đơn hàng được cập nhật
     io.to('admins').emit("order_updated", {
@@ -488,7 +543,10 @@ router.put('/update-order/:_id', [authenticateAdmin, checkPermission('order.edit
     res.json({ success: true, message: 'Order updated successfully', order });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(getRouteErrorStatus(error)).json({
+      success: false,
+      message: getRouteErrorMessage(error, 'Server error'),
+    });
   }
 });
 
@@ -511,26 +569,29 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('order.cr
       return res.status(preparedOrder.error.status).json({ success: false, message: preparedOrder.error.message });
     }
 
-    for (const item of preparedOrder.preparedItems) {
-      item.variant.quantityForSale -= item.cartItem.quantity;
-      await item.product.save();
-    }
-
-    const counter = await Counter.findOneAndUpdate(
-      { id: "orderCode" },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
+    const appliedAdjustments = await applyStockAdjustments(
+      createReservationAdjustments(preparedOrder.preparedItems)
     );
-    const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
 
-    const newOrder = new Order({
-      orderCode,
-      userPhone: String(userPhone),
-      userName,
-      cartItems: preparedOrder.cartItems,
-      total: preparedOrder.total,
-    });
-    const savedOrder = await newOrder.save();
+    let savedOrder;
+    try {
+      const counter = await Counter.findOneAndUpdate(
+        { id: "orderCode" },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+
+      savedOrder = await new Order({
+        orderCode,
+        userPhone: String(userPhone),
+        userName,
+        cartItems: preparedOrder.cartItems,
+        total: preparedOrder.total,
+      }).save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
 
     // Đơn tạo nội bộ bở qua email/Zalo để không gửi thông báo như luồng khách tự đặt.
     io.to('admins').emit("order_created", {
@@ -548,7 +609,10 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('order.cr
     });
   } catch (error) {
     console.error("Error creating admin order:", error);
-    res.status(500).json({ success: false, message: "Lỗi khi tạo đơn hàng" });
+    res.status(getRouteErrorStatus(error)).json({
+      success: false,
+      message: getRouteErrorMessage(error, "Lỗi khi tạo đơn hàng"),
+    });
   }
 });
 
@@ -608,30 +672,27 @@ router.post("/:id/items", [authenticateAdmin, checkPermission('order.edit')], as
     }
 
     const { productId, variantIndex, quantity } = parsed.value;
-    const product = await Product.findById(productId);
-    const variant = product?.variant?.[variantIndex];
-    if (!product || !variant) {
-      return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm hoặc phiên bản sản phẩm" });
+    const { adjustments } = await buildOrderStockAdjustments(
+      [{ productId, variantIndex, quantity }],
+      (item) => ({ quantityForSaleDelta: -item.quantity })
+    );
+    const appliedAdjustments = await applyStockAdjustments(adjustments);
+
+    try {
+      order.cartItems.push({ productId, variantIndex, quantity });
+      order.total = await computeOrderTotal(order.cartItems);
+      await order.save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
     }
-
-    if (variant.quantityForSale < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: `Không đủ hàng. Tồn khả dụng hiện có: ${variant.quantityForSale}`,
-      });
-    }
-
-    variant.quantityForSale -= quantity;
-    await product.save();
-
-    order.cartItems.push({ productId, variantIndex, quantity });
-    order.total = await computeOrderTotal(order.cartItems);
-    await order.save();
 
     res.json({ success: true, order: await formatAdminOrderWithItems(order) });
   } catch (error) {
     console.error("Error adding order item:", error);
-    res.status(500).json({ success: false, message: "Lỗi khi thêm sản phẩm vào đơn hàng" });
+    res.status(getRouteErrorStatus(error)).json({
+      success: false,
+      message: getRouteErrorMessage(error, "Lỗi khi thêm sản phẩm vào đơn hàng"),
+    });
   }
 });
 
@@ -658,34 +719,31 @@ router.put("/:id/items/:index", [authenticateAdmin, checkPermission('order.edit'
 
     const line = order.cartItems[index];
     const delta = newQty - line.quantity;
-    const product = await Product.findById(line.productId);
-    const variant = product?.variant?.[line.variantIndex];
-    if (!product || !variant) {
-      return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm hoặc phiên bản sản phẩm" });
+    let appliedAdjustments = [];
+    if (delta !== 0) {
+      const { adjustments } = await buildOrderStockAdjustments(
+        [line],
+        () => ({ quantityForSaleDelta: -delta })
+      );
+      appliedAdjustments = await applyStockAdjustments(adjustments);
     }
 
-    if (delta > 0) {
-      if (variant.quantityForSale < delta) {
-        return res.status(400).json({
-          success: false,
-          message: `Không đủ hàng. Tồn khả dụng hiện có: ${variant.quantityForSale}`,
-        });
-      }
-      variant.quantityForSale -= delta;
-    } else if (delta < 0) {
-      variant.quantityForSale += Math.abs(delta);
+    try {
+      line.quantity = newQty;
+      order.markModified("cartItems");
+      order.total = await computeOrderTotal(order.cartItems);
+      await order.save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
     }
-
-    await product.save();
-    line.quantity = newQty;
-    order.markModified("cartItems");
-    order.total = await computeOrderTotal(order.cartItems);
-    await order.save();
 
     res.json({ success: true, order: await formatAdminOrderWithItems(order) });
   } catch (error) {
     console.error("Error updating order item:", error);
-    res.status(500).json({ success: false, message: "Lỗi khi cập nhật sản phẩm trong đơn hàng" });
+    res.status(getRouteErrorStatus(error)).json({
+      success: false,
+      message: getRouteErrorMessage(error, "Lỗi khi cập nhật sản phẩm trong đơn hàng"),
+    });
   }
 });
 
@@ -706,21 +764,28 @@ router.delete("/:id/items/:index", [authenticateAdmin, checkPermission('order.ed
     }
 
     const [line] = order.cartItems.splice(index, 1);
-    const product = await Product.findById(line.productId);
-    const variant = product?.variant?.[line.variantIndex];
-    if (product && variant) {
-      variant.quantityForSale += line.quantity;
-      await product.save();
-    }
+    const { adjustments } = await buildOrderStockAdjustments(
+      [line],
+      (item) => ({ quantityForSaleDelta: item.quantity }),
+      { skipMissing: true }
+    );
+    const appliedAdjustments = await applyStockAdjustments(adjustments);
 
-    order.markModified("cartItems");
-    order.total = await computeOrderTotal(order.cartItems);
-    await order.save();
+    try {
+      order.markModified("cartItems");
+      order.total = await computeOrderTotal(order.cartItems);
+      await order.save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
 
     res.json({ success: true, order: await formatAdminOrderWithItems(order) });
   } catch (error) {
     console.error("Error deleting order item:", error);
-    res.status(500).json({ success: false, message: "Lỗi khi xóa sản phẩm khỏi đơn hàng" });
+    res.status(getRouteErrorStatus(error)).json({
+      success: false,
+      message: getRouteErrorMessage(error, "Lỗi khi xóa sản phẩm khỏi đơn hàng"),
+    });
   }
 });
 
@@ -748,6 +813,25 @@ router.put("/:id/reorder", [authenticateAdmin, checkPermission('order.edit')], a
       parsedItems.push(parsed.value);
     }
 
+    const toLineKey = (item) => `${String(item.productId)}:${Number(item.variantIndex)}:${Number(item.quantity)}`;
+    const countLines = (items) => items.reduce((counts, item) => {
+      const key = toLineKey(item);
+      counts.set(key, (counts.get(key) || 0) + 1);
+      return counts;
+    }, new Map());
+    const currentLineCounts = countLines(order.cartItems);
+    const reorderedLineCounts = countLines(parsedItems);
+    const isSameLines = currentLineCounts.size === reorderedLineCounts.size &&
+      [...currentLineCounts.entries()].every(
+        ([key, count]) => reorderedLineCounts.get(key) === count
+      );
+    if (!isSameLines) {
+      return res.status(400).json({
+        success: false,
+        message: "API sắp xếp chỉ được thay đổi thứ tự, không được đổi sản phẩm hoặc số lượng.",
+      });
+    }
+
     order.cartItems = parsedItems;
     order.total = await computeOrderTotal(order.cartItems);
     await order.save();
@@ -755,7 +839,10 @@ router.put("/:id/reorder", [authenticateAdmin, checkPermission('order.edit')], a
     res.json({ success: true, order: await formatAdminOrderWithItems(order) });
   } catch (error) {
     console.error("Error reordering order items:", error);
-    res.status(500).json({ success: false, message: "Lỗi khi lưu thứ tự sản phẩm" });
+    res.status(getRouteErrorStatus(error)).json({
+      success: false,
+      message: getRouteErrorMessage(error, "Lỗi khi lưu thứ tự sản phẩm"),
+    });
   }
 });
 
@@ -867,73 +954,84 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       return res.status(preparedOrder.error.status).json({ message: preparedOrder.error.message });
     }
 
-    for (const item of preparedOrder.preparedItems) {
-      item.variant.quantityForSale -= item.cartItem.quantity;
-      await item.product.save();
-    }
-
-    // Tự tăng số thứ tự và tạo mã dạng TTSM-01
-    const counter = await Counter.findOneAndUpdate(
-      { id: "orderCode" },
-      { $inc: { seq: 1 } },
-      { new: true, upsert: true }
+    const appliedAdjustments = await applyStockAdjustments(
+      createReservationAdjustments(preparedOrder.preparedItems)
     );
-    const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
 
-    const newOrder = new Order({
-      orderCode,
-      userPhone,
-      userName,
-      cartItems: preparedOrder.cartItems,
-      total: preparedOrder.total,
-    });
-    const savedOrder = await newOrder.save();
+    let savedOrder;
+    try {
+      // Tự tăng số thứ tự và tạo mã dạng TTSM-01
+      const counter = await Counter.findOneAndUpdate(
+        { id: "orderCode" },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+
+      savedOrder = await new Order({
+        orderCode,
+        userPhone,
+        userName,
+        cartItems: preparedOrder.cartItems,
+        total: preparedOrder.total,
+      }).save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
     
-    if (preparedOrder.cartItems.length > 0) {
-      const user = await User.findById(req.user.userId);
-      if (user) {
-        user.cart = user.cart.filter((cartItem) => {
-          return !preparedOrder.cartItems.some(
-            (orderedItem) =>
-              orderedItem.productId.toString() === cartItem.productId.toString() &&
-              orderedItem.variantIndex === cartItem.variantIndex
-          );
-        });
+    try {
+      if (preparedOrder.cartItems.length > 0) {
+        const user = await User.findById(req.user.userId);
+        if (user) {
+          user.cart = user.cart.filter((cartItem) => {
+            return !preparedOrder.cartItems.some(
+              (orderedItem) =>
+                orderedItem.productId.toString() === cartItem.productId.toString() &&
+                orderedItem.variantIndex === cartItem.variantIndex
+            );
+          });
 
-        // Tự động gán trạm cho user nếu trạm đó chưa được liên kết với user
-        if (stationCode) {
-          const station = await Station.findOne({ stationCode: String(stationCode).trim() });
-          if (station) {
-            const stationIdStr = station._id.toString();
-            if (!user.station.includes(stationIdStr)) {
-              user.station.push(stationIdStr);
+          // Tự động gán trạm cho user nếu trạm đó chưa được liên kết với user
+          if (stationCode) {
+            const station = await Station.findOne({ stationCode: String(stationCode).trim() });
+            if (station) {
+              const stationIdStr = station._id.toString();
+              if (!user.station.includes(stationIdStr)) {
+                user.station.push(stationIdStr);
+              }
             }
           }
-        }
 
-        await user.save();
+          await user.save();
+        }
       }
+    } catch (postSaveError) {
+      console.error("Order created but cart/station cleanup failed:", postSaveError);
     }
 
     // Lấy thông tin trạm dựa trên mã trạm đang mua hàng hoặc danh sách trạm của user
     let stationNamesStr = "Không có";
     let stationCodesStr = "Không có";
 
-    if (stationCode) {
-      const station = await Station.findOne({ stationCode: String(stationCode).trim() });
-      if (station) {
-        stationNamesStr = station.stationName || "Không có";
-        stationCodesStr = station.stationCode || "Không có";
-      }
-    } else {
-      const user = await User.findById(req.user.userId);
-      if (user && user.station && user.station.length > 0) {
-        const stations = await Station.find({ _id: { $in: user.station } });
-        if (stations && stations.length > 0) {
-          stationNamesStr = stations.map(s => s.stationName).filter(Boolean).join(", ");
-          stationCodesStr = stations.map(s => s.stationCode).filter(Boolean).join(", ");
+    try {
+      if (stationCode) {
+        const station = await Station.findOne({ stationCode: String(stationCode).trim() });
+        if (station) {
+          stationNamesStr = station.stationName || "Không có";
+          stationCodesStr = station.stationCode || "Không có";
+        }
+      } else {
+        const user = await User.findById(req.user.userId);
+        if (user && user.station && user.station.length > 0) {
+          const stations = await Station.find({ _id: { $in: user.station } });
+          if (stations && stations.length > 0) {
+            stationNamesStr = stations.map(s => s.stationName).filter(Boolean).join(", ");
+            stationCodesStr = stations.map(s => s.stationCode).filter(Boolean).join(", ");
+          }
         }
       }
+    } catch (postSaveError) {
+      console.error("Order created but station notification metadata failed:", postSaveError);
     }
 
     // Gửi email thông báo đến admin (Sử dụng orderCode thay cho ObjectId)
@@ -945,7 +1043,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       createdAt: savedOrder.createdAt,
       stationNames: stationNamesStr,
       stationCodes: stationCodesStr,
-    });
+    }).catch(err => console.error("Lỗi gửi email thông báo đơn hàng:", err.message));
 
     // Gửi tin nhắn thông báo Zalo OA đến admin (không làm gián đoạn luồng đặt hàng nếu lỗi)
     sendZaloOrderNotification({
@@ -981,7 +1079,9 @@ router.post("/create-order", authenticateUser, async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Lỗi khi tạo đơn hàng" });
+    res.status(getRouteErrorStatus(error)).json({
+      message: getRouteErrorMessage(error, "Lỗi khi tạo đơn hàng"),
+    });
   }
 });
 
@@ -990,13 +1090,13 @@ router.get("/userOrders", authenticateUser, async (req, res) => {
   const userPhone = req.user.phone;
   const { state } = req.query;
 
-  if (!userPhone) {
+  if (typeof userPhone !== "string" || !userPhone.trim()) {
     return res.status(400).json({ message: "Số điện thoại người dùng không được cung cấp" });
   }
 
   try {
     const filter = {
-      userPhone: { $regex: userPhone, $options: "i" },
+      userPhone: userPhone,
     };
 
     if (state) {
@@ -1105,19 +1205,31 @@ router.delete("/:id", authenticateUser, async (req, res) => {
     }
 
     // Chỉ hoàn lại số lượng bán nếu đơn chưa từng bị hủy
+    let appliedAdjustments = [];
     if (order.state !== "Cancelled") {
-      for (const item of order.cartItems) {
-        const product = await Product.findById(item.productId);
-        if (!product) continue;
-        const variant = product.variant[item.variantIndex];
-        if (!variant) continue;
-
-        variant.quantityForSale += item.quantity;
-        await product.save();
-      }
+      const { adjustments } = await buildOrderStockAdjustments(
+        order.cartItems,
+        (item) => ({ quantityForSaleDelta: item.quantity }),
+        { skipMissing: true }
+      );
+      appliedAdjustments = await applyStockAdjustments(adjustments);
     }
 
-    await order.deleteOne();
+    try {
+      const deleteResult = await Order.deleteOne({
+        _id: order._id,
+        __v: order.__v,
+        status: { $ne: "Completed" },
+      });
+      if (deleteResult.deletedCount !== 1) {
+        throw new InventoryError(
+          "Đơn hàng vừa được thay đổi bởi thao tác khác, vui lòng tải lại.",
+          { statusCode: 409, code: "ORDER_CONFLICT" }
+        );
+      }
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
 
     // Emit khi xóa đơn hàng
     io.to('admins').emit("order_deleted", { orderId: id });
@@ -1125,7 +1237,9 @@ router.delete("/:id", authenticateUser, async (req, res) => {
     res.status(200).json({ message: "Order deleted and quantities restored if necessary." });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error" });
+    res.status(getRouteErrorStatus(error)).json({
+      message: getRouteErrorMessage(error, "Server error"),
+    });
   }
 });
 
@@ -1153,19 +1267,19 @@ router.put("/:id", authenticateUser, async (req, res) => {
       return res.status(400).json({ message: "Order is already cancelled." });
     }
 
-    // Hoàn lại số lượng bán cho tất cả các đơn hàng khi hủy
-    for (const item of order.cartItems) {
-      const product = await Product.findById(item.productId);
-      if (!product) continue;
-      const variant = product.variant[item.variantIndex];
-      if (!variant) continue;
-
-      variant.quantityForSale += item.quantity;
-      await product.save();
-    }
+    const { adjustments } = await buildOrderStockAdjustments(
+      order.cartItems,
+      (item) => ({ quantityForSaleDelta: item.quantity }),
+      { skipMissing: true }
+    );
+    const appliedAdjustments = await applyStockAdjustments(adjustments);
 
     order.state = "Cancelled";
-    await order.save();
+    try {
+      await order.save();
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
 
     // Emit khi hủy đơn hàng
     io.to('admins').emit("order_cancelled", {
@@ -1176,7 +1290,9 @@ router.put("/:id", authenticateUser, async (req, res) => {
     res.status(200).json({ message: "Order cancelled successfully.", order });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error" });
+    res.status(getRouteErrorStatus(error)).json({
+      message: getRouteErrorMessage(error, "Server error"),
+    });
   }
 });
 

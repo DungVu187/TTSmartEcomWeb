@@ -315,5 +315,35 @@ describe('B4f remaining authorization sweep', () => {
         .send({ Brand: 'Blocked Brand' });
       expectMissingPermission(blocked, 'product.create');
     });
+
+    it('returns the existing brand for a normalized duplicate without writing another log', async () => {
+      const allowedAgent = await createStaffAgent({
+        phone: '0931000403',
+        permissions: ['product.create'],
+      });
+
+      const created = await allowedAgent
+        .post('/chips/brands')
+        .send({ Brand: '  Ơ Rôn  ' })
+        .expect(201);
+
+      const duplicate = await allowedAgent
+        .post('/chips/brands')
+        .send({ Brand: 'oron' })
+        .expect(200);
+
+      expect(duplicate.body).toEqual(expect.objectContaining({
+        _id: created.body._id,
+        Brand: 'Ơ Rôn',
+      }));
+      expect(await mongoose.connection.collection('brands').countDocuments()).toBe(1);
+      expect(await ActivityLog.countDocuments({ action: 'create_brand' })).toBe(1);
+
+      const missingName = await allowedAgent
+        .post('/chips/brands')
+        .send({ Brand: '   ' })
+        .expect(400);
+      expect(missingName.body.message).toBe('Thiếu tên thương hiệu');
+    });
   });
 });

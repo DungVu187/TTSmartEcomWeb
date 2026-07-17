@@ -18,6 +18,7 @@ const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g
 const epOrderSchema = new mongoose.Schema(
   {
     orderName: { type: String, default: "" },
+    note: { type: String, default: "" },
     userName: { type: String, required: true },
     productList: [
       {
@@ -301,7 +302,7 @@ router.post(
   async (req, res) => {
     try {
       const userName = req.user.name;
-      const { productList, orderName } = req.body;
+      const { productList, orderName, note } = req.body;
       if (productList !== undefined && !Array.isArray(productList)) {
         throw createRouteError(400, "productList phải là một mảng");
       }
@@ -320,6 +321,7 @@ router.post(
       });
       const newOrder = new EpOrder({
         orderName: orderName || "",
+        note: typeof note === "string" ? note : "",
         userName,
         productList: normalizedProductList,
       });
@@ -450,8 +452,9 @@ router.put(
           message: "Hãy dùng API sản phẩm hoặc trạng thái chuyên biệt để cập nhật đơn xuất",
         });
       }
-      const { orderName, images } = req.body;
+      const { orderName, note, images } = req.body;
       if (orderName !== undefined) order.orderName = orderName;
+      if (note !== undefined) order.note = typeof note === "string" ? note : "";
       if (images !== undefined) order.images = images;
 
       order.total = order.productList
@@ -863,11 +866,12 @@ router.put(
   [authenticateAdmin, checkPermission("eporder.edit")],
   async (req, res) => {
     try {
-      const { orderName } = req.body;
+      const { orderName, note } = req.body;
       const order = await EpOrder.findById(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
-      order.orderName = orderName || "";
+      if (orderName !== undefined) order.orderName = orderName || "";
+      if (note !== undefined) order.note = typeof note === "string" ? note : "";
       const updatedOrder = await order.save();
       res.json(updatedOrder);
     } catch (error) {

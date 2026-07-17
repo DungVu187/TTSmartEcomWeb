@@ -1,140 +1,81 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import logo from '../../assets/TTSlogo.jpg';
+import logo from "../../assets/TTSlogo.jpg";
 import { useLanguage } from "../../context/languagecontext.jsx";
-import './footer.css';
+import "./footer.css";
 
 function Footer() {
-    const { t } = useLanguage();
+  const { t } = useLanguage();
 
-    const handleLinkClick = () => {
-        window.scrollTo(0, 0);
-    };
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  const keepVisualOnly = (event) => event.preventDefault();
 
-    return (
-        <footer className="footer">
-            <div className="footer-content">
-                {/* Column 1: Brand Info */}
-                <div className="footer-column footer-brand">
-                    <div className="footer-logo-wrapper">
-                        <img src={logo} alt="TTSmart logo" className="footer-logo" />
-                    </div>
-                    <p className="footer-brand-desc">
-                        {t("footer_brand_desc")}
-                    </p>
-                    <div className="footer-contact-info">
-                        <div className="footer-contact-item">
-                            <i className="fa-solid fa-location-dot footer-icon"></i>
-                            <span>{t("footer_address")}</span>
-                        </div>
-                        <div className="footer-contact-item">
-                            <i className="fa-solid fa-phone footer-icon"></i>
-                            <a href="tel:0813158383" className="footer-link">08.1315.8383</a>
-                        </div>
-                        <div className="footer-contact-item">
-                            <i className="fa-solid fa-envelope footer-icon"></i>
-                            <a href="mailto:ttsmart.ltd@gmail.com" className="footer-link">ttsmart.ltd@gmail.com</a>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Column 2: Quick Links */}
-                <div className="footer-column">
-                    <h4 className="footer-heading">{t("quick_links")}</h4>
-                    <ul className="footer-links-list">
-                        <li>
-                            <Link to="/" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("home")}
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/product" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("products")}
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/dashboard" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("equipment_group")}
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/station" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("my_stations_nav")}
-                            </Link>
-                        </li>
-                    </ul>
-                </div>
-
-                {/* Column 3: Policies */}
-                <div className="footer-column">
-                    <h4 className="footer-heading">{t("policies")}</h4>
-                    <ul className="footer-links-list">
-                        <li>
-                            <Link to="/policy" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("purchase_policy")}
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/policy" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("return_warranty")}
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/policy" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("faqs")}
-                            </Link>
-                        </li>
-                    </ul>
-                </div>
-
-                {/* Column 4: Contact & Social */}
-                <div className="footer-column">
-                    <h4 className="footer-heading">{t("contact_us")}</h4>
-                    <ul className="footer-links-list">
-                        <li>
-                            <Link to="/introduction" onClick={handleLinkClick} className="footer-link-item">
-                                <i className="fa-solid fa-chevron-right list-arrow"></i>
-                                {t("introduction")}
-                            </Link>
-                        </li>
-                    </ul>
-                    <div className="footer-social-wrapper">
-                        <p className="footer-social-title">{t("connect_with_us")}</p>
-                        <div className="footer-social-icons">
-                            <a href="https://zalo.me/0813158383" target="_blank" rel="noopener noreferrer" className="social-icon-btn zalo" title="Zalo">
-                                <i className="fa-solid fa-comment-dots"></i>
-                            </a>
-                            <a href="tel:0813158383" className="social-icon-btn phone" title="Hotline">
-                                <i className="fa-solid fa-phone"></i>
-                            </a>
-                            <a href="mailto:ttsmart.ltd@gmail.com" className="social-icon-btn email" title="Email">
-                                <i className="fa-solid fa-envelope"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
+  return (
+    <footer className="store-footer">
+      <div className="store-footer-shell">
+        <div className="store-footer-grid">
+          <section className="store-footer-brand">
+            <div className="store-footer-logo"><img src={logo} alt="TTSmart" /></div>
+            <p>{t("footer_brand_desc")}</p>
+            <ul className="store-footer-contact">
+              <li><i className="fa-solid fa-location-dot" /><span>{t("footer_address")}</span></li>
+              <li><i className="fa-solid fa-phone" /><a href="tel:0813158383">08.1315.8383</a></li>
+              <li><i className="fa-solid fa-envelope" /><a href="mailto:ttsmart.ltd@gmail.com">ttsmart.ltd@gmail.com</a></li>
+            </ul>
+            <div className="store-footer-socials">
+              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer" aria-label="Zalo"><i className="fa-solid fa-comment-dots" /></a>
+              <a href="tel:0813158383" aria-label="Hotline"><i className="fa-solid fa-phone" /></a>
+              <a href="mailto:ttsmart.ltd@gmail.com" aria-label="Email"><i className="fa-solid fa-envelope" /></a>
             </div>
+          </section>
 
-            {/* Footer Bottom */}
-            <div className="footer-bottom">
-                <div className="footer-bottom-content">
-                    <p className="copyright-text">{t("copyright")}</p>
-                    <div className="footer-bottom-links">
-                        <Link to="/introduction" onClick={handleLinkClick}>{t("introduction")}</Link>
-                        <span>•</span>
-                        <Link to="/policy" onClick={handleLinkClick}>{t("purchase_policy")}</Link>
-                    </div>
-                </div>
+          <section className="store-footer-column">
+            <h3>{t("quick_links")}</h3>
+            <Link to="/" onClick={scrollToTop}>{t("home")}</Link>
+            <Link to="/product" onClick={scrollToTop}>{t("products")}</Link>
+            <Link to="/dashboard" onClick={scrollToTop}>{t("equipment_group")}</Link>
+            <Link to="/station" onClick={scrollToTop}>{t("my_stations_nav")}</Link>
+            <Link to="/introduction" onClick={scrollToTop}>{t("introduction")}</Link>
+          </section>
+
+          <section className="store-footer-column">
+            <h3>{t("policies")}</h3>
+            <Link to="/policy" onClick={scrollToTop}>{t("purchase_policy")}</Link>
+            <Link to="/policy" onClick={scrollToTop}>Chính sách bảo hành</Link>
+            <Link to="/policy" onClick={scrollToTop}>{t("return_warranty")}</Link>
+            <Link to="/policy" onClick={scrollToTop}>Vận chuyển & giao nhận</Link>
+            <Link to="/policy" onClick={scrollToTop}>Chính sách bảo mật</Link>
+          </section>
+
+          <section className="store-footer-column">
+            <h3>Hỗ trợ</h3>
+            <Link to="/policy" onClick={scrollToTop}>Hướng dẫn mua hàng</Link>
+            <Link to="/policy" onClick={scrollToTop}>Hướng dẫn thanh toán</Link>
+            <Link to="/policy" onClick={scrollToTop}>Tài liệu kỹ thuật</Link>
+            <Link to="/policy" onClick={scrollToTop}>{t("faqs")}</Link>
+            <a href="tel:0813158383">Hỗ trợ kỹ thuật 24/7</a>
+          </section>
+
+          <section className="store-footer-newsletter">
+            <h3>Đăng ký nhận tin</h3>
+            <p>Nhận thông tin khuyến mãi và sản phẩm mới nhất từ TTSmart.</p>
+            <form onSubmit={keepVisualOnly}>
+              <input type="email" placeholder="Nhập email của bạn" aria-label="Email đăng ký nhận tin" />
+              <button type="submit" aria-label="Đăng ký"><i className="fa-solid fa-paper-plane" /></button>
+            </form>
+            <div className="store-footer-badges">
+              <span>VISA</span><span>Mastercard</span><span>QR</span><span>ZaloPay</span>
             </div>
-        </footer>
-    );
+          </section>
+        </div>
+
+        <div className="store-footer-bottom">
+          <span>{t("copyright")}</span>
+          <button type="button" onClick={scrollToTop} aria-label="Lên đầu trang"><i className="fa-solid fa-angle-up" /></button>
+        </div>
+      </div>
+    </footer>
+  );
 }
 
 export default Footer;

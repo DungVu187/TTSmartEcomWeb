@@ -13,7 +13,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Checkbox,
+  Switch,
+  Paper,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import { NumericFormat } from "react-number-format";
@@ -24,6 +25,8 @@ import {
   PRODUCT_IMAGE_ACCEPT,
   PRODUCT_IMAGE_UPLOAD_SETTINGS,
 } from "../settings/imageUpload";
+import ProductTechDocs from "./producttechdocs";
+import "./style/productdisplay.css";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join(", ");
@@ -107,8 +110,12 @@ const ProductDisplay = () => {
         setProduct(data);
         setOriginalProduct(data);
         setNoteInput(data.variant?.[0]?.note || "");
-        const existingEarn = Number(data.variant?.[0]?.earn);
-        setEarnInput((existingEarn > 0 ? existingEarn : 25).toString());
+        const rawEarn = data.variant?.[0]?.earn;
+        const existingEarn = Number(rawEarn);
+        const displayedEarn = rawEarn === undefined || rawEarn === null || rawEarn === "" || Number.isNaN(existingEarn)
+          ? 25
+          : existingEarn;
+        setEarnInput(displayedEarn.toString());
       }
     } catch (err) {
       console.error("Error fetching product:", err);
@@ -227,6 +234,7 @@ const ProductDisplay = () => {
         operatingMethod: updatedProduct.operatingMethod || "",
         advantages: updatedProduct.advantages || "",
         specifications: updatedProduct.specifications || "",
+        documents: Array.isArray(updatedProduct.documents) ? updatedProduct.documents : [],
         infoDoc: {
           manual: updatedProduct.infoDoc?.manual || "",
           dataSheet: updatedProduct.infoDoc?.dataSheet || "",
@@ -538,25 +546,25 @@ const ProductDisplay = () => {
   };
 
   return (
-    <div style={{ maxWidth: "900px" }}>
+    <div className="product-detail-page">
       {product ? (
         <>
           <Box
+            className="product-detail-actions"
             sx={{
-              position: "fixed",
-              top: { xs: 56, md: 0 },
-              left: { xs: 20, md: 260 },
-              right: { xs: 20, md: 20 },
-              zIndex: 1000,
-              px: 0,
-              py: 1.25,
+              position: "sticky",
+              top: 0,
+              zIndex: 101,
+              px: 1.5,
+              py: 1,
               display: "flex",
               gap: 1.5,
               flexWrap: "wrap",
               alignItems: "center",
               backgroundColor: "white",
-              borderBottom: "1px solid rgba(0,0,0,0.08)",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+              border: "1px solid #E5EAF0",
+              borderRadius: "12px",
+              boxShadow: "0 4px 14px rgba(16,42,67,0.05)",
             }}
           >
             {canEdit && (
@@ -600,49 +608,37 @@ const ProductDisplay = () => {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 0,
+                  gap: 0.5,
                   border: "1px solid",
-                  borderColor: "primary.main",
+                  borderColor: "#CBD7E3",
                   borderRadius: 1,
                   pl: 1,
-                  pr: 0.5,
-                  height: "30px",
+                  pr: 0.75,
+                  height: "34px",
                   cursor: "pointer",
                   userSelect: "none",
-                  "&:hover": { backgroundColor: "rgba(25,118,210,0.08)" },
+                  backgroundColor: "rgba(255,255,255,0.78)",
+                  transition: "background-color 180ms ease, border-color 180ms ease",
+                  "&:hover": {
+                    backgroundColor: "rgba(20,115,230,0.04)",
+                    borderColor: "primary.main",
+                  },
                 }}
               >
                 <Typography sx={{ fontSize: "0.8125rem", color: "primary.main", lineHeight: 1 }}>Hiển thị</Typography>
-                <Checkbox
+                <Switch
                   size="small"
                   checked={product.display}
                   color="primary"
                   disableRipple
                   onClick={(e) => e.stopPropagation()}
                   onChange={handleToggleDisplay}
-                  sx={{ p: "4px" }}
                 />
               </Box>
             )}
           </Box>
-          <Box sx={{ height: 62, mb: 2 }} />
-
-          {product.variant?.[0]?.imgUrl ? (
-            <Card sx={{ maxWidth: "400px", mt: 2, mb: 2 }}>
-              <CardMedia
-                component="img"
-                sx={{ width: "400px", height: "300px", objectFit: "contain" }}
-                image={product.variant?.[0]?.imgUrl}
-                alt="Product image"
-                onClick={() => {
-                  if (canEdit) document.getElementById("imageUpload")?.click();
-                }}
-                style={{ cursor: canEdit ? "pointer" : "default" }}
-              />
-            </Card>
-          ) : (
-            <Box sx={{ mt: 2, mb: 2 }} />
-          )}
+          <Box className="product-detail-top-grid">
+          <Paper component="section" className="product-metrics-card">
 
           <Typography variant="h6">Quản lý số liệu</Typography>
           <Typography
@@ -650,13 +646,35 @@ const ProductDisplay = () => {
             sx={{ mt: 2, color: "rgb(255, 123, 0)", fontWeight: 700 }}
           >
             Giá:{" "}
-            {(product.variant?.[0]?.price || "0")
-              .toString()
-              .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}{" "}
-            VND
+            {Number(product.variant?.[0]?.earn) === 0
+              ? "Liên hệ"
+              : `${(product.variant?.[0]?.price || "0")
+                  .toString()
+                  .replace(/\B(?=(\d{3})+(?!\d))/g, ".")} VND`}
           </Typography>
 
+          <Box className="product-metrics-workspace">
+            <Card
+              className="product-detail-image"
+              onClick={() => {
+                if (canEdit) document.getElementById("imageUpload")?.click();
+              }}
+              sx={{ cursor: canEdit ? "pointer" : "default" }}
+            >
+              {product.variant?.[0]?.imgUrl ? (
+                <CardMedia
+                  component="img"
+                  image={product.variant?.[0]?.imgUrl}
+                  alt="Product image"
+                />
+              ) : (
+                <Box className="product-detail-image-placeholder" />
+              )}
+            </Card>
+
+            <Box className="product-metric-rows">
           <Box
+            className="product-metric-row"
             sx={{ ...metricRowSx, mt: 2 }}
           >
             <NumericFormat
@@ -695,6 +713,7 @@ const ProductDisplay = () => {
           </Box>
 
           <Box
+            className="product-metric-row"
             sx={metricRowSx}
           >
             <TextField
@@ -719,7 +738,7 @@ const ProductDisplay = () => {
             )}
           </Box>
 
-          <Box sx={metricRowSx}>
+          <Box className="product-metric-row" sx={metricRowSx}>
             <TextField
               label="VAT"
               fullWidth
@@ -743,6 +762,7 @@ const ProductDisplay = () => {
           </Box>
 
           <Box
+            className="product-metric-row"
             sx={metricRowSx}
           >
             <TextField
@@ -768,6 +788,7 @@ const ProductDisplay = () => {
           </Box>
 
           <Box
+            className="product-metric-row"
             sx={metricRowSx}
           >
             <TextField
@@ -791,7 +812,10 @@ const ProductDisplay = () => {
             </Button>
             )}
           </Box>
+            </Box>
+          </Box>
 
+          <Box className="product-stock-grid">
           <TextField
             label="Số lượng đang bán (Hiển thị ở trang bán hàng)"
             value={product.variant?.[0]?.quantityForSale || ""}
@@ -831,9 +855,49 @@ const ProductDisplay = () => {
             margin="normal"
             size="small"
           />
+          </Box>
+          </Paper>
 
+          <Paper component="section" className="product-description-card">
+            <Typography variant="h6">Thông tin mô tả</Typography>
+            <TextField
+              className="product-description-field"
+              label="Mô tả"
+              fullWidth
+              margin="normal"
+              multiline
+              minRows={7}
+              value={product.description || ""}
+              onChange={(e) =>
+                setProduct({ ...product, description: e.target.value })
+              }
+              disabled={!canEdit}
+            />
+
+            <TextField
+              className="product-specifications-field"
+              label="Thông số kỹ thuật"
+              fullWidth
+              margin="normal"
+              multiline
+              minRows={7}
+              value={product.specifications || ""}
+              onChange={(e) =>
+                setProduct({ ...product, specifications: e.target.value })
+              }
+              disabled={!canEdit}
+            />
+            <ProductTechDocs
+              value={product.documents}
+              onChange={(documents) => setProduct({ ...product, documents })}
+              disabled={!canEdit}
+            />
+          </Paper>
+          </Box>
+
+          <Paper component="section" className="product-info-card">
           <Typography variant="h6">Quản lý thông tin</Typography>
-          <Box sx={{ display: "flex", gap: "10%", width: "100%" }}>
+          <Box className="product-info-select-grid">
             <Autocomplete
               value={product.type || null}
               options={types}
@@ -850,7 +914,7 @@ const ProductDisplay = () => {
                   size="small"
                 />
               )}
-              sx={{ width: "45%" }}
+              sx={{ width: "100%" }}
             />
             <Autocomplete
               value={product.brand || null}
@@ -868,11 +932,11 @@ const ProductDisplay = () => {
                   size="small"
                 />
               )}
-              sx={{ width: "45%" }}
+              sx={{ width: "100%" }}
             />
           </Box>
 
-          <Box sx={{ display: "flex", gap: "10%", width: "100%" }}>
+          <Box className="product-info-select-grid">
             <Autocomplete
               value={product.section || null}
               options={sections}
@@ -889,7 +953,7 @@ const ProductDisplay = () => {
                   size="small"
                 />
               )}
-              sx={{ width: "45%" }}
+              sx={{ width: "100%" }}
             />
             <Autocomplete
               value={product.value || null}
@@ -906,11 +970,12 @@ const ProductDisplay = () => {
                   size="small"
                 />
               )}
-              sx={{ width: "45%" }}
+              sx={{ width: "100%" }}
             />
           </Box>
 
           <TextField
+            className="product-info-name"
             label="Tên sản phẩm"
             fullWidth
             margin="normal"
@@ -920,6 +985,7 @@ const ProductDisplay = () => {
             disabled={!canEdit}
           />
           <TextField
+            className="product-info-code"
             label="Mã sản phẩm"
             fullWidth
             margin="normal"
@@ -929,6 +995,7 @@ const ProductDisplay = () => {
             disabled={!canEdit}
           />
           <TextField
+            className="product-info-warranty"
             label="Bảo hành"
             fullWidth
             margin="normal"
@@ -939,138 +1006,7 @@ const ProductDisplay = () => {
             }
             disabled={!canEdit}
           />
-
-          <TextField
-            label="Giải pháp"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.solution || ""}
-            onChange={(e) =>
-              setProduct({ ...product, solution: e.target.value })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Mô tả"
-            fullWidth
-            margin="normal"
-            multiline
-            value={product.description || ""}
-            onChange={(e) =>
-              setProduct({ ...product, description: e.target.value })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Tính năng"
-            fullWidth
-            margin="normal"
-            multiline
-            value={product.features || ""}
-            onChange={(e) =>
-              setProduct({ ...product, features: e.target.value })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Cách thức hoạt động"
-            fullWidth
-            margin="normal"
-            multiline
-            value={product.operatingMethod || ""}
-            onChange={(e) =>
-              setProduct({ ...product, operatingMethod: e.target.value })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Ưu điểm"
-            fullWidth
-            margin="normal"
-            multiline
-            value={product.advantages || ""}
-            onChange={(e) =>
-              setProduct({ ...product, advantages: e.target.value })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Thông số kỹ thuật"
-            fullWidth
-            margin="normal"
-            multiline
-            value={product.specifications || ""}
-            onChange={(e) =>
-              setProduct({ ...product, specifications: e.target.value })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Link manual"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.infoDoc?.manual || ""}
-            onChange={(e) =>
-              setProduct({
-                ...product,
-                infoDoc: { ...product.infoDoc, manual: e.target.value },
-              })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Link data sheet"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.infoDoc?.dataSheet || ""}
-            onChange={(e) =>
-              setProduct({
-                ...product,
-                infoDoc: { ...product.infoDoc, dataSheet: e.target.value },
-              })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Link catalog"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.infoDoc?.catalog || ""}
-            onChange={(e) =>
-              setProduct({
-                ...product,
-                infoDoc: { ...product.infoDoc, catalog: e.target.value },
-              })
-            }
-            disabled={!canEdit}
-          />
-
-          <TextField
-            label="Link khác"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.infoDoc?.others || ""}
-            onChange={(e) =>
-              setProduct({
-                ...product,
-                infoDoc: { ...product.infoDoc, others: e.target.value },
-              })
-            }
-            disabled={!canEdit}
-          />
+          </Paper>
           <Dialog open={openQRDialog} onClose={handleCloseQRDialog} disableScrollLock>
             <DialogTitle>QR Code</DialogTitle>
             <DialogContent>

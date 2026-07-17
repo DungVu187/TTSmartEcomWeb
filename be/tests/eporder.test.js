@@ -279,7 +279,7 @@ describe('EpOrder API', () => {
     expect(res.body.message).toBe('Access denied, missing permission: eporder.create');
   });
 
-  it('allows staff with eporder.edit to update export order name', async () => {
+  it('allows staff with eporder.edit to update export order name and note', async () => {
     const order = await createEpOrder({ orderName: 'Old name' });
     const agent = await createAdminAgent({
       phone: '0933000006',
@@ -290,10 +290,11 @@ describe('EpOrder API', () => {
 
     const res = await agent
       .put(`/eporders/orders/${order._id}/name`)
-      .send({ orderName: 'New name' });
+      .send({ orderName: 'New name', note: 'Ghi chú đơn xuất' });
 
     expect(res.status).toBe(200);
     expect(res.body.orderName).toBe('New name');
+    expect(res.body.note).toBe('Ghi chú đơn xuất');
   });
 
   it('returns 403 for staff with eporder.create but missing eporder.edit on edit route', async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Box, CircularProgress } from '@mui/joy';
+import { Box, CircularProgress } from '@mui/material';
 import { usePermissions } from '../context/permissioncontext';
 
 const RoleGuard = ({ children, requiredPermission, adminOnly = false }) => {

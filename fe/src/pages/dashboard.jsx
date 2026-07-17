@@ -1,332 +1,312 @@
-import React, { useState, useEffect, useRef } from "react";
-import "./styles/dashboard.css";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
-import { Swiper, SwiperSlide } from "swiper/react";
-import { Navigation, Pagination, Autoplay, FreeMode } from "swiper/modules";
-import { Box, Typography, Container } from "@mui/material";
-import { useLanguage } from "../context/languagecontext.jsx";
+import "./styles/dashboard.css";
+import solution1 from "../assets/solution/solution1.jpg";
+import solution2 from "../assets/solution/solution2.jpg";
+import solution3 from "../assets/solution/solution3.jpg";
+import { ShopContext } from "../context/shopcontext";
+import SafeProductImage from "../components/safeproductimage";
 
-const apiUrl = process.env.REACT_APP_BACK_END;
+const apiUrl = process.env.REACT_APP_BACK_END || "";
+
+const resolveImageUrl = (url) => {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
+  return `${apiUrl}${url}`;
+};
+
+const getVersionedImageUrl = (url, version) => {
+  if (!url) return "";
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
+};
+
+const brands = [
+  { label: "SIEMENS", query: "Siemens" },
+  { label: "Schneider Electric", query: "Schneider" },
+  { label: "LS ELECTRIC", query: "LS Electric" },
+  { label: "OMRON", query: "Omron" },
+  { label: "MITSUBISHI", query: "Mitsubishi" },
+  { label: "ABB", query: "ABB" },
+];
+
+const solutionCards = [
+  { title: "Giải pháp trạm trộn bê tông", image: `${apiUrl}/images/manage_1783154141653.jpg` },
+  { title: "Giải pháp tủ điện công nghiệp", image: solution1 },
+  { title: "Giải pháp tự động hóa", image: solution2 },
+  { title: "Giải pháp IoT - Giám sát", image: solution3 },
+];
+
+const projectCards = [
+  { title: "Nhà máy bê tông Minh Đức", location: "Hà Nội", image: `${apiUrl}/images/manage_1783154141653.jpg` },
+  { title: "Trạm trộn Xuân Mai", location: "Hòa Bình", image: `${apiUrl}/images/manage_1782370772347.jpg` },
+  { title: "Nhà máy bê tông Hồng Hà", location: "Hưng Yên", image: `${apiUrl}/images/manage_1742375659876.jpg` },
+  { title: "Dự án tự động hóa nhà máy", location: "Toàn quốc", image: solution2 },
+];
+
+const articleCards = [
+  { date: "25/05/2024", title: "Hướng dẫn chọn PLC phù hợp cho trạm trộn bê tông", image: `${apiUrl}/images/manage_1742375659876.jpg` },
+  { date: "20/05/2024", title: "So sánh biến tần Siemens G120 và G120X", image: solution1 },
+  { date: "15/05/2024", title: "Giải pháp giám sát trạm trộn từ xa qua IoT", image: solution3 },
+  { date: "10/05/2024", title: "Các lỗi thường gặp khi sử dụng HMI", image: solution2 },
+];
+
+function SectionHeader({ title, href = "/product" }) {
+  return (
+    <div className="home-section-heading">
+      <h2>{title}</h2>
+      <Link to={href}>Xem tất cả <i className="fa-solid fa-angle-right" /></Link>
+    </div>
+  );
+}
 
 function Dashboard() {
-  const { t } = useLanguage();
+  const location = useLocation();
+  const { addToCart } = useContext(ShopContext);
   const [manageData, setManageData] = useState(null);
   const [products, setProducts] = useState([]);
-  const [overViewImg, setOverViewImg] = useState([]);
-  const [partners, setPartners] = useState([]);
-  const [loadingManageData, setLoadingManageData] = useState(true);
-  const [loadingOverViewImg, setLoadingOverViewImg] = useState(true);
-  const [loadingPartners, setLoadingPartners] = useState(true);
-  const [error, setError] = useState(null);
-  const imgRef = useRef(null);
-  const [height, setHeight] = useState("auto");
-  const location = useLocation();
+  const [types, setTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const updateHeight = () => {
-      if (imgRef.current) {
-        setHeight(imgRef.current.offsetWidth * 0.5);
-      }
-    };
+    let active = true;
 
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
-  }, []);
-
-  useEffect(() => {
-    // Reset state để fetch lại từ đầu
-    setManageData(null);
-    setProducts([]);
-    setOverViewImg([]);
-    setPartners([]);
-    setLoadingManageData(true);
-    setLoadingOverViewImg(true);
-    setLoadingPartners(true);
-    setError(null);
-
-    const fetchManageData = async () => {
+    const loadHomeData = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(`${apiUrl}/manages/`, { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (data.success) {
-          setManageData(data.data);
-          setOverViewImg(data.data.overViewImg || []);
-          setPartners(data.data.partners || []);
-          // Fetch sản phẩm dựa trên productId từ các section
-          await fetchProductsByIds(data.data);
-        } else {
-          setError("Invalid data from /manages/: " + data.message);
-        }
-      } catch (err) {
-        console.error("Manage Data Error:", err.message);
-        setError((prev) => (prev ? `${prev}, Manage: ${err.message}` : `Manage: ${err.message}`));
-      } finally {
-        setLoadingManageData(false);
-        setLoadingOverViewImg(false);
-        setLoadingPartners(false);
-      }
-    };
+        const [manageResponse, typeResponse] = await Promise.all([
+          fetch(`${apiUrl}/manages/`, { cache: "no-store" }),
+          fetch(`${apiUrl}/chips/types`, { cache: "no-store" }),
+        ]);
 
-    const fetchProductsByIds = async (manageData) => {
-      try {
-        // Lấy tất cả productId từ các section có display: true và >= 5 sản phẩm
-        const allProductIds = [
-          ...(manageData?.section1?.display && (manageData.section1.productId?.length >= 5) ? manageData.section1.productId : []),
-          ...(manageData?.section2?.display && (manageData.section2.productId?.length >= 5) ? manageData.section2.productId : []),
-          ...(manageData?.section3?.display && (manageData.section3.productId?.length >= 5) ? manageData.section3.productId : []),
-          ...(manageData?.section4?.display && (manageData.section4.productId?.length >= 5) ? manageData.section4.productId : []),
-          ...(manageData?.section5?.display && (manageData.section5.productId?.length >= 5) ? manageData.section5.productId : []),
-          ...(manageData?.section6?.display && (manageData.section6.productId?.length >= 5) ? manageData.section6.productId : []),
-          ...(manageData?.section7?.display && (manageData.section7.productId?.length >= 5) ? manageData.section7.productId : []),
-          ...(manageData?.section8?.display && (manageData.section8.productId?.length >= 5) ? manageData.section8.productId : []),
-          ...(manageData?.section9?.display && (manageData.section9.productId?.length >= 5) ? manageData.section9.productId : []),
-          ...(manageData?.section10?.display && (manageData.section10.productId?.length >= 5) ? manageData.section10.productId : []),
-        ];
-        if (allProductIds.length > 0) {
-          const response = await fetch(`${apiUrl}/products/fetch-by-ids`, {
+        const manageResult = await manageResponse.json();
+        const typeResult = await typeResponse.json();
+        const nextManageData = manageResult?.success ? manageResult.data : null;
+
+        if (!active) return;
+        setManageData(nextManageData);
+        setTypes(Array.isArray(typeResult) ? typeResult : typeResult?.value || []);
+
+        const productIds = Array.from(new Set(
+          Object.keys(nextManageData || {})
+            .filter((key) => /^section\d+$/.test(key) && nextManageData[key]?.display)
+            .flatMap((key) => nextManageData[key]?.productId || []),
+        ));
+
+        if (productIds.length > 0) {
+          const productResponse = await fetch(`${apiUrl}/products/fetch-by-ids`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ ids: allProductIds }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: productIds }),
           });
-          const result = await response.json();
-          if (result.success) {
-            setProducts(result.products);
-          } else {
-            setError(result.message || "Lỗi khi lấy sản phẩm");
-          }
+          const productResult = await productResponse.json();
+          if (active) setProducts(productResult?.success ? productResult.products || [] : []);
+        } else if (active) {
+          setProducts([]);
         }
       } catch (error) {
-        console.error("Error fetching products by IDs:", error);
-        setError((prev) => (prev ? `${prev}, Products: ${error.message}` : `Products: ${error.message}`));
+        console.error("Không thể tải dữ liệu trang chủ:", error);
+        if (active) {
+          setManageData(null);
+          setProducts([]);
+        }
+      } finally {
+        if (active) setLoading(false);
       }
     };
 
-    fetchManageData();
+    loadHomeData();
+    return () => { active = false; };
   }, [location.pathname]);
 
-  if (error) return <p>{t("error_prefix")}{error}</p>;
+  const heroImages = useMemo(() => {
+    const images = (manageData?.overViewImg || []).map(resolveImageUrl).filter(Boolean).reverse();
+    return images.length > 0 ? images : [`${apiUrl}/images/manage_1783154141653.jpg`];
+  }, [manageData]);
 
-  const SectionDisplayComponent = ({ sectionData, sectionName }) => {
-    // Không hiển thị nếu display: false hoặc số lượng sản phẩm < 5
-    if (!sectionData?.display || (sectionData.productId?.length || 0) < 5) return null;
-
-    const sectionProducts = sectionData.productId
-      .map((id) => products.find((p) => p._id === id))
-      .filter((p) => p); // Lọc bỏ undefined (nếu có)
-
-    return sectionProducts.length > 0 ? (
-      <div className="dashboard-best-selling-display">
-        <div className="dashboard-best-selling-header">
-          <span className="line" />
-          <p>{t(sectionData.name || sectionName)}</p>
-          <span className="line" />
-        </div>
-        <div className="dashboard-best-selling-container">
-          <Swiper
-            modules={[Navigation, FreeMode]}
-            spaceBetween={20}
-            slidesPerView={5}
-            navigation={{ enabled: true }}
-            loop={sectionProducts.length >= 5}
-            freeMode={{ enabled: false }}
-            breakpoints={{
-              1024: { slidesPerView: 5 },
-              768: { slidesPerView: 4 },
-              0: { slidesPerView: "auto", navigation: { enabled: false }, freeMode: { enabled: true } },
-            }}
-          >
-            {sectionProducts.map((product) => (
-              <SwiperSlide
-                key={product._id}
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "5px",
-                  width: "180px",
-                }}
-              >
-                <div className="dashboard-best-selling-section">
-                  <Link
-                    className="dashboard-best-selling-link"
-                    to={`/product/${product._id}`}
-                  >
-                    {product.variant?.length > 0 ? (
-                      <img
-                        loading="lazy"
-                        src={product.variant[0].imgUrl}
-                        alt={product.name}
-                      />
-                    ) : (
-                      <img
-                        loading="lazy"
-                        src="/fallback-image.jpg"
-                        alt="Không có ảnh"
-                      />
-                    )}
-                  </Link>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      display: "-webkit-box",
-                      WebkitLineClamp: 1,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {product.name}
-                  </Typography>
-                  <small
-                    style={{
-                      color: "rgb(255, 123, 0)",
-                      fontWeight: "700",
-                    }}
-                  >
-                    {product.variant?.length > 0
-                      ? Number(product.variant[0].price).toLocaleString("vi-VN") + " vnđ"
-                      : t("price_unavailable")}
-                  </small>
-                </div>
-              </SwiperSlide>
-            ))}
-          </Swiper>
-        </div>
-      </div>
-    ) : null;
-  };
+  const visibleTypes = types.slice(0, 9);
+  const featuredProducts = products.slice(0, 6);
 
   return (
-    <div style={{ width: "100%", backgroundColor: "rgb(235, 246, 254)", paddingBottom: "3rem" }}>
-      <div style={{ maxWidth: "1920px", margin: "0 auto" }}>
-        {/* Banner với Swiper */}
-        {loadingOverViewImg ? (
-          <p>{t("loading_banner")}</p>
-        ) : (
-          <Swiper
-            modules={[Pagination, Autoplay]}
-            pagination={{ clickable: true }}
-            autoplay={{ delay: 2500, disableOnInteraction: false }}
-            loop={overViewImg.length > 1}
-            spaceBetween={0}
-            slidesPerView={1}
-            style={{ aspectRatio: 16 / 5 }}
-          >
-            {overViewImg.length > 0 ? (
-              overViewImg.map((imgUrl, index) => (
-                <SwiperSlide key={index}>
-                  <img
-                    loading="lazy"
-                    className="dashboard-banner"
-                    src={imgUrl}
-                    alt={`Banner ${index}`}
-                    style={{
-                      width: "100%",
-                      aspectRatio: 16 / 5,
-                      objectFit: "fill",
-                    }}
-                  />
-                </SwiperSlide>
-              ))
-            ) : (
-              <SwiperSlide>
-                <img
-                  loading="lazy"
-                  className="dashboard-banner"
-                  src="/fallback-image.jpg"
-                  alt="Fallback banner"
-                  style={{ width: "100%", height, objectFit: "cover" }}
-                />
-              </SwiperSlide>
-            )}
-          </Swiper>
-        )}
+    <main className="customer-home">
+      <div className="home-shell">
+        <section className="home-hero-grid">
+          <aside className="home-category-panel">
+            <div className="home-category-title">
+              <i className="fa-solid fa-list" /> Danh mục sản phẩm
+            </div>
+            <div className="home-category-list">
+              {visibleTypes.map((type, index) => (
+                <Link key={type._id || index} to={`/product?type=${encodeURIComponent(type.Type)}`}>
+                  <span><i className={`fa-solid ${["fa-microchip", "fa-toggle-on", "fa-gauge-high", "fa-desktop", "fa-bolt", "fa-wave-square", "fa-plug", "fa-gears", "fa-boxes-stacked"][index % 9]}`} />{type.Type}</span>
+                  <i className="fa-solid fa-angle-right" />
+                </Link>
+              ))}
+            </div>
+            <Link className="home-category-all" to="/product">
+              <i className="fa-solid fa-border-all" /> Xem tất cả danh mục
+            </Link>
+          </aside>
 
-        <div className="dashboard-main-container">
-          {loadingManageData ? (
-            <p>{t("loading_sections")}</p>
-          ) : manageData ? (
-            <>
-              <SectionDisplayComponent sectionData={manageData.section1} sectionName="Section 1" />
-              <SectionDisplayComponent sectionData={manageData.section2} sectionName="Section 2" />
-              <SectionDisplayComponent sectionData={manageData.section3} sectionName="Section 3" />
-              <SectionDisplayComponent sectionData={manageData.section4} sectionName="Section 4" />
-              <SectionDisplayComponent sectionData={manageData.section5} sectionName="Section 5" />
-              <SectionDisplayComponent sectionData={manageData.section6} sectionName="Section 6" />
-              <SectionDisplayComponent sectionData={manageData.section7} sectionName="Section 7" />
-              <SectionDisplayComponent sectionData={manageData.section8} sectionName="Section 8" />
-              <SectionDisplayComponent sectionData={manageData.section9} sectionName="Section 9" />
-              <SectionDisplayComponent sectionData={manageData.section10} sectionName="Section 10" />
-            </>
-          ) : (
-            <></>
-          )}
-
-          {/* Đối tác */}
-          {loadingPartners ? (
-            <p>{t("loading_partners")}</p>
-          ) : partners.length > 0 ? (
-            <Container
-              maxWidth="lg"
-              sx={{
-                py: 4,
-                backgroundColor: "white",
-                borderRadius: "8px",
-                boxShadow: "5px 0 5px rgba(0, 0, 0, 0.1)",
-              }}
+          <div className="home-hero-slider">
+            <Swiper
+              modules={[Pagination, Autoplay]}
+              pagination={{ clickable: true }}
+              autoplay={{ delay: 5000, disableOnInteraction: false }}
+              loop={heroImages.length > 1}
             >
-              <Typography
-                variant="h5"
-                component="h2"
-                align="center"
-                gutterBottom
-                sx={{ fontWeight: "bold", color: "#06295a" }}
-              >
-                {t("partners")}
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Swiper
-                  allowTouchMove={false}
-                  modules={[Autoplay]}
-                  autoplay={{ delay: 2000, disableOnInteraction: false }}
-                  loop={partners.length >= 5}
-                  spaceBetween={20}
-                  slidesPerView={5}
-                  breakpoints={{
-                    1024: { slidesPerView: 5 },
-                    768: { slidesPerView: 3 },
-                    0: { slidesPerView: 2 },
-                  }}
-                >
-                  {partners.map((imgUrl, index) => (
-                    <SwiperSlide key={index}>
-                      <Box
-                        component="img"
-                        src={imgUrl}
-                        alt={`Partner ${index}`}
-                        sx={{
-                          width: "200px",
-                          height: "100px",
-                          objectFit: "fill",
-                          borderRadius: 1,
-                        }}
-                      />
-                    </SwiperSlide>
-                  ))}
-                </Swiper>
-              </Box>
-            </Container>
+              {heroImages.map((image, index) => (
+                <SwiperSlide key={`${image}-${index}`}>
+                  <div className="home-hero-slide" style={{ backgroundImage: `url(${image})` }}>
+                    <div className="home-hero-overlay" />
+                    <div className="home-hero-copy">
+                      <p className="home-hero-eyebrow">TTSMART INDUSTRIAL SOLUTIONS</p>
+                      <h1>Giải pháp thiết bị<br /><span>cho trạm trộn bê tông</span></h1>
+                      <ul>
+                        <li><i className="fa-regular fa-circle-check" /> Chính hãng - Chất lượng</li>
+                        <li><i className="fa-regular fa-circle-check" /> Tư vấn kỹ thuật chuyên sâu</li>
+                        <li><i className="fa-regular fa-circle-check" /> Bảo hành chính hãng</li>
+                      </ul>
+                      <div className="home-hero-actions">
+                        <Link className="home-primary-button" to="/product">Khám phá ngay</Link>
+                        <Link className="home-secondary-button" to="/product"><i className="fa-regular fa-file-lines" /> Tải catalogue</Link>
+                      </div>
+                    </div>
+                  </div>
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          </div>
+        </section>
+
+        <section className="home-quick-categories" aria-label="Danh mục nổi bật">
+          {visibleTypes.slice(0, 8).map((type, index) => {
+            const matchingProduct = products.find((product) => product.type?.trim() === type.Type?.trim()) || products[index % Math.max(products.length, 1)];
+            return (
+              <Link key={type._id || index} to={`/product?type=${encodeURIComponent(type.Type)}`}>
+                <div className="home-quick-category-image">
+                  {matchingProduct?.variant?.[0]?.imgUrl ? (
+                    <img src={resolveImageUrl(matchingProduct.variant[0].imgUrl)} alt="" />
+                  ) : (
+                    <i className="fa-solid fa-microchip" />
+                  )}
+                </div>
+                <span>{type.Type}</span>
+              </Link>
+            );
+          })}
+          <Link className="home-quick-category-more" to="/product">
+            <div className="home-quick-category-image"><i className="fa-solid fa-border-all" /></div>
+            <span>Xem tất cả</span>
+          </Link>
+        </section>
+
+        <section className="home-section">
+          <SectionHeader title="Sản phẩm bán chạy" />
+          {loading ? (
+            <div className="home-loading-row">Đang tải sản phẩm...</div>
           ) : (
-            <></>
+            <div className="home-product-grid">
+              {featuredProducts.map((product) => {
+                const variant = product.variant?.[0] || {};
+                const inStock = Number(variant.quantityForSale || 0) > 0;
+                return (
+                  <article className="home-product-card" key={product._id}>
+                    <Link className="home-product-image" to={`/product/${product._id}`}>
+                      <SafeProductImage
+                        src={getVersionedImageUrl(variant.imgUrl, product.updatedAt || product._id)}
+                        alt={product.name}
+                        className="home-product-canvas"
+                      />
+                    </Link>
+                    <div className="home-product-brand">{product.brand || "TTSmart"}</div>
+                    <Link className="home-product-name" to={`/product/${product._id}`}>{product.name}</Link>
+                    <div className="home-product-rating"><span>★★★★★</span> <small>({product.reviewCount || 0})</small></div>
+                    <div className="home-product-price">
+                      {Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} đ` : "Liên hệ"}
+                    </div>
+                    <div className="home-product-actions">
+                      <button
+                        type="button"
+                        disabled={!inStock}
+                        onClick={() => inStock && addToCart(product._id, 0, 1)}
+                        aria-label={`Thêm ${product.name} vào giỏ hàng`}
+                      >
+                        <i className="fa-solid fa-cart-shopping" />
+                      </button>
+                      <button type="button" aria-label="Thêm vào yêu thích"><i className="fa-regular fa-heart" /></button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           )}
-        </div>
+        </section>
+
+        <section className="home-trust-strip">
+          {[
+            ["fa-certificate", "Hàng chính hãng", "Cam kết 100% chính hãng"],
+            ["fa-shield-halved", "Bảo hành uy tín", "Bảo hành chính hãng"],
+            ["fa-truck-fast", "Giao hàng toàn quốc", "Giao nhanh - Đúng hẹn"],
+            ["fa-headset", "Hỗ trợ 24/7", "Tư vấn kỹ thuật miễn phí"],
+          ].map(([icon, title, text]) => (
+            <div key={title}><i className={`fa-solid ${icon}`} /><span><strong>{title}</strong><small>{text}</small></span></div>
+          ))}
+        </section>
+
+        <section className="home-section home-brand-section">
+          <SectionHeader title="Thương hiệu nổi bật" />
+          <div className="home-brand-grid">
+            {brands.map((brand, index) => (
+              <Link key={brand.label} to={`/product?brand=${encodeURIComponent(brand.query)}`}>
+                <strong className={`brand-tone-${index + 1}`}>{brand.label}</strong>
+                <small>{brand.label}</small>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="home-section">
+          <SectionHeader title="Giải pháp của chúng tôi" href="/introduction" />
+          <div className="home-editorial-grid home-solution-grid">
+            {solutionCards.map((card) => (
+              <article key={card.title} className="home-image-card">
+                <img src={card.image} alt={card.title} loading="lazy" />
+                <div className="home-image-card-overlay"><h3>{card.title}</h3><span>Xem chi tiết <i className="fa-solid fa-arrow-right" /></span></div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="home-section">
+          <SectionHeader title="Dự án tiêu biểu" href="/introduction" />
+          <div className="home-editorial-grid home-project-grid">
+            {projectCards.map((card) => (
+              <article key={card.title} className="home-project-card">
+                <img src={card.image} alt={card.title} loading="lazy" />
+                <h3>{card.title}</h3><p>{card.location}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="home-section" id="tin-tuc">
+          <div className="home-section-heading"><h2>Tin tức & bài viết</h2><span className="home-static-section-link">Xem tất cả <i className="fa-solid fa-angle-right" /></span></div>
+          <div className="home-editorial-grid home-article-grid">
+            {articleCards.map((card) => (
+              <article key={card.title} className="home-article-card">
+                <img src={card.image} alt={card.title} loading="lazy" />
+                <small>{card.date}</small><h3>{card.title}</h3><span>Xem chi tiết <i className="fa-solid fa-arrow-right" /></span>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
 

@@ -144,7 +144,7 @@ const ValueList = () => {
                             </Typography>
                           ) : (
                             <Typography variant="body2" color="error" sx={{ mt: 0.5, fontWeight: "bold" }}>
-                              {t("out_of_stock_val", "Hết hàng")}
+                              {t("out_of_stock_val", "Liên hệ")}
                             </Typography>
                           )}
                         </TableCell>

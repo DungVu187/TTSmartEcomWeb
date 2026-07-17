@@ -630,7 +630,7 @@ const Account = () => {
   const isEditingSuperadmin = selectedUser?.role === "superadmin";
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3 }} className="admin-list-page">
       <div className="sticky-header">
         <Typography variant="h4" gutterBottom sx={{ mb: 0 }}>
           Quản lý phân quyền
@@ -645,7 +645,10 @@ const Account = () => {
         </Button>
       </div>
 
-      <Box sx={{ height: "calc(100vh - 180px)", width: "100%" }}>
+      <Box
+        className="admin-list-table"
+        sx={{ width: "100%", height: { xs: "calc(100dvh - 180px)", md: "auto" } }}
+      >
         <DataGrid
           rows={users}
           columns={columns}

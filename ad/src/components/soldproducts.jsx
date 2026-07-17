@@ -258,7 +258,7 @@ const SoldProducts = () => {
   }
 
   return (
-    <Box p={3}>
+    <Box p={3} className="admin-list-page">
       <div className="sticky-header">
         <Typography variant="h4" mb={3}>
           Quản lý sản phẩm đã bán
@@ -341,7 +341,7 @@ const SoldProducts = () => {
         </Box>
       </div>
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} className="admin-list-table">
         <Table>
           <TableHead>
             <TableRow>

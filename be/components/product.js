@@ -8,10 +8,14 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config();
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const { StorageHistory } = require("./storagehistory");
 const { ActivityLog } = require("./activitylog");
 const voiceVocabDefaults = require('../config/voiceVocab.defaults');
-const { PRODUCT_IMAGE_UPLOAD_SETTINGS } = require('../config/imageUpload');
+const {
+    PRODUCT_DOCUMENT_UPLOAD_SETTINGS,
+    PRODUCT_IMAGE_UPLOAD_SETTINGS,
+} = require('../config/imageUpload');
 const {
     applyStockAdjustments,
     rollbackOrThrow,
@@ -452,6 +456,13 @@ const productSchema = new mongoose.Schema({
             others: { type: String, default: "" }
         },
     },
+    documents: [
+        {
+            label: { type: String, default: "" },
+            url: { type: String, default: "" },
+            sourceType: { type: String, default: "" }
+        }
+    ],
     purchaseCount: {
         type: Number,
         required: true,
@@ -558,6 +569,7 @@ const PRODUCT_UPDATE_ALLOWED_FIELDS = [
     'advantages',
     'specifications',
     'infoDoc',
+    'documents',
     'adjusted',
     'display',
     'nameUnsigned',
@@ -679,7 +691,10 @@ const router = express.Router();
 
 // Cấu hình multer để lưu ảnh vào thư mục 'upload'
 const imageStorage = multer.diskStorage({
-    destination: "./upload/images",
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, "../upload/images");
+        fsSync.mkdir(uploadDir, { recursive: true }, (error) => cb(error, uploadDir));
+    },
     filename: (req, file, cb) => {
         return cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
     }
@@ -724,6 +739,56 @@ router.post("/upload/image", [authenticateAdmin, checkAnyPermission(['product.cr
     });
 });
 
+const documentStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, "../upload/documents");
+        fsSync.mkdir(uploadDir, { recursive: true }, (error) => cb(error, uploadDir));
+    },
+    filename: (req, file, cb) => {
+        return cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
+    }
+});
+
+const uploadDocument = multer({
+    storage: documentStorage,
+    limits: { fileSize: PRODUCT_DOCUMENT_UPLOAD_SETTINGS.maxSizeBytes },
+    fileFilter: (req, file, cb) => {
+        const extension = path.extname(file.originalname || "").toLowerCase();
+        const isAllowedMime = PRODUCT_DOCUMENT_UPLOAD_SETTINGS.allowedMimeTypes.includes(file.mimetype);
+        const isAllowedExtension = PRODUCT_DOCUMENT_UPLOAD_SETTINGS.allowedExtensions.includes(extension);
+
+        if (!isAllowedMime || !isAllowedExtension) {
+            return cb(new Error("Chỉ cho phép upload file PDF"));
+        }
+        cb(null, true);
+    }
+});
+
+const handleProductDocumentUpload = (req, res, next) => {
+    uploadDocument.single('document')(req, res, (error) => {
+        if (error) {
+            const message = error.code === "LIMIT_FILE_SIZE"
+                ? `Dung lượng file tối đa ${PRODUCT_DOCUMENT_UPLOAD_SETTINGS.maxSizeLabel}`
+                : error.message || "File PDF không hợp lệ";
+
+            return res.status(400).json({ success: 0, message });
+        }
+        next();
+    });
+};
+
+router.post("/upload/document", [authenticateAdmin, checkAnyPermission(['product.create', 'product.edit']), handleProductDocumentUpload], (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: 0, message: "Không có file được upload" });
+    }
+    const url = `${process.env.ADDRESS}/documents/${req.file.filename}`;
+    res.json({
+        success: 1,
+        url,
+        fileName: req.file.originalname,
+    });
+});
+
 // API xóa ảnh
 router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
     const { id, variantIndex } = req.params;
@@ -759,7 +824,7 @@ router.delete('/:id/:variantIndex/image', [authenticateAdmin, checkPermission('p
 // API tạo sản phẩm mới
 router.post('/create', [authenticateAdmin, checkPermission('product.create')], async (req, res) => {
     try {
-        const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, adjusted, vat } = req.body;
+        const { type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant, section, value, infoDoc, documents, adjusted, vat } = req.body;
 
         // Kiểm tra trùng lặp mã sản phẩm trước khi tạo mới để tránh trùng lặp
         if (code && code.trim()) {
@@ -782,7 +847,7 @@ router.post('/create', [authenticateAdmin, checkPermission('product.create')], a
             : undefined;
 
         const newProduct = new Product({
-            type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant: normalizedVariant, section, value, infoDoc, adjusted, vat
+            type, name, code, brand, warranty, solution, description, features, operatingMethod, advantages, specifications, variant: normalizedVariant, section, value, infoDoc, documents, adjusted, vat
         });
         await newProduct.save();
 

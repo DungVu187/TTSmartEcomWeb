@@ -344,7 +344,7 @@ const Orders = () => {
   }
 
   return (
-    <Box p={3}>
+    <Box p={3} className="admin-list-page">
       <div className="sticky-header">
         <Typography variant="h4" sx={{ mb: "12px !important" }}>
           Quản lý đơn hàng bán
@@ -542,7 +542,7 @@ const Orders = () => {
         </Box>
       </div>
 
-      <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "calc(100vh - 220px)" }}>
+      <TableContainer component={Paper} className="admin-list-table" sx={{ overflow: "auto" }}>
         <Table stickyHeader sx={{ minWidth: 1000, tableLayout: "fixed" }}>
           <TableHead>
             <TableRow>

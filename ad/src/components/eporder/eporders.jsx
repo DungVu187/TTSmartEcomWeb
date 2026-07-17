@@ -330,7 +330,7 @@ const EpOrders = () => {
   }
 
   return (
-    <Box p={2}>
+    <Box p={2} className="inventory-order-list-page">
       <div className="sticky-header">
         <Box
           sx={{
@@ -556,7 +556,11 @@ const EpOrders = () => {
       ) : (
         <>
           {loading && <LinearProgress sx={{ mb: 1 }} />}
-          <TableContainer component={Paper} sx={{ overflowX: "auto", height: "calc(100vh - 220px)" }}>
+          <TableContainer
+            component={Paper}
+            className="inventory-order-list-table"
+            sx={{ overflow: "auto" }}
+          >
             <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow>

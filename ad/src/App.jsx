@@ -41,9 +41,9 @@ const App = () => {
             path="/*"
             element={
               <ProtectedRoute>
-                <Box sx={{ display: 'flex', width: "100%", minHeight: "100vh" }}>
+                <Box sx={{ display: 'flex', width: "100%", height: "100dvh", overflow: "hidden", bgcolor: 'background.default' }}>
                   <Sidebar />
-                  <Box className="admin-content-wrapper" sx={{ flex: 1, padding: '20px', pt: { xs: '70px', md: '20px' }, minWidth: 0 }}>
+                  <Box component="main" className="admin-content-wrapper" sx={{ flex: 1, height: "100%", overflowY: "auto", p: { xs: 1.5, sm: 2 }, pt: { xs: '68px', md: 2 }, minWidth: 0 }}>
                     <Routes>
                       <Route index element={<Navigate to="/product" replace />} />
                       <Route path="/account" element={<RoleGuard adminOnly><Account /></RoleGuard>} />

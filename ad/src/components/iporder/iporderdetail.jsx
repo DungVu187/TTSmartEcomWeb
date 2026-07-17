@@ -24,11 +24,22 @@ import {
   DialogActions,
   styled,
   Autocomplete,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import ImportExportIcon from "@mui/icons-material/ImportExport";
+import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import toast from "react-hot-toast";
 import { NumericFormat } from "react-number-format";
 import ExcelJS from "exceljs";
@@ -117,7 +128,7 @@ const SortableTableRow = ({
           cursor: product.status || !canEdit ? "not-allowed" : "grab",
           userSelect: "none",
           width: "40px",
-          padding: "8px",
+          padding: "5px",
           "&:active": {
             cursor: product.status || !canEdit ? "not-allowed" : "grabbing",
           },
@@ -140,7 +151,7 @@ const SortableTableRow = ({
   <img
     src={product.imgUrl}
     alt={product.name || "Sản phẩm"}
-    style={{ width: "50px", height: "50px", objectFit: "cover" }}
+    style={{ width: "42px", height: "42px", objectFit: "cover" }}
   />
 ) : (
   "N/A"
@@ -238,7 +249,12 @@ const SortableTableRow = ({
           }}
           disabled={!canEdit}
           size="small"
-          sx={{ width: "50px", backgroundColor: "#a6e3b5" }}
+          sx={{
+            width: "50px",
+            "& .MuiOutlinedInput-root": {
+              backgroundColor: "#a6e3b5",
+            },
+          }}
           allowNegative={true}
         />
       </TableCell>
@@ -310,6 +326,8 @@ const ImportOrderDetail = () => {
   const [codeTerm, setCodeTerm] = useState("");
   const [receiveInput, setReceiveInput] = useState({});
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
+  const [excelMenuAnchor, setExcelMenuAnchor] = useState(null);
 
   // States phục vụ tính năng quét hóa đơn bằng AI
   const [allProducts, setAllProducts] = useState([]);
@@ -357,7 +375,7 @@ const ImportOrderDetail = () => {
     );
   };
 
-  const containerCallbackRef = (node) => {
+  const containerCallbackRef = useCallback((node) => {
     if (containerRef.current) {
       if (activeListenerRef.current) {
         containerRef.current.removeEventListener("wheel", activeListenerRef.current);
@@ -448,7 +466,7 @@ const ImportOrderDetail = () => {
       node.addEventListener("touchend", handleNativeTouchEnd, { passive: true });
       activeTouchEndRef.current = handleNativeTouchEnd;
     }
-  };
+  }, []);
 
   // Tự động đưa ảnh về trung tâm khi thu nhỏ về nhỏ hơn hoặc bằng kích thước gốc
   useEffect(() => {
@@ -1609,18 +1627,18 @@ const ImportOrderDetail = () => {
   };
 
   // Hàm cập nhật tên đơn hàng
-  const handleUpdateOrderName = async (newOrderName) => {
+  const handleUpdateOrderName = async (newOrderName, newNote) => {
     const updatedOrder = await apiFetch(
       `${apiUrl}/iporders/orders/${id}/name`,
       {
         method: "PUT",
-        body: JSON.stringify({ orderName: newOrderName }),
+        body: JSON.stringify({ orderName: newOrderName, note: newNote }),
       }
     );
 
     if (updatedOrder) {
       setOrder(updatedOrder);
-      toast.success("Cập nhật tên đơn hàng thành công");
+      toast.success("Cập nhật đơn hàng thành công");
 
       await apiFetch(`${apiUrl}/histories/update-ordername`, {
         method: "PUT",
@@ -1651,6 +1669,7 @@ const ImportOrderDetail = () => {
 
     const newOrderData = {
       orderName: `${order.orderName || "Đơn hàng"}_copy`,
+      note: order.note || "",
       productList: copiedProductList,
     };
 
@@ -1684,6 +1703,7 @@ const ImportOrderDetail = () => {
 
     const newExportOrder = {
       orderName: `${order.orderName || "Đơn nhập"}_xuất`,
+      note: order.note || "",
       productList: exportProductList,
     };
 
@@ -2171,195 +2191,303 @@ const ImportOrderDetail = () => {
   }
 
   return (
-    <Box p={2}>
-      <Box className="sticky-header">
-        <Typography variant="h5" gutterBottom>
-          Chi tiết đơn hàng #{id}
-        </Typography>
+    <Box p={2} className="inventory-order-detail-page">
+      <Box
+        className="sticky-header"
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            lg: "minmax(680px, 760px) minmax(0, 1fr)",
+          },
+          columnGap: 2,
+          rowGap: 1,
+          alignItems: "start",
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h5" gutterBottom>
+            Chi tiết đơn hàng #{id}
+          </Typography>
 
-        <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
-          <TextField
-            label="Tên đơn hàng"
-            value={order?.orderName || ""}
-            onChange={(e) => setOrder({ ...order, orderName: e.target.value })}
-            sx={{ width: "300px" }}
-            size="small"
-            disabled={!canEdit}
-          />
-          {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => handleUpdateOrderName(order?.orderName || "")}
-          >
-            Lưu tên
-          </Button>
-          )}
-        </Box>
-
-        <Box display="flex" gap={1.5} mb={2} flexWrap="wrap">
-          {canEdit && (
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={() => setOpenAddDialog(true)}
-          >
-            Thêm sản phẩm
-          </Button>
-          )}
-          {canEdit && (
-          <Button variant="contained" color="primary" onClick={handleCopyOrder}>
-            Sao chép đơn
-          </Button>
-          )}
-          {canDelete && (
-          <Button variant="contained" color="error" onClick={handleDeleteOrder}>
-            Xóa đơn
-          </Button>
-          )}
-          {canCreateRelatedOrder && (
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleCreateExportOrder}
-          >
-            Xuất đơn
-          </Button>
-          )}
-          {canExcel && (
-          <Button
-            variant="contained"
-            color="info"
-            onClick={handleExportToExcel}
-            startIcon={<CloudDownloadIcon />}
-          >
-            Xuất Excel
-          </Button>
-          )}
-          {canExcel && (
-          <Button
-            component="label"
-            variant="contained"
-            startIcon={<CloudUploadIcon />}
-            color="warning"
-            disabled={isProcessingExcel}
-          >
-            Nhập Excel
-            <VisuallyHiddenInput
-              type="file"
-              accept=".xlsx, .xls"
-              onChange={handleFileUpload}
-            />
-          </Button>
-          )}
-          {canScanAi && (
-          <Button
-            component="label"
-            variant="contained"
-            startIcon={<AutoAwesomeIcon />}
+          <Box
             sx={{
-              backgroundColor: "#673ab7",
-              "&:hover": { backgroundColor: "#512da8" },
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "minmax(220px, 1fr) minmax(180px, 0.8fr) auto auto",
+              },
+              gap: 1,
+              alignItems: "center",
+              mb: 1.25,
             }}
-            disabled={isScanning}
           >
-            Quét hóa đơn (AI)
-            <VisuallyHiddenInput
-              type="file"
-              accept="image/*"
-              onChange={handleScanInvoiceSelect}
+            <TextField
+              label="Tên đơn hàng"
+              value={order?.orderName || ""}
+              onChange={(e) => setOrder({ ...order, orderName: e.target.value })}
+              size="small"
+              fullWidth
+              disabled={!canEdit}
             />
-          </Button>
-          )}
-          {canAddImage && (
-          <Button
-            component="label"
-            variant="contained"
-            startIcon={<CloudUploadIcon />}
-            color="primary"
-            disabled={isScanning}
+            <TextField
+              label="Ghi chú"
+              value={order?.note || ""}
+              onChange={(e) => setOrder({ ...order, note: e.target.value })}
+              size="small"
+              fullWidth
+              disabled={!canEdit}
+            />
+            {canEdit && (
+              <Button
+                variant="contained"
+                startIcon={<SaveOutlinedIcon />}
+                onClick={() =>
+                  handleUpdateOrderName(order?.orderName || "", order?.note || "")
+                }
+                sx={{ whiteSpace: "nowrap", height: 40 }}
+              >
+                Lưu thay đổi
+              </Button>
+            )}
+            {(canEdit || canCreateRelatedOrder || canDelete) && (
+              <IconButton
+                aria-label="Mở menu thao tác đơn hàng"
+                onClick={(event) => setMoreMenuAnchor(event.currentTarget)}
+                sx={{
+                  width: 40,
+                  height: 40,
+                  border: "1px solid #D9E2EC",
+                  borderRadius: "7px",
+                }}
+              >
+                <MoreVertIcon />
+              </IconButton>
+            )}
+          </Box>
+
+          <Menu
+            anchorEl={moreMenuAnchor}
+            open={Boolean(moreMenuAnchor)}
+            onClose={() => setMoreMenuAnchor(null)}
+            disableScrollLock
           >
-            Thêm ảnh thủ công
-            <VisuallyHiddenInput
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleManualUploadSelect}
-            />
-          </Button>
-          )}
+            {canEdit && (
+              <MenuItem
+                onClick={() => {
+                  setMoreMenuAnchor(null);
+                  handleCopyOrder();
+                }}
+              >
+                <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Sao chép đơn</ListItemText>
+              </MenuItem>
+            )}
+            {canCreateRelatedOrder && (
+              <MenuItem
+                onClick={() => {
+                  setMoreMenuAnchor(null);
+                  handleCreateExportOrder();
+                }}
+              >
+                <ListItemIcon><SwapHorizIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Xuất đơn</ListItemText>
+              </MenuItem>
+            )}
+            {canDelete && <Divider />}
+            {canDelete && (
+              <MenuItem
+                onClick={() => {
+                  setMoreMenuAnchor(null);
+                  handleDeleteOrder();
+                }}
+                sx={{ color: "error.main" }}
+              >
+                <ListItemIcon><DeleteIcon color="error" fontSize="small" /></ListItemIcon>
+                <ListItemText>Xóa đơn</ListItemText>
+              </MenuItem>
+            )}
+          </Menu>
+
+          <Box
+            sx={{
+              border: "1px solid #E5EAF0",
+              borderRadius: "9px",
+              px: 1.5,
+              py: 1.25,
+              mb: 1,
+              backgroundColor: "#FBFCFE",
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 650, mb: 1 }}>
+              Thêm / nhập sản phẩm
+            </Typography>
+            <Box display="flex" gap={1} flexWrap="wrap">
+              {canEdit && (
+                <Button variant="outlined" onClick={() => setOpenAddDialog(true)}>
+                  Thêm sản phẩm
+                </Button>
+              )}
+              {canScanAi && (
+                <Button
+                  component="label"
+                  variant="outlined"
+                  startIcon={<AutoAwesomeIcon />}
+                  disabled={isScanning}
+                  sx={{ color: "#6D46D8", borderColor: "#B9A7F5" }}
+                >
+                  Quét hóa đơn AI
+                  <VisuallyHiddenInput
+                    type="file"
+                    accept="image/*"
+                    onChange={handleScanInvoiceSelect}
+                  />
+                </Button>
+              )}
+              {canAddImage && (
+                <Button
+                  component="label"
+                  variant="outlined"
+                  startIcon={<CloudUploadIcon />}
+                  disabled={isScanning}
+                >
+                  Thêm ảnh thủ công
+                  <VisuallyHiddenInput
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleManualUploadSelect}
+                  />
+                </Button>
+              )}
+              {canExcel && (
+                <Button
+                  variant="outlined"
+                  startIcon={<ImportExportIcon />}
+                  endIcon={<ArrowDropDownIcon />}
+                  onClick={(event) => setExcelMenuAnchor(event.currentTarget)}
+                  disabled={isProcessingExcel}
+                >
+                  Nhập/Xuất Excel
+                </Button>
+              )}
+            </Box>
+          </Box>
+
+          <Menu
+            anchorEl={excelMenuAnchor}
+            open={Boolean(excelMenuAnchor)}
+            onClose={() => setExcelMenuAnchor(null)}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+            disableScrollLock
+            slotProps={{
+              paper: {
+                sx: { mt: 0.5, minWidth: 168 },
+              },
+            }}
+          >
+            <MenuItem
+              onClick={() => {
+                setExcelMenuAnchor(null);
+                handleExportToExcel();
+              }}
+            >
+              <ListItemIcon><CloudUploadIcon color="info" fontSize="small" /></ListItemIcon>
+              <ListItemText>Xuất Excel</ListItemText>
+            </MenuItem>
+            <MenuItem component="label" onClick={() => setExcelMenuAnchor(null)}>
+              <ListItemIcon><CloudDownloadIcon color="warning" fontSize="small" /></ListItemIcon>
+              <ListItemText>Nhập Excel</ListItemText>
+              <VisuallyHiddenInput
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleFileUpload}
+              />
+            </MenuItem>
+          </Menu>
+
+          <Typography variant="body1" className="total-summary-text">
+            Tổng cộng: {Number(enrichedOrder?.total || 0).toLocaleString("vi-VN")}{" "}
+            VNĐ
+          </Typography>
         </Box>
 
-        {/* Hiển thị danh sách ảnh hóa đơn đính kèm */}
         {scannedImages.length > 0 && (
-          <Box sx={{ mt: 2, mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: '#555' }}>
+          <Box
+            sx={{
+              minWidth: 0,
+              width: "100%",
+              justifySelf: "end",
+              pt: { xs: 0, lg: 1.5 },
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.75, color: "text.secondary" }}>
               Ảnh hóa đơn đính kèm ({scannedImages.length} ảnh):
             </Typography>
-            <Box 
-              sx={{ 
-                display: "flex", 
-                gap: 2, 
-                overflowX: "auto", 
-                pb: 1,
-                "&::-webkit-scrollbar": { height: 6 },
-                "&::-webkit-scrollbar-thumb": { bgcolor: "#ccc", borderRadius: 3 }
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "flex-start",
+                gap: 1,
+                overflowX: "auto",
+                pb: 0.5,
+                scrollbarWidth: "thin",
+                "&::-webkit-scrollbar": { height: 5 },
+                "&::-webkit-scrollbar-thumb": { bgcolor: "#CBD5E1", borderRadius: 3 },
               }}
             >
               {scannedImages.map((imgUrl, index) => (
-                <Box 
-                  key={index} 
-                  sx={{ 
-                    position: 'relative', 
-                    minWidth: 100, 
-                    width: 100, 
-                    height: 100, 
-                    border: '2px solid #e0e0e0', 
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                <Box
+                  key={index}
+                  sx={{
+                    position: "relative",
+                    minWidth: 96,
+                    width: 96,
+                    height: 136,
+                    border: "1px solid #E5EAF0",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    boxShadow: "0 2px 6px rgba(16,42,67,0.08)",
                   }}
                 >
-                  <img 
-                    src={`${apiUrl}${imgUrl}`} 
-                    alt={`Invoice page ${index + 1}`} 
+                  <img
+                    src={`${apiUrl}${imgUrl}`}
+                    alt={`Invoice page ${index + 1}`}
                     loading="lazy"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
                     onClick={() => handleOpenLightbox(index)}
                   />
                   {canAddImage && (
-                  <IconButton 
-                    size="small" 
-                    color="error"
-                    sx={{ 
-                      position: 'absolute', 
-                      top: 2, 
-                      right: 2, 
-                      bgcolor: 'rgba(255,255,255,0.9)', 
-                      '&:hover': { bgcolor: 'white' } 
-                    }}
-                    onClick={() => handleDeleteScannedImage(index)}
-                  >
-                    <DeleteIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      sx={{
+                        position: "absolute",
+                        top: 2,
+                        right: 2,
+                        bgcolor: "rgba(255,255,255,0.92)",
+                        "&:hover": { bgcolor: "white" },
+                      }}
+                      onClick={() => handleDeleteScannedImage(index)}
+                    >
+                      <DeleteIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
                   )}
                 </Box>
               ))}
             </Box>
           </Box>
         )}
-        <Typography variant="body1" className="total-summary-text">
-          Tổng cộng: {Number(enrichedOrder?.total || 0).toLocaleString("vi-VN")}{" "}
-          VNĐ
-        </Typography>
       </Box>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={canEdit ? handleDragEnd : undefined}
-      >
-        <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "auto", maxHeight: "calc(100vh - 320px)" }}>
+      <Box className="inventory-order-list-region">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={canEdit ? handleDragEnd : undefined}
+        >
+        <TableContainer component={Paper} sx={{ userSelect: "none", overflow: "auto", height: "100%", maxHeight: "none" }}>
           <Table stickyHeader>
             <TableHead>
               <TableRow>
@@ -2415,7 +2543,8 @@ const ImportOrderDetail = () => {
             </SortableContext>
           </Table>
         </TableContainer>
-      </DndContext>
+        </DndContext>
+      </Box>
 
       <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock>
         <DialogTitle>Thêm sản phẩm vào đơn</DialogTitle>
@@ -2881,15 +3010,26 @@ const ImportOrderDetail = () => {
                 }}
               >
                 <img 
-                  ref={containerRef}
+                  key={scannedImages[currentImgIndex]}
                   src={`${apiUrl}${scannedImages[currentImgIndex]}`} 
                   alt={`Trang hóa đơn ${currentImgIndex + 1}`} 
+                  draggable={false}
                   style={{
-                    transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoomScale})`,
+                    transform:
+                      position.x === 0 &&
+                      position.y === 0 &&
+                      rotation === 0 &&
+                      zoomScale === 1
+                        ? 'none'
+                        : `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoomScale})`,
                     transition: isDragging ? 'none' : 'transform 0.1s ease-out',
                     maxWidth: '100%',
                     maxHeight: '75vh',
+                    width: 'auto',
+                    height: 'auto',
+                    display: 'block',
                     objectFit: 'contain',
+                    imageRendering: 'auto',
                     pointerEvents: 'none'
                   }}
                 />

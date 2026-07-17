@@ -256,7 +256,7 @@ const Station = () => {
   });
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: 2 }} className="admin-list-page">
       <div className="sticky-header">
         <h2>Quản lý danh sách trạm trộn</h2>
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", mt: 1, flexWrap: "wrap" }}>
@@ -314,7 +314,14 @@ const Station = () => {
         </Box>
       </div>
 
-      <Box sx={{ width: "100%", height: "calc(100vh - 180px)", minHeight: 360 }}>
+      <Box
+        className="admin-list-table"
+        sx={{
+          width: "100%",
+          height: { xs: "calc(100dvh - 180px)", md: "auto" },
+          minHeight: { xs: 360, md: 0 },
+        }}
+      >
         <DataGrid
           rows={filteredStations}
           columns={columns}

@@ -196,7 +196,7 @@ const History = ({ direction = "import" }) => {
   };
 
   return (
-    <Box p={2}>
+    <Box p={2} className="admin-list-page history-list-page">
       <div className="sticky-header">
         <Typography variant="h5" gutterBottom>
           {historyDirection === "export" ? "Lịch sử xuất kho" : "Lịch sử nhập kho"}
@@ -204,7 +204,14 @@ const History = ({ direction = "import" }) => {
       </div>
 
       {/* Bộ lọc */}
-      <Box display="flex" flexWrap="wrap" gap={2} mb={2}>
+      <Box
+        className="admin-list-controls"
+        display="flex"
+        flexWrap="wrap"
+        alignItems="center"
+        gap={2}
+        mb={2}
+      >
         <Autocomplete
           freeSolo
           size="small"
@@ -307,6 +314,21 @@ const History = ({ direction = "import" }) => {
         <Button variant="outlined" color="secondary" onClick={handleResetFilters}>
           Xóa bộ lọc
         </Button>
+        {!loading && histories.length > 0 && (
+          <FormControl size="small" sx={{ minWidth: 104, ml: { sm: "auto" } }}>
+            <Select
+              value={limit}
+              onChange={(e) => {
+                setLimit(e.target.value);
+                setPage(1);
+              }}
+            >
+              <MenuItem value={20}>20 dòng</MenuItem>
+              <MenuItem value={50}>50 dòng</MenuItem>
+              <MenuItem value={100}>100 dòng</MenuItem>
+            </Select>
+          </FormControl>
+        )}
       </Box>
 
       {loading ? (
@@ -317,23 +339,7 @@ const History = ({ direction = "import" }) => {
         <Typography>Không có dữ liệu lịch sử</Typography>
       ) : (
         <>
-          <Box display="flex" justifyContent="flex-end" mb={2}>
-            <FormControl size="small">
-              <Select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <MenuItem value={20}>20 dòng</MenuItem>
-                <MenuItem value={50}>50 dòng</MenuItem>
-                <MenuItem value={100}>100 dòng</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 220px)", overflowX: "auto" }}>
+          <TableContainer component={Paper} className="admin-list-table" sx={{ overflow: "auto" }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>

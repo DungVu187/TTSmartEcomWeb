@@ -255,12 +255,12 @@ const ActivityLog = () => {
   };
 
   return (
-    <Box>
+    <Box className="admin-list-page">
       <Typography variant="h5" mb={2} fontWeight="bold">
         Lịch sử hoạt động
       </Typography>
 
-      <Box display="flex" gap={1} flexWrap="wrap" mb={2} alignItems="center">
+      <Box className="admin-list-controls" display="flex" gap={1} flexWrap="wrap" mb={2} alignItems="center">
         <Autocomplete
           freeSolo
           size="small"
@@ -390,7 +390,7 @@ const ActivityLog = () => {
             </FormControl>
           </Box>
 
-          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 280px)", overflowX: "auto" }}>
+          <TableContainer component={Paper} className="admin-list-table" sx={{ overflow: "auto" }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>

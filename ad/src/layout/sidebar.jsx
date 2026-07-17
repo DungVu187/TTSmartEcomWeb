@@ -45,6 +45,7 @@ const drawerWidth = 240;
 
 const Sidebar = () => {
   const isMobile = useMediaQuery("(max-width:900px)");
+  const currentPath = window.location.pathname.replace(/^\/admin/, "") || "/";
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleDrawerToggle = () => {
@@ -294,40 +295,63 @@ const Sidebar = () => {
     { text: "Đăng xuất", icon: <LogoutIcon />, action: "logout" },
   ].filter(Boolean);
 
+  const isPathActive = (path) => {
+    if (!path) return false;
+    return currentPath === path || currentPath.startsWith(`${path}/`);
+  };
+
+  const menuButtonSx = (active, nested = false) => ({
+    mx: 1.25,
+    my: 0.25,
+    minHeight: nested ? 38 : 42,
+    borderRadius: "7px",
+    px: nested ? 1.5 : 1.75,
+    color: active ? "#FFFFFF" : "#CBD9E6",
+    backgroundColor: active ? "#2878D4" : "transparent",
+    justifyContent: "flex-start",
+    transition: "background-color 160ms ease, color 160ms ease",
+    "&:hover": {
+      color: "#FFFFFF",
+      backgroundColor: active ? "#2878D4" : "#214C6B",
+    },
+    "&.active": {
+      color: "#FFFFFF",
+      backgroundColor: "#2878D4",
+    },
+  });
+
   const drawerContent = (
     <>
-      <Toolbar sx={{ display: "flex", flexDirection: "column", justifyContent: "center", py: 1.5 }}>
+      <Toolbar sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", px: 2.5, py: 2, minHeight: 76 }}>
         <Typography
           variant="h6"
-          sx={{ color: "white", width: "100%", textAlign: "center", fontWeight: "bold" }}
+          sx={{ color: "white", width: "100%", textAlign: "left", fontSize: 16, fontWeight: 650 }}
         >
           Điều hướng
         </Typography>
         {(userName || userPhone) && (
           <Typography
             variant="body2"
-            sx={{ color: "#b0bec5", width: "100%", textAlign: "center", mt: 0.5 }}
+            sx={{ color: "#AAC0D2", width: "100%", textAlign: "left", mt: 0.5, fontSize: 12 }}
           >
             Xin chào, {userName || userPhone}
           </Typography>
         )}
       </Toolbar>
       <List>
-        {menuItems.map((item, index) => (
-          <React.Fragment key={index}>
+        {menuItems.map((item, index) => {
+          const active = isPathActive(item.path) || item.subItems?.some((subItem) => isPathActive(subItem.path));
+          return (
+          <React.Fragment key={item.text}>
             <ListItem disablePadding>
               {item.path ? (
                 <ListItemButton
                   component={Link}
                   to={item.path}
                   onClick={handleItemClick}
-                  sx={{
-                    justifyContent: "center",
-                    color: "white",
-                    "&:hover": { backgroundColor: "#333333" },
-                  }}
+                  sx={menuButtonSx(active)}
                 >
-                  <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
+                  <ListItemIcon sx={{ color: "inherit", minWidth: "34px", "& .MuiSvgIcon-root": { fontSize: 20 } }}>
                     {item.icon}
                   </ListItemIcon>
                   <ListItemText
@@ -341,13 +365,9 @@ const Sidebar = () => {
                     handleLogout();
                     handleItemClick();
                   }}
-                  sx={{
-                    justifyContent: "center",
-                    color: "white",
-                    "&:hover": { backgroundColor: "#333333" },
-                  }}
+                  sx={menuButtonSx(false)}
                 >
-                  <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
+                  <ListItemIcon sx={{ color: "inherit", minWidth: "34px", "& .MuiSvgIcon-root": { fontSize: 20 } }}>
                     {item.icon}
                   </ListItemIcon>
                   <ListItemText
@@ -358,13 +378,9 @@ const Sidebar = () => {
               ) : (
                 <ListItemButton
                   onClick={() => handleClick(index)}
-                  sx={{
-                    justifyContent: "center",
-                    color: "white",
-                    "&:hover": { backgroundColor: "#333333" },
-                  }}
+                  sx={menuButtonSx(active)}
                 >
-                  <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
+                  <ListItemIcon sx={{ color: "inherit", minWidth: "34px", "& .MuiSvgIcon-root": { fontSize: 20 } }}>
                     {item.icon}
                   </ListItemIcon>
                   <ListItemText
@@ -378,19 +394,15 @@ const Sidebar = () => {
             {item.subItems && (
               <Collapse in={openItems[index]} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  {item.subItems.map((subItem, subIndex) => (
-                    <ListItem key={subIndex} disablePadding sx={{ pl: 2 }}>
+                  {item.subItems.map((subItem) => (
+                    <ListItem key={subItem.text} disablePadding sx={{ pl: 1.5 }}>
                       <ListItemButton
                         component={Link}
                         to={subItem.path}
                         onClick={handleItemClick}
-                        sx={{
-                          justifyContent: "center",
-                          color: "white",
-                          "&:hover": { backgroundColor: "#333333" },
-                        }}
+                        sx={menuButtonSx(isPathActive(subItem.path), true)}
                       >
-                        <ListItemIcon sx={{ color: "white", minWidth: "35px" }}>
+                        <ListItemIcon sx={{ color: "inherit", minWidth: "32px", "& .MuiSvgIcon-root": { fontSize: 18 } }}>
                           {subItem.icon}
                         </ListItemIcon>
                         <ListItemText
@@ -404,7 +416,8 @@ const Sidebar = () => {
               </Collapse>
             )}
           </React.Fragment>
-        ))}
+          );
+        })}
       </List>
     </>
   );
@@ -422,10 +435,10 @@ const Sidebar = () => {
             left: 16,
             top: 16,
             zIndex: 1100,
-            backgroundColor: "#212121",
+            backgroundColor: "#183B56",
             color: "white",
             "&:hover": {
-              backgroundColor: "#333333",
+              backgroundColor: "#2878D4",
             },
           }}
         >
@@ -445,8 +458,10 @@ const Sidebar = () => {
           "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
-            backgroundColor: "#212121",
+            backgroundColor: "#183B56",
             color: "#fff",
+            borderRight: "none",
+            boxShadow: "5px 0 18px rgba(24, 59, 86, 0.10)",
             "&::-webkit-scrollbar": {
               display: "none",
             },

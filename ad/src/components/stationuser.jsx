@@ -337,7 +337,7 @@ const StationUser = () => {
   };
 
   return (
-    <Box p={3}>
+    <Box p={3} className="admin-list-page">
       <div className="sticky-header">
         <Typography variant="h4" gutterBottom>
           Quản lý người dùng và trạm
@@ -353,7 +353,7 @@ const StationUser = () => {
         )}
       </div>
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} className="admin-list-table">
         <Table>
           <TableHead>
             <TableRow>

@@ -259,7 +259,7 @@ const OrderedProducts = () => {
   }, []);
 
   return (
-    <Box p={2}>
+    <Box p={2} className="admin-list-page">
       <div className="sticky-header">
         <h2>Danh sách sản phẩm đã đặt</h2>
 
@@ -344,7 +344,7 @@ const OrderedProducts = () => {
       {/* Bảng sản phẩm */}
       {!loading && (
         <>
-          <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 320px)", overflowX: "auto" }}>
+          <TableContainer component={Paper} className="admin-list-table" sx={{ overflow: "auto" }}>
             <Table stickyHeader>
               <TableHead>
                 <TableRow>

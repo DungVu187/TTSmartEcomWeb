@@ -1,27 +1,17 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Button,
-  Avatar,
-  CircularProgress,
-  Box,
-  useMediaQuery,
-} from '@mui/material';
-import PhoneIcon from '@mui/icons-material/Phone';
-import InfoIcon from '@mui/icons-material/Info';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { CircularProgress, Alert } from '@mui/material';
 import { ShopContext } from '../context/shopcontext';
 import { useLanguage } from '../context/languagecontext.jsx';
+import "./style/stationdisplay.css";
 
-const apiUrl = process.env.REACT_APP_BACK_END;
+const apiUrl = process.env.REACT_APP_BACK_END || "";
+
+const resolveImageUrl = (url) => {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
+  return `${apiUrl}${url}`;
+};
 
 const StationDisplayDetail = () => {
   const { t } = useLanguage();
@@ -30,9 +20,13 @@ const StationDisplayDetail = () => {
   const [productsByValue, setProductsByValue] = useState({});
   const [stationName, setStationName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // State to hold quantity for each product
+  const [quantities, setQuantities] = useState({});
+  
   const navigate = useNavigate();
   const { addToCart } = useContext(ShopContext);
-  const isSmallScreen = useMediaQuery('(max-width:750px)');
 
   useEffect(() => {
     if (code) {
@@ -45,7 +39,7 @@ const StationDisplayDetail = () => {
       try {
         // Lấy toàn bộ sản phẩm của trạm
         const resStation = await fetch(`${apiUrl}/stations/public/${code}`);
-        if (!resStation.ok) throw new Error(t("station_not_found"));
+        if (!resStation.ok) throw new Error("station_not_found");
         const station = await resStation.json();
         setStationName(station.stationName || "");
         const productIds = station.productId || [];
@@ -78,187 +72,252 @@ const StationDisplayDetail = () => {
 
         setValues(Object.keys(grouped));
         setProductsByValue(grouped);
+
+        // Prepopulate default quantities to 1 for all products
+        const defaultQtys = {};
+        filtered.forEach((p) => {
+          defaultQtys[p._id] = 1;
+        });
+        setQuantities(defaultQtys);
+
       } catch (err) {
         console.error('Lỗi khi load dữ liệu:', err);
+        setError(err.message || "Lỗi không xác định");
       } finally {
         setLoading(false);
       }
     };
 
     fetchProducts();
-  }, [code, section]);
+  }, [code, section, t]);
+
+  // Quantity control helpers
+  const handleQuantityChange = (productId, val, maxStock) => {
+    let num = parseInt(val, 10);
+    if (isNaN(num)) {
+      setQuantities(prev => ({ ...prev, [productId]: "" }));
+      return;
+    }
+    if (num < 1) num = 1;
+    if (maxStock > 0 && num > maxStock) num = maxStock;
+    setQuantities(prev => ({ ...prev, [productId]: num }));
+  };
+
+  const handleBlur = (productId, maxStock) => {
+    const val = quantities[productId];
+    if (val === "" || val === undefined || isNaN(val)) {
+      setQuantities(prev => ({ ...prev, [productId]: 1 }));
+    } else {
+      let num = parseInt(val, 10);
+      if (num < 1) num = 1;
+      if (maxStock > 0 && num > maxStock) num = maxStock;
+      setQuantities(prev => ({ ...prev, [productId]: num }));
+    }
+  };
+
+  const increment = (productId, maxStock) => {
+    const current = quantities[productId] || 1;
+    let next = current + 1;
+    if (maxStock > 0 && next > maxStock) next = maxStock;
+    setQuantities(prev => ({ ...prev, [productId]: next }));
+  };
+
+  const decrement = (productId) => {
+    const current = quantities[productId] || 1;
+    let next = current - 1;
+    if (next < 1) next = 1;
+    setQuantities(prev => ({ ...prev, [productId]: next }));
+  };
+
+  const handleAddToCart = async (product) => {
+    const qty = quantities[product._id] || 1;
+    await addToCart(product._id, 0, qty);
+  };
 
   if (loading) {
     return (
-      <Box textAlign="center" mt={5}>
+      <div className="station-detail-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
         <CircularProgress />
-      </Box>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="station-detail-container" style={{ padding: "40px" }}>
+        <Alert severity="error">{t(error)}</Alert>
+      </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: '#ebf6fe', width: '100%', paddingBottom: 16, minHeight: '100vh' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto 50px' }}>
-        {stationName && (
-          <Typography
-            variant="subtitle1"
-            sx={{
-              textAlign: "center",
-              paddingTop: "20px",
-              fontWeight: 600,
-              color: "#6b7280",
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              fontFamily: "'Outfit', 'Roboto', sans-serif"
-            }}
-          >
-            {stationName}
-          </Typography>
-        )}
-        <Typography
-          variant="h4"
-          gutterBottom
-          style={{
-            textAlign: 'center',
-            padding: stationName ? '10px 20px 20px' : '20px',
-            textTransform: 'uppercase',
-            fontWeight: "bold",
-            color: "#1e3a8a",
-            fontFamily: "'Outfit', 'Roboto', sans-serif"
-          }}
-        >
-          {t(section)}
-        </Typography>
+    <div className="station-detail-container">
+      {/* Header Banner */}
+      <section className="station-detail-header-banner">
+        <div className="station-detail-header-banner-pattern" />
+        
+        <div className="station-detail-breadcrumbs">
+          <Link to="/station">Trạm của tôi</Link>
+          <span className="separator">›</span>
+          <Link to={`/station/${code}`}>{stationName}</Link>
+          <span className="separator">›</span>
+          <span>{t(section)}</span>
+        </div>
 
+        <div className="station-detail-title-wrapper" style={{ textAlign: "center", marginTop: "12px" }}>
+          {stationName && (
+            <span className="station-detail-subtitle-banner">{stationName}</span>
+          )}
+          <h1 className="station-detail-title-banner" style={{ marginTop: "4px" }}>{t(section)}</h1>
+        </div>
+      </section>
+
+      {/* Main product listing by group */}
+      <div className="station-detail-content-shell" style={{ paddingTop: "32px" }}>
         {values.map((value) => {
           const visibleProducts = productsByValue[value];
           if (!visibleProducts || visibleProducts.length === 0) return null;
 
           return (
-            <div key={value} style={{ marginBottom: 48 }}>
-              <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-                <Typography
-                  variant="h6"
-                  gutterBottom
-                  sx={{ margin: '10px 0 0 20px' }}
-                >
-                  {t(value)}
-                </Typography>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell align="center">{t("image")}</TableCell>
-                      <TableCell>{t("product_name")}</TableCell>
-                      <TableCell align="right"></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {visibleProducts.map((product) => (
-                      <TableRow key={product._id}>
-                        <TableCell>
-                          <Avatar
-                            variant="rounded"
-                            src={product.variant?.[0]?.imgUrl}
-                            alt={product.name}
-                            sx={{
-                              width: 56,
-                              height: 56,
-                              objectFit: 'contain',
-                              margin: 'auto',
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                            {product.name}
-                          </Typography>
-                          {(product.variant?.[0]?.quantityForSale ?? 0) > 0 ? (
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {t("quantity_left")} {product.variant[0].quantityForSale}
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" color="error" sx={{ mt: 0.5, fontWeight: "bold" }}>
-                              {t("out_of_stock")}
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              flexDirection: { xs: 'column', sm: 'row' },
-                              gap: 1,
-                              justifyContent: 'flex-end',
-                            }}
-                          >
-                            <Button
-                              variant="contained"
-                              color="success"
-                              size="small"
-                              href="tel:0913158383"
-                              sx={{
-                                minWidth: '40px',
-                                padding: '6px 12px',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: 1,
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {isSmallScreen ? <PhoneIcon /> : (
-                                <>
-                                  <PhoneIcon sx={{ fontSize: 16 }} />
-                                  0913 158 383
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              variant="contained"
-                              color="primary"
-                              size="small"
-                              onClick={() => addToCart(product._id, 0)}
-                              sx={{
-                                minWidth: '40px',
-                                padding: '6px 12px',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: 1,
-                              }}
-                            >
-                              {isSmallScreen ? (
-                                <ShoppingCartIcon />
+            <div key={value} className="station-detail-list-wrapper">
+              <h2 className="station-detail-list-title">{t(value)}</h2>
+              
+              <div className="station-detail-table-wrapper">
+                <table className="station-detail-custom-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "90px", textAlign: "center" }}>Hình ảnh</th>
+                      <th>Tên sản phẩm</th>
+                      <th style={{ width: "160px", textAlign: "center" }}></th>
+                      <th style={{ width: "320px", textAlign: "right" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleProducts.map((product) => {
+                      const maxStock = product.variant?.[0]?.quantityForSale ?? 0;
+                      const hasStock = maxStock > 0;
+                      const currentQty = quantities[product._id] ?? 1;
+
+                      return (
+                        <tr key={product._id}>
+                          {/* Image */}
+                          <td style={{ textAlign: "center" }}>
+                            <div className="station-detail-table-img" style={{ margin: "auto" }}>
+                              {product.variant?.[0]?.imgUrl ? (
+                                <img src={resolveImageUrl(product.variant[0].imgUrl)} alt={product.name} />
                               ) : (
-                                t("add_to_cart")
+                                <i className="fa-solid fa-microchip" />
                               )}
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              color="primary"
-                              size="small"
-                              onClick={() => navigate(`/product/${product._id}`)}
-                              sx={{
-                                minWidth: '40px',
-                                padding: '6px 12px',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: 1,
-                              }}
-                            >
-                              {isSmallScreen ? <InfoIcon /> : t("details", "Chi tiết")}
-                            </Button>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                            </div>
+                          </td>
+
+                          {/* Name and Stock Info */}
+                          <td>
+                            <div className="station-detail-name-cell">
+                              <span className="station-detail-name-primary">{product.name}</span>
+                              {hasStock ? (
+                                <span className="station-detail-name-secondary">
+                                  {t("quantity_left", "Số lượng đang còn")}: {maxStock}
+                                </span>
+                              ) : (
+                                <span className="station-detail-name-secondary error">
+                                  {t("out_of_stock", "Liên hệ")}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* - 1 + Quantity Selector */}
+                          <td style={{ textAlign: "center" }}>
+                            <div className="quantity-selector">
+                              <button
+                                type="button"
+                                className="quantity-selector-btn"
+                                onClick={() => decrement(product._id)}
+                                disabled={!hasStock || currentQty <= 1}
+                              >
+                                <i className="fa-solid fa-minus" />
+                              </button>
+                              
+                              <input
+                                type="text"
+                                className="quantity-selector-input"
+                                value={currentQty}
+                                onChange={(e) => handleQuantityChange(product._id, e.target.value, maxStock)}
+                                onBlur={() => handleBlur(product._id, maxStock)}
+                                disabled={!hasStock}
+                              />
+                              
+                              <button
+                                type="button"
+                                className="quantity-selector-btn"
+                                onClick={() => increment(product._id, maxStock)}
+                                disabled={!hasStock || currentQty >= maxStock}
+                              >
+                                <i className="fa-solid fa-plus" />
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td>
+                            <div className="action-buttons-group">
+                              <a className="btn-action-call" href="tel:0913158383">
+                                <i className="fa-solid fa-phone" /> 0913 158 383
+                              </a>
+                              
+                              <button
+                                type="button"
+                                className="btn-action-cart"
+                                onClick={() => handleAddToCart(product)}
+                                disabled={!hasStock}
+                              >
+                                <i className="fa-solid fa-cart-shopping" /> {t("add_to_cart", "Thêm vào giỏ hàng")}
+                              </button>
+                              
+                              <button
+                                type="button"
+                                className="btn-action-detail"
+                                onClick={() => navigate(`/product/${product._id}`)}
+                              >
+                                {t("details", "Chi tiết")}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           );
         })}
+
+        {/* Mock pagination matching the mockup */}
+        <div className="station-detail-pagination">
+          <span className="station-pagination-info" style={{ color: "#64748b", fontSize: "13px", fontWeight: "500" }}>
+            Hiển thị 1-{values.length * 2} trong số {values.length * 2} thiết bị
+          </span>
+          
+          <div className="station-pagination-controls" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <select className="station-page-select" defaultValue="10">
+              <option value="10">10 / trang</option>
+              <option value="20">20 / trang</option>
+              <option value="50">50 / trang</option>
+            </select>
+            
+            <div className="station-page-nav-wrapper">
+              <button type="button" className="station-page-nav-btn" disabled>
+                <i className="fa-solid fa-angle-left" />
+              </button>
+              <button type="button" className="station-page-nav-btn active">1</button>
+              <button type="button" className="station-page-nav-btn" disabled>
+                <i className="fa-solid fa-angle-right" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

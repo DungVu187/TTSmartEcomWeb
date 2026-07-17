@@ -19,6 +19,7 @@ import {
   Select,
   MenuItem,
   Checkbox,
+  Switch,
   Paper,
 } from "@mui/material";
 import "./style/products.css";
@@ -28,6 +29,7 @@ import {
   PRODUCT_IMAGE_ACCEPT,
   PRODUCT_IMAGE_UPLOAD_SETTINGS,
 } from "../settings/imageUpload";
+import ProductTechDocs from "./producttechdocs";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const createEmptyProduct = () => ({
@@ -45,6 +47,7 @@ const createEmptyProduct = () => ({
     catalog: "",
     others: "",
   },
+  documents: [],
   warranty: "",
   solution: "",
   description: "",
@@ -1167,14 +1170,39 @@ const Products = () => {
         <div style={{ width: `${tableWidth}px`, height: "1px" }} />
       </div>
 
-      <div>
+      <div className="product-table-region">
         <TableContainer 
           ref={tableContainerRef}
           onScroll={handleTableScroll}
           component={Paper} 
-          sx={{ overflowX: "auto", maxHeight: "calc(100vh - 280px)" }}
+          sx={{
+            overflow: "auto",
+            maxHeight: "calc(100vh - 280px)",
+            scrollbarGutter: "stable",
+          }}
         >
-          <Table stickyHeader size="small" sx={{ minWidth: 1600 }}>
+          <Table
+            stickyHeader
+            size="small"
+            sx={{ minWidth: 1724, width: "max(100%, 1724px)", tableLayout: "fixed" }}
+          >
+            <colgroup>
+              <col style={{ width: 44 }} />
+              <col style={{ width: 68 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 236 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 60 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 108 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 136 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 84 }} />
+              <col style={{ width: 96 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 260 }} />
+            </colgroup>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#dedede" }}>
                 <TableCell align="center" style={{ width: 40, padding: "0 8px" }}>
@@ -1188,19 +1216,19 @@ const Products = () => {
                   />
                 </TableCell>
                 <TableCell align="center">Hiển thị</TableCell>
-                <TableCell align="center" sx={{ minWidth: 100 }}>Loại</TableCell>
-                <TableCell align="center" sx={{ minWidth: 200 }}>Tên</TableCell>
-                <TableCell align="center" sx={{ minWidth: 130 }}>Mã sản phẩm</TableCell>
-                <TableCell align="center" sx={{ minWidth: 80 }}>VAT</TableCell>
+                <TableCell align="center">Loại</TableCell>
+                <TableCell align="center">Tên</TableCell>
+                <TableCell align="center">Mã sản phẩm</TableCell>
+                <TableCell align="center">VAT</TableCell>
                 <TableCell align="center">Ảnh</TableCell>
-                <TableCell align="center" sx={{ minWidth: 110 }}>Giá</TableCell>
+                <TableCell align="center">Giá</TableCell>
                 <TableCell align="center">Hãng</TableCell>
-                <TableCell align="center" sx={{ minWidth: 120 }}>Cụm</TableCell>
-                <TableCell align="center" sx={{ minWidth: 120 }}>Thiết bị</TableCell>
-                <TableCell align="center" sx={{ minWidth: 100 }}>Bảo hành</TableCell>
-                <TableCell align="center" sx={{ minWidth: 120 }}>Số lượng tồn</TableCell>
-                <TableCell align="center" sx={{ minWidth: 130 }}>Số lượng đã bán</TableCell>
-                <TableCell align="center" sx={{ minWidth: 250 }}>Ghi chú</TableCell>
+                <TableCell align="center">Cụm</TableCell>
+                <TableCell align="center">Thiết bị</TableCell>
+                <TableCell align="center">Bảo hành</TableCell>
+                <TableCell align="center">Số lượng tồn</TableCell>
+                <TableCell align="center">Số lượng đã bán</TableCell>
+                <TableCell align="center">Ghi chú</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1230,13 +1258,19 @@ const Products = () => {
                     onClick={(e) => e.stopPropagation()}
                   >
                     {canEdit ? (
-                      <Checkbox
+                      <Switch
                         checked={product.display}
                         color="success"
+                        size="small"
                         onChange={() => handleToggleDisplay(product._id)}
                       />
                     ) : (
-                      <Checkbox checked={product.display} color="success" disabled />
+                      <Switch
+                        checked={product.display}
+                        color="success"
+                        size="small"
+                        disabled
+                      />
                     )}
                   </TableCell>
                   <TableCell align="center">{product.type}</TableCell>
@@ -1306,10 +1340,18 @@ const Products = () => {
         </TableContainer>
       </div>
 
-      <Dialog open={isDialogOpen} onClose={closeDialog} disableScrollLock>
+      <Dialog
+        open={isDialogOpen}
+        onClose={closeDialog}
+        disableScrollLock
+        scroll="paper"
+        maxWidth="lg"
+        fullWidth
+        className="product-create-dialog"
+      >
         <DialogTitle>Thêm sản phẩm mới</DialogTitle>
         <DialogContent>
-          <form onSubmit={handleAddProduct}>
+          <form onSubmit={handleAddProduct} className="product-create-form">
             <div className="product-image-picker">
               <Button
                 type="button"
@@ -1339,6 +1381,7 @@ const Products = () => {
                 />
               )}
             </div>
+            <div className="product-create-fields">
             <Autocomplete
               value={newProduct.type}
               onChange={(event, newValue) => {
@@ -1466,105 +1509,37 @@ const Products = () => {
               size="small"
             />
             <TextField
-              label="Giải pháp"
-              name="solution"
-              value={newProduct.solution}
-              onChange={handleInputChange}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
-            <TextField
+              className="product-create-description"
               label="Mô tả"
               name="description"
               value={newProduct.description}
               onChange={handleInputChange}
               multiline
-              rows={2}
+              rows={5}
               fullWidth
               margin="normal"
               size="small"
             />
             <TextField
-              label="Tính năng"
-              name="features"
-              value={newProduct.features}
-              onChange={handleInputChange}
-              multiline
-              rows={2}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
-            <TextField
-              label="Phương thức hoạt động"
-              name="operatingMethod"
-              value={newProduct.operatingMethod}
-              onChange={handleInputChange}
-              multiline
-              rows={2}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
-            <TextField
-              label="Ưu điểm"
-              name="advantages"
-              value={newProduct.advantages}
-              onChange={handleInputChange}
-              multiline
-              rows={2}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
-            <TextField
+              className="product-create-specifications"
               label="Thông số kỹ thuật"
               name="specifications"
               value={newProduct.specifications}
               onChange={handleInputChange}
               multiline
-              rows={2}
+              rows={5}
               fullWidth
               margin="normal"
               size="small"
             />
-            <TextField
-              label="Link manual"
-              name="manual"
-              value={newProduct.infoDoc.manual}
-              onChange={handleInputChange}
-              fullWidth
-              margin="normal"
-              size="small"
+            <ProductTechDocs
+              value={newProduct.documents}
+              onChange={(documents) =>
+                setNewProduct((previousProduct) => ({ ...previousProduct, documents }))
+              }
+              disabled={!canCreate}
             />
-            <TextField
-              label="Link data sheet"
-              name="dataSheet"
-              value={newProduct.infoDoc.dataSheet}
-              onChange={handleInputChange}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
-            <TextField
-              label="Link catalog"
-              name="catalog"
-              value={newProduct.infoDoc.catalog}
-              onChange={handleInputChange}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
-            <TextField
-              label="Link khác"
-              name="others"
-              value={newProduct.infoDoc.others}
-              onChange={handleInputChange}
-              fullWidth
-              margin="normal"
-              size="small"
-            />
+            </div>
           </form>
         </DialogContent>
         <DialogActions>

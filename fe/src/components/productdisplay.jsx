@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useContext, useCallback } from "react";
-import { useLanguage } from "../context/languagecontext.jsx";
-import { useParams } from "react-router-dom";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ShopContext } from "../context/shopcontext";
-import "./style/productdisplay.css";
 import {
   Box,
-  Typography,
-  TextField,
   Button,
   Paper,
   Rating,
-  Tabs,
   Tab,
+  Tabs,
+  TextField,
+  Typography,
 } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import SmartphoneIcon from "@mui/icons-material/Smartphone";
@@ -21,10 +18,29 @@ import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import BeenhereIcon from "@mui/icons-material/Beenhere";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
+import { useLanguage } from "../context/languagecontext.jsx";
+import { ShopContext } from "../context/shopcontext";
+import SafeProductImage from "./safeproductimage";
+import "./style/productdisplay.css";
 
-const ProductDisplay = () => {
+const apiUrl = process.env.REACT_APP_BACK_END;
+
+const withImageVersion = (url, version) => {
+  if (!url) return "";
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
+};
+
+const variantFilterLabels = {
+  color: "Màu sắc",
+  shape: "Hình dạng",
+  frame: "Khung",
+  buttonCount: "Số nút",
+};
+
+function ProductDisplay() {
   const { t } = useLanguage();
   const { productId } = useParams();
+  const navigate = useNavigate();
   const { addToCart } = useContext(ShopContext);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,14 +49,12 @@ const ProductDisplay = () => {
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
   const [reviews, setReviews] = useState([]);
-  const [newReview, setNewReview] = useState({
-    comment: "",
-    rating: 5,
-  });
+  const [newReview, setNewReview] = useState({ comment: "", rating: 5 });
   const [userReview, setUserReview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [qty, setQty] = useState(1);
-
+  const [selectedTab, setSelectedTab] = useState(0);
+  const [relatedProducts, setRelatedProducts] = useState([]);
   const [filters, setFilters] = useState({
     color: "",
     shape: "",
@@ -48,57 +62,9 @@ const ProductDisplay = () => {
     buttonCount: "",
   });
 
-  const [selectedTab, setSelectedTab] = useState(0);
-
-  const updateVariant = (newFilters, filterKey) => {
-    const matchingVariant = product.variant.find(
-      (v) =>
-        (!newFilters.color || v.color === newFilters.color) &&
-        (!newFilters.shape || v.shape === newFilters.shape) &&
-        (!newFilters.frame || v.frame === newFilters.frame) &&
-        (!newFilters.buttonCount || v.buttonCount === newFilters.buttonCount)
-    );
-
-    if (!matchingVariant) {
-      toast.error("Sản phẩm không tồn tại");
-      newFilters[filterKey] = "";
-    } else {
-      setSelectedVariant(matchingVariant);
-      setSelectedVariantIndex(product.variant.indexOf(matchingVariant));
-    }
-
-    setFilters(newFilters);
-  };
-
-  const handleFilterChange = (filterName, value) => {
-    const updatedFilters = {
-      ...filters,
-      [filterName]: value === filters[filterName] ? "" : value,
-    };
-    updateVariant(updatedFilters, filterName);
-  };
-
-  const getActiveValues = () => {
-    return product.variant.reduce((activeValues, variant) => {
-      const isMatching = Object.entries(filters).every(
-        ([key, value]) => !value || variant[key] === value
-      );
-
-      if (isMatching) {
-        Object.keys(filters).forEach((key) => {
-          if (!activeValues[key]) {
-            activeValues[key] = new Set();
-          }
-          activeValues[key].add(variant[key]);
-        });
-      }
-      return activeValues;
-    }, {});
-  };
-
   const fetchUserProfile = useCallback(async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACK_END}/users/profile`, {
+      const response = await fetch(`${apiUrl}/users/profile`, {
         method: "GET",
         credentials: "include",
       });
@@ -119,19 +85,16 @@ const ProductDisplay = () => {
 
   const fetchProduct = useCallback(async () => {
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/products/${productId}`,
-        {
-          credentials: "include",
-        }
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await fetch(`${apiUrl}/products/${productId}`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setProduct(data);
-      setSelectedVariant(data.variant[0]);
+      setSelectedVariant(data.variant?.[0] || null);
       setSelectedVariantIndex(0);
+      setQty(1);
+      setFilters({ color: "", shape: "", frame: "", buttonCount: "" });
     } catch (error) {
       console.error("Error fetching product:", error);
       toast.error("Không thể tải thông tin sản phẩm");
@@ -142,29 +105,17 @@ const ProductDisplay = () => {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/products/${productId}/review`,
-        {
-          credentials: "include",
-        }
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await fetch(`${apiUrl}/products/${productId}/review`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setReviews(data);
-
       const currentUserReview = data.find((review) => review.email === userEmail);
       setUserReview(currentUserReview || null);
-
-      if (currentUserReview) {
-        setNewReview({
-          comment: currentUserReview.comment,
-          rating: currentUserReview.rating,
-        });
-      } else {
-        setNewReview({ comment: "", rating: 5 });
-      }
+      setNewReview(currentUserReview
+        ? { comment: currentUserReview.comment, rating: currentUserReview.rating }
+        : { comment: "", rating: 5 });
     } catch (error) {
       console.error("Error fetching reviews:", error);
       toast.error("Không thể tải đánh giá sản phẩm");
@@ -180,27 +131,106 @@ const ProductDisplay = () => {
     fetchReviews();
   }, [fetchReviews]);
 
+  useEffect(() => {
+    if (!product?.type) {
+      setRelatedProducts([]);
+      return undefined;
+    }
+
+    let active = true;
+    const fetchRelatedProducts = async () => {
+      try {
+        const query = new URLSearchParams({ type: product.type, display: "true", limit: "8" });
+        const response = await fetch(`${apiUrl}/products?${query.toString()}`, {
+          credentials: "include",
+        });
+        const data = await response.json();
+        if (active) {
+          setRelatedProducts(
+            (data.products || []).filter((item) => item._id !== productId).slice(0, 5)
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching related products:", error);
+        if (active) setRelatedProducts([]);
+      }
+    };
+
+    fetchRelatedProducts();
+    return () => { active = false; };
+  }, [product?.type, productId]);
+
+  const activeValues = useMemo(() => {
+    if (!product?.variant) return {};
+    return product.variant.reduce((values, variant) => {
+      const matches = Object.entries(filters).every(
+        ([key, value]) => !value || variant[key] === value
+      );
+      if (matches) {
+        Object.keys(filters).forEach((key) => {
+          if (!values[key]) values[key] = new Set();
+          if (variant[key]) values[key].add(variant[key]);
+        });
+      }
+      return values;
+    }, {});
+  }, [filters, product]);
+
   if (loading) {
-    return <p>{t("loading_product_details")}</p>;
+    return <div className="product-detail-status">{t("loading_product_details")}</div>;
   }
 
   if (!product) {
-    return <p>{t("product_not_found")}</p>;
+    return <div className="product-detail-status">{t("product_not_found")}</div>;
   }
 
-  const activeValues = getActiveValues();
+  const updateVariant = (newFilters, filterKey) => {
+    const matchingVariant = product.variant.find(
+      (variant) =>
+        (!newFilters.color || variant.color === newFilters.color) &&
+        (!newFilters.shape || variant.shape === newFilters.shape) &&
+        (!newFilters.frame || variant.frame === newFilters.frame) &&
+        (!newFilters.buttonCount || variant.buttonCount === newFilters.buttonCount)
+    );
 
-  const handleAddToCart = () => {
-    if (!isLoggedIn) {
-      toast.error(t("login_to_add_cart"));
-      setTimeout(() => {
-        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-      }, 1000);
-      return;
+    if (!matchingVariant) {
+      toast.error("Sản phẩm không tồn tại");
+      newFilters[filterKey] = "";
+    } else {
+      setSelectedVariant(matchingVariant);
+      setSelectedVariantIndex(product.variant.indexOf(matchingVariant));
     }
+    setFilters(newFilters);
+  };
+
+  const handleFilterChange = (filterName, value) => {
+    const updatedFilters = {
+      ...filters,
+      [filterName]: value === filters[filterName] ? "" : value,
+    };
+    updateVariant(updatedFilters, filterName);
+  };
+
+  const redirectToLogin = () => {
+    toast.error(t("login_to_add_cart"));
+    setTimeout(() => {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+    }, 1000);
+  };
+
+  const handleAddToCart = async () => {
+    if (!isLoggedIn) return redirectToLogin();
+    if (selectedVariant) await addToCart(productId, selectedVariantIndex, qty);
+    return undefined;
+  };
+
+  const handleBuyNow = async () => {
+    if (!isLoggedIn) return redirectToLogin();
     if (selectedVariant) {
-      addToCart(productId, selectedVariantIndex, qty);
+      await addToCart(productId, selectedVariantIndex, qty);
+      navigate("/cart");
     }
+    return undefined;
   };
 
   const handleReviewSubmit = async () => {
@@ -216,16 +246,11 @@ const ProductDisplay = () => {
       }
 
       const url = userReview
-        ? `${process.env.REACT_APP_BACK_END}/products/${productId}/review/${userReview._id}`
-        : `${process.env.REACT_APP_BACK_END}/products/${productId}/review/create`;
-
-      const method = userReview ? "PUT" : "POST";
-
+        ? `${apiUrl}/products/${productId}/review/${userReview._id}`
+        : `${apiUrl}/products/${productId}/review/create`;
       const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        method: userReview ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newReview),
         credentials: "include",
       });
@@ -242,17 +267,13 @@ const ProductDisplay = () => {
       }
 
       const { review } = await response.json();
-
       if (userReview) {
-        setReviews((prevReviews) =>
-          prevReviews.map((r) => (r._id === userReview._id ? review : r))
-        );
+        setReviews((current) => current.map((item) => item._id === userReview._id ? review : item));
         toast.success(t("review_updated"));
       } else {
-        setReviews((prevReviews) => [...prevReviews, review]);
+        setReviews((current) => [...current, review]);
         toast.success(t("review_submitted"));
       }
-
       setUserReview(review);
       fetchProduct();
     } catch (error) {
@@ -264,33 +285,22 @@ const ProductDisplay = () => {
   };
 
   const handleDeleteReview = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || !userReview) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/products/${productId}/review/${userReview._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
-
+      const response = await fetch(`${apiUrl}/products/${productId}/review/${userReview._id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
       if (!response.ok) {
         if (response.status === 401) {
           toast.error(t("session_expired"));
-          setTimeout(() => {
-            window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-          }, 1000);
           return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      setReviews((prevReviews) =>
-        prevReviews.filter((review) => review._id !== userReview._id)
-      );
+      setReviews((current) => current.filter((review) => review._id !== userReview._id));
       setUserReview(null);
       setNewReview({ comment: "", rating: 0 });
       toast.success(t("review_deleted"));
@@ -302,465 +312,243 @@ const ProductDisplay = () => {
     }
   };
 
-  const hasSpecifications = product.specifications?.trim();
-  const hasInfoDoc =
+  const hasSpecifications = Boolean(product.specifications?.trim());
+  const technicalDocuments = Array.isArray(product.documents)
+    ? product.documents.filter((document) => document?.url?.trim())
+    : [];
+  const hasLegacyInfoDoc = Boolean(
     product.infoDoc &&
-    (product.infoDoc.manual?.trim() ||
-      product.infoDoc.dataSheet?.trim() ||
-      product.infoDoc.catalog?.trim() ||
-      product.infoDoc.others?.trim());
+    (product.infoDoc.manual?.trim() || product.infoDoc.dataSheet?.trim() ||
+      product.infoDoc.catalog?.trim() || product.infoDoc.others?.trim())
+  );
+  const hasInfoDoc = technicalDocuments.length > 0 || hasLegacyInfoDoc;
+  const detailTabs = [
+    { key: "description", label: t("product_description") },
+    ...(hasSpecifications ? [{ key: "specifications", label: t("specifications") }] : []),
+    ...(hasInfoDoc ? [{ key: "documents", label: t("reference_documents") }] : []),
+    { key: "reviews", label: `${t("rating")} (${reviews.length})` },
+  ];
+  const currentTab = detailTabs[selectedTab]?.key || "description";
+  const isOutOfStock = Number(selectedVariant?.quantityForSale || 0) <= 0;
+  const productImage = withImageVersion(selectedVariant?.imgUrl, product.updatedAt || product._id);
+  const variantRows = [
+    ["Mã sản phẩm", product.code],
+    ["Hãng sản xuất", product.brand],
+    ["Loại sản phẩm", product.type],
+    ["Màu sắc", selectedVariant?.color],
+    ["Hình dạng", selectedVariant?.shape],
+    ["Khung", selectedVariant?.frame],
+    ["Số nút", selectedVariant?.buttonCount],
+  ].filter(([, value]) => value);
 
   return (
-    <div style={{ backgroundColor: "rgb(235, 246, 254)", padding: "3rem 0", minHeight: '100vh' }}>
-      <div
-        className="more-huge-container"
-        style={{
-          maxWidth: "1920px",
-          margin: "auto",
-          width: "full",
-          display: "flex",
-          gap: "2rem",
-          justifyContent: "center",
-        }}
-      >
-        <div className="huge-container" style={{ width: "764px" }}>
-          <div className="produt-display-main-container">
-            <div>
-              <img
-                src={selectedVariant?.imgUrl}
-                alt={t("image")}
-                style={{
-                  width: "450px",
-                  aspectRatio: 3 / 2,
-                  borderRadius: "5px",
-                  backgroundColor: "white",
-                  padding: "1rem 0",
-                  objectFit: "contain",
-                }}
-              />
-            </div>
-            <div
-              className="product-main-info"
-              style={{
-                width: "230px",
-                backgroundColor: "white",
-                borderRadius: "5px",
-                display: "flex",
-                flexDirection: "column",
-                padding: "0 1rem 1rem",
-              }}
-            >
-              <div style={{ flex: 1, textAlign: "left", padding: "1rem" }}>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
-                >
-                  <h1 style={{ margin: 0 }}>{product.name}</h1>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "400",
-                      color: "#555",
-                    }}
-                  >
-                    ({product.purchaseCount})
-                  </span>
+    <main className="product-detail-page">
+      <div className="product-detail-shell">
+        <nav className="product-detail-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/"><i className="fa-solid fa-house" /> {t("home")}</Link>
+          <i className="fa-solid fa-angle-right" />
+          <Link to="/product">{t("products")}</Link>
+          {product.type && <><i className="fa-solid fa-angle-right" /><Link to={`/product?type=${encodeURIComponent(product.type)}`}>{product.type}</Link></>}
+          <i className="fa-solid fa-angle-right" />
+          <span>{product.name}</span>
+        </nav>
+
+        <section className="product-detail-hero">
+          <div className="product-gallery-card">
+            <div className="product-gallery-layout">
+              <div className="product-gallery-main">
+                <SafeProductImage src={productImage} alt={product.name} className="product-main-canvas" />
+                <div className="product-gallery-benefits">
+                  <span><i className="fa-solid fa-expand" /> Ảnh thật 100%</span>
+                  <span><i className="fa-solid fa-shield-halved" /> Bảo hành chính hãng</span>
+                  <span><i className="fa-solid fa-rotate" /> Đổi trả theo chính sách</span>
                 </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
-                >
-                  <Rating
-                    name="rating"
-                    value={product.averageReviews}
-                    readOnly
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.8rem",
-                      fontWeight: "400",
-                      color: "#555",
-                    }}
-                  >
-                    ({product.reviewCount})
-                  </span>
-                </div>
-                <p style={{ fontWeight: 500 }}>{product.code}</p>
-                <p className="product-display-price">
-                  {Number(selectedVariant?.price) > 0
-                    ? `${Number(selectedVariant.price).toLocaleString("vi-VN")} VND`
-                    : "Liên hệ"}
-                </p>
-                {(selectedVariant?.quantityForSale || 0) <= 0 ? (
-                  <>
-                    <p style={{ color: "#d32f2f", fontWeight: "bold", margin: "5px 0 0 0" }}>
-                      {t("out_of_stock")}
-                    </p>
-                    {/* Nút liên hệ cuộc gọi (Chỉ hiển thị khi hết hàng) */}
-                    <Button
-                      variant="contained"
-                      color="success"
-                      size="small"
-                      href="tel:0913158383"
-                      startIcon={<SmartphoneIcon />}
-                      sx={{
-                        width: "100%",
-                        mt: 1,
-                        textTransform: "none",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      0913 158 383
-                    </Button>
-                  </>
-                ) : (
-                  <p style={{ margin: "5px 0 0 0", color: "#333", fontSize: "0.95rem", fontWeight: "bold" }}>
-                    {t("quantity_left")}{selectedVariant.quantityForSale}
-                  </p>
-                )}
-                <p style={{ margin: "5px 0" }}>{product.type}</p>
               </div>
-
-              {/* Bộ chọn số lượng */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 1.5,
-                  mb: 2,
-                  mt: 1,
-                }}
-              >
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {t("quantity")}:
-                </Typography>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <button
-                    onClick={() => setQty((prev) => Math.max(1, prev - 1))}
-                    type="button"
-                    style={{
-                      border: "none",
-                      background: "#f0f0f0",
-                      padding: "4px 8px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    -
-                  </button>
-                  <span style={{ padding: "0 10px", fontSize: "0.95rem", minWidth: "20px", textAlign: "center" }}>
-                    {qty}
-                  </span>
-                  <button
-                    onClick={() => setQty((prev) => prev + 1)}
-                    type="button"
-                    style={{
-                      border: "none",
-                      background: "#f0f0f0",
-                      padding: "4px 8px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    +
-                  </button>
-                </Box>
-              </Box>
-
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleAddToCart}
-                startIcon={<ShoppingCartIcon />}
-                sx={{
-                  width: "90%",
-                  margin: "0 auto 10px",
-                }}
-              >
-                {t("add_to_cart")}
-              </Button>
             </div>
           </div>
-          {product?.description && (
-            <Box className="box">
-              <Typography variant="h6" gutterBottom>
-                {t("product_description")}
-              </Typography>
-              <Typography>{product.description}</Typography>
-            </Box>
-          )}
-          <Box>
-            {(hasSpecifications || hasInfoDoc) && (
-              <>
-                <Tabs
-                  value={selectedTab}
-                  onChange={(event, newValue) => setSelectedTab(newValue)}
-                  sx={{
-                    backgroundColor: "white",
-                    borderTopLeftRadius: "5px",
-                    borderTopRightRadius: "5px",
-                  }}
-                >
-                  {hasSpecifications && <Tab label={t("specifications")} />}
-                  {hasInfoDoc && <Tab label={t("reference_documents")} />}
-                </Tabs>
-                {selectedTab === 0 && hasSpecifications && (
-                  <Box className="box">
-                    <ul>
-                      {product.specifications
-                        .split("\n")
-                        .filter((line) => line.trim() !== "")
-                        .map((item, index) => (
-                          <li key={index}>{item}</li>
-                        ))}
-                    </ul>
-                  </Box>
-                )}
-                {selectedTab === 1 && hasInfoDoc && (
-                  <Box className="box">
-                    {product.infoDoc.manual && product.infoDoc.manual.trim() !== "" && (
-                      <Typography>
-                        <a
-                          href={product.infoDoc.manual}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Manual
-                        </a>
-                      </Typography>
-                    )}
-                    {product.infoDoc.dataSheet && product.infoDoc.dataSheet.trim() !== "" && (
-                      <Typography>
-                        <a
-                          href={product.infoDoc.dataSheet}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Data sheet
-                        </a>
-                      </Typography>
-                    )}
-                    {product.infoDoc.catalog && product.infoDoc.catalog.trim() !== "" && (
-                      <Typography>
-                        <a
-                          href={product.infoDoc.catalog}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Catalog
-                        </a>
-                      </Typography>
-                    )}
-                    {product.infoDoc.others && product.infoDoc.others.trim() !== "" && (
-                      <Typography>
-                        <a
-                          href={product.infoDoc.others}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {t("other_documents")}
-                        </a>
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              </>
+
+          <div className="product-purchase-card">
+            <div className="product-brand-label">{product.brand || "TTSmart"}</div>
+            <h1>{product.name}</h1>
+            <div className="product-rating-line">
+              <strong>{Number(product.averageReviews || 0).toFixed(1)}</strong>
+              <Rating value={Number(product.averageReviews || 0)} readOnly precision={0.5} size="small" />
+              <span>({product.reviewCount || reviews.length} đánh giá)</span>
+              <i />
+              <span>Đã bán {product.purchaseCount || 0}</span>
+            </div>
+            <div className="product-price-line">
+              <strong>{Number(selectedVariant?.price) > 0 ? `${Number(selectedVariant.price).toLocaleString("vi-VN")} VNĐ` : "Liên hệ"}</strong>
+              <span className={isOutOfStock ? "is-out" : "is-in"}>{isOutOfStock ? t("out_of_stock_val") : "Còn hàng"}</span>
+            </div>
+            <p className="product-vat-note">Giá chưa bao gồm VAT</p>
+
+            {variantRows.length > 0 && (
+              <div className="product-summary-list">
+                {variantRows.map(([label, value]) => <div key={label}><span>{label}:</span><strong>{value}</strong></div>)}
+              </div>
             )}
-          </Box>
-          {product?.features && (
-            <Box className="box">
-              <Typography variant="h6" gutterBottom>
-                {t("features")}
-              </Typography>
-              <Typography>{product.features}</Typography>
-            </Box>
-          )}
-          {product?.operatingMethod && (
-            <Box className="box">
-              <Typography variant="h6" gutterBottom>
-                {t("operating_method")}
-              </Typography>
-              <Typography>{product.operatingMethod}</Typography>
-            </Box>
-          )}
-          {product?.advantages && (
-            <Box className="box">
-              <Typography variant="h6" gutterBottom>
-                {t("advantages")}
-              </Typography>
-              <Typography>{product.advantages}</Typography>
-            </Box>
-          )}
-          <Box className="box" sx={{ margin: "1rem 0" }}>
-            <Typography variant="h6" gutterBottom>
-              {t("rating")}
-            </Typography>
-            {reviews.filter((review) => review.email !== userEmail).length > 0 ? (
-              reviews
-                .filter((review) => review.email !== userEmail)
-                .map((review, index) => (
-                  <Paper
-                    key={index}
-                    elevation={3}
-                    sx={{ padding: 2, marginBottom: 2 }}
-                  >
-                    <Typography variant="subtitle1" fontWeight="bold">
-                      Email: {review.email}
-                    </Typography>
-                    <Typography>
-                      <Rating name="rating" value={review.rating} readOnly />
-                    </Typography>
-                    <Typography>
-                      <strong>Comment:</strong> {review.comment}
-                    </Typography>
-                  </Paper>
-                ))
+
+            <div className="product-variant-filters">
+              {Object.entries(variantFilterLabels).map(([key, label]) => {
+                const values = Array.from(activeValues[key] || []).filter(Boolean);
+                if (values.length === 0) return null;
+                return (
+                  <div className="product-variant-filter" key={key}>
+                    <span>{label}</span>
+                    <div>{values.map((value) => (
+                      <button
+                        type="button"
+                        key={value}
+                        className={filters[key] === value ? "is-active" : ""}
+                        onClick={() => handleFilterChange(key, value)}
+                      >{value}</button>
+                    ))}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="product-quantity-row">
+              <span>{t("quantity")}:</span>
+              <div className="product-detail-quantity">
+                <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))}>−</button>
+                <span>{qty}</span>
+                <button type="button" onClick={() => setQty((current) => current + 1)}>+</button>
+              </div>
+              <small>{isOutOfStock ? t("out_of_stock") : `Còn ${selectedVariant.quantityForSale} sản phẩm`}</small>
+            </div>
+
+            {isOutOfStock ? (
+              <Button className="product-contact-stock-button" variant="contained" href="tel:0913158383" startIcon={<SmartphoneIcon />}>
+                0913 158 383
+              </Button>
             ) : (
-              <Typography>{t("no_reviews_yet")}</Typography>
+              <div className="product-primary-actions">
+                <Button variant="contained" onClick={handleAddToCart} startIcon={<ShoppingCartIcon />}>{t("add_to_cart")}</Button>
+                <Button variant="outlined" onClick={handleBuyNow}><i className="fa-solid fa-bolt" /> Mua ngay</Button>
+              </div>
             )}
-            <Box
-              component="form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleReviewSubmit();
-              }}
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                width: "100%",
-              }}
-            >
-              <Box>
-                <Typography gutterBottom>{t("rating")}:</Typography>
-                <Rating
-                  name="rating"
-                  value={newReview.rating}
-                  onChange={(e, newValue) =>
-                    setNewReview({ ...newReview, rating: newValue || 0 })
-                  }
-                  precision={1}
-                  max={5}
-                />
-              </Box>
-              <TextField
-                label={t("comment")}
-                multiline
-                rows={4}
-                value={newReview.comment}
-                onChange={(e) =>
-                  setNewReview({ ...newReview, comment: e.target.value })
-                }
-                fullWidth
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                type="submit"
-                disabled={isSubmitting}
-              >
-                {isSubmitting
-                  ? t("processing")
-                  : userReview
-                    ? t("update_review")
-                    : t("submit_review")}
-              </Button>
-              {userReview && (
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={handleDeleteReview}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? t("processing") : t("delete_review")}
-                </Button>
-              )}
-            </Box>
-          </Box>
-        </div>
-        <div style={{ color: "#1976d2" }}>
-          <div className="sidebox-container">
-            <div className="sidebox">
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                {t("customer_support")}
-              </Typography>
-              <Typography
-                variant="body2"
-                gutterBottom
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <SmartphoneIcon sx={{ width: 15, height: 15 }} />
-                <a
-                  href="tel:+8413158383"
-                  style={{ textDecoration: "none", color: "inherit" }}
-                >
-                  {t("hotline")}
-                </a>
-              </Typography>
-              <Typography
-                variant="body2"
-                gutterBottom
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <img src="/icons8-zalo.svg" alt="Zalo" width={15} height={15} />
-                {t("contact_zalo")}
-              </Typography>
-              <Typography
-                variant="body2"
-                gutterBottom
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <MailOutlineIcon sx={{ width: 15, height: 15 }} />
-                {t("send_email")}
-              </Typography>
-              <Typography
-                variant="body2"
-                gutterBottom
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <HelpOutlineIcon sx={{ width: 15, height: 15 }} />
-                {t("faqs")}
-              </Typography>
-            </div>
-            <div className="sidebox">
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                {t("return_warranty")}
-              </Typography>
-              <Typography
-                variant="body2"
-                gutterBottom
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <VerifiedIcon sx={{ width: 15, height: 15 }} />
-                {t("genuine_100")}
-              </Typography>
-              <Typography
-                variant="body2"
-                gutterBottom
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <BeenhereIcon sx={{ width: 15, height: 15 }} />
-                {t("genuine_warranty_label")}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <UndoOutlinedIcon sx={{ width: 15, height: 15 }} />{t("return_3_days")}
-              </Typography>
+
+            <div className="product-contact-actions">
+              <a href="tel:0813158383"><i className="fa-solid fa-phone" /> Gọi ngay 0813.15.83.83</a>
+              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><i className="fa-regular fa-comment-dots" /> Chat Zalo</a>
+              <a href="mailto:ttsmart.ltd@gmail.com"><i className="fa-regular fa-envelope" /> Gửi email</a>
             </div>
           </div>
-        </div>
+
+          <aside className="product-service-column">
+            <div className="product-service-card">
+              <h2>{t("customer_support")}</h2>
+              <a href="tel:0813158383"><SmartphoneIcon /> Đường dây nóng&nbsp; 0813.15.83.83</a>
+              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><img src="/icons8-zalo.svg" alt="" /> {t("contact_zalo")}</a>
+              <a href="mailto:ttsmart.ltd@gmail.com"><MailOutlineIcon /> {t("send_email")}</a>
+              <Link to="/policy"><HelpOutlineIcon /> {t("faqs")}</Link>
+            </div>
+            <div className="product-service-card">
+              <h2>Cam kết từ TTSmart</h2>
+              <span><VerifiedIcon /> {t("genuine_100")}</span>
+              <span><BeenhereIcon /> {t("genuine_warranty_label")}</span>
+              <span><UndoOutlinedIcon /> {t("return_3_days")}</span>
+              <span><i className="fa-solid fa-truck-fast" /> Giao hàng toàn quốc</span>
+              <span><i className="fa-solid fa-headset" /> Hỗ trợ kỹ thuật 24/7</span>
+            </div>
+          </aside>
+        </section>
+
+        {relatedProducts.length > 0 && (
+          <section className="related-products-card">
+            <div className="related-products-heading"><h2>Sản phẩm liên quan</h2><Link to={`/product?type=${encodeURIComponent(product.type || "")}`}>Xem tất cả</Link></div>
+            <div className="related-products-grid">
+              {relatedProducts.map((item) => {
+                const variant = item.variant?.[0] || {};
+                const inStock = Number(variant.quantityForSale || 0) > 0;
+                return (
+                  <Link className="related-product" to={`/product/${item._id}`} key={item._id}>
+                    <SafeProductImage
+                      src={withImageVersion(variant.imgUrl, item.updatedAt || item._id)}
+                      alt={item.name}
+                      className="related-product-canvas"
+                    />
+                    <div><h3>{item.name}</h3><strong>{Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} VNĐ` : "Liên hệ"}</strong><Rating value={Number(item.averageReviews || 0)} readOnly size="small" /><span className={`related-product-status ${inStock ? "is-in" : "is-out"}`}>{inStock ? "Còn hàng" : t("out_of_stock_val")}</span></div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <section className="product-detail-tabs-card">
+          <Tabs value={selectedTab} onChange={(_event, value) => setSelectedTab(value)} variant="scrollable" scrollButtons="auto">
+            {detailTabs.map((tab) => <Tab key={tab.key} label={tab.label} />)}
+          </Tabs>
+          <div className="product-tab-content">
+            {currentTab === "description" && (
+              <div className="product-description-content">
+                {product.description && <section><h2>{t("product_description")}</h2><p>{product.description}</p></section>}
+                {product.features && <section><h2>{t("features")}</h2><p>{product.features}</p></section>}
+                {product.operatingMethod && <section><h2>{t("operating_method")}</h2><p>{product.operatingMethod}</p></section>}
+                {product.advantages && <section><h2>{t("advantages")}</h2><p>{product.advantages}</p></section>}
+                {!product.description && !product.features && !product.operatingMethod && !product.advantages && <p>Thông tin sản phẩm đang được cập nhật.</p>}
+              </div>
+            )}
+
+            {currentTab === "specifications" && (
+              <ul className="product-specification-list">
+                {product.specifications.split("\n").filter((line) => line.trim()).map((item, index) => <li key={index}>{item}</li>)}
+              </ul>
+            )}
+
+            {currentTab === "documents" && (
+              <div className="product-document-links">
+                {technicalDocuments.length > 0 ? (
+                  technicalDocuments.map((document, index) => (
+                    <a
+                      key={document._id || `${document.url}-${index}`}
+                      href={document.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <i className={`fa-regular ${document.sourceType === "file" ? "fa-file-pdf" : "fa-file-lines"}`} />
+                      {document.label?.trim() || (document.sourceType === "file" ? "Tài liệu PDF" : "Tài liệu kỹ thuật")}
+                    </a>
+                  ))
+                ) : (
+                  <>
+                    {product.infoDoc.manual?.trim() && <a href={product.infoDoc.manual} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> Manual</a>}
+                    {product.infoDoc.dataSheet?.trim() && <a href={product.infoDoc.dataSheet} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> Data sheet</a>}
+                    {product.infoDoc.catalog?.trim() && <a href={product.infoDoc.catalog} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> Catalog</a>}
+                    {product.infoDoc.others?.trim() && <a href={product.infoDoc.others} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("other_documents")}</a>}
+                  </>
+                )}
+              </div>
+            )}
+
+            {currentTab === "reviews" && (
+              <div className="product-reviews-layout">
+                <div className="product-review-list">
+                  {reviews.filter((review) => review.email !== userEmail).length > 0
+                    ? reviews.filter((review) => review.email !== userEmail).map((review) => (
+                      <Paper key={review._id} elevation={0} className="product-review-item">
+                        <strong>{review.email}</strong><Rating value={review.rating} readOnly size="small" /><p>{review.comment}</p>
+                      </Paper>
+                    ))
+                    : <Typography>{t("no_reviews_yet")}</Typography>}
+                </div>
+                <Box component="form" className="product-review-form" onSubmit={(event) => { event.preventDefault(); handleReviewSubmit(); }}>
+                  <Typography fontWeight={700}>{userReview ? t("update_review") : t("submit_review")}</Typography>
+                  <Rating value={newReview.rating} onChange={(_event, value) => setNewReview({ ...newReview, rating: value || 0 })} />
+                  <TextField label={t("comment")} multiline rows={4} value={newReview.comment} onChange={(event) => setNewReview({ ...newReview, comment: event.target.value })} fullWidth />
+                  <Button variant="contained" type="submit" disabled={isSubmitting}>{isSubmitting ? t("processing") : userReview ? t("update_review") : t("submit_review")}</Button>
+                  {userReview && <Button variant="outlined" color="error" onClick={handleDeleteReview} disabled={isSubmitting}>{t("delete_review")}</Button>}
+                </Box>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
-};
+}
 
 export default ProductDisplay;

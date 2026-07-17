@@ -1,167 +1,88 @@
-import React, { useState, useContext } from "react";
+import React, { useContext, useState } from "react";
 import {
-  Card,
-  CardMedia,
-  CardContent,
-  Typography,
-  Rating,
   Box,
-  IconButton,
   Button,
+  Card,
+  CardContent,
+  IconButton,
+  Rating,
+  Typography,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
-import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/shopcontext";
+import SafeProductImage from "./safeproductimage";
 
 function Item({ product }) {
   const navigate = useNavigate();
   const { addToCart } = useContext(ShopContext);
   const [quantity, setQuantity] = useState(1);
-  const quantityForSale = product.variant?.[0]?.quantityForSale ?? 0;
+  const primaryVariant = product.variant?.[0] || {};
+  const quantityForSale = Number(primaryVariant.quantityForSale || 0);
   const isOutOfStock = quantityForSale <= 0;
+  const price = Number(primaryVariant.price || 0);
+  const imageVersion = encodeURIComponent(product.updatedAt || product._id || "1");
+  const imageUrl = primaryVariant.imgUrl
+    ? `${primaryVariant.imgUrl}${primaryVariant.imgUrl.includes("?") ? "&" : "?"}v=${imageVersion}`
+    : "placeholder.jpg";
 
-  const handleClick = () => {
-    navigate(`/product/${product._id}`);
-  };
+  const handleClick = () => navigate(`/product/${product._id}`);
 
-  const handleAddToCartClick = (e) => {
-    e.stopPropagation();
+  const handleAddToCartClick = (event) => {
+    event.stopPropagation();
     addToCart(product._id, 0, quantity);
   };
 
   return (
-    <Card
-      onClick={handleClick}
-      style={{ cursor: "pointer" }}
-      sx={{
-        transition: "0.3s",
-        "&:hover": {
-          boxShadow: "0px 4px 20px rgba(0, 0, 0, 0.2)",
-        },
-        width: "300px", // Giữ chiều rộng của Card
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <CardMedia
-        component="img"
-        sx={{
-          width: "100%",
-          height: "200px",
-          objectFit: "contain",
-        }}
-        image={product.variant[0]?.imgUrl || "placeholder.jpg"}
-        alt={product.name}
-      />
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Typography
-          variant="h6"
-          component="div"
-          sx={{
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
+    <Card className="catalog-product-card" onClick={handleClick}>
+      <div className="catalog-product-image-wrap">
+        <SafeProductImage
+          className="catalog-product-image"
+          src={imageUrl}
+          alt={product.name}
+        />
+      </div>
+
+      <CardContent className="catalog-product-content">
+        <Typography className="catalog-product-name" component="h2">
           {product.name}
         </Typography>
-        <Rating name="rating" value={product.averageReviews} readOnly />
-        <Typography variant="body2" color="text.secondary">
-          {Number(product.variant?.[0]?.price) > 0
-            ? Number(product.variant[0].price).toLocaleString("vi-VN") + "VNĐ"
-            : product.variant?.[0]
-            ? "Liên hệ"
-          : "Chưa có giá"}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Hãng: {product.brand}
-        </Typography>
-        {/* Số lượng tồn hiển thị chữ màu đen rõ ràng */}
-        <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500, mt: 0.5 }}>
-          Số lượng tồn: {quantityForSale}
-        </Typography>
 
-        {/* Bộ chọn số lượng & nút thêm nhanh vào giỏ hàng */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mt: 2,
-          }}
-          onClick={(e) => e.stopPropagation()} // Ngăn sự kiện click lan truyền lên Card
-        >
+        <div className="catalog-product-rating">
+          <Rating value={Number(product.averageReviews || 0)} precision={0.5} readOnly size="small" />
+          <span>({product.reviewCount || 0})</span>
+        </div>
+
+        <div className="catalog-product-price">
+          {price > 0 ? `${price.toLocaleString("vi-VN")} VNĐ` : primaryVariant ? "Liên hệ" : "Chưa có giá"}
+        </div>
+
+        <div className="catalog-product-meta">
+          <span>Hãng: {product.brand || "Chưa rõ"}</span>
+          <div>
+            <strong>Số lượng tồn: {quantityForSale}</strong>
+          </div>
+        </div>
+
+        <Box className="catalog-product-purchase" onClick={(event) => event.stopPropagation()}>
           {isOutOfStock ? (
             <Button
-              variant="contained"
-              color="primary"
-              size="small"
+              className="catalog-contact-button"
+              variant="outlined"
               href="tel:0813158383"
               startIcon={<LocalPhoneIcon />}
-              sx={{
-                ml: "auto",
-                textTransform: "none",
-                fontWeight: 700,
-                borderRadius: "4px",
-                minHeight: "32px",
-              }}
             >
               0813158383
             </Button>
           ) : (
             <>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  overflow: "hidden",
-                }}
-              >
-                <button
-                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                  style={{
-                    border: "none",
-                    background: "#f0f0f0",
-                    padding: "4px 8px",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                >
-                  -
-                </button>
-                <span style={{ padding: "0 10px", fontSize: "0.9rem", minWidth: "20px", textAlign: "center" }}>
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => setQuantity((prev) => prev + 1)}
-                  style={{
-                    border: "none",
-                    background: "#f0f0f0",
-                    padding: "4px 8px",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                >
-                  +
-                </button>
-              </Box>
-
-              <IconButton
-                color="primary"
-                onClick={handleAddToCartClick}
-                sx={{
-                  backgroundColor: "primary.main",
-                  color: "white",
-                  "&:hover": {
-                    backgroundColor: "primary.dark",
-                  },
-                  borderRadius: "4px",
-                  padding: "6px",
-                }}
-              >
+              <div className="catalog-quantity-control">
+                <button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>−</button>
+                <span>{quantity}</span>
+                <button type="button" onClick={() => setQuantity((current) => current + 1)}>+</button>
+              </div>
+              <IconButton className="catalog-cart-button" onClick={handleAddToCartClick} aria-label={`Thêm ${product.name} vào giỏ hàng`}>
                 <ShoppingCartIcon fontSize="small" />
               </IconButton>
             </>

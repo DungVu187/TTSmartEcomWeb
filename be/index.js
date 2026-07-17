@@ -154,11 +154,16 @@ app.use('/voice-vocabs', voiceVocabRoutes);
 // Static files
 const fs = require('fs');
 const uploadInvoicesDir = path.join(__dirname, 'upload', 'invoices');
+const uploadDocumentsDir = path.join(__dirname, 'upload', 'documents');
 if (!fs.existsSync(uploadInvoicesDir)) {
   fs.mkdirSync(uploadInvoicesDir, { recursive: true });
 }
+if (!fs.existsSync(uploadDocumentsDir)) {
+  fs.mkdirSync(uploadDocumentsDir, { recursive: true });
+}
 
 app.use('/images', express.static(path.join(__dirname, 'upload', 'images')));
+app.use('/documents', express.static(uploadDocumentsDir));
 app.use('/section-images', express.static(path.join(__dirname, 'upload', 'sections')));
 app.use('/station', express.static(path.join(__dirname, 'upload', 'stations')));
 app.use('/invoice-images', authenticateAdmin, express.static(uploadInvoicesDir));
@@ -181,10 +186,10 @@ app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
-    '/histories', '/images', '/section-images', '/zalo', '/telegram', '/voice-vocabs'
+    '/histories', '/images', '/documents', '/section-images', '/zalo', '/telegram', '/voice-vocabs'
   ];
   const isApi = apiPaths.some(path => req.path.startsWith(path));
-  const isStaticFile = /\.(jpg|jpeg|png|gif|webp|svg|css|js|ico|map)$/i.test(req.path);
+  const isStaticFile = /\.(jpg|jpeg|png|gif|webp|pdf|svg|css|js|ico|map)$/i.test(req.path);
 
   if (isApi || isStaticFile) {
     return next();

@@ -12,13 +12,25 @@ import {
   DialogContent,
   DialogTitle,
 } from "@mui/material";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import "./styles/product.css";
 import Item from "../components/item";
 import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
+const filterSelectMenuProps = {
+  disableScrollLock: true,
+  PaperProps: {
+    sx: {
+      maxHeight: 320,
+      mt: 0.5,
+      border: "1px solid #e5eaf0",
+      borderRadius: "8px",
+      boxShadow: "0 10px 28px rgba(16, 42, 67, 0.14)",
+    },
+  },
+};
 
 function Product() {
   const { t } = useLanguage();
@@ -42,6 +54,8 @@ function Product() {
     return pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 1;
   });
   const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [filters, setFilters] = useState(initialFilters);
   const [openDialog, setOpenDialog] = useState(false);
 
@@ -58,6 +72,7 @@ function Product() {
   const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || "Tất cả");
 
   const fetchProducts = async (currStationId = null, overrides = null) => {
+    setIsLoadingProducts(true);
     try {
       // Ưu tiên filter/page truyền vào (đọc trực tiếp từ URL) để tránh đọc phải
       // state cũ khi setFilters chưa kịp flush trong cùng một lượt effect.
@@ -90,9 +105,12 @@ function Product() {
 
       const data = await response.json();
       setProducts(data.products || []);
+      setTotalProducts(data.total || 0);
       setTotalPages(Math.ceil((data.total || 0) / limit));
     } catch (error) {
       console.error("Error fetching products:", error);
+    } finally {
+      setIsLoadingProducts(false);
     }
   };
 
@@ -286,6 +304,7 @@ function Product() {
           <Select
             value={selectedStation}
             onChange={handleStationChange}
+            MenuProps={filterSelectMenuProps}
             size="small"
             fullWidth
             sx={{ backgroundColor: "white" }}
@@ -313,6 +332,7 @@ function Product() {
       <InputLabel>{t("search_by_brand")}</InputLabel>
       <Select
         value={filters.brand || "Tất cả"}
+        MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
             target: { name: "brand", value: e.target.value },
@@ -332,6 +352,7 @@ function Product() {
       <InputLabel>{t("search_by_type")}</InputLabel>
       <Select
         value={filters.type || "Tất cả"}
+        MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
             target: { name: "type", value: e.target.value },
@@ -351,6 +372,7 @@ function Product() {
       <InputLabel>{t("search_by_section")}</InputLabel>
       <Select
         value={filters.section || "Tất cả"}
+        MenuProps={filterSelectMenuProps}
         onChange={handleFilterChange}
         name="section"
         size="small"
@@ -367,6 +389,7 @@ function Product() {
       <InputLabel>{t("search_by_equipment")}</InputLabel>
       <Select
         value={filters.value || "Tất cả"}
+        MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
             target: { name: "value", value: e.target.value },
@@ -387,6 +410,7 @@ function Product() {
       <Typography variant="h6">{t("sort_by")}</Typography>
       <Select
         value={filters.sortBy || "purchaseCount"}
+        MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
             target: { name: "sortBy", value: e.target.value },
@@ -402,6 +426,7 @@ function Product() {
       </Select>
       <Select
         value={filters.sortOrder || "desc"}
+        MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
             target: { name: "sortOrder", value: e.target.value },
@@ -429,23 +454,32 @@ function Product() {
     </form>
   );
 
+  const firstProductIndex = totalProducts === 0 ? 0 : (page - 1) * limit + 1;
+  const lastProductIndex = Math.min(page * limit, totalProducts);
+
   return (
-    <div
-      style={{ padding: "2rem 0 2rem", backgroundColor: "rgb(235, 246, 254)" }}
-    >
-      <div style={{ maxWidth: "1920px", margin: "auto" }}>
-        <Button
-          className="filter-button"
-          onClick={() => setOpenDialog(true)}
-          sx={{ display: "none" }}
-          variant="contained"
-          color="primary"
-          startIcon={<FilterListIcon />}
-        >
-          {t("filters")}
-        </Button>
+    <main className="product-catalog-page">
+      <div className="product-catalog-shell">
+        <nav className="product-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/"><i className="fa-solid fa-house" /> {t("home")}</Link>
+          <i className="fa-solid fa-angle-right" />
+          <span>{t("products")}</span>
+        </nav>
+
+        <div className="product-page-title-row">
+          <h1>{t("products")}</h1>
+          <Button
+            className="filter-button"
+            onClick={() => setOpenDialog(true)}
+            variant="outlined"
+            startIcon={<FilterListIcon />}
+          >
+            {t("filters")}
+          </Button>
+        </div>
+
         <div className="product-filter-main-container">
-          <div className="filter-desktop">{filterForm}</div>
+          <aside className="filter-desktop">{filterForm}</aside>
 
           <Dialog
             open={openDialog}
@@ -457,33 +491,40 @@ function Product() {
             <DialogContent>{filterForm}</DialogContent>
           </Dialog>
 
-          <div style={{ flexGrow: 1 }}>
-            {products.length > 0 ? (
-              <Box
-                className="product-list-container"
-                display="flex"
-                flexWrap="wrap"
-                justifyContent="flex-start"
-                gap={2}
-              >
+          <section className="product-results-panel">
+            <div className="product-results-toolbar">
+              <span>
+                {isLoadingProducts
+                  ? "Đang tải sản phẩm..."
+                  : `Hiển thị ${firstProductIndex}–${lastProductIndex} trong ${totalProducts} sản phẩm`}
+              </span>
+              <div className="product-view-indicator" aria-hidden="true">
+                <i className="fa-solid fa-table-cells-large is-active" />
+                <i className="fa-solid fa-list" />
+              </div>
+            </div>
+
+            {isLoadingProducts ? (
+              <div className="product-loading-state">
+                <span className="product-loading-spinner" />
+                Đang tải sản phẩm...
+              </div>
+            ) : products.length > 0 ? (
+              <div className="product-list-container">
                 {products.map((product) => (
-                  <Box key={product._id} className="product-item">
+                  <div key={product._id} className="product-item">
                     <Item product={product} />
-                  </Box>
+                  </div>
                 ))}
-              </Box>
+              </div>
             ) : (
-              <Box sx={{ width: "100%", py: 8, px: 2, textAlign: "center", backgroundColor: "white", borderRadius: "8px", boxShadow: "0 2px 5px rgba(0,0,0,0.05)" }}>
+              <Box className="product-empty-state">
                 {!isLoggedIn ? (
                   <Box>
                     <Typography variant="h6" sx={{ color: "text.secondary", mb: 2 }}>
                       {t("login_to_view_station_items")}
                     </Typography>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={() => navigate("/login")}
-                    >
+                    <Button variant="contained" onClick={() => navigate("/login")}>
                       {t("login_now")}
                     </Button>
                   </Box>
@@ -498,21 +539,22 @@ function Product() {
                 )}
               </Box>
             )}
-          </div>
-        </div>
-        <div
-          style={{ display: "flex", justifyContent: "center", margin: "2rem 0" }}
-        >
-          <Pagination
-            count={totalPages}
-            page={page}
-            onChange={(event, value) => handlePageChange(event, value)}
-            size="large"
-            color="primary"
-          />
+
+            {totalPages > 1 && (
+              <div className="product-pagination">
+                <Pagination
+                  count={totalPages}
+                  page={page}
+                  onChange={(event, value) => handlePageChange(event, value)}
+                  size="medium"
+                  color="primary"
+                />
+              </div>
+            )}
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 

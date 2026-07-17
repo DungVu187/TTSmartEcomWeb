@@ -1,10 +1,14 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const fs = require('fs').promises;
+const path = require('path');
+process.env.ADDRESS = 'http://localhost:5000';
 const app = require('../index');
 const { Product } = require('../components/product');
 const { User } = require('../components/user');
 const { StorageHistory } = require('../components/storagehistory');
+const uploadedDocumentPaths = [];
 
 beforeAll(async () => {
   const url = 'mongodb://localhost:27017/EcomTest';
@@ -20,6 +24,13 @@ afterEach(async () => {
   await Product.deleteMany({});
   await User.deleteMany({});
   await StorageHistory.deleteMany({});
+  await Promise.all(uploadedDocumentPaths.splice(0).map(async (filePath) => {
+    try {
+      await fs.unlink(filePath);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }));
 });
 
 const createProductPayload = (overrides = {}) => ({
@@ -330,6 +341,95 @@ describe('Products API Tests (Phase 4)', () => {
 
     expect(blocked.status).toBe(403);
     expect(blocked.body.message).toBe('Access denied, missing permission: product.edit');
+  });
+
+  it('creates and updates the documents field without removing legacy infoDoc data', async () => {
+    const createAgent = await createStaffAgent({
+      phone: '0987654343',
+      permissions: ['product.create', 'product.edit']
+    });
+    const initialDocuments = [
+      { label: 'Hướng dẫn', url: 'https://example.com/manual', sourceType: 'link' },
+      { label: 'Thông số.pdf', url: 'https://example.com/spec.pdf', sourceType: 'file' }
+    ];
+
+    const created = await createAgent
+      .post('/products/create')
+      .send(createProductPayload({
+        name: 'Product With Documents',
+        code: 'PRODUCT-WITH-DOCUMENTS',
+        documents: initialDocuments,
+        infoDoc: { manual: 'https://legacy.example.com/manual' }
+      }));
+
+    expect(created.status).toBe(201);
+    expect(created.body.product.documents).toEqual(expect.arrayContaining([
+      expect.objectContaining(initialDocuments[0]),
+      expect.objectContaining(initialDocuments[1])
+    ]));
+
+    const updatedDocuments = [
+      { label: 'Catalog mới', url: 'https://example.com/catalog', sourceType: 'link' }
+    ];
+    const updated = await createAgent
+      .put(`/products/${created.body.product._id}`)
+      .send({ documents: updatedDocuments });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.documents).toEqual([
+      expect.objectContaining(updatedDocuments[0])
+    ]);
+    expect(updated.body.infoDoc.manual).toBe('https://legacy.example.com/manual');
+  });
+
+  it('uploads PDF documents and rejects invalid type or files larger than 20MB', async () => {
+    const agent = await createStaffAgent({
+      phone: '0987654344',
+      permissions: ['product.create']
+    });
+
+    const invalidType = await agent
+      .post('/products/upload/document')
+      .attach('document', Buffer.from('not a pdf'), {
+        filename: 'document.txt',
+        contentType: 'text/plain'
+      });
+
+    expect(invalidType.status).toBe(400);
+    expect(invalidType.body).toEqual({ success: 0, message: 'Chỉ cho phép upload file PDF' });
+
+    const oversized = await agent
+      .post('/products/upload/document')
+      .attach('document', Buffer.alloc((20 * 1024 * 1024) + 1, 1), {
+        filename: 'oversized.pdf',
+        contentType: 'application/pdf'
+      });
+
+    expect(oversized.status).toBe(400);
+    expect(oversized.body).toEqual({ success: 0, message: 'Dung lượng file tối đa 20MB' });
+
+    const uploaded = await agent
+      .post('/products/upload/document')
+      .attach('document', Buffer.from('%PDF-1.4\nTSmart document test'), {
+        filename: 'technical-document.pdf',
+        contentType: 'application/pdf'
+      });
+
+    expect(uploaded.status).toBe(200);
+    expect(uploaded.body).toMatchObject({
+      success: 1,
+      fileName: 'technical-document.pdf'
+    });
+    expect(uploaded.body.url).toMatch(/^http:\/\/localhost:5000\/documents\/document_\d+\.pdf$/);
+
+    const filename = path.basename(new URL(uploaded.body.url).pathname);
+    const uploadedPath = path.join(__dirname, '../upload/documents', filename);
+    uploadedDocumentPaths.push(uploadedPath);
+    await expect(fs.access(uploadedPath)).resolves.toBeUndefined();
+
+    const publicDocument = await request(app).get(`/documents/${filename}`);
+    expect(publicDocument.status).toBe(200);
+    expect(publicDocument.headers['content-type']).toContain('application/pdf');
   });
 
   it('staff with product.delete can delete products and staff without it gets 403', async () => {

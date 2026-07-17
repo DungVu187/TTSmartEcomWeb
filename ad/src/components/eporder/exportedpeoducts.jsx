@@ -274,7 +274,7 @@ const ExportedProducts = () => {
   }
 
   return (
-    <Box p={2}>
+    <Box p={2} className="admin-list-page">
       <div className="sticky-header">
         <Typography variant="h5" gutterBottom>
           Danh sách sản phẩm đã xuất
@@ -352,7 +352,7 @@ const ExportedProducts = () => {
       </div>
 
       {/* Bảng sản phẩm */}
-      <TableContainer component={Paper} sx={{ maxHeight: "calc(100vh - 320px)", overflowX: "auto" }}>
+      <TableContainer component={Paper} className="admin-list-table" sx={{ overflow: "auto" }}>
         <Table stickyHeader>
           <TableHead>
             <TableRow>

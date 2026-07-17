@@ -250,7 +250,7 @@ describe('IpOrder API', () => {
     expect(res.body.message).toBe('Access denied, missing permission: iporder.create');
   });
 
-  it('allows staff with iporder.edit to update import order name', async () => {
+  it('allows staff with iporder.edit to update import order name and note', async () => {
     const order = await createIpOrder({ orderName: 'Old name' });
     const agent = await createAdminAgent({
       phone: '0922000006',
@@ -261,10 +261,11 @@ describe('IpOrder API', () => {
 
     const res = await agent
       .put(`/iporders/orders/${order._id}/name`)
-      .send({ orderName: 'New name' });
+      .send({ orderName: 'New name', note: 'Ghi chú đơn nhập' });
 
     expect(res.status).toBe(200);
     expect(res.body.orderName).toBe('New name');
+    expect(res.body.note).toBe('Ghi chú đơn nhập');
   });
 
   it('returns 403 for staff with iporder.create but missing iporder.edit on edit route', async () => {

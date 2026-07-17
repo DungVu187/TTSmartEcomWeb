@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Box, CircularProgress } from '@mui/joy';
+import { Box, CircularProgress } from '@mui/material';
+import { getSafeCustomerReturnPath } from './adminroute.utils';
 
-const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
+const redirectCustomerToStorefront = (path) => window.location.replace(path);
+
+const ProtectedRoute = ({
+  children,
+  redirectTo = '/login',
+  onCustomerRedirect = redirectCustomerToStorefront,
+}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
@@ -19,6 +26,14 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
         });
 
         if (response.ok) {
+          const profile = await response.json();
+
+          if (profile?.role === 'customer') {
+            setIsAuthenticated(false);
+            onCustomerRedirect(getSafeCustomerReturnPath());
+            return;
+          }
+
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
@@ -40,7 +55,7 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
     };
 
     checkAuthAndRole();
-  }, [navigate, location, redirectTo]);
+  }, [navigate, location, redirectTo, onCustomerRedirect]);
 
   if (isLoading) {
     return (

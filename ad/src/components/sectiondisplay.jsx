@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import {
   TextField,
@@ -19,17 +18,392 @@ import {
   Box,
   CircularProgress,
   TablePagination,
+  Switch,
+  FormControlLabel,
+  Select,
+  MenuItem,
+  FormControl,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
+import { styled } from "@mui/material/styles";
 import DeleteIcon from "@mui/icons-material/Delete";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+const IOSSwitch = styled((props) => (
+  <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
+))(({ theme }) => ({
+  width: 42,
+  height: 26,
+  padding: 0,
+  '& .MuiSwitch-switchBase': {
+    padding: 0,
+    margin: 2,
+    transitionDuration: '300ms',
+    '&.Mui-checked': {
+      transform: 'translateX(16px)',
+      color: '#fff',
+      '& + .MuiSwitch-track': {
+        backgroundColor: '#22c55e', // iOS green
+        opacity: 1,
+        border: 0,
+      },
+      '&.Mui-disabled + .MuiSwitch-track': {
+        opacity: 0.5,
+      },
+    },
+    '&.Mui-focusVisible .MuiSwitch-thumb': {
+      color: '#33cf4d',
+      border: '6px solid #fff',
+    },
+    '&.Mui-disabled .MuiSwitch-thumb': {
+      color: theme.palette.grey[100],
+    },
+    '&.Mui-disabled + .MuiSwitch-track': {
+      opacity: 0.7,
+    },
+  },
+  '& .MuiSwitch-thumb': {
+    boxSizing: 'border-box',
+    width: 22,
+    height: 22,
+  },
+  '& .MuiSwitch-track': {
+    borderRadius: 26 / 2,
+    backgroundColor: '#E9E9EA',
+    opacity: 1,
+    transition: theme.transitions.create(['background-color', 'border'], {
+      duration: 500,
+    }),
+  },
+}));
+
+// Moved SectionComponent OUTSIDE of SectionDisplay to prevent component recreation on updates and preserve expanded state.
+const SectionComponent = ({
+  section,
+  displayName,
+  defaultExpanded = false,
+  manageData,
+  setManageData,
+  typesList,
+  products,
+  apiFetch,
+  apiUrl,
+  setActiveSection,
+  setOpenAddDialog,
+  setSearchTerm,
+  setPage,
+  fetchAllProducts,
+  rowsPerPage,
+  setSelectedProductId,
+  setOpenDeleteDialog,
+}) => {
+  const sectionData = manageData?.[section] || {};
+  const [name, setName] = useState(sectionData.name || "");
+
+  const isTypeMatched = typesList.some((t) => t.Type === (sectionData.name || ""));
+  const [isManual, setIsManual] = useState(!isTypeMatched && (sectionData.name || "") !== "");
+  const [selectedType, setSelectedType] = useState(isTypeMatched ? sectionData.name : "");
+  const [manualName, setManualName] = useState(!isTypeMatched ? sectionData.name : "");
+
+  // Sync state khi manageData thay đổi
+  useEffect(() => {
+    const currentName = sectionData.name || "";
+    setName(currentName);
+    const matched = typesList.some((t) => t.Type === currentName);
+    setIsManual(!matched && currentName !== "");
+    setSelectedType(matched ? currentName : "");
+    setManualName(!matched ? currentName : "");
+  }, [sectionData.name, typesList]);
+
+  const handleSaveName = async (finalName) => {
+    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
+      method: "PUT",
+      body: JSON.stringify({ name: finalName }),
+    });
+
+    if (result?.success) {
+      setManageData(result.data);
+      toast.success(`Cập nhật tên thành công`);
+    }
+  };
+
+  const handleToggleDisplay = async (checked) => {
+    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
+      method: "PUT",
+      body: JSON.stringify({ display: checked }),
+    });
+    if (result?.success) {
+      setManageData(result.data);
+      toast.success("Cập nhật trạng thái hiển thị thành công");
+    }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("image", file);
+    
+    const toastId = toast.loading("Đang tải ảnh lên...");
+    try {
+      const uploadRes = await fetch(`${apiUrl}/manages/upload-section-image`, {
+        method: "POST",
+        credentials: "include",
+        body: formData
+      });
+      const uploadResult = await uploadRes.json();
+      if (uploadResult.success) {
+        const saveResult = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
+          method: "PUT",
+          body: JSON.stringify({ image: uploadResult.imgUrl })
+        });
+        if (saveResult?.success) {
+          setManageData(saveResult.data);
+          toast.success("Cập nhật ảnh đại diện thành công", { id: toastId });
+        } else {
+          toast.error("Không thể lưu ảnh vào danh mục", { id: toastId });
+        }
+      } else {
+        toast.error(uploadResult.message || "Tải ảnh thất bại", { id: toastId });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Lỗi khi tải ảnh", { id: toastId });
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa ảnh đại diện này?")) return;
+    const saveResult = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
+      method: "PUT",
+      body: JSON.stringify({ image: "" })
+    });
+    if (saveResult?.success) {
+      setManageData(saveResult.data);
+      toast.success("Đã xóa ảnh đại diện");
+    }
+  };
+
+  const displayTitle = section === "section1" 
+    ? `Mục 1: ${sectionData.name || "Sản phẩm bán chạy"}`
+    : `${displayName.replace("Mục ", "Mục ")}: ${sectionData.name || "Chưa đặt tên"}`;
+
+  return (
+    <Accordion defaultExpanded={defaultExpanded} sx={{ mb: 2, border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" width="100%" sx={{ pr: 2 }}>
+          <Typography sx={{ fontWeight: 700, color: "#1e293b" }}>
+            {displayTitle}
+          </Typography>
+          <Box display="flex" alignItems="center" gap={1} onClick={(e) => e.stopPropagation()}>
+            <IOSSwitch
+              checked={sectionData.display !== false}
+              onChange={(e) => handleToggleDisplay(e.target.checked)}
+            />
+            <Typography sx={{ fontSize: "12px", color: sectionData.display !== false ? "#22c55e" : "#64748b", fontWeight: 600 }}>
+              {sectionData.display !== false ? "ĐANG HIỆN" : "ĐANG ẨN"}
+            </Typography>
+          </Box>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails sx={{ borderTop: "1px solid #f1f5f9", p: 3 }}>
+        <Box display="flex" flexWrap="wrap" gap={3} mb={3}>
+          {/* Cấu hình Tên (Loại sản phẩm) */}
+          <Box display="flex" flexDirection="column" gap={1} sx={{ minWidth: 320 }}>
+            <Typography variant="subtitle2" color="textSecondary" sx={{ fontWeight: 600 }}>Tên hiển thị (Loại sản phẩm)</Typography>
+            <Box display="flex" gap={1}>
+              {section !== "section1" ? (
+                <>
+                  <FormControl size="small" sx={{ width: 180 }}>
+                    <Select
+                      value={isManual ? "__manual__" : selectedType}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "__manual__") {
+                          setIsManual(true);
+                        } else {
+                          setIsManual(false);
+                          setSelectedType(val);
+                          handleSaveName(val);
+                        }
+                      }}
+                    >
+                      <MenuItem value="">-- Chọn Loại SP --</MenuItem>
+                      {typesList.map((t, idx) => (
+                        <MenuItem key={idx} value={t.Type}>{t.Type}</MenuItem>
+                      ))}
+                      <MenuItem value="__manual__">* Tự nhập chữ *</MenuItem>
+                    </Select>
+                  </FormControl>
+                  {isManual && (
+                    <TextField
+                      size="small"
+                      placeholder="Ghi tay tên mục"
+                      value={manualName}
+                      onChange={(e) => setManualName(e.target.value)}
+                      sx={{ width: 160 }}
+                    />
+                  )}
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => handleSaveName(isManual ? manualName : selectedType)}
+                  >
+                    Lưu
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <TextField
+                    size="small"
+                    placeholder="Tên mục bán chạy"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    sx={{ width: 220 }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => handleSaveName(name)}
+                  >
+                    Lưu
+                  </Button>
+                </>
+              )}
+            </Box>
+          </Box>
+
+          {/* Cấu hình Ảnh đại diện bên trái (Chỉ dành cho mục 2 -> 11) */}
+          {section !== "section1" && (
+            <Box display="flex" flexDirection="column" gap={1} sx={{ minWidth: 320 }}>
+              <Typography variant="subtitle2" color="textSecondary" sx={{ fontWeight: 600 }}>Ảnh cứng giới thiệu bên trái</Typography>
+              <Box display="flex" alignItems="center" gap={2}>
+                {sectionData.image ? (
+                  <Box position="relative" sx={{ width: 60, height: 60, border: "1px dashed #ccc", borderRadius: "4px", overflow: "hidden" }}>
+                    <img src={sectionData.image} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  </Box>
+                ) : (
+                  <Box sx={{ width: 60, height: 60, border: "1px dashed #cbd5e1", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: "10px", textAlign: "center", p: 1 }}>
+                    Chưa có ảnh
+                  </Box>
+                )}
+                <Box>
+                  <Box display="flex" gap={1}>
+                    <Button variant="outlined" component="label" size="small">
+                      Tải ảnh lên
+                      <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
+                    </Button>
+                    {sectionData.image && (
+                      <Button variant="outlined" color="error" size="small" onClick={handleDeleteImage}>
+                        Xóa ảnh
+                      </Button>
+                    )}
+                  </Box>
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: "block", fontSize: "11px" }}>
+                    * Kích thước đề xuất: Tỷ lệ dọc 3:4 hoặc 9:16 (Ví dụ: 600x800 px hoặc 1080x1920 px) để hiển thị đẹp nhất.
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Box>
+
+        {/* Bảng sản phẩm */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#334155" }}>
+            Danh sách sản phẩm ({ (sectionData.productId || []).length })
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            onClick={() => {
+              setActiveSection(section);
+              setOpenAddDialog(true);
+              setSearchTerm("");
+              setPage(0);
+              fetchAllProducts("", 1, rowsPerPage);
+            }}
+          >
+            Thêm sản phẩm
+          </Button>
+        </Box>
+
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Tên</TableCell>
+                <TableCell>Hình ảnh</TableCell>
+                <TableCell>Loại</TableCell>
+                <TableCell>Thương hiệu</TableCell>
+                <TableCell>Cụm</TableCell>
+                <TableCell>Thiết bị</TableCell>
+                <TableCell align="center">Hành động</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(sectionData.productId || []).length > 0 ? (
+                (sectionData.productId || []).map((id) => {
+                  const product = products.find((p) => p._id === id) || {};
+                  return (
+                    <TableRow key={id}>
+                      <TableCell>{product.name || "N/A"}</TableCell>
+                      <TableCell>
+                        {product.variant?.[0]?.imgUrl ? (
+                          <img
+                            src={product.variant?.[0]?.imgUrl}
+                            alt={product.name || "Sản phẩm"}
+                            style={{ width: 40, height: 40, objectFit: "contain" }}
+                          />
+                        ) : (
+                          "N/A"
+                        )}
+                      </TableCell>
+                      <TableCell>{product.type || "N/A"}</TableCell>
+                      <TableCell>{product.brand || "N/A"}</TableCell>
+                      <TableCell>{product.section || "N/A"}</TableCell>
+                      <TableCell>{product.value || "N/A"}</TableCell>
+                      <TableCell align="center">
+                        <IconButton
+                          onClick={() => {
+                            setActiveSection(section);
+                            setSelectedProductId(id);
+                            setOpenDeleteDialog(true);
+                          }}
+                          color="error"
+                          size="small"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={7} align="center">Chưa có sản phẩm nào</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </AccordionDetails>
+    </Accordion>
+  );
+};
+
 const SectionDisplay = () => {
   const [manageData, setManageData] = useState(null);
   const [products, setProducts] = useState([]);
   const [availableProducts, setAvailableProducts] = useState([]);
+  const [typesList, setTypesList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -80,6 +454,15 @@ const SectionDisplay = () => {
     setLoading(false);
   };
 
+  // Lấy danh sách Loại sản phẩm
+  const fetchTypes = async () => {
+    const result = await apiFetch(`${apiUrl}/chips/types`);
+    if (result) {
+      const normalized = Array.isArray(result) ? result : result.value || [];
+      setTypesList(normalized);
+    }
+  };
+
   // Lấy sản phẩm theo IDs
   const fetchProductsByIds = async (manageData) => {
     if (!manageData) return;
@@ -94,6 +477,7 @@ const SectionDisplay = () => {
       ...(manageData.section8?.productId || []),
       ...(manageData.section9?.productId || []),
       ...(manageData.section10?.productId || []),
+      ...(manageData.section11?.productId || []),
     ];
 
     if (allProductIds.length === 0) {
@@ -120,25 +504,11 @@ const SectionDisplay = () => {
     }
   };
 
-  // Cập nhật tên section
-  const handleUpdateName = async (section, newName) => {
-    const result = await apiFetch(`${apiUrl}/manages/update-${section}`, {
-      method: "PUT",
-      body: JSON.stringify({ name: newName }),
-    });
-
-    if (result?.success) {
-      setManageData(result.data);
-      toast.success(`Cập nhật tên ${section} thành công`);
-    }
-  };
-
-  // Chuyển display thành true
+  // Chuyển display thành true cho sản phẩm
   const toggleDisplayToTrue = async (productId) => {
     const result = await apiFetch(`${apiUrl}/products/${productId}/toggle-display`, {
       method: "PUT",
     });
-
     return result?.product?.display ?? null;
   };
 
@@ -171,7 +541,7 @@ const SectionDisplay = () => {
     }
 
     const currentProductIds = manageData[section].productId || [];
-    const result = await apiFetch(`${apiUrl}/manages/update-${section}`, {
+    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
       method: "PUT",
       body: JSON.stringify({ productId: [...new Set([...currentProductIds, productId])] }),
     });
@@ -193,7 +563,7 @@ const SectionDisplay = () => {
 
     const currentProductIds = manageData[activeSection].productId || [];
     const updatedProductIds = currentProductIds.filter((id) => id !== selectedProductId);
-    const result = await apiFetch(`${apiUrl}/manages/update-${activeSection}`, {
+    const result = await apiFetch(`${apiUrl}/manages/update-section/${activeSection}`, {
       method: "PUT",
       body: JSON.stringify({ productId: updatedProductIds }),
     });
@@ -220,6 +590,7 @@ const SectionDisplay = () => {
   // Lấy dữ liệu ban đầu
   useEffect(() => {
     fetchManageData();
+    fetchTypes();
   }, []);
 
   // Xử lý phân trang
@@ -232,102 +603,7 @@ const SectionDisplay = () => {
     setPage(0);
   };
 
-  // Component hiển thị section
-  const SectionComponent = ({ section, displayName }) => {
-    const sectionData = manageData?.[section] || {};
-    const [name, setName] = useState(sectionData.name || "");
-
-    return (
-      <Box mb={5}>
-        <Typography variant="h6">{displayName}</Typography>
-        <Box display="flex" gap={2} my={2}>
-          <TextField
-            label="Tên hiển thị"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            variant="outlined"
-            size="small"
-            sx={{ width: 200 }}
-          />
-          <Button
-            variant="contained"
-            onClick={() => handleUpdateName(section, name)}
-            disabled={!name.trim()}
-          >
-            Cập nhật tên
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => {
-              setActiveSection(section);
-              setOpenAddDialog(true);
-              setSearchTerm("");
-              setPage(0);
-              fetchAllProducts("", 1, rowsPerPage);
-            }}
-          >
-            Thêm sản phẩm
-          </Button>
-        </Box>
-
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Tên</TableCell>
-                <TableCell>Hình ảnh</TableCell>
-                <TableCell>Loại</TableCell>
-                <TableCell>Thương hiệu</TableCell>
-                <TableCell>Cụm</TableCell>
-                <TableCell>Thiết bị</TableCell>
-                <TableCell align="center">Hành động</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(sectionData.productId || []).map((id) => {
-                const product = products.find((p) => p._id === id) || {};
-                return (
-                  <TableRow key={id}>
-                    <TableCell>{product.name || "N/A"}</TableCell>
-                    <TableCell>
-                      {product.variant?.[0]?.imgUrl ? (
-                        <img
-                          src={product.variant?.[0]?.imgUrl}
-                          alt={product.name || "Sản phẩm"}
-                          style={{ width: 50, height: 50, objectFit: "cover" }}
-                        />
-                      ) : (
-                        "N/A"
-                      )}
-                    </TableCell>
-                    <TableCell>{product.type || "N/A"}</TableCell>
-                    <TableCell>{product.brand || "N/A"}</TableCell>
-                    <TableCell>{product.section || "N/A"}</TableCell>
-                    <TableCell>{product.value || "N/A"}</TableCell>
-                    <TableCell align="center">
-                      <IconButton
-                        onClick={() => {
-                          setActiveSection(section);
-                          setSelectedProductId(id);
-                          setOpenDeleteDialog(true);
-                        }}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Box>
-    );
-  };
-
-  if (loading) {
+  if (loading && !manageData) {
     return (
       <Box display="flex" flexDirection="column" alignItems="center" p={3}>
         <CircularProgress />
@@ -339,31 +615,49 @@ const SectionDisplay = () => {
   return (
     <Box p={3}>
       <div className="sticky-header">
-        <Typography variant="h4" mb={3}>
+        <Typography variant="h4" mb={1}>
           Quản lý hiển thị mục sản phẩm
+        </Typography>
+        <Typography variant="body2" mb={3} sx={{ fontWeight: 550, color: '#e53935' }}>
+          * Ghi chú: Mục 1 cần tối thiểu 6 sản phẩm, các mục còn lại cần tối thiểu 5 sản phẩm để hiển thị trên trang chủ.
         </Typography>
       </div>
       {manageData ? (
         <>
-          <SectionComponent section="section1" displayName="Mục 1" />
-          <SectionComponent section="section2" displayName="Mục 2" />
-          <SectionComponent section="section3" displayName="Mục 3" />
-          <SectionComponent section="section4" displayName="Mục 4" />
-          <SectionComponent section="section5" displayName="Mục 5" />
-          <SectionComponent section="section6" displayName="Mục 6" />
-          <SectionComponent section="section7" displayName="Mục 7" />
-          <SectionComponent section="section8" displayName="Mục 8" />
-          <SectionComponent section="section9" displayName="Mục 9" />
-          <SectionComponent section="section10" displayName="Mục 10" />
+          {[...Array(11)].map((_, i) => {
+            const secNum = i + 1;
+            return (
+              <SectionComponent
+                key={`section${secNum}`}
+                section={`section${secNum}`}
+                displayName={`Mục ${secNum}`}
+                defaultExpanded={secNum === 1}
+                manageData={manageData}
+                setManageData={setManageData}
+                typesList={typesList}
+                products={products}
+                apiFetch={apiFetch}
+                apiUrl={apiUrl}
+                setActiveSection={setActiveSection}
+                setOpenAddDialog={setOpenAddDialog}
+                setSearchTerm={setSearchTerm}
+                setPage={setPage}
+                fetchAllProducts={fetchAllProducts}
+                rowsPerPage={rowsPerPage}
+                setSelectedProductId={setSelectedProductId}
+                setOpenDeleteDialog={setOpenDeleteDialog}
+              />
+            );
+          })}
         </>
       ) : (
         <Typography>Không có dữ liệu để hiển thị</Typography>
       )}
 
       <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock maxWidth="md" fullWidth>
-        <DialogTitle>Thêm sản phẩm vào {activeSection}</DialogTitle>
+        <DialogTitle>Thêm sản phẩm</DialogTitle>
         <DialogContent>
-          <Box display="flex" gap={2} mb={2}>
+          <Box display="flex" gap={2} mb={2} mt={1}>
             <TextField
               label="Tìm kiếm sản phẩm"
               value={searchTerm}
@@ -414,7 +708,7 @@ const SectionDisplay = () => {
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={availableProducts.length} // Cần backend trả về totalCount
+            count={availableProducts.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
@@ -429,7 +723,7 @@ const SectionDisplay = () => {
       <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)} disableScrollLock>
         <DialogTitle>Xác nhận xóa</DialogTitle>
         <DialogContent>
-          Bạn có chắc chắn muốn xóa sản phẩm này khỏi {activeSection}?
+          Bạn có chắc chắn muốn xóa sản phẩm này khỏi mục hiển thị?
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDeleteDialog(false)}>Hủy</Button>

@@ -306,13 +306,13 @@ const Sidebar = () => {
     minHeight: nested ? 38 : 42,
     borderRadius: "7px",
     px: nested ? 1.5 : 1.75,
-    color: active ? "#FFFFFF" : "#CBD9E6",
+    color: "#FFFFFF",
     backgroundColor: active ? "#2878D4" : "transparent",
     justifyContent: "flex-start",
     transition: "background-color 160ms ease, color 160ms ease",
     "&:hover": {
       color: "#FFFFFF",
-      backgroundColor: active ? "#2878D4" : "#214C6B",
+      backgroundColor: active ? "#2878D4" : "#2a2a2a",
     },
     "&.active": {
       color: "#FFFFFF",
@@ -332,7 +332,7 @@ const Sidebar = () => {
         {(userName || userPhone) && (
           <Typography
             variant="body2"
-            sx={{ color: "#AAC0D2", width: "100%", textAlign: "left", mt: 0.5, fontSize: 12 }}
+            sx={{ color: "#ccc", width: "100%", textAlign: "left", mt: 0.5, fontSize: 12 }}
           >
             Xin chào, {userName || userPhone}
           </Typography>
@@ -435,7 +435,7 @@ const Sidebar = () => {
             left: 16,
             top: 16,
             zIndex: 1100,
-            backgroundColor: "#183B56",
+            backgroundColor: "#111111",
             color: "white",
             "&:hover": {
               backgroundColor: "#2878D4",
@@ -458,7 +458,7 @@ const Sidebar = () => {
           "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
-            backgroundColor: "#183B56",
+            backgroundColor: "#111111",
             color: "#fff",
             borderRight: "none",
             boxShadow: "5px 0 18px rgba(24, 59, 86, 0.10)",

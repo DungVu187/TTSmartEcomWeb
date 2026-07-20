@@ -398,7 +398,7 @@ const IpOrders = () => {
 
   return (
     <Box p={2} className="inventory-order-list-page">
-      <div className="sticky-header" style={{ position: "relative" }}>
+      <div className="sticky-header" style={{ position: "relative", zIndex: showMobileFilters ? 110 : 2 }}>
         <Box
           sx={{
             display: "flex",
@@ -555,13 +555,14 @@ const IpOrders = () => {
           sx={{
             display: { xs: "block", sm: "none" },
             position: "absolute",
-            top: "100%",
+            top: "calc(100% + 6px)",
             left: 0,
             right: 0,
             zIndex: 110,
             bgcolor: "background.paper",
-            boxShadow: "0px 8px 24px rgba(0,0,0,0.15)",
-            borderBottom: "1px solid #e0e0e0",
+            boxShadow: "0px 8px 24px rgba(16, 42, 67, 0.12)",
+            borderRadius: "12px",
+            border: "1px solid #e5eaf0",
             transform: showMobileFilters ? "translateY(0)" : "translateY(-15px)",
             opacity: showMobileFilters ? 1 : 0,
             visibility: showMobileFilters ? "visible" : "hidden",

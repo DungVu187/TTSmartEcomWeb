@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { styled } from "@mui/material/styles";
 import {
   Button,
   Box,
@@ -9,7 +10,18 @@ import {
   DialogContentText,
   DialogTitle,
   TextField,
+  Switch,
+  FormControlLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
 } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { Navigation, Pagination, Thumbs } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
@@ -20,6 +32,54 @@ import toast from "react-hot-toast";
 import "./style/manage.css";
 
 const apiUrl = import.meta.env.VITE_API_URL;
+
+const IOSSwitch = styled((props) => (
+  <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
+))(({ theme }) => ({
+  width: 42,
+  height: 26,
+  padding: 0,
+  '& .MuiSwitch-switchBase': {
+    padding: 0,
+    margin: 2,
+    transitionDuration: '300ms',
+    '&.Mui-checked': {
+      transform: 'translateX(16px)',
+      color: '#fff',
+      '& + .MuiSwitch-track': {
+        backgroundColor: '#22c55e', // iOS green
+        opacity: 1,
+        border: 0,
+      },
+      '&.Mui-disabled + .MuiSwitch-track': {
+        opacity: 0.5,
+      },
+    },
+    '&.Mui-focusVisible .MuiSwitch-thumb': {
+      color: '#33cf4d',
+      border: '6px solid #fff',
+    },
+    '&.Mui-disabled .MuiSwitch-thumb': {
+      color: theme.palette.grey[100],
+    },
+    '&.Mui-disabled + .MuiSwitch-track': {
+      opacity: 0.7,
+    },
+  },
+  '& .MuiSwitch-thumb': {
+    boxSizing: 'border-box',
+    width: 22,
+    height: 22,
+  },
+  '& .MuiSwitch-track': {
+    borderRadius: 26 / 2,
+    backgroundColor: '#E9E9EA',
+    opacity: 1,
+    transition: theme.transitions.create(['background-color', 'border'], {
+      duration: 500,
+    }),
+  },
+}));
 
 const ImageCarouselSection = ({
   title,
@@ -151,6 +211,7 @@ const Manage = () => {
   const [manageData, setManageData] = useState({
     overViewImg: [],
     partners: [],
+    displayPartners: true,
     topPurchaseUrl: "",
     highestRatingUrl: "",
     introduction: "",
@@ -160,14 +221,13 @@ const Manage = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [bannerThumbsSwiper, setBannerThumbsSwiper] = useState(null);
-  const [partnersThumbsSwiper, setPartnersThumbsSwiper] = useState(null);
   const [introductionInput, setIntroductionInput] = useState("");
   const [mainPolicyInput, setMainPolicyInput] = useState("");
+  const [newPartnerName, setNewPartnerName] = useState("");
 
   const bannerInputRef = useRef(null);
   const topPurchaseInputRef = useRef(null);
   const highestRatingInputRef = useRef(null);
-  const partnersInputRef = useRef(null);
 
   useEffect(() => {
     fetchManageData();
@@ -189,6 +249,89 @@ const Manage = () => {
     } catch (error) {
       console.error("Error fetching manage data:", error);
       toast.error("Đã xảy ra lỗi khi lấy dữ liệu");
+    }
+  };
+
+  const handleAddPartner = async () => {
+    if (!newPartnerName.trim()) return;
+    setLoading(true);
+    try {
+      const updatedPartners = [...(manageData.partners || []), newPartnerName.trim()];
+      const response = await fetch(`${apiUrl}/manages/update-partners-text`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ partners: updatedPartners }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setManageData((prev) => ({
+          ...prev,
+          partners: result.data.partners,
+        }));
+        setNewPartnerName("");
+        toast.success("Thêm đối tác thành công");
+      } else {
+        toast.error(result.message || "Không thể thêm đối tác");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Lỗi khi thêm đối tác");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePartner = async (partnerToDelete) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa đối tác "${partnerToDelete}" không?`)) return;
+    setLoading(true);
+    try {
+      const updatedPartners = (manageData.partners || []).filter((p) => p !== partnerToDelete);
+      const response = await fetch(`${apiUrl}/manages/update-partners-text`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ partners: updatedPartners }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setManageData((prev) => ({
+          ...prev,
+          partners: result.data.partners,
+        }));
+        toast.success("Xóa đối tác thành công");
+      } else {
+        toast.error(result.message || "Không thể xóa đối tác");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Lỗi khi xóa đối tác");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleDisplayPartners = async (checked) => {
+    try {
+      const response = await fetch(`${apiUrl}/manages/update-partners-text`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ displayPartners: checked }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setManageData((prev) => ({
+          ...prev,
+          displayPartners: result.data.displayPartners,
+        }));
+        toast.success(checked ? "Đã bật hiển thị đối tác" : "Đã tắt hiển thị đối tác");
+      } else {
+        toast.error(result.message || "Không thể cập nhật trạng thái hiển thị");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Lỗi khi cập nhật trạng thái hiển thị");
     }
   };
 
@@ -408,24 +551,85 @@ const Manage = () => {
         slideAltPrefix="Banner"
       />
 
-      <ImageCarouselSection
-        title="Ảnh đối tác"
-        emptyText="Chưa có đối tác"
-        images={manageData.partners}
-        type="partners"
-        thumbsSwiper={partnersThumbsSwiper}
-        setThumbsSwiper={setPartnersThumbsSwiper}
-        inputRef={partnersInputRef}
-        onFileSelect={handleFileSelect}
-        onTriggerFileInput={triggerFileInput}
-        onImageClick={handleImageClick}
-        loading={loading}
-        buttonText="Thêm ảnh đối tác"
-        loadingText="Đang tải..."
-        mainHeight="100px"
-        mainObjectFit="contain"
-        slideAltPrefix="Partner"
-      />
+      <Box sx={{ mb: 4, width: "900px" }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+          <Typography variant="h6">Tên đối tác (Thương hiệu)</Typography>
+          <FormControlLabel
+            control={
+              <IOSSwitch
+                checked={manageData.displayPartners !== false}
+                onChange={(e) => handleToggleDisplayPartners(e.target.checked)}
+              />
+            }
+            label={
+              <Typography 
+                sx={{ 
+                  fontWeight: 600, 
+                  color: "#475569",
+                  fontSize: 14,
+                  ml: 1
+                }}
+              >
+                Hiển thị trên trang chủ
+              </Typography>
+            }
+            sx={{ ml: 'auto' }}
+          />
+        </Box>
+        <Box display="flex" gap={2} mb={2}>
+          <TextField
+            label="Nhập tên đối tác / thương hiệu"
+            value={newPartnerName}
+            onChange={(e) => setNewPartnerName(e.target.value)}
+            variant="outlined"
+            size="small"
+            fullWidth
+            disabled={loading}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleAddPartner}
+            disabled={loading || !newPartnerName.trim()}
+            sx={{ minWidth: "150px" }}
+          >
+            Thêm đối tác
+          </Button>
+        </Box>
+        <TableContainer component={Paper} sx={{ maxWidth: "100%", maxHeight: "300px", overflowY: "auto" }}>
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Tên đối tác / thương hiệu</TableCell>
+                <TableCell align="right" style={{ width: "80px" }}>Hành động</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(manageData.partners || []).length > 0 ? (
+                (manageData.partners || []).map((partner, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{partner}</TableCell>
+                    <TableCell align="right">
+                      <IconButton
+                        color="error"
+                        onClick={() => handleDeletePartner(partner)}
+                        disabled={loading}
+                        size="small"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={2} align="center">Chưa có đối tác</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
 
       <TextUpdateSection
         title="Giới thiệu"

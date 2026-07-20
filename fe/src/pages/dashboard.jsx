@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Autoplay, Pagination } from "swiper/modules";
+import { Autoplay, Pagination, Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
@@ -25,7 +25,7 @@ const getVersionedImageUrl = (url, version) => {
   return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
 };
 
-const brands = [
+const DEFAULT_BRANDS = [
   { label: "SIEMENS", query: "Siemens" },
   { label: "Schneider Electric", query: "Schneider" },
   { label: "LS ELECTRIC", query: "LS Electric" },
@@ -33,6 +33,16 @@ const brands = [
   { label: "MITSUBISHI", query: "Mitsubishi" },
   { label: "ABB", query: "ABB" },
 ];
+
+const resolveSectionLink = (name, types) => {
+  const cleanName = (name || "").trim().toLowerCase();
+  if (!cleanName) return "/product";
+  const matchedType = types.find((t) => (t.Type || "").trim().toLowerCase() === cleanName);
+  if (matchedType) {
+    return `/product?type=${encodeURIComponent(matchedType.Type)}`;
+  }
+  return "/product";
+};
 
 const solutionCards = [
   { title: "Giải pháp trạm trộn bê tông", image: `${apiUrl}/images/manage_1783154141653.jpg` },
@@ -90,11 +100,11 @@ function Dashboard() {
         if (!active) return;
         setManageData(nextManageData);
         setTypes(Array.isArray(typeResult) ? typeResult : typeResult?.value || []);
-
+        const activeSections = Object.keys(nextManageData || {})
+          .filter((key) => /^section(1[0-1]|[1-9])$/.test(key) && nextManageData[key]?.display);
+        
         const productIds = Array.from(new Set(
-          Object.keys(nextManageData || {})
-            .filter((key) => /^section\d+$/.test(key) && nextManageData[key]?.display)
-            .flatMap((key) => nextManageData[key]?.productId || []),
+          activeSections.flatMap((key) => nextManageData[key]?.productId || [])
         ));
 
         if (productIds.length > 0) {
@@ -129,7 +139,41 @@ function Dashboard() {
   }, [manageData]);
 
   const visibleTypes = types.slice(0, 9);
-  const featuredProducts = products.slice(0, 6);
+  const featuredBrands = useMemo(() => {
+    if (manageData?.partners && Array.isArray(manageData.partners) && manageData.partners.length > 0) {
+      return manageData.partners.map((partner) => ({ label: partner, query: partner }));
+    }
+    return DEFAULT_BRANDS;
+  }, [manageData?.partners]);
+
+  const section1Products = useMemo(() => {
+    if (!manageData?.section1) return [];
+    return (manageData.section1.productId || [])
+      .map((id) => products.find((p) => p._id === id))
+      .filter(Boolean);
+  }, [manageData?.section1, products]);
+
+  const specialSections = useMemo(() => {
+    const list = [];
+    for (let i = 2; i <= 11; i++) {
+      const key = `section${i}`;
+      const sec = manageData?.[key];
+      if (sec && sec.display !== false) {
+        const secProducts = (sec.productId || [])
+          .map((id) => products.find((p) => p._id === id))
+          .filter(Boolean);
+        if (secProducts.length >= 5) {
+          list.push({
+            key,
+            name: sec.name,
+            image: sec.image,
+            products: secProducts.slice(0, 5), // Lấy tối đa đúng 5 sản phẩm
+          });
+        }
+      }
+    }
+    return list;
+  }, [manageData, products]);
 
   return (
     <main className="customer-home">
@@ -205,47 +249,69 @@ function Dashboard() {
           </Link>
         </section>
 
-        <section className="home-section">
-          <SectionHeader title="Sản phẩm bán chạy" />
-          {loading ? (
-            <div className="home-loading-row">Đang tải sản phẩm...</div>
-          ) : (
-            <div className="home-product-grid">
-              {featuredProducts.map((product) => {
-                const variant = product.variant?.[0] || {};
-                const inStock = Number(variant.quantityForSale || 0) > 0;
-                return (
-                  <article className="home-product-card" key={product._id}>
-                    <Link className="home-product-image" to={`/product/${product._id}`}>
-                      <SafeProductImage
-                        src={getVersionedImageUrl(variant.imgUrl, product.updatedAt || product._id)}
-                        alt={product.name}
-                        className="home-product-canvas"
-                      />
-                    </Link>
-                    <div className="home-product-brand">{product.brand || "TTSmart"}</div>
-                    <Link className="home-product-name" to={`/product/${product._id}`}>{product.name}</Link>
-                    <div className="home-product-rating"><span>★★★★★</span> <small>({product.reviewCount || 0})</small></div>
-                    <div className="home-product-price">
-                      {Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} đ` : "Liên hệ"}
-                    </div>
-                    <div className="home-product-actions">
-                      <button
-                        type="button"
-                        disabled={!inStock}
-                        onClick={() => inStock && addToCart(product._id, 0, 1)}
-                        aria-label={`Thêm ${product.name} vào giỏ hàng`}
-                      >
-                        <i className="fa-solid fa-cart-shopping" />
-                      </button>
-                      <button type="button" aria-label="Thêm vào yêu thích"><i className="fa-regular fa-heart" /></button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        {section1Products.length >= 6 && manageData?.section1?.display !== false && (
+          <section className="home-section">
+            <SectionHeader title={manageData?.section1?.name || "Sản phẩm bán chạy"} />
+            {loading ? (
+              <div className="home-loading-row">Đang tải sản phẩm...</div>
+            ) : (
+              <Swiper
+                modules={[Autoplay]}
+                spaceBetween={16}
+                slidesPerView={1}
+                loop={section1Products.length > 1}
+                autoplay={{
+                  delay: 3000,
+                  disableOnInteraction: false,
+                  pauseOnMouseEnter: true,
+                }}
+                breakpoints={{
+                  480: { slidesPerView: 2 },
+                  768: { slidesPerView: 3 },
+                  1024: { slidesPerView: 4 },
+                  1280: { slidesPerView: 5 },
+                  1440: { slidesPerView: 6 },
+                }}
+                className="home-product-swiper"
+              >
+                {section1Products.map((product) => {
+                  const variant = product.variant?.[0] || {};
+                  const inStock = Number(variant.quantityForSale || 0) > 0;
+                  return (
+                    <SwiperSlide key={product._id}>
+                      <article className="home-product-card" style={{ height: "100%", margin: "2px" }}>
+                        <Link className="home-product-image" to={`/product/${product._id}`}>
+                          <SafeProductImage
+                            src={getVersionedImageUrl(variant.imgUrl, product.updatedAt || product._id)}
+                            alt={product.name}
+                            className="home-product-canvas"
+                          />
+                        </Link>
+                        <div className="home-product-brand">{product.brand || "TTSmart"}</div>
+                        <Link className="home-product-name" to={`/product/${product._id}`}>{product.name}</Link>
+                        <div className="home-product-rating"><span>★★★★★</span> <small>({product.reviewCount || 0})</small></div>
+                        <div className="home-product-price">
+                          {Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} đ` : "Liên hệ"}
+                        </div>
+                        <div className="home-product-actions">
+                          <button
+                            type="button"
+                            disabled={!inStock}
+                            onClick={() => inStock && addToCart(product._id, 0, 1)}
+                            aria-label={`Thêm ${product.name} vào giỏ hàng`}
+                          >
+                            <i className="fa-solid fa-cart-shopping" />
+                          </button>
+                          <button type="button" aria-label="Thêm vào yêu thích"><i className="fa-regular fa-heart" /></button>
+                        </div>
+                      </article>
+                    </SwiperSlide>
+                  );
+                })}
+              </Swiper>
+            )}
+          </section>
+        )}
 
         <section className="home-trust-strip">
           {[
@@ -258,17 +324,106 @@ function Dashboard() {
           ))}
         </section>
 
-        <section className="home-section home-brand-section">
-          <SectionHeader title="Thương hiệu nổi bật" />
-          <div className="home-brand-grid">
-            {brands.map((brand, index) => (
-              <Link key={brand.label} to={`/product?brand=${encodeURIComponent(brand.query)}`}>
-                <strong className={`brand-tone-${index + 1}`}>{brand.label}</strong>
-                <small>{brand.label}</small>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {manageData?.displayPartners !== false && (
+          <section className="home-section home-brand-section">
+            <SectionHeader title="Thương hiệu nổi bật" />
+            <div className="home-brand-grid">
+              {featuredBrands.map((brand, index) => (
+                <Link key={brand.label} to={`/product?brand=${encodeURIComponent(brand.query)}`}>
+                  <strong className={`brand-tone-${(index % 6) + 1}`}>{brand.label}</strong>
+                  <small>{brand.label}</small>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 10 mục đặc biệt */}
+        {specialSections.map((sec) => (
+          <section key={sec.key} className="home-category-row">
+            {/* Khối trái cố định */}
+            <div className={`category-highlight-card ${sec.image ? "has-image" : ""}`}>
+              <div className="highlight-image-box">
+                {sec.image ? (
+                  <img src={resolveImageUrl(sec.image)} alt={sec.name} className="highlight-img" />
+                ) : (
+                  <div className="highlight-img-placeholder"><i className="fa-solid fa-microchip" /></div>
+                )}
+              </div>
+              <div className="highlight-info-group">
+                <h3 className="highlight-title">{sec.name || "Danh mục"}</h3>
+                <Link to={resolveSectionLink(sec.name, types)} className="highlight-more-btn">
+                  Xem thêm
+                </Link>
+              </div>
+            </div>
+
+            {/* Khối phải trượt Swiper */}
+            <div className="category-slider-wrapper">
+              <Swiper
+                modules={[Navigation, Autoplay]}
+                navigation
+                spaceBetween={16}
+                slidesPerView={1}
+                loop={sec.products.length > 1}
+                autoplay={{
+                  delay: 4000,
+                  disableOnInteraction: false,
+                  pauseOnMouseEnter: true,
+                }}
+                breakpoints={{
+                  480: { slidesPerView: 2 },
+                  768: { slidesPerView: 3 },
+                  1024: { slidesPerView: 4 },
+                  1280: { slidesPerView: 5 },
+                }}
+                className="home-category-swiper"
+              >
+                {sec.products.map((product) => {
+                  const variant = product.variant?.[0] || {};
+                  const inStock = Number(variant.quantityForSale || 0) > 0;
+                  return (
+                    <SwiperSlide key={product._id}>
+                      <article className="home-product-card" style={{ height: "100%", margin: "2px" }}>
+                        <Link className="home-product-image" to={`/product/${product._id}`}>
+                          <SafeProductImage
+                            src={getVersionedImageUrl(variant.imgUrl, product.updatedAt || product._id)}
+                            alt={product.name}
+                            className="home-product-canvas"
+                          />
+                        </Link>
+                        <div className="home-product-brand">{product.brand || "TTSmart"}</div>
+                        <Link className="home-product-name" to={`/product/${product._id}`}>{product.name}</Link>
+                        
+                        {/* Thông số kỹ thuật chi tiết */}
+                        <div className="home-product-specs">
+                          <div><span>Loại sản phẩm:</span> <strong>{product.type || "N/A"}</strong></div>
+                          <div><span>Cụm:</span> <strong>{product.section || "N/A"}</strong></div>
+                          <div><span>Thiết bị:</span> <strong>{product.value || "N/A"}</strong></div>
+                        </div>
+
+                        <div className="home-product-price">
+                          {Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} đ` : "Liên hệ"}
+                        </div>
+                        <div className="home-product-actions">
+                          <button
+                            type="button"
+                            disabled={!inStock}
+                            onClick={() => inStock && addToCart(product._id, 0, 1)}
+                            aria-label={`Thêm ${product.name} vào giỏ hàng`}
+                          >
+                            <i className="fa-solid fa-cart-shopping" />
+                          </button>
+                          <button type="button" aria-label="Thêm vào yêu thích"><i className="fa-regular fa-heart" /></button>
+                        </div>
+                      </article>
+                    </SwiperSlide>
+                  );
+                })}
+              </Swiper>
+            </div>
+          </section>
+        ))}
 
         <section className="home-section">
           <SectionHeader title="Giải pháp của chúng tôi" href="/introduction" />

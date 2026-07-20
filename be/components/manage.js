@@ -18,6 +18,10 @@ const manageSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    displayPartners: {
+        type: Boolean,
+        default: true
+    },
     newProductUrl: {
         type: String,
         default: ''
@@ -53,130 +57,74 @@ const manageSchema = new mongoose.Schema({
         }
     },
     section2: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section3: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section4: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section5: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section6: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section7: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section8: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section9: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
     section10: {
-        name: {
-            type: String,
-            default: ''
-        },
-        productId: {
-            type: [String],
-            default: []
-        },
-        display: {
-            type: Boolean,
-            default: true
-        }
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
+    },
+    section11: {
+        name: { type: String, default: '' },
+        productId: { type: [String], default: [] },
+        display: { type: Boolean, default: true },
+        image: { type: String, default: '' },
+        link: { type: String, default: '' }
     },
 });
 
@@ -385,6 +333,146 @@ router.post("/update-partners", [authenticateAdmin, checkPermission('storefront.
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật ảnh đối tác",
+            error: "Lỗi server"
+        });
+    }
+});
+
+// PUT: Cập nhật cấu hình đối tác dạng text và ẩn/hiện
+router.put("/update-partners-text", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
+    try {
+        const { partners, displayPartners } = req.body;
+
+        if (partners && !Array.isArray(partners)) {
+            return res.status(400).json({
+                success: 0,
+                message: "partners phải là một mảng chuỗi text"
+            });
+        }
+        if (displayPartners !== undefined && typeof displayPartners !== 'boolean') {
+            return res.status(400).json({
+                success: 0,
+                message: "displayPartners phải là giá trị boolean"
+            });
+        }
+
+        let manage = await Manage.findOne();
+        let updatedManage;
+
+        const updateData = {};
+        if (partners !== undefined) updateData.partners = partners;
+        if (displayPartners !== undefined) updateData.displayPartners = displayPartners;
+
+        if (manage) {
+            updatedManage = await Manage.findOneAndUpdate(
+                {},
+                { $set: updateData },
+                { new: true }
+            );
+        } else {
+            updatedManage = await new Manage({
+                partners: partners || [],
+                displayPartners: displayPartners !== undefined ? displayPartners : true
+            }).save();
+        }
+
+        res.json({
+            success: 1,
+            message: "Cập nhật cấu hình đối tác thành công",
+            data: updatedManage
+        });
+    } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).json({
+            success: 0,
+            message: "Lỗi server khi cập nhật cấu hình đối tác",
+            error: "Lỗi server"
+        });
+    }
+});
+
+// POST: Tải lên ảnh highlight cho section
+router.post("/upload-section-image", [authenticateAdmin, checkPermission('storefront.manage')], upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: 0,
+                message: "Vui lòng tải lên một file ảnh"
+            });
+        }
+        const imgUrl = `${process.env.ADDRESS}/images/${req.file.filename}`;
+        res.json({
+            success: 1,
+            message: "Tải ảnh lên thành công",
+            imgUrl
+        });
+    } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).json({
+            success: 0,
+            message: "Lỗi server khi tải ảnh lên"
+        });
+    }
+});
+
+// PUT: Cập nhật section bất kỳ động theo sectionId (section1 -> section11)
+router.put("/update-section/:sectionId", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+        const { name, productId, display, image, link } = req.body;
+
+        const match = /^section(1[0-1]|[1-9])$/.test(sectionId); // section1 to section11
+        if (!match) {
+            return res.status(400).json({
+                success: 0,
+                message: "sectionId không hợp lệ"
+            });
+        }
+
+        if (name !== undefined && typeof name !== 'string') {
+            return res.status(400).json({ success: 0, message: "Tên section phải là chuỗi" });
+        }
+        if (productId !== undefined && !Array.isArray(productId)) {
+            return res.status(400).json({ success: 0, message: "productId phải là một mảng" });
+        }
+        if (display !== undefined && typeof display !== 'boolean') {
+            return res.status(400).json({ success: 0, message: "display phải là giá trị boolean" });
+        }
+        if (image !== undefined && typeof image !== 'string') {
+            return res.status(400).json({ success: 0, message: "image phải là chuỗi" });
+        }
+        if (link !== undefined && typeof link !== 'string') {
+            return res.status(400).json({ success: 0, message: "link phải là chuỗi" });
+        }
+
+        let manage = await Manage.findOne();
+        if (!manage) {
+            manage = new Manage();
+        }
+
+        const updateData = {};
+        if (name !== undefined) updateData[`${sectionId}.name`] = name;
+        if (productId !== undefined) updateData[`${sectionId}.productId`] = productId;
+        if (display !== undefined) updateData[`${sectionId}.display`] = display;
+        if (image !== undefined) updateData[`${sectionId}.image`] = image;
+        if (link !== undefined) updateData[`${sectionId}.link`] = link;
+
+        const updatedManage = await Manage.findOneAndUpdate(
+            {},
+            { $set: updateData },
+            { new: true, upsert: true }
+        );
+
+        res.json({
+            success: 1,
+            message: `Cập nhật ${sectionId} thành công`,
+            data: updatedManage
+        });
+    } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).json({
+            success: 0,
+            message: "Lỗi server khi cập nhật section",
             error: "Lỗi server"
         });
     }

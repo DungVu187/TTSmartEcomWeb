@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import toast from "react-hot-toast";
 import { NumericFormat } from "react-number-format";
+import { formatVariantPrice } from "../utils/productpricing";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const ProductVariants = ({ variants }) => {
@@ -189,11 +190,9 @@ const ProductVariants = ({ variants }) => {
               <Typography variant="body1" gutterBottom>
                 {variantString}
               </Typography>
-              {variant.price && (
-                <Typography variant="subtitle1" color="text.secondary">
-                  Giá: {Number(variant.price).toLocaleString("vi-VN")} VNĐ
-                </Typography>
-              )}
+              <Typography variant="subtitle1" color="text.secondary">
+                Giá: {formatVariantPrice(variant)}
+              </Typography>
             </CardContent>
           </Card>
         );

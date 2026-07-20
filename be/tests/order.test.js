@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const app = require('../index');
 const { Product } = require('../components/product');
 const { User } = require('../components/user');
+const { Station } = require('../components/station');
 const { StorageHistory } = require('../components/storagehistory');
 const Order = mongoose.model('Order');
 
@@ -20,18 +21,20 @@ afterAll(async () => {
 afterEach(async () => {
   await Product.deleteMany({});
   await User.deleteMany({});
+  await Station.deleteMany({});
   await Order.deleteMany({});
   await StorageHistory.deleteMany({});
 });
 
-const createUser = async ({ phone, role = 'customer', functions = [], permissions = [] }) => {
+const createUser = async ({ phone, role = 'customer', functions = [], permissions = [], station = [] }) => {
   const user = new User({
     phone,
     password: 'password123',
     name: `Test ${phone}`,
     role,
     functions,
-    permissions
+    permissions,
+    station: station.map((item) => item._id.toString()),
   });
   await user.save();
   return user;
@@ -140,6 +143,141 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(savedOrder).toBeDefined();
     expect(savedOrder.total).toBe(9000000);
     expect(savedOrder.cartItems[0].productId).toBe(savedProduct._id.toString());
+  });
+
+  it('không tạo đơn hoặc trừ kho khi customer đặt sản phẩm ngoài trạm', async () => {
+    const allowedProduct = await createProduct();
+    const blockedProduct = await Product.create({
+      type: 'PLC',
+      name: 'Blocked Order Product',
+      brand: 'Test Brand',
+      section: 'Thiết bị tự động hóa',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: true,
+      variant: [{
+        price: '100000',
+        color: 'Xám',
+        quantityForSale: 10,
+        quantityInStorage: 10,
+      }],
+    });
+    const station = await Station.create({
+      stationName: 'Order Station',
+      stationCode: 'ORDER-STATION',
+      productId: [allowedProduct._id.toString()],
+    });
+    await Station.create({
+      stationName: 'Other Order Station',
+      stationCode: 'ORDER-OTHER',
+      productId: [blockedProduct._id.toString()],
+    });
+    await createUser({ phone: '0987654331', station: [station] });
+    const agent = await loginAgent({ phone: '0987654331' });
+
+    const response = await agent
+      .post('/orders/create-order')
+      .send({
+        cartItems: [{
+          productId: blockedProduct._id.toString(),
+          variantIndex: 0,
+          quantity: 2,
+        }],
+      });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toContain('không thuộc phạm vi trạm');
+    const unchangedProduct = await Product.findById(blockedProduct._id);
+    expect(unchangedProduct.variant[0].quantityForSale).toBe(10);
+    expect(await Order.countDocuments({ userPhone: '0987654331' })).toBe(0);
+
+    const wrongStationResponse = await agent
+      .post('/orders/create-order')
+      .send({
+        stationCode: 'ORDER-OTHER',
+        cartItems: [{
+          productId: allowedProduct._id.toString(),
+          variantIndex: 0,
+          quantity: 1,
+        }],
+      });
+
+    expect(wrongStationResponse.status).toBe(403);
+    const unchangedAllowedProduct = await Product.findById(allowedProduct._id);
+    expect(unchangedAllowedProduct.variant[0].quantityForSale).toBe(10);
+    expect(await Order.countDocuments({ userPhone: '0987654331' })).toBe(0);
+  });
+
+  it('không tạo đơn hoặc trừ kho với sản phẩm đang ẩn', async () => {
+    const hiddenProduct = await Product.create({
+      type: 'PLC',
+      name: 'Hidden Order Product',
+      brand: 'Test Brand',
+      section: 'Thiết bị tự động hóa',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: false,
+      variant: [{
+        price: '100000',
+        color: 'Xám',
+        quantityForSale: 10,
+        quantityInStorage: 10,
+      }],
+    });
+    await createUser({ phone: '0987654332' });
+    const agent = await loginAgent({ phone: '0987654332' });
+
+    const response = await agent
+      .post('/orders/create-order')
+      .send({
+        cartItems: [{
+          productId: hiddenProduct._id.toString(),
+          variantIndex: 0,
+          quantity: 2,
+        }],
+      });
+
+    expect(response.status).toBe(403);
+    const unchangedProduct = await Product.findById(hiddenProduct._id);
+    expect(unchangedProduct.variant[0].quantityForSale).toBe(10);
+    expect(await Order.countDocuments({ userPhone: '0987654332' })).toBe(0);
+  });
+
+  it('không tạo đơn hoặc trừ kho với sản phẩm chỉ nhận liên hệ', async () => {
+    const contactProduct = await Product.create({
+      type: 'PLC',
+      name: 'Contact Order Product',
+      brand: 'Test Brand',
+      section: 'Thiết bị tự động hóa',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: true,
+      variant: [{
+        price: '5480000',
+        importPrice: '5480000',
+        earn: 0,
+        quantityForSale: 18,
+        quantityInStorage: 20,
+      }],
+    });
+    await createUser({ phone: '0987654333' });
+    const agent = await loginAgent({ phone: '0987654333' });
+
+    const response = await agent
+      .post('/orders/create-order')
+      .send({
+        cartItems: [{
+          productId: contactProduct._id.toString(),
+          variantIndex: 0,
+          quantity: 1,
+        }],
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toContain('chỉ nhận liên hệ');
+    const unchangedProduct = await Product.findById(contactProduct._id);
+    expect(unchangedProduct.variant[0].quantityForSale).toBe(18);
+    expect(await Order.countDocuments({ userPhone: '0987654333' })).toBe(0);
   });
 
   it('Test Case 10: GET /orders yêu cầu quyền admin', async () => {

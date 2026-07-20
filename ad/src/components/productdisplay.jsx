@@ -26,6 +26,7 @@ import {
   PRODUCT_IMAGE_UPLOAD_SETTINGS,
 } from "../settings/imageUpload";
 import ProductTechDocs from "./producttechdocs";
+import { formatVariantPrice } from "../utils/productpricing";
 import "./style/productdisplay.css";
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -482,7 +483,7 @@ const ProductDisplay = () => {
       try {
         const [brandsRes, typesRes, sectionsRes] = await Promise.all([
           fetch(`${apiUrl}/chips/brands`),
-          fetch(`${apiUrl}/chips/types`),
+          fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
           fetch(`${apiUrl}/chips/section`),
         ]);
 
@@ -646,11 +647,7 @@ const ProductDisplay = () => {
             sx={{ mt: 2, color: "rgb(255, 123, 0)", fontWeight: 700 }}
           >
             Giá:{" "}
-            {Number(product.variant?.[0]?.earn) === 0
-              ? "Liên hệ"
-              : `${(product.variant?.[0]?.price || "0")
-                  .toString()
-                  .replace(/\B(?=(\d{3})+(?!\d))/g, ".")} VND`}
+            {formatVariantPrice(product.variant?.[0])}
           </Typography>
 
           <Box className="product-metrics-workspace">

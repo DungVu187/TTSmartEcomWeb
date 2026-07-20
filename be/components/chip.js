@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { authenticateAdmin, checkPermission } = require("./user");
 const { ActivityLog } = require("./activitylog");
 const { normalizeBrandKey } = require("./product");
+const { Type } = require("./producttype");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -29,13 +30,6 @@ const chipSchema = new mongoose.Schema({
 
 const brandSchema = new mongoose.Schema({
   Brand: {
-    type: String,
-    require: true,
-  },
-});
-
-const typeSchema = new mongoose.Schema({
-  Type: {
     type: String,
     require: true,
   },
@@ -109,7 +103,6 @@ sectionSchema.set('toObject', {
 });
 
 const Brand = mongoose.model("Brand", brandSchema);
-const Type = mongoose.model("Type", typeSchema);
 const Chip = mongoose.model("Chip", chipSchema);
 const Section = mongoose.model("Section", sectionSchema);
 const router = express.Router();

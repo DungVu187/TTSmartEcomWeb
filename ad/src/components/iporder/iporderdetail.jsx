@@ -207,7 +207,7 @@ const SortableTableRow = ({
       </TableCell>
       <TableCell align="center">
         <NumericFormat
-          value={tempProductList[index]?.quantity || ""}
+          value={tempProductList[index]?.quantity ?? ""}
           customInput={TextField}
           thousandSeparator="."
           decimalSeparator=","
@@ -216,12 +216,12 @@ const SortableTableRow = ({
             handleTempUpdateProduct(index, "quantity", value, false);
           }}
           onBlur={() => {
-            const value = tempProductList[index]?.quantity || "";
+            const value = tempProductList[index]?.quantity ?? "";
             handleTempUpdateProduct(index, "quantity", value, true);
           }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
-              const value = tempProductList[index]?.quantity || "";
+              const value = tempProductList[index]?.quantity ?? "";
               handleTempUpdateProduct(index, "quantity", value, true);
             }
           }}

@@ -185,3 +185,107 @@ table {
   }
 }
 
+.product-type-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  cursor: pointer !important;
+  user-select: none;
+}
+
+.product-type-option * {
+  cursor: pointer !important;
+  user-select: none;
+}
+
+.product-type-option:hover,
+.product-type-option.Mui-focused {
+  background-color: rgba(25, 118, 210, 0.08) !important;
+}
+
+.product-type-icon-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.product-type-icon-title .MuiTypography-subtitle1 {
+  font-weight: 700;
+}
+
+.product-type-option .home-category-icon,
+.product-type-icon-preview .home-category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.product-type-option .home-category-icon svg,
+.product-type-icon-preview .home-category-icon svg,
+.product-type-icon-button .home-category-icon svg {
+  width: 1em;
+  height: 1em;
+}
+
+.product-type-icon-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 12px;
+}
+
+.product-type-icon-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.product-type-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.product-type-icon-button {
+  min-height: 58px;
+  display: flex !important;
+  flex-direction: column;
+  gap: 4px;
+  text-transform: none !important;
+  line-height: 1.2 !important;
+  cursor: pointer !important;
+  user-select: none;
+}
+
+.product-type-icon-button .home-category-icon {
+  display: inline-flex;
+  font-size: 22px;
+}
+
+.product-type-icon-button span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .product-type-icon-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .product-type-icon-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

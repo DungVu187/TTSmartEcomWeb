@@ -2,6 +2,8 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../index');
 const { User } = require('../components/user');
+const { Product } = require('../components/product');
+const { Station } = require('../components/station');
 
 beforeAll(async () => {
   await mongoose.connect('mongodb://localhost:27017/EcomTest');
@@ -14,14 +16,17 @@ afterAll(async () => {
 
 afterEach(async () => {
   await User.deleteMany({});
+  await Product.deleteMany({});
+  await Station.deleteMany({});
 });
 
-const createCustomerAgent = async () => {
+const createCustomerAgent = async ({ station = [] } = {}) => {
   const user = new User({
     phone: '0911000001',
     password: 'password123',
     name: 'Cart Customer',
-    role: 'customer'
+    role: 'customer',
+    station: station.map((item) => item._id.toString()),
   });
   await user.save();
 
@@ -37,7 +42,20 @@ const createCustomerAgent = async () => {
 describe('Cart API', () => {
   it('adds new item, accumulates duplicate quantity, returns cart, removes item and clears cart', async () => {
     const { agent, user } = await createCustomerAgent();
-    const productId = new mongoose.Types.ObjectId().toString();
+    const product = await Product.create({
+      type: 'PLC',
+      name: 'Cart Product',
+      brand: 'Test Brand',
+      section: 'Automation',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: true,
+      variant: [
+        { price: '100000', quantityForSale: 10, quantityInStorage: 10 },
+        { price: '120000', quantityForSale: 10, quantityInStorage: 10 },
+      ],
+    });
+    const productId = product._id.toString();
 
     const firstAdd = await agent
       .post('/carts/addToCart')
@@ -61,6 +79,7 @@ describe('Cart API', () => {
     expect(getCart.status).toBe(200);
     expect(getCart.body.cart).toHaveLength(1);
     expect(getCart.body.cart[0].quantity).toBe(5);
+    expect(getCart.body.cart[0].available).toBe(true);
 
     const remove = await agent
       .post('/carts/removeFromCart')
@@ -79,5 +98,109 @@ describe('Cart API', () => {
 
     userInDb = await User.findById(user._id);
     expect(userInDb.cart).toHaveLength(0);
+  });
+
+  it('chặn sản phẩm ngoài trạm và đánh dấu item cũ không còn khả dụng', async () => {
+    const allowedProduct = await Product.create({
+      type: 'PLC',
+      name: 'Allowed Product',
+      brand: 'Test Brand',
+      section: 'Automation',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: true,
+      variant: [{ price: '100000', quantityForSale: 10, quantityInStorage: 10 }],
+    });
+    const blockedProduct = await Product.create({
+      type: 'PLC',
+      name: 'Blocked Product',
+      brand: 'Test Brand',
+      section: 'Automation',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: true,
+      variant: [{ price: '100000', quantityForSale: 10, quantityInStorage: 10 }],
+    });
+    const station = await Station.create({
+      stationName: 'Cart Station',
+      stationCode: 'CART-STATION',
+      productId: [allowedProduct._id.toString()],
+    });
+    const { agent, user } = await createCustomerAgent({ station: [station] });
+
+    const blockedAdd = await agent
+      .post('/carts/addToCart')
+      .send({ productId: blockedProduct._id.toString(), variantIndex: 0, quantity: 1 });
+    expect(blockedAdd.status).toBe(403);
+
+    const allowedAdd = await agent
+      .post('/carts/addToCart')
+      .send({ productId: allowedProduct._id.toString(), variantIndex: 0, quantity: 1 });
+    expect(allowedAdd.status).toBe(200);
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $push: {
+          cart: {
+            productId: blockedProduct._id.toString(),
+            variantIndex: 0,
+            quantity: 1,
+            status: true,
+          },
+        },
+      }
+    );
+
+    const getCart = await agent.get('/carts/getCart');
+    expect(getCart.status).toBe(200);
+    expect(getCart.body.cart).toEqual(expect.arrayContaining([
+      expect.objectContaining({ productId: allowedProduct._id.toString(), available: true }),
+      expect.objectContaining({ productId: blockedProduct._id.toString(), available: false }),
+    ]));
+  });
+
+  it('chặn thêm sản phẩm chỉ nhận liên hệ và đánh dấu item cũ không khả dụng', async () => {
+    const contactProduct = await Product.create({
+      type: 'PLC',
+      name: 'Contact Product',
+      brand: 'Test Brand',
+      section: 'Automation',
+      value: 'PLC',
+      warranty: '12 tháng',
+      display: true,
+      variant: [{
+        price: '5480000',
+        importPrice: '5480000',
+        earn: 0,
+        quantityForSale: 18,
+        quantityInStorage: 20,
+      }],
+    });
+    const { agent, user } = await createCustomerAgent();
+
+    const addResponse = await agent
+      .post('/carts/addToCart')
+      .send({ productId: contactProduct._id.toString(), variantIndex: 0, quantity: 1 });
+    expect(addResponse.status).toBe(409);
+    expect(addResponse.body.message).toContain('chỉ nhận liên hệ');
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $push: {
+          cart: {
+            productId: contactProduct._id.toString(),
+            variantIndex: 0,
+            quantity: 1,
+            status: true,
+          },
+        },
+      }
+    );
+
+    const getCart = await agent.get('/carts/getCart');
+    expect(getCart.status).toBe(200);
+    expect(getCart.body.cart[0]).toEqual(expect.objectContaining({ available: false }));
   });
 });

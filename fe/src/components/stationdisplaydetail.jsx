@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { CircularProgress, Alert } from '@mui/material';
 import { ShopContext } from '../context/shopcontext';
 import { useLanguage } from '../context/languagecontext.jsx';
+import { isContactOnlyVariant } from '../utils/productpricing';
 import "./style/stationdisplay.css";
 
 const apiUrl = process.env.REACT_APP_BACK_END || "";
@@ -53,6 +54,7 @@ const StationDisplayDetail = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: productIds }),
+          credentials: 'include',
         });
 
         const data = await resProducts.json();
@@ -195,7 +197,7 @@ const StationDisplayDetail = () => {
                   <tbody>
                     {visibleProducts.map((product) => {
                       const maxStock = product.variant?.[0]?.quantityForSale ?? 0;
-                      const hasStock = maxStock > 0;
+                      const canPurchase = !isContactOnlyVariant(product.variant?.[0]);
                       const currentQty = quantities[product._id] ?? 1;
 
                       return (
@@ -215,7 +217,7 @@ const StationDisplayDetail = () => {
                           <td>
                             <div className="station-detail-name-cell">
                               <span className="station-detail-name-primary">{product.name}</span>
-                              {hasStock ? (
+                              {canPurchase ? (
                                 <span className="station-detail-name-secondary">
                                   {t("quantity_left", "Số lượng đang còn")}: {maxStock}
                                 </span>
@@ -234,7 +236,7 @@ const StationDisplayDetail = () => {
                                 type="button"
                                 className="quantity-selector-btn"
                                 onClick={() => decrement(product._id)}
-                                disabled={!hasStock || currentQty <= 1}
+                                disabled={!canPurchase || currentQty <= 1}
                               >
                                 <i className="fa-solid fa-minus" />
                               </button>
@@ -245,14 +247,14 @@ const StationDisplayDetail = () => {
                                 value={currentQty}
                                 onChange={(e) => handleQuantityChange(product._id, e.target.value, maxStock)}
                                 onBlur={() => handleBlur(product._id, maxStock)}
-                                disabled={!hasStock}
+                                disabled={!canPurchase}
                               />
                               
                               <button
                                 type="button"
                                 className="quantity-selector-btn"
                                 onClick={() => increment(product._id, maxStock)}
-                                disabled={!hasStock || currentQty >= maxStock}
+                                disabled={!canPurchase || currentQty >= maxStock}
                               >
                                 <i className="fa-solid fa-plus" />
                               </button>
@@ -270,7 +272,7 @@ const StationDisplayDetail = () => {
                                 type="button"
                                 className="btn-action-cart"
                                 onClick={() => handleAddToCart(product)}
-                                disabled={!hasStock}
+                                disabled={!canPurchase}
                               >
                                 <i className="fa-solid fa-cart-shopping" /> {t("add_to_cart", "Thêm vào giỏ hàng")}
                               </button>

@@ -4,13 +4,13 @@ const multer = require('multer');
 const rateLimit = require("express-rate-limit");
 const { authenticateUser, authenticateAdmin, checkPermission, checkAnyPermission, User } = require('./user');
 const { Station } = require('./station');
-const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config();
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const { StorageHistory } = require("./storagehistory");
 const { ActivityLog } = require("./activitylog");
+const { Manage } = require("./manage");
 const voiceVocabDefaults = require('../config/voiceVocab.defaults');
 const {
     PRODUCT_DOCUMENT_UPLOAD_SETTINGS,
@@ -20,6 +20,19 @@ const {
     applyStockAdjustments,
     rollbackOrThrow,
 } = require('../services/inventory');
+const {
+    ProductAccessError,
+    buildProductVisibilityFilter,
+    combineProductFilters,
+} = require('../services/productAccess');
+const { isContactOnlyVariant } = require('../services/productPricing');
+const {
+    Type,
+    isValidProductTypeIcon,
+    normalizeProductTypeIcon,
+    normalizeProductTypeName,
+    serializeProductType,
+} = require('./producttype');
 
 function removeVietnameseTones(str) {
     if (!str) return '';
@@ -544,6 +557,11 @@ const stripPrivateVariantFields = (product) => {
     if (Array.isArray(productObj.variant)) {
         productObj.variant = productObj.variant.map((variant) => {
             const variantObj = variant?.toJSON ? variant.toJSON() : { ...variant };
+            const contactForPrice = isContactOnlyVariant(variantObj);
+            variantObj.contactForPrice = contactForPrice;
+            if (contactForPrice) {
+                variantObj.price = "";
+            }
             delete variantObj.importPrice;
             delete variantObj.earn;
             return variantObj;
@@ -667,6 +685,26 @@ productSchema.set('toObject', {
 });
 
 const Product = mongoose.model('Product', productSchema);
+
+const authenticateOptionalProductViewer = (req, res, next) => {
+    if (!req.cookies?.authToken) return next();
+    return authenticateUser(req, res, next);
+};
+
+const loadProductViewer = async (req) => {
+    if (!req.user?.userId) return null;
+    const user = await User.findById(req.user.userId).select('role station').lean();
+    if (!user) {
+        throw new ProductAccessError('Phiên đăng nhập không còn hợp lệ.', 401);
+    }
+    return user;
+};
+
+const sendProductAccessError = (res, error) => {
+    if (!(error instanceof ProductAccessError)) return false;
+    res.status(error.statusCode).json({ message: error.message });
+    return true;
+};
 
 async function findProductByEquivalentCode(code, excludeId = null) {
     const normalizedCode = normalizeProductCodeForCompare(code);
@@ -878,8 +916,219 @@ router.post('/create', [authenticateAdmin, checkPermission('product.create')], a
     }
 });
 
+router.get('/types', async (req, res) => {
+    try {
+        const types = await Type.find().sort({ Type: 1 });
+        res.json(types.map(serializeProductType));
+    } catch (error) {
+        console.error('Error fetching product types:', error);
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách loại sản phẩm' });
+    }
+});
+
+router.post('/types', [authenticateAdmin, checkPermission('product.create')], async (req, res) => {
+    try {
+        const typeName = String(req.body?.Type || '').trim().replace(/\s+/g, ' ');
+        const icon = normalizeProductTypeIcon(req.body?.icon, typeName);
+
+        if (!typeName) {
+            return res.status(400).json({ message: 'Vui lòng nhập tên loại sản phẩm' });
+        }
+        if (!isValidProductTypeIcon(icon)) {
+            return res.status(400).json({ message: 'Icon loại sản phẩm không hợp lệ' });
+        }
+
+        const normalizedName = normalizeProductTypeName(typeName);
+        const existingTypes = await Type.find().select('Type').lean();
+        const duplicate = existingTypes.find(
+            (item) => normalizeProductTypeName(item.Type) === normalizedName
+        );
+        if (duplicate) {
+            return res.status(409).json({
+                message: 'Loại sản phẩm đã tồn tại. Hãy chọn loại đó để cập nhật.',
+                typeId: duplicate._id,
+            });
+        }
+
+        const newType = await new Type({ Type: typeName, icon }).save();
+
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'create_type',
+                productName: newType.Type,
+                details: [
+                    { field: 'Type', oldValue: '', newValue: newType.Type },
+                    { field: 'icon', oldValue: '', newValue: newType.icon },
+                ],
+            }).save();
+        } catch (logError) {
+            console.error('ActivityLog error in create_type:', logError.message);
+        }
+
+        res.status(201).json(serializeProductType(newType));
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ message: error.message });
+        }
+        console.error('Error creating product type:', error);
+        res.status(500).json({ message: 'Lỗi server khi thêm loại sản phẩm' });
+    }
+});
+
+router.put('/types/:id', [authenticateAdmin, checkPermission('product.edit')], async (req, res) => {
+    try {
+        const currentType = await Type.findById(req.params.id);
+        if (!currentType) {
+            return res.status(404).json({ message: 'Không tìm thấy loại sản phẩm' });
+        }
+
+        const nextName = String(req.body?.Type || '').trim().replace(/\s+/g, ' ');
+        const nextIcon = normalizeProductTypeIcon(req.body?.icon, nextName);
+        if (!nextName) {
+            return res.status(400).json({ message: 'Vui lòng nhập tên loại sản phẩm' });
+        }
+        if (!isValidProductTypeIcon(nextIcon)) {
+            return res.status(400).json({ message: 'Icon loại sản phẩm không hợp lệ' });
+        }
+
+        const normalizedName = normalizeProductTypeName(nextName);
+        const existingTypes = await Type.find({ _id: { $ne: currentType._id } })
+            .select('Type')
+            .lean();
+        const duplicate = existingTypes.find(
+            (item) => normalizeProductTypeName(item.Type) === normalizedName
+        );
+        if (duplicate) {
+            return res.status(409).json({ message: 'Tên loại sản phẩm đã tồn tại' });
+        }
+
+        const oldName = currentType.Type;
+        const oldIcon = normalizeProductTypeIcon(currentType.icon, oldName);
+        currentType.Type = nextName;
+        currentType.icon = nextIcon;
+        await currentType.save();
+
+        let updatedProducts = 0;
+        let updatedHomeCategories = 0;
+        let renamedProductIds = [];
+        try {
+            if (oldName !== nextName) {
+                renamedProductIds = await Product.distinct('_id', { type: oldName });
+                if (renamedProductIds.length > 0) {
+                    const updateResult = await Product.updateMany(
+                        { _id: { $in: renamedProductIds } },
+                        { $set: { type: nextName } }
+                    );
+                    updatedProducts = updateResult.modifiedCount || 0;
+                }
+            }
+
+            const manage = await Manage.findOne();
+            const categoryItems = manage?.homeCategoryConfig?.items;
+            if (Array.isArray(categoryItems)) {
+                categoryItems.forEach((item) => {
+                    if (item.type !== oldName) return;
+
+                    let changed = false;
+                    if (oldName !== nextName) {
+                        item.type = nextName;
+                        changed = true;
+                        if (item.label === oldName) {
+                            item.label = nextName;
+                        }
+                    }
+                    if (oldIcon !== nextIcon && item.icon === oldIcon) {
+                        item.icon = nextIcon;
+                        changed = true;
+                    }
+                    if (changed) updatedHomeCategories += 1;
+                });
+
+                if (updatedHomeCategories > 0) {
+                    manage.markModified('homeCategoryConfig.items');
+                    await manage.save();
+                }
+            }
+        } catch (updateError) {
+            if (renamedProductIds.length > 0) {
+                await Product.updateMany(
+                    { _id: { $in: renamedProductIds } },
+                    { $set: { type: oldName } }
+                );
+            }
+            currentType.Type = oldName;
+            currentType.icon = oldIcon;
+            await currentType.save();
+            throw updateError;
+        }
+
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'update_type',
+                productName: nextName,
+                details: [
+                    { field: 'Type', oldValue: oldName, newValue: nextName },
+                    { field: 'icon', oldValue: oldIcon, newValue: nextIcon },
+                ],
+            }).save();
+        } catch (logError) {
+            console.error('ActivityLog error in update_type:', logError.message);
+        }
+
+        res.json({
+            ...serializeProductType(currentType),
+            updatedProducts,
+            updatedHomeCategories,
+        });
+    } catch (error) {
+        if (error.name === 'ValidationError' || error.name === 'CastError') {
+            return res.status(400).json({ message: error.message });
+        }
+        console.error('Error updating product type:', error);
+        res.status(500).json({ message: 'Lỗi server khi cập nhật loại sản phẩm' });
+    }
+});
+
+router.delete('/types/:id', [authenticateAdmin, checkPermission('product.delete')], async (req, res) => {
+    try {
+        const currentType = await Type.findById(req.params.id);
+        if (!currentType) {
+            return res.status(404).json({ message: 'Không tìm thấy loại sản phẩm' });
+        }
+
+        const productCount = await Product.countDocuments({ type: currentType.Type });
+        if (productCount > 0) {
+            return res.status(409).json({
+                message: `Không thể xóa vì đang có ${productCount} sản phẩm thuộc loại này`,
+            });
+        }
+
+        await currentType.deleteOne();
+        try {
+            await new ActivityLog({
+                userName: req.user.name,
+                action: 'delete_type',
+                productName: currentType.Type,
+                details: [{ field: 'Type', oldValue: currentType.Type, newValue: '' }],
+            }).save();
+        } catch (logError) {
+            console.error('ActivityLog error in delete_type:', logError.message);
+        }
+
+        res.json({ message: 'Đã xóa loại sản phẩm' });
+    } catch (error) {
+        if (error.name === 'CastError') {
+            return res.status(400).json({ message: 'Mã loại sản phẩm không hợp lệ' });
+        }
+        console.error('Error deleting product type:', error);
+        res.status(500).json({ message: 'Lỗi server khi xóa loại sản phẩm' });
+    }
+});
+
 // API lấy tất cả sản phẩm
-router.get("/", async (req, res) => {
+router.get("/", authenticateOptionalProductViewer, async (req, res) => {
     try {
         const {
             page = 1,
@@ -941,56 +1190,14 @@ router.get("/", async (req, res) => {
         if (brand && brand !== "") filter.brand = brand;
         if (section && section !== "") filter.section = section;
         if (value && value !== "") filter.value = value;
-        if (display !== undefined) filter.display = display === "true";
 
-        // Kiểm tra cookie authToken để thực hiện lọc theo trạm trộn của khách hàng
-        const token = req.cookies?.authToken;
-        if (token) {
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                const user = await User.findById(decoded.userId);
-                requesterRole = user?.role || null;
-                if (user && user.role === "customer") {
-                    const userStations = user.station || [];
+        const viewer = await loadProductViewer(req);
+        requesterRole = viewer?.role || "guest";
+        const { filter: visibilityFilter } = await buildProductVisibilityFilter(viewer, { stationId });
+        Object.assign(filter, visibilityFilter);
 
-                    if (userStations.length === 0) {
-                        // Khách hàng không có trạm trộn nào -> Không hiển thị sản phẩm nào
-                        return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
-                    }
-
-                    let allowedProductIds = [];
-
-                    // Nếu khách hàng chọn lọc một trạm cụ thể từ dropdown
-                    if (stationId && stationId !== "Tất cả") {
-                        // Kiểm tra xem trạm này có thuộc sở hữu của khách hàng không
-                        if (!userStations.includes(stationId)) {
-                            return res.status(403).json({ message: "Bạn không có quyền truy cập trạm trộn này." });
-                        }
-                        const stationObj = await Station.findById(stationId);
-                        if (stationObj && Array.isArray(stationObj.productId)) {
-                            allowedProductIds = stationObj.productId;
-                        }
-                    } else {
-                        // Nếu chọn "Tất cả" hoặc không truyền stationId -> Lấy sản phẩm của tất cả trạm của user
-                        const stations = await Station.find({ _id: { $in: userStations } });
-                        stations.forEach(s => {
-                            if (Array.isArray(s.productId)) {
-                                allowedProductIds.push(...s.productId);
-                            }
-                        });
-                    }
-
-                    // Loại bỏ trùng lặp và lọc
-                    const uniqueProductIds = [...new Set(allowedProductIds)];
-                    filter._id = { $in: uniqueProductIds };
-                }
-            } catch (err) {
-                console.error("Lỗi xác thực token/trạm của khách hàng:", err.message);
-                return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
-            }
-        } else {
-            // Khách vãng lai chưa đăng nhập -> Trả về danh sách trống
-            return res.json({ total: 0, page: pageNum, limit: limitNum, products: [] });
+        if (["superadmin", "admin", "staff"].includes(requesterRole) && display !== undefined) {
+            filter.display = display === "true";
         }
 
         // Xử lý sắp xếp
@@ -1124,7 +1331,7 @@ router.get("/", async (req, res) => {
         }
 
         const processedProducts = products.map(product => {
-            const productObj = requesterRole === "customer"
+            const productObj = requesterRole === "customer" || requesterRole === "guest"
                 ? stripPrivateVariantFields(product)
                 : product.toJSON();
             return {
@@ -1142,20 +1349,24 @@ router.get("/", async (req, res) => {
             products: processedProducts
         });
     } catch (error) {
+        if (sendProductAccessError(res, error)) return;
         console.error("Error fetching products:", error);
         res.status(500).json({ message: "Server error. Please try again later." });
     }
 });
 
 // API lấy 10 sản phẩm có purchaseCount cao nhất
-router.get('/top-purchased', async (req, res) => {
+router.get('/top-purchased', authenticateOptionalProductViewer, async (req, res) => {
     try {
-        const products = await Product.find()
+        const viewer = await loadProductViewer(req);
+        const { filter } = await buildProductVisibilityFilter(viewer);
+        const products = await Product.find(filter)
             .sort({ purchaseCount: -1 }) // Sắp xếp giảm dần theo purchaseCount
             .limit(10);
 
         res.json(products.map(stripPrivateVariantFields));
     } catch (error) {
+        if (sendProductAccessError(res, error)) return;
         console.error("Error fetching top purchased products:", error);
         res.status(500).json({ message: "Lỗi server khi lấy sản phẩm mua nhiều" });
     }
@@ -1174,20 +1385,26 @@ router.get('/:_id/admin-detail', [authenticateUser, checkPermission('product.edi
 });
 
 // API lấy thông tin sản phẩm theo ID (Public)
-router.get('/:_id', async (req, res) => {
+router.get('/:_id', authenticateOptionalProductViewer, async (req, res) => {
     try {
-        const product = await Product.findById(req.params._id);
+        const viewer = await loadProductViewer(req);
+        const { filter } = await buildProductVisibilityFilter(viewer);
+        const product = await Product.findOne(combineProductFilters(
+            { _id: req.params._id },
+            filter
+        ));
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
         res.json(stripPrivateVariantFields(product));
     } catch (error) {
+        if (sendProductAccessError(res, error)) return;
         res.status(500).json({ message: "Lỗi server" });
     }
 });
 
 // API lấy thông tin nhiều sản phẩm qua mảng id
-router.post('/fetch-by-ids', async (req, res) => {
+router.post('/fetch-by-ids', authenticateOptionalProductViewer, async (req, res) => {
     try {
         const { ids } = req.body;
 
@@ -1220,8 +1437,14 @@ router.post('/fetch-by-ids', async (req, res) => {
             });
         }
 
-        // Tìm các sản phẩm theo mảng ids
-        const products = await Product.find({ _id: { $in: validIds } });
+        const viewer = await loadProductViewer(req);
+        const { filter } = await buildProductVisibilityFilter(viewer);
+
+        // Tìm các sản phẩm theo mảng ids và đúng phạm vi được phép xem
+        const products = await Product.find(combineProductFilters(
+            { _id: { $in: validIds } },
+            filter
+        ));
 
         // Xử lý kết quả để đảm bảo dữ liệu đầy đủ
         const processedProducts = products.map(product => {
@@ -1241,6 +1464,7 @@ router.post('/fetch-by-ids', async (req, res) => {
             products: processedProducts
         });
     } catch (error) {
+        if (sendProductAccessError(res, error)) return;
         console.error('Error fetching products by IDs:', error);
         res.status(500).json({
             success: 0,
@@ -2057,7 +2281,7 @@ router.put('/:id/:variantIndex/update-import-price', [authenticateAdmin, checkPe
 });
 
 // API lấy danh sách _id dựa trên mảng product.code
-router.post('/by-codes', async (req, res) => {
+router.post('/by-codes', authenticateOptionalProductViewer, async (req, res) => {
     try {
         const { codes } = req.body;
 
@@ -2066,8 +2290,14 @@ router.post('/by-codes', async (req, res) => {
             return res.status(400).json({ message: 'Vui lòng cung cấp một mảng codes hợp lệ' });
         }
 
-        // Tìm các sản phẩm theo mảng codes
-        const products = await Product.find({ code: { $in: codes } }).select('_id code');
+        const viewer = await loadProductViewer(req);
+        const { filter } = await buildProductVisibilityFilter(viewer);
+
+        // Tìm các sản phẩm theo mảng codes trong phạm vi được phép xem
+        const products = await Product.find(combineProductFilters(
+            { code: { $in: codes } },
+            filter
+        )).select('_id code');
 
         // Tạo danh sách kết quả với _id tương ứng
         const result = products.map(product => ({
@@ -2086,6 +2316,7 @@ router.post('/by-codes', async (req, res) => {
             products: result
         });
     } catch (error) {
+        if (sendProductAccessError(res, error)) return;
         console.error('Error fetching products by codes:', error);
         res.status(500).json({ message: 'Server error' });
     }

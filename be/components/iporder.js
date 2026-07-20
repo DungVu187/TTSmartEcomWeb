@@ -79,8 +79,8 @@ const hasOwn = (object, field) =>
   Object.prototype.hasOwnProperty.call(object || {}, field);
 
 const validateLineQuantities = ({ quantity, quantityRe }) => {
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    throw createRouteError(400, "Số lượng đặt phải là số nguyên lớn hơn 0.");
+  if (!Number.isInteger(quantity) || quantity < 0) {
+    throw createRouteError(400, "Số lượng đặt phải là số nguyên lớn hơn hoặc bằng 0.");
   }
   if (
     typeof quantityRe !== "number" ||

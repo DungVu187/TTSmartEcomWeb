@@ -8,6 +8,17 @@ const path = require('path');
 require("dotenv").config();
 const router = express.Router();
 
+const homeCategoryItemSchema = new mongoose.Schema({
+    id: { type: String, default: '' },
+    label: { type: String, default: '' },
+    type: { type: String, default: '' },
+    link: { type: String, default: '' },
+    icon: { type: String, default: 'ri-tb-box-multiple' },
+    image: { type: String, default: '' },
+    showSidebar: { type: Boolean, default: true },
+    showQuick: { type: Boolean, default: true }
+}, { _id: false });
+
 // Schema cho Manage
 const manageSchema = new mongoose.Schema({
     overViewImg: {
@@ -41,6 +52,13 @@ const manageSchema = new mongoose.Schema({
     mainPolicy: {
         type: String,
         default: ''
+    },
+    homeCategoryConfig: {
+        configured: { type: Boolean, default: false },
+        sidebarTitle: { type: String, default: 'Danh mục sản phẩm' },
+        showSidebar: { type: Boolean, default: true },
+        showQuickCategories: { type: Boolean, default: true },
+        items: { type: [homeCategoryItemSchema], default: [] }
     },
     section1: {
         name: {
@@ -386,6 +404,111 @@ router.put("/update-partners-text", [authenticateAdmin, checkPermission('storefr
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật cấu hình đối tác",
+            error: "Lỗi server"
+        });
+    }
+});
+
+// PUT: Cập nhật danh mục hiển thị trên trang chủ
+router.put("/update-home-categories", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_home_categories", "Danh mục trang chủ"), async (req, res) => {
+    try {
+        const {
+            configured = true,
+            sidebarTitle = "Danh mục sản phẩm",
+            showSidebar = true,
+            showQuickCategories = true,
+            items = []
+        } = req.body || {};
+
+        if (typeof configured !== 'boolean') {
+            return res.status(400).json({ success: 0, message: "configured phải là giá trị boolean" });
+        }
+        if (typeof sidebarTitle !== 'string' || sidebarTitle.trim().length > 80) {
+            return res.status(400).json({ success: 0, message: "Tiêu đề danh mục không hợp lệ" });
+        }
+        if (typeof showSidebar !== 'boolean' || typeof showQuickCategories !== 'boolean') {
+            return res.status(400).json({ success: 0, message: "Trạng thái hiển thị không hợp lệ" });
+        }
+        if (!Array.isArray(items) || items.length > 30) {
+            return res.status(400).json({ success: 0, message: "Danh sách danh mục phải là mảng và không vượt quá 30 mục" });
+        }
+
+        const normalizedItems = [];
+        const usedIds = new Set();
+
+        for (let index = 0; index < items.length; index += 1) {
+            const item = items[index];
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return res.status(400).json({ success: 0, message: `Danh mục thứ ${index + 1} không hợp lệ` });
+            }
+
+            const label = typeof item.label === 'string' ? item.label.trim() : '';
+            const type = typeof item.type === 'string' ? item.type.trim() : '';
+            const link = typeof item.link === 'string' ? item.link.trim() : '';
+            const icon = typeof item.icon === 'string' ? item.icon.trim() : 'ri-tb-box-multiple';
+            const image = typeof item.image === 'string' ? item.image.trim() : '';
+
+            if (!label || label.length > 80) {
+                return res.status(400).json({ success: 0, message: `Tên hiển thị của danh mục thứ ${index + 1} không hợp lệ` });
+            }
+            if (!type && !link) {
+                return res.status(400).json({ success: 0, message: `Danh mục "${label}" cần có loại sản phẩm hoặc liên kết tùy chỉnh` });
+            }
+            if (type.length > 100 || link.length > 500 || image.length > 1000) {
+                return res.status(400).json({ success: 0, message: `Dữ liệu của danh mục "${label}" vượt quá độ dài cho phép` });
+            }
+            if (!/^(fa-[a-z0-9-]+|ri-[a-z0-9-]+)$/.test(icon)) {
+                return res.status(400).json({ success: 0, message: `Icon của danh mục "${label}" không hợp lệ` });
+            }
+            if (item.showSidebar !== undefined && typeof item.showSidebar !== 'boolean') {
+                return res.status(400).json({ success: 0, message: `Trạng thái menu trái của danh mục "${label}" không hợp lệ` });
+            }
+            if (item.showQuick !== undefined && typeof item.showQuick !== 'boolean') {
+                return res.status(400).json({ success: 0, message: `Trạng thái danh mục ngang của danh mục "${label}" không hợp lệ` });
+            }
+
+            let id = typeof item.id === 'string' ? item.id.trim().slice(0, 100) : '';
+            if (!id || usedIds.has(id)) {
+                id = new mongoose.Types.ObjectId().toString();
+            }
+            usedIds.add(id);
+
+            normalizedItems.push({
+                id,
+                label,
+                type,
+                link,
+                icon,
+                image,
+                showSidebar: item.showSidebar !== false,
+                showQuick: item.showQuick !== false
+            });
+        }
+
+        const homeCategoryConfig = {
+            configured,
+            sidebarTitle: sidebarTitle.trim() || "Danh mục sản phẩm",
+            showSidebar,
+            showQuickCategories,
+            items: normalizedItems
+        };
+
+        const updatedManage = await Manage.findOneAndUpdate(
+            {},
+            { $set: { homeCategoryConfig } },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+
+        res.json({
+            success: 1,
+            message: "Cập nhật danh mục trang chủ thành công",
+            data: updatedManage
+        });
+    } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).json({
+            success: 0,
+            message: "Lỗi server khi cập nhật danh mục trang chủ",
             error: "Lỗi server"
         });
     }

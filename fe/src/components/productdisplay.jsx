@@ -20,6 +20,7 @@ import BeenhereIcon from "@mui/icons-material/Beenhere";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { useLanguage } from "../context/languagecontext.jsx";
 import { ShopContext } from "../context/shopcontext";
+import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import SafeProductImage from "./safeproductimage";
 import "./style/productdisplay.css";
 
@@ -330,6 +331,7 @@ function ProductDisplay() {
   ];
   const currentTab = detailTabs[selectedTab]?.key || "description";
   const isOutOfStock = Number(selectedVariant?.quantityForSale || 0) <= 0;
+  const isContactOnly = isContactOnlyVariant(selectedVariant);
   const productImage = withImageVersion(selectedVariant?.imgUrl, product.updatedAt || product._id);
   const variantRows = [
     ["Mã sản phẩm", product.code],
@@ -378,7 +380,7 @@ function ProductDisplay() {
               <span>Đã bán {product.purchaseCount || 0}</span>
             </div>
             <div className="product-price-line">
-              <strong>{Number(selectedVariant?.price) > 0 ? `${Number(selectedVariant.price).toLocaleString("vi-VN")} VNĐ` : "Liên hệ"}</strong>
+              <strong>{formatVariantPrice(selectedVariant)}</strong>
               <span className={isOutOfStock ? "is-out" : "is-in"}>{isOutOfStock ? t("out_of_stock_val") : "Còn hàng"}</span>
             </div>
             <p className="product-vat-note">Giá chưa bao gồm VAT</p>
@@ -416,10 +418,10 @@ function ProductDisplay() {
                 <span>{qty}</span>
                 <button type="button" onClick={() => setQty((current) => current + 1)}>+</button>
               </div>
-              <small>{isOutOfStock ? t("out_of_stock") : `Còn ${selectedVariant.quantityForSale} sản phẩm`}</small>
+              <small>{isContactOnly ? t("contact_only_product") : `Còn ${selectedVariant.quantityForSale} sản phẩm`}</small>
             </div>
 
-            {isOutOfStock ? (
+            {isContactOnly ? (
               <Button className="product-contact-stock-button" variant="contained" href="tel:0913158383" startIcon={<SmartphoneIcon />}>
                 0913 158 383
               </Button>
@@ -470,7 +472,7 @@ function ProductDisplay() {
                       alt={item.name}
                       className="related-product-canvas"
                     />
-                    <div><h3>{item.name}</h3><strong>{Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} VNĐ` : "Liên hệ"}</strong><Rating value={Number(item.averageReviews || 0)} readOnly size="small" /><span className={`related-product-status ${inStock ? "is-in" : "is-out"}`}>{inStock ? "Còn hàng" : t("out_of_stock_val")}</span></div>
+                    <div><h3>{item.name}</h3><strong>{formatVariantPrice(variant)}</strong><Rating value={Number(item.averageReviews || 0)} readOnly size="small" /><span className={`related-product-status ${inStock ? "is-in" : "is-out"}`}>{inStock ? "Còn hàng" : t("out_of_stock_val")}</span></div>
                   </Link>
                 );
               })}

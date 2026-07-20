@@ -340,6 +340,14 @@
   height: 32px;
 }
 
+.account-list-table .MuiDataGrid-columnHeaders {
+  border-bottom: 1px solid #000;
+}
+
+.account-list-table .MuiDataGrid-cell {
+  border-bottom: 1px solid #000;
+}
+
 @media (max-width: 700px) {
   .acc-permission-table-wrap {
     max-height: 360px;

@@ -24,6 +24,7 @@ import { Delete, Add, Remove } from "@mui/icons-material";
 import "./styles/cart.css";
 import { toast } from "react-hot-toast";
 import { useLanguage } from "../context/languagecontext.jsx";
+import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 
 function Cart() {
   const { t } = useLanguage();
@@ -81,7 +82,7 @@ function Cart() {
       const product = products.find((p) => p._id === item.productId);
       if (product) {
         const variant = product.variant[item.variantIndex];
-        if (variant && variant.price) {
+        if (variant && !isContactOnlyVariant(variant)) {
           totalPrice += variant.price * item.quantity;
         }
       }
@@ -106,6 +107,10 @@ function Cart() {
         toast.error(t("no_items_selected"));
         return;
       }
+      if (selectedItems.some((item) => item.available === false)) {
+        toast.error(t("product_unavailable"));
+        return;
+      }
 
       // Kiểm tra số lượng tồn kho trước khi đặt hàng
       for (const item of selectedItems) {
@@ -115,8 +120,16 @@ function Cart() {
             credentials: "include",
           }
         );
+        if (!productRes.ok) {
+          toast.error(t("product_unavailable"));
+          return;
+        }
         const productData = await productRes.json();
         const variant = productData.variant[item.variantIndex];
+        if (!variant || isContactOnlyVariant(variant)) {
+          toast.error(t("contact_only_product"));
+          return;
+        }
         if (variant.quantityForSale < item.quantity) {
           toast.error(
             t("insufficient_stock")
@@ -191,7 +204,7 @@ function Cart() {
         return fetch(`${process.env.REACT_APP_BACK_END}/products/${productId}`, {
           credentials: "include",
         })
-          .then((res) => res.json())
+          .then((res) => (res.ok ? res.json() : null))
           .catch((err) => {
             console.error("Error fetching product:", err);
             return null;
@@ -287,13 +300,28 @@ function Cart() {
               const product = products.find((p) => p._id === item.productId);
               if (!product) {
                 return (
-                  <ListItem key={`${item.productId}-${item.variantIndex}`}>
-                    <ListItemText primary={t("no_product_info")} />
+                  <ListItem
+                    key={`${item.productId}-${item.variantIndex}`}
+                    sx={{ borderBottom: "1px solid #eee", py: 2 }}
+                  >
+                    <ListItemText
+                      primary={t("no_product_info")}
+                      secondary={t("remove_unavailable_product")}
+                    />
+                    <IconButton
+                      edge="end"
+                      aria-label="delete"
+                      onClick={() => removeFromCart(item.productId, item.variantIndex)}
+                      sx={{ color: "error.main" }}
+                    >
+                      <Delete />
+                    </IconButton>
                   </ListItem>
                 );
               }
 
               const variant = product.variant[item.variantIndex];
+              const isContactOnly = isContactOnlyVariant(variant);
 
               return (
                 <ListItem
@@ -313,6 +341,7 @@ function Cart() {
                   <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}>
                     <Checkbox
                       checked={item.status}
+                      disabled={item.available === false || isContactOnly}
                       onChange={() => {
                         updateCartItemStatus(
                           item.productId,
@@ -358,7 +387,7 @@ function Cart() {
                           fontWeight: "600"
                         }}
                       >
-                        {Number(variant?.price).toLocaleString("vi-VN")} vnđ
+                        {formatVariantPrice(variant)}
                       </Typography>
                       <Typography 
                         variant="body2" 
@@ -403,7 +432,7 @@ function Cart() {
                             );
                           }
                         }}
-                        disabled={item.quantity <= 1}
+                        disabled={isContactOnly || item.quantity <= 1}
                         size="small"
                       >
                         <Remove />
@@ -412,6 +441,7 @@ function Cart() {
                         size="small"
                         type="number"
                         value={item.quantity}
+                        disabled={isContactOnly}
                         onChange={(e) => {
                           const newValue = parseInt(e.target.value, 10);
                           if (!isNaN(newValue) && newValue >= 1) {
@@ -474,6 +504,7 @@ function Cart() {
                             toast.error(t("insufficient_stock_general"));
                           }
                         }}
+                        disabled={isContactOnly}
                         size="small"
                       >
                         <Add />

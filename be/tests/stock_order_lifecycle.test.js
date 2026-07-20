@@ -201,7 +201,8 @@ describe("Stock lifecycle for customer orders", () => {
     await expectStock(product._id, 0, 1);
 
     const secondResponse = await placeOrder(customerAgent, product, 1);
-    expect(secondResponse.status).toBe(400);
+    expect(secondResponse.status).toBe(409);
+    expect(secondResponse.body.message).toContain('chỉ nhận liên hệ');
     await expectStock(product._id, 0, 1);
     expect(await Order.countDocuments({ userPhone: CUSTOMER_PHONE })).toBe(1);
     expect(await StorageHistory.countDocuments({ productId: product._id })).toBe(0);

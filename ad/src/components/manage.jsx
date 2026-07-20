@@ -29,6 +29,7 @@ import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "swiper/css/thumbs";
 import toast from "react-hot-toast";
+import HomeCategoryManager from "./homecategorymanager";
 import "./style/manage.css";
 
 const apiUrl = import.meta.env.VITE_API_URL;
@@ -216,6 +217,13 @@ const Manage = () => {
     highestRatingUrl: "",
     introduction: "",
     mainPolicy: "",
+    homeCategoryConfig: {
+      configured: false,
+      sidebarTitle: "Danh mục sản phẩm",
+      showSidebar: true,
+      showQuickCategories: true,
+      items: [],
+    },
   });
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
@@ -549,6 +557,11 @@ const Manage = () => {
         mainHeight="300px"
         mainObjectFit="fill"
         slideAltPrefix="Banner"
+      />
+
+      <HomeCategoryManager
+        value={manageData.homeCategoryConfig}
+        onSaved={(updatedManage) => setManageData(updatedManage)}
       />
 
       <Box sx={{ mb: 4, width: "900px" }}>

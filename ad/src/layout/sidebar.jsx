@@ -255,7 +255,7 @@ const Sidebar = () => {
       icon: <ManageIcon />,
       subItems: stationSubItems,
     },
-    can("storefront.manage") && { text: "Quản lý banner", path: "/manage", icon: <ManageIcon /> },
+    can("storefront.manage") && { text: "Nội dung trang chủ", path: "/manage", icon: <ManageIcon /> },
     can("storefront.manage") && { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
     isAdminOrSuperadmin && {
       text: "Phân quyền",

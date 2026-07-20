@@ -270,7 +270,7 @@ function Product() {
         const [brandsResponse, typesResponse, sectionsResponse] =
           await Promise.all([
             fetch(`${apiUrl}/chips/brands`),
-            fetch(`${apiUrl}/chips/types`),
+            fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
             fetch(`${apiUrl}/chips/section`),
           ]);
         const brandsData = await brandsResponse.json();

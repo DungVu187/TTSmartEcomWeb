@@ -6,11 +6,11 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "./styles/dashboard.css";
-import solution1 from "../assets/solution/solution1.jpg";
-import solution2 from "../assets/solution/solution2.jpg";
-import solution3 from "../assets/solution/solution3.jpg";
 import { ShopContext } from "../context/shopcontext";
+import HomeCategoryIcon from "../components/homecategoryicon";
 import SafeProductImage from "../components/safeproductimage";
+import { getCategoryIcon, normalizeTypeName } from "../utils/homecategoryicons";
+import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 
 const apiUrl = process.env.REACT_APP_BACK_END || "";
 
@@ -34,6 +34,37 @@ const DEFAULT_BRANDS = [
   { label: "ABB", query: "ABB" },
 ];
 
+const buildAutomaticCategories = (types) =>
+  types.slice(0, 9).map((type, index) => ({
+    id: type._id || `automatic-category-${index}`,
+    label: type.Type,
+    type: type.Type,
+    link: "",
+    icon: type.icon || getCategoryIcon(type.Type),
+    image: "",
+    showSidebar: true,
+    showQuick: index < 8,
+  }));
+
+const resolveCategoryLink = (category) => {
+  const customLink = (category?.link || "").trim();
+  if (customLink) return customLink;
+  const type = (category?.type || "").trim();
+  return type ? `/product?type=${encodeURIComponent(type)}` : "/product";
+};
+
+function HomeCategoryLink({ category, className, children }) {
+  const href = resolveCategoryLink(category);
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(href)) {
+    return (
+      <a className={className} href={href} target="_blank" rel="noreferrer">
+        {children}
+      </a>
+    );
+  }
+  return <Link className={className} to={href}>{children}</Link>;
+}
+
 const resolveSectionLink = (name, types) => {
   const cleanName = (name || "").trim().toLowerCase();
   if (!cleanName) return "/product";
@@ -43,27 +74,6 @@ const resolveSectionLink = (name, types) => {
   }
   return "/product";
 };
-
-const solutionCards = [
-  { title: "Giải pháp trạm trộn bê tông", image: `${apiUrl}/images/manage_1783154141653.jpg` },
-  { title: "Giải pháp tủ điện công nghiệp", image: solution1 },
-  { title: "Giải pháp tự động hóa", image: solution2 },
-  { title: "Giải pháp IoT - Giám sát", image: solution3 },
-];
-
-const projectCards = [
-  { title: "Nhà máy bê tông Minh Đức", location: "Hà Nội", image: `${apiUrl}/images/manage_1783154141653.jpg` },
-  { title: "Trạm trộn Xuân Mai", location: "Hòa Bình", image: `${apiUrl}/images/manage_1782370772347.jpg` },
-  { title: "Nhà máy bê tông Hồng Hà", location: "Hưng Yên", image: `${apiUrl}/images/manage_1742375659876.jpg` },
-  { title: "Dự án tự động hóa nhà máy", location: "Toàn quốc", image: solution2 },
-];
-
-const articleCards = [
-  { date: "25/05/2024", title: "Hướng dẫn chọn PLC phù hợp cho trạm trộn bê tông", image: `${apiUrl}/images/manage_1742375659876.jpg` },
-  { date: "20/05/2024", title: "So sánh biến tần Siemens G120 và G120X", image: solution1 },
-  { date: "15/05/2024", title: "Giải pháp giám sát trạm trộn từ xa qua IoT", image: solution3 },
-  { date: "10/05/2024", title: "Các lỗi thường gặp khi sử dụng HMI", image: solution2 },
-];
 
 function SectionHeader({ title, href = "/product" }) {
   return (
@@ -90,7 +100,7 @@ function Dashboard() {
       try {
         const [manageResponse, typeResponse] = await Promise.all([
           fetch(`${apiUrl}/manages/`, { cache: "no-store" }),
-          fetch(`${apiUrl}/chips/types`, { cache: "no-store" }),
+          fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
         ]);
 
         const manageResult = await manageResponse.json();
@@ -112,6 +122,7 @@ function Dashboard() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ids: productIds }),
+            credentials: "include",
           });
           const productResult = await productResponse.json();
           if (active) setProducts(productResult?.success ? productResult.products || [] : []);
@@ -138,7 +149,44 @@ function Dashboard() {
     return images.length > 0 ? images : [`${apiUrl}/images/manage_1783154141653.jpg`];
   }, [manageData]);
 
-  const visibleTypes = types.slice(0, 9);
+  const homeCategories = useMemo(() => {
+    const config = manageData?.homeCategoryConfig;
+    if (config?.configured) {
+      return (Array.isArray(config.items) ? config.items : [])
+        .filter((item) => item?.label && (item?.type || item?.link))
+        .map((item, index) => {
+          const matchedType = types.find(
+            (type) => normalizeTypeName(type.Type) === normalizeTypeName(item.type),
+          );
+          return {
+            id: item.id || `configured-category-${index}`,
+            label: item.label,
+            type: item.type || "",
+            link: item.link || "",
+            icon: item.icon || matchedType?.icon || getCategoryIcon(item.type),
+            image: item.image || "",
+            showSidebar: item.showSidebar !== false,
+            showQuick: item.showQuick !== false,
+          };
+        });
+    }
+    return buildAutomaticCategories(types);
+  }, [manageData?.homeCategoryConfig, types]);
+  const sidebarCategories = homeCategories.filter((category) => category.showSidebar);
+  const quickCategories = homeCategories.filter((category) => category.showQuick);
+  const hasSidebarCategories = (
+    manageData?.homeCategoryConfig?.configured
+      ? manageData.homeCategoryConfig.showSidebar !== false
+      : true
+  ) && sidebarCategories.length > 0;
+  const showQuickCategories = (
+    manageData?.homeCategoryConfig?.configured
+      ? manageData.homeCategoryConfig.showQuickCategories !== false
+      : true
+  ) && quickCategories.length > 0;
+  const sidebarTitle = manageData?.homeCategoryConfig?.configured
+    ? manageData.homeCategoryConfig.sidebarTitle || "Danh mục sản phẩm"
+    : "Danh mục sản phẩm";
   const featuredBrands = useMemo(() => {
     if (manageData?.partners && Array.isArray(manageData.partners) && manageData.partners.length > 0) {
       return manageData.partners.map((partner) => ({ label: partner, query: partner }));
@@ -178,23 +226,25 @@ function Dashboard() {
   return (
     <main className="customer-home">
       <div className="home-shell">
-        <section className="home-hero-grid">
-          <aside className="home-category-panel">
-            <div className="home-category-title">
-              <i className="fa-solid fa-list" /> Danh mục sản phẩm
-            </div>
-            <div className="home-category-list">
-              {visibleTypes.map((type, index) => (
-                <Link key={type._id || index} to={`/product?type=${encodeURIComponent(type.Type)}`}>
-                  <span><i className={`fa-solid ${["fa-microchip", "fa-toggle-on", "fa-gauge-high", "fa-desktop", "fa-bolt", "fa-wave-square", "fa-plug", "fa-gears", "fa-boxes-stacked"][index % 9]}`} />{type.Type}</span>
-                  <i className="fa-solid fa-angle-right" />
-                </Link>
-              ))}
-            </div>
-            <Link className="home-category-all" to="/product">
-              <i className="fa-solid fa-border-all" /> Xem tất cả danh mục
-            </Link>
-          </aside>
+        <section className={`home-hero-grid${hasSidebarCategories ? "" : " home-hero-grid--without-categories"}`}>
+          {hasSidebarCategories && (
+            <aside className="home-category-panel">
+              <div className="home-category-title">
+                <i className="fa-solid fa-list" /> {sidebarTitle}
+              </div>
+              <div className="home-category-list">
+                {sidebarCategories.map((category) => (
+                  <HomeCategoryLink key={category.id} category={category}>
+                    <span><HomeCategoryIcon icon={category.icon} />{category.label}</span>
+                    <i className="fa-solid fa-angle-right" />
+                  </HomeCategoryLink>
+                ))}
+              </div>
+              <Link className="home-category-all" to="/product">
+                <i className="fa-solid fa-border-all" /> Xem tất cả danh mục
+              </Link>
+            </aside>
+          )}
 
           <div className="home-hero-slider">
             <Swiper
@@ -227,27 +277,32 @@ function Dashboard() {
           </div>
         </section>
 
-        <section className="home-quick-categories" aria-label="Danh mục nổi bật">
-          {visibleTypes.slice(0, 8).map((type, index) => {
-            const matchingProduct = products.find((product) => product.type?.trim() === type.Type?.trim()) || products[index % Math.max(products.length, 1)];
-            return (
-              <Link key={type._id || index} to={`/product?type=${encodeURIComponent(type.Type)}`}>
-                <div className="home-quick-category-image">
-                  {matchingProduct?.variant?.[0]?.imgUrl ? (
-                    <img src={resolveImageUrl(matchingProduct.variant[0].imgUrl)} alt="" />
-                  ) : (
-                    <i className="fa-solid fa-microchip" />
-                  )}
-                </div>
-                <span>{type.Type}</span>
-              </Link>
-            );
-          })}
-          <Link className="home-quick-category-more" to="/product">
-            <div className="home-quick-category-image"><i className="fa-solid fa-border-all" /></div>
-            <span>Xem tất cả</span>
-          </Link>
-        </section>
+        {showQuickCategories && (
+          <section className="home-quick-categories" aria-label="Danh mục nổi bật">
+            {quickCategories.map((category) => {
+              const matchingProduct = category.type
+                ? products.find((product) => product.type?.trim() === category.type.trim())
+                : null;
+              const image = category.image || matchingProduct?.variant?.[0]?.imgUrl || "";
+              return (
+                <HomeCategoryLink key={category.id} category={category}>
+                  <div className="home-quick-category-image">
+                    {image ? (
+                      <img src={resolveImageUrl(image)} alt="" />
+                    ) : (
+                      <HomeCategoryIcon icon={category.icon} />
+                    )}
+                  </div>
+                  <span>{category.label}</span>
+                </HomeCategoryLink>
+              );
+            })}
+            <Link className="home-quick-category-more" to="/product">
+              <div className="home-quick-category-image"><i className="fa-solid fa-border-all" /></div>
+              <span>Xem tất cả</span>
+            </Link>
+          </section>
+        )}
 
         {section1Products.length >= 6 && manageData?.section1?.display !== false && (
           <section className="home-section">
@@ -276,7 +331,7 @@ function Dashboard() {
               >
                 {section1Products.map((product) => {
                   const variant = product.variant?.[0] || {};
-                  const inStock = Number(variant.quantityForSale || 0) > 0;
+                  const canPurchase = !isContactOnlyVariant(variant);
                   return (
                     <SwiperSlide key={product._id}>
                       <article className="home-product-card" style={{ height: "100%", margin: "2px" }}>
@@ -291,13 +346,13 @@ function Dashboard() {
                         <Link className="home-product-name" to={`/product/${product._id}`}>{product.name}</Link>
                         <div className="home-product-rating"><span>★★★★★</span> <small>({product.reviewCount || 0})</small></div>
                         <div className="home-product-price">
-                          {Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} đ` : "Liên hệ"}
+                          {formatVariantPrice(variant, "đ")}
                         </div>
                         <div className="home-product-actions">
                           <button
                             type="button"
-                            disabled={!inStock}
-                            onClick={() => inStock && addToCart(product._id, 0, 1)}
+                            disabled={!canPurchase}
+                            onClick={() => canPurchase && addToCart(product._id, 0, 1)}
                             aria-label={`Thêm ${product.name} vào giỏ hàng`}
                           >
                             <i className="fa-solid fa-cart-shopping" />
@@ -381,7 +436,7 @@ function Dashboard() {
               >
                 {sec.products.map((product) => {
                   const variant = product.variant?.[0] || {};
-                  const inStock = Number(variant.quantityForSale || 0) > 0;
+                  const canPurchase = !isContactOnlyVariant(variant);
                   return (
                     <SwiperSlide key={product._id}>
                       <article className="home-product-card" style={{ height: "100%", margin: "2px" }}>
@@ -403,13 +458,13 @@ function Dashboard() {
                         </div>
 
                         <div className="home-product-price">
-                          {Number(variant.price) > 0 ? `${Number(variant.price).toLocaleString("vi-VN")} đ` : "Liên hệ"}
+                          {formatVariantPrice(variant, "đ")}
                         </div>
                         <div className="home-product-actions">
                           <button
                             type="button"
-                            disabled={!inStock}
-                            onClick={() => inStock && addToCart(product._id, 0, 1)}
+                            disabled={!canPurchase}
+                            onClick={() => canPurchase && addToCart(product._id, 0, 1)}
                             aria-label={`Thêm ${product.name} vào giỏ hàng`}
                           >
                             <i className="fa-solid fa-cart-shopping" />
@@ -425,41 +480,6 @@ function Dashboard() {
           </section>
         ))}
 
-        <section className="home-section">
-          <SectionHeader title="Giải pháp của chúng tôi" href="/introduction" />
-          <div className="home-editorial-grid home-solution-grid">
-            {solutionCards.map((card) => (
-              <article key={card.title} className="home-image-card">
-                <img src={card.image} alt={card.title} loading="lazy" />
-                <div className="home-image-card-overlay"><h3>{card.title}</h3><span>Xem chi tiết <i className="fa-solid fa-arrow-right" /></span></div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="home-section">
-          <SectionHeader title="Dự án tiêu biểu" href="/introduction" />
-          <div className="home-editorial-grid home-project-grid">
-            {projectCards.map((card) => (
-              <article key={card.title} className="home-project-card">
-                <img src={card.image} alt={card.title} loading="lazy" />
-                <h3>{card.title}</h3><p>{card.location}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="home-section" id="tin-tuc">
-          <div className="home-section-heading"><h2>Tin tức & bài viết</h2><span className="home-static-section-link">Xem tất cả <i className="fa-solid fa-angle-right" /></span></div>
-          <div className="home-editorial-grid home-article-grid">
-            {articleCards.map((card) => (
-              <article key={card.title} className="home-article-card">
-                <img src={card.image} alt={card.title} loading="lazy" />
-                <small>{card.date}</small><h3>{card.title}</h3><span>Xem chi tiết <i className="fa-solid fa-arrow-right" /></span>
-              </article>
-            ))}
-          </div>
-        </section>
       </div>
     </main>
   );

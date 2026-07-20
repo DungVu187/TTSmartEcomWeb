@@ -1,9 +1,42 @@
 const { User, authenticateUser } = require('./user');
+const { Product } = require('./product');
+const {
+    buildProductVisibilityFilter,
+    combineProductFilters,
+} = require('../services/productAccess');
+const { isContactOnlyVariant } = require('../services/productPricing');
 const express = require('express');
 const router = express.Router();
 
+const findAccessibleProduct = async (user, productId) => {
+    const { filter } = await buildProductVisibilityFilter(user);
+    return Product.findOne(combineProductFilters({ _id: productId }, filter));
+};
+
+const serializeCartWithAvailability = async (user) => {
+    const productIds = Array.from(new Set(user.cart.map((item) => String(item.productId))));
+    if (productIds.length === 0) return [];
+
+    const { filter } = await buildProductVisibilityFilter(user);
+    const products = await Product.find(combineProductFilters(
+        { _id: { $in: productIds } },
+        filter
+    )).select('_id variant').lean();
+    const productsById = new Map(products.map((product) => [String(product._id), product]));
+
+    return user.cart.map((item) => {
+        const product = productsById.get(String(item.productId));
+        const variant = product?.variant?.[item.variantIndex];
+        return {
+            ...item.toObject(),
+            available: Boolean(product && variant && !isContactOnlyVariant(variant)),
+        };
+    });
+};
+
 router.post('/addToCart', authenticateUser, async (req, res) => {
-    const { productId, variantIndex } = req.body;
+    const { productId } = req.body;
+    const variantIndex = Number(req.body.variantIndex);
     
     // Validate & sanitize quantity
     let quantity = 1;
@@ -19,6 +52,17 @@ router.post('/addToCart', authenticateUser, async (req, res) => {
         const user = await User.findById(req.user.userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
+        }
+
+        const product = await findAccessibleProduct(user, productId);
+        if (!product) {
+            return res.status(403).json({ message: 'Sản phẩm không khả dụng cho tài khoản này.' });
+        }
+        if (!Number.isInteger(variantIndex) || variantIndex < 0 || !product.variant[variantIndex]) {
+            return res.status(400).json({ message: 'Phiên bản sản phẩm không hợp lệ.' });
+        }
+        if (isContactOnlyVariant(product.variant[variantIndex])) {
+            return res.status(409).json({ message: 'Sản phẩm này hiện chỉ nhận liên hệ.' });
         }
 
         // Kiểm tra sản phẩm đã có trong giỏ hàng hay chưa
@@ -41,7 +85,8 @@ router.post('/addToCart', authenticateUser, async (req, res) => {
 });
 
 router.put('/updateStatus', authenticateUser, async (req, res) => {
-    const { productId, variantIndex, status } = req.body;
+    const { productId, status } = req.body;
+    const variantIndex = Number(req.body.variantIndex);
     try {
         // Validate user existence
         const user = await User.findById(req.user.userId);
@@ -55,6 +100,16 @@ router.put('/updateStatus', authenticateUser, async (req, res) => {
         if (!cartItem) {
             return res.status(404).json({ message: 'Cart item not found' });
         }
+        if (status === true) {
+            const product = await findAccessibleProduct(user, productId);
+            if (!product) {
+                return res.status(403).json({ message: 'Sản phẩm không khả dụng cho tài khoản này.' });
+            }
+            const variant = product.variant[variantIndex];
+            if (!variant || isContactOnlyVariant(variant)) {
+                return res.status(409).json({ message: 'Sản phẩm này hiện chỉ nhận liên hệ.' });
+            }
+        }
         // Update the status
         cartItem.status = status;
         await user.save();
@@ -67,10 +122,19 @@ router.put('/updateStatus', authenticateUser, async (req, res) => {
 });
 
 router.put('/updateCartItem', authenticateUser, async (req, res) => {
-    const { productId, variantIndex, quantity } = req.body;
+    const { productId, quantity } = req.body;
+    const variantIndex = Number(req.body.variantIndex);
     try {
         const user = await User.findById(req.user.userId);
         if (!user) return res.status(404).json({ message: 'User not found' });
+        const product = await findAccessibleProduct(user, productId);
+        if (!product) {
+            return res.status(403).json({ message: 'Sản phẩm không khả dụng cho tài khoản này.' });
+        }
+        const variant = product.variant[variantIndex];
+        if (!variant || isContactOnlyVariant(variant)) {
+            return res.status(409).json({ message: 'Sản phẩm này hiện chỉ nhận liên hệ.' });
+        }
         const cartItem = user.cart.find(
             (item) => item.productId.toString() === productId && item.variantIndex === variantIndex
         );
@@ -92,7 +156,8 @@ router.get('/getCart', authenticateUser, async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-        res.status(200).json({ cart: user.cart });
+        const cart = await serializeCartWithAvailability(user);
+        res.status(200).json({ cart });
     } catch (error) {
         console.error('Error fetching cart:', error);
         res.status(500).json({ message: 'Internal server error' });

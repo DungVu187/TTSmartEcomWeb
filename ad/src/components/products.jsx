@@ -21,6 +21,8 @@ import {
   Checkbox,
   Switch,
   Paper,
+  Box,
+  Typography,
 } from "@mui/material";
 import "./style/products.css";
 import toast from "react-hot-toast";
@@ -30,6 +32,13 @@ import {
   PRODUCT_IMAGE_UPLOAD_SETTINGS,
 } from "../settings/imageUpload";
 import ProductTechDocs from "./producttechdocs";
+import HomeCategoryIcon from "./homecategoryicon";
+import {
+  CATEGORY_ICON_OPTIONS,
+  getCategoryIcon,
+  normalizeTypeName,
+} from "../utils/homecategoryicons";
+import { formatVariantPrice } from "../utils/productpricing";
 const apiUrl = import.meta.env.VITE_API_URL;
 
 const createEmptyProduct = () => ({
@@ -149,8 +158,23 @@ const Products = () => {
   const [sectionName, setSectionName] = useState("");
   const [brandName, setBrandName] = useState("");
   const [typeName, setTypeName] = useState("");
+  const [selectedTypeId, setSelectedTypeId] = useState("");
+  const [typeIcon, setTypeIcon] = useState("ri-tb-box-multiple");
+  const [typeIconSearch, setTypeIconSearch] = useState("");
+  const [isSavingType, setIsSavingType] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const [, setError] = useState("");
+
+  const selectedTypeForEditor = types.find((type) => type._id === selectedTypeId);
+  const matchingTypeForEditor = types.find(
+    (type) => normalizeTypeName(type.Type) === normalizeTypeName(typeName),
+  );
+  const typeToEdit = selectedTypeForEditor || matchingTypeForEditor;
+  const normalizedIconSearch = normalizeTypeName(typeIconSearch);
+  const filteredTypeIconOptions = CATEGORY_ICON_OPTIONS.filter((option) =>
+    !normalizedIconSearch
+    || normalizeTypeName(option.label).includes(normalizedIconSearch),
+  );
 
   const initialFilters = {
     search: "",
@@ -358,7 +382,7 @@ const Products = () => {
       const [brandsResponse, typesResponse, sectionResponse] =
         await Promise.all([
           fetch(`${apiUrl}/chips/brands`),
-          fetch(`${apiUrl}/chips/types`),
+          fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
           fetch(`${apiUrl}/chips/section`),
         ]);
       const brandsData = await brandsResponse.json();
@@ -505,7 +529,35 @@ const Products = () => {
   const openTypeDialog = () => setIsTypeDialogOpen(true);
   const closeTypeDialog = () => {
     setTypeName("");
+    setSelectedTypeId("");
+    setTypeIcon("ri-tb-box-multiple");
+    setTypeIconSearch("");
     setIsTypeDialogOpen(false);
+  };
+
+  const selectTypeForEditing = (type) => {
+    if (!type) {
+      setSelectedTypeId("");
+      setTypeName("");
+      setTypeIcon("ri-tb-box-multiple");
+      return;
+    }
+    if (typeof type === "string") {
+      setSelectedTypeId("");
+      setTypeName(type);
+      setTypeIcon(getCategoryIcon(type));
+      return;
+    }
+    setSelectedTypeId(type._id || "");
+    setTypeName(type.Type || "");
+    setTypeIcon(type.icon || getCategoryIcon(type.Type));
+  };
+
+  const startNewType = () => {
+    setSelectedTypeId("");
+    setTypeName("");
+    setTypeIcon("ri-tb-box-multiple");
+    setTypeIconSearch("");
   };
   const handleOpenSectionDialog = () => setOpenSectionDialog(true);
   const handleCloseSectionDialog = () => {
@@ -660,26 +712,56 @@ const Products = () => {
     }
   };
 
-  const handleCreateType = async () => {
+  const handleSaveType = async () => {
+    const normalizedName = normalizeTypeName(typeName);
+    const typeToUpdate = typeToEdit;
+
+    if (!normalizedName) {
+      toast.error("Vui lòng nhập tên loại sản phẩm");
+      return;
+    }
+    if (typeToUpdate && !canEdit) {
+      toast.error("Bạn không có quyền sửa loại sản phẩm");
+      return;
+    }
+    if (!typeToUpdate && !canCreate) {
+      toast.error("Bạn không có quyền thêm loại sản phẩm");
+      return;
+    }
+
+    setIsSavingType(true);
     try {
-      const response = await fetch(`${apiUrl}/chips/types`, {
-        method: "POST",
+      const response = await fetch(
+        typeToUpdate
+          ? `${apiUrl}/products/types/${typeToUpdate._id}`
+          : `${apiUrl}/products/types`,
+        {
+        method: typeToUpdate ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ Type: typeName }),
+        body: JSON.stringify({ Type: typeName, icon: typeIcon }),
       });
+      const result = await response.json();
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Unknown error occurred");
+        throw new Error(result.message || "Không thể lưu loại sản phẩm");
       }
-      toast.success("Thêm loại sản phẩm thành công");
-      fetchData();
+      const updatedText = result.updatedProducts
+        ? ` và cập nhật ${result.updatedProducts} sản phẩm`
+        : "";
+      toast.success(
+        typeToUpdate
+          ? `Cập nhật loại sản phẩm thành công${updatedText}`
+          : "Thêm loại sản phẩm thành công",
+      );
+      await fetchData();
       closeTypeDialog();
     } catch (error) {
-      console.error("Error creating type:", error.message);
-      alert(`Error: ${error.message}`);
+      console.error("Error saving type:", error.message);
+      toast.error(error.message);
+    } finally {
+      setIsSavingType(false);
     }
   };
 
@@ -722,23 +804,25 @@ const Products = () => {
   };
 
   const handleDeleteType = async () => {
-    if (!typeName) {
-      alert("Vui lòng chọn một loại để xóa");
+    const normalizedName = normalizeTypeName(typeName);
+    const typeToDelete = types.find((type) => type._id === selectedTypeId)
+      || types.find((type) => normalizeTypeName(type.Type) === normalizedName);
+    if (!typeToDelete) {
+      toast.error("Vui lòng chọn một loại sản phẩm có sẵn để xóa");
+      return;
+    }
+    if (!canDelete) {
+      toast.error("Bạn không có quyền xóa loại sản phẩm");
       return;
     }
     if (
-      !window.confirm(`Bạn có chắc muốn xóa loại sản phẩm "${typeName}" không?`)
+      !window.confirm(`Bạn có chắc muốn xóa loại sản phẩm "${typeToDelete.Type}" không?`)
     ) {
       return;
     }
     try {
-      const typeToDelete = types.find((type) => type.Type === typeName);
-      if (!typeToDelete || !typeToDelete._id) {
-        alert("Không tìm thấy loại sản phẩm này để xóa.");
-        return;
-      }
       const response = await fetch(
-        `${apiUrl}/chips/types/${typeToDelete._id}`,
+        `${apiUrl}/products/types/${typeToDelete._id}`,
         {
           method: "DELETE",
           headers: {
@@ -747,17 +831,16 @@ const Products = () => {
           credentials: "include",
         }
       );
+      const result = await response.json();
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Failed to delete type");
+        throw new Error(result.message || "Không thể xóa loại sản phẩm");
       }
-      setTypeName("");
-      fetchData();
+      await fetchData();
       toast.success("Xóa loại sản phẩm thành công!");
       closeTypeDialog();
     } catch (error) {
       console.error("Error deleting type:", error.message);
-      alert(`Error: ${error.message}`);
+      toast.error(error.message);
     }
   };
 
@@ -1034,7 +1117,7 @@ const Products = () => {
         <h2>Danh mục sản phẩm</h2>
         <div className="product-add-functions">
           <div className="product-add-button-add">
-            {canCreate && (
+            {(canCreate || canEdit) && (
               <Button
                 variant="contained"
                 color="primary"
@@ -1063,7 +1146,7 @@ const Products = () => {
                 onClick={openTypeDialog}
                 sx={{ marginLeft: 2 }}
               >
-                Thêm loại sản phẩm
+                Thêm/sửa loại sản phẩm
               </Button>
             )}
             {canCreate && (
@@ -1314,11 +1397,7 @@ const Products = () => {
 )}
                   </TableCell>
                   <TableCell align="center">
-                    {Number(product.variant?.[0]?.price) > 0
-                      ? Number(product.variant[0].price).toLocaleString("vi-VN")
-                      : product.variant?.[0]
-                      ? "Liên hệ"
-                      : "Chưa có giá"}
+                    {formatVariantPrice(product.variant?.[0], "")}
                   </TableCell>
                   <TableCell align="center">{product.brand}</TableCell>
                   <TableCell align="center">{product.section}</TableCell>
@@ -1567,42 +1646,141 @@ const Products = () => {
         onPageChange={handlePageChange}
         onRowsPerPageChange={handleRowsPerPageChange}
       />
-      <Dialog open={isTypeDialogOpen} onClose={closeTypeDialog} disableScrollLock>
-        <DialogTitle>Thêm loại sản phẩm</DialogTitle>
+      <Dialog
+        open={isTypeDialogOpen}
+        onClose={closeTypeDialog}
+        disableScrollLock
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Thêm/sửa loại sản phẩm</DialogTitle>
         <DialogContent>
-          <form action="javascript:void(0);">
+          <Box component="form" onSubmit={(event) => event.preventDefault()}>
             <Autocomplete
-              value={typeName}
-              onChange={(event, newValue) => setTypeName(newValue)}
-              options={types.map((type) => type.Type)}
+              value={types.find((type) => type._id === selectedTypeId) || null}
+              inputValue={typeName}
+              onChange={(event, newValue) => selectTypeForEditing(newValue)}
+              onInputChange={(event, newValue, reason) => {
+                setTypeName(newValue);
+                if (reason === "clear") {
+                  selectTypeForEditing(null);
+                  return;
+                }
+                if (!selectedTypeId) {
+                  const matchedType = types.find(
+                    (type) => normalizeTypeName(type.Type) === normalizeTypeName(newValue),
+                  );
+                  if (matchedType) {
+                    setSelectedTypeId(matchedType._id);
+                    setTypeIcon(matchedType.icon || getCategoryIcon(matchedType.Type));
+                  }
+                }
+              }}
+              options={types}
+              getOptionLabel={(option) => typeof option === "string" ? option : option.Type || ""}
+              isOptionEqualToValue={(option, value) => option._id === value._id}
+              renderOption={(props, option) => {
+                const { key, className = "", ...optionProps } = props;
+                return (
+                  <Box
+                    key={key}
+                    component="li"
+                    {...optionProps}
+                    className={`${className} product-type-option`}
+                  >
+                    <HomeCategoryIcon icon={option.icon || getCategoryIcon(option.Type)} />
+                    <span>{option.Type}</span>
+                  </Box>
+                );
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Loại"
+                  label="Tên loại sản phẩm"
                   name="type"
                   fullWidth
                   margin="normal"
                   size="small"
-                  onChange={(e) => setTypeName(e.target.value)}
+                  helperText={selectedTypeId
+                    ? "Đang sửa loại có sẵn. Bạn có thể đổi cả tên và icon."
+                    : "Tên mới sẽ tạo loại sản phẩm mới; tên trùng sẽ chuyển sang cập nhật."}
                 />
               )}
               freeSolo
             />
+            {selectedTypeId && (
+              <Button size="small" onClick={startNewType} sx={{ mb: 1 }}>
+                Chuyển sang thêm loại mới
+              </Button>
+            )}
+
+            <Box className="product-type-icon-title">
+              <Typography variant="subtitle1">Chọn icon</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Đang hiển thị {filteredTypeIconOptions.length}/{CATEGORY_ICON_OPTIONS.length} biểu tượng
+              </Typography>
+            </Box>
+
+            <Box className="product-type-icon-header">
+              <Box className="product-type-icon-preview">
+                <HomeCategoryIcon icon={typeIcon} />
+                <Box>
+                  <Typography variant="subtitle2">Icon đang chọn</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {CATEGORY_ICON_OPTIONS.find((option) => option.value === typeIcon)?.label
+                      || typeIcon}
+                  </Typography>
+                </Box>
+              </Box>
+              <TextField
+                value={typeIconSearch}
+                onChange={(event) => setTypeIconSearch(event.target.value)}
+                label="Tìm icon"
+                size="small"
+              />
+            </Box>
+
+            <Box className="product-type-icon-grid">
+              {filteredTypeIconOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={typeIcon === option.value ? "contained" : "outlined"}
+                    className="product-type-icon-button"
+                    onClick={() => setTypeIcon(option.value)}
+                    title={option.label}
+                  >
+                    <HomeCategoryIcon icon={option.value} />
+                    <span>{option.label}</span>
+                  </Button>
+                ))}
+            </Box>
             <DialogActions>
               <Button
-                onClick={handleCreateType}
+                onClick={handleSaveType}
                 variant="contained"
                 color="success"
+                disabled={
+                  isSavingType
+                  || !typeName.trim()
+                  || (typeToEdit ? !canEdit : !canCreate)
+                }
               >
-                Thêm
+                {isSavingType
+                  ? "Đang lưu..."
+                  : typeToEdit
+                    ? "Cập nhật loại sản phẩm"
+                    : "Thêm loại sản phẩm"}
               </Button>
-              <Button
-                onClick={handleDeleteType}
-                variant="contained"
-                color="error"
-              >
-                Xóa
-              </Button>
+              {canDelete && typeToEdit && (
+                <Button
+                  onClick={handleDeleteType}
+                  variant="contained"
+                  color="error"
+                >
+                  Xóa
+                </Button>
+              )}
               <Button
                 onClick={closeTypeDialog}
                 variant="outlined"
@@ -1611,7 +1789,7 @@ const Products = () => {
                 Hủy
               </Button>
             </DialogActions>
-          </form>
+          </Box>
         </DialogContent>
       </Dialog>
 

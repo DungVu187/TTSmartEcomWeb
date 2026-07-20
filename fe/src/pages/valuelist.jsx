@@ -20,6 +20,7 @@ import InfoIcon from "@mui/icons-material/Info";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { ShopContext } from "../context/shopcontext";
 import { useLanguage } from "../context/languagecontext";
+import { isContactOnlyVariant } from "../utils/productpricing";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
@@ -184,6 +185,7 @@ const ValueList = () => {
                               color="primary"
                               size="small"
                               onClick={() => addToCart(product._id, 0)}
+                              disabled={isContactOnlyVariant(product.variant?.[0])}
                               sx={{
                                 minWidth: "40px",
                                 padding: "6px 12px",

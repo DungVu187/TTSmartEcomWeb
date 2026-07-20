@@ -76,7 +76,8 @@ const StationDisplay = () => {
         const resProduct = await fetch(`${apiUrl}/products/fetch-by-ids`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: productIds })
+          body: JSON.stringify({ ids: productIds }),
+          credentials: "include",
         });
         const dataProduct = await resProduct.json();
         const products = dataProduct.products || [];

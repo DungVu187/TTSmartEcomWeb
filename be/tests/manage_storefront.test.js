@@ -79,4 +79,69 @@ describe('Manage storefront authorization', () => {
     expect(res.body.success).toBe(1);
     expect(res.body.data.introduction).toBe('Public intro');
   });
+
+  it('allows storefront managers to configure home categories', async () => {
+    const agent = await createStaffAgent({
+      phone: '0944000003',
+      permissions: ['storefront.manage'],
+    });
+
+    const res = await agent
+      .put('/manages/update-home-categories')
+      .send({
+        configured: true,
+        sidebarTitle: 'Thiết bị nổi bật',
+        showSidebar: true,
+        showQuickCategories: true,
+        items: [
+          {
+            id: 'lighting',
+            label: 'Đèn báo',
+            type: 'Đèn',
+            link: '',
+            icon: 'ri-tb-bulb',
+            image: '/images/category-light.jpg',
+            showSidebar: true,
+            showQuick: true,
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(1);
+    expect(res.body.data.homeCategoryConfig.sidebarTitle).toBe('Thiết bị nổi bật');
+    expect(res.body.data.homeCategoryConfig.items).toHaveLength(1);
+    expect(res.body.data.homeCategoryConfig.items[0].type).toBe('Đèn');
+    expect(res.body.data.homeCategoryConfig.items[0].icon).toBe('ri-tb-bulb');
+  });
+
+  it('rejects invalid home category configuration', async () => {
+    const agent = await createStaffAgent({
+      phone: '0944000004',
+      permissions: ['storefront.manage'],
+    });
+
+    const res = await agent
+      .put('/manages/update-home-categories')
+      .send({
+        items: [{ label: 'Thiếu đích đến', icon: 'fa-microchip' }],
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(0);
+  });
+
+  it('blocks staff missing storefront.manage on home category updates', async () => {
+    const agent = await createStaffAgent({
+      phone: '0944000005',
+      permissions: [],
+    });
+
+    const res = await agent
+      .put('/manages/update-home-categories')
+      .send({ items: [] });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toContain('storefront.manage');
+  });
 });

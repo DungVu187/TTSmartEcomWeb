@@ -69,7 +69,7 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Đơn nhập hàng')).not.toBeInTheDocument();
     expect(screen.queryByText('Đơn xuất hàng')).not.toBeInTheDocument();
     expect(screen.queryByText('Khách - Trạm')).not.toBeInTheDocument();
-    expect(screen.queryByText('Quản lý banner')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nội dung trang chủ')).not.toBeInTheDocument();
     expect(screen.queryByText('Hiển thị sản phẩm')).not.toBeInTheDocument();
     expect(screen.queryByText('Từ vựng Voice')).not.toBeInTheDocument();
     expect(screen.queryByText('Lịch sử kho')).not.toBeInTheDocument();

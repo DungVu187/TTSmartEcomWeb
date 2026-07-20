@@ -66,6 +66,7 @@ const ACTION_LABELS = {
   create_brand: "Thêm thương hiệu",
   delete_brand: "Xóa thương hiệu",
   create_type: "Thêm loại sản phẩm",
+  update_type: "Cập nhật loại sản phẩm",
   delete_type: "Xóa loại sản phẩm",
   create_section: "Thêm phân loại",
   update_section: "Sửa phân loại",

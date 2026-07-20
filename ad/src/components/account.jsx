@@ -646,7 +646,7 @@ const Account = () => {
       </div>
 
       <Box
-        className="admin-list-table"
+        className="admin-list-table account-list-table"
         sx={{ width: "100%", height: { xs: "calc(100dvh - 180px)", md: "auto" } }}
       >
         <DataGrid

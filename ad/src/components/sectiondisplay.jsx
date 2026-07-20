@@ -456,7 +456,7 @@ const SectionDisplay = () => {
 
   // Lấy danh sách Loại sản phẩm
   const fetchTypes = async () => {
-    const result = await apiFetch(`${apiUrl}/chips/types`);
+    const result = await apiFetch(`${apiUrl}/products/types`);
     if (result) {
       const normalized = Array.isArray(result) ? result : result.value || [];
       setTypesList(normalized);

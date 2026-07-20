@@ -12,6 +12,7 @@ import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/shopcontext";
+import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import SafeProductImage from "./safeproductimage";
 
 function Item({ product }) {
@@ -21,7 +22,7 @@ function Item({ product }) {
   const primaryVariant = product.variant?.[0] || {};
   const quantityForSale = Number(primaryVariant.quantityForSale || 0);
   const isOutOfStock = quantityForSale <= 0;
-  const price = Number(primaryVariant.price || 0);
+  const isContactOnly = isContactOnlyVariant(primaryVariant);
   const imageVersion = encodeURIComponent(product.updatedAt || product._id || "1");
   const imageUrl = primaryVariant.imgUrl
     ? `${primaryVariant.imgUrl}${primaryVariant.imgUrl.includes("?") ? "&" : "?"}v=${imageVersion}`
@@ -55,18 +56,18 @@ function Item({ product }) {
         </div>
 
         <div className="catalog-product-price">
-          {price > 0 ? `${price.toLocaleString("vi-VN")} VNĐ` : primaryVariant ? "Liên hệ" : "Chưa có giá"}
+          {formatVariantPrice(primaryVariant)}
         </div>
 
         <div className="catalog-product-meta">
           <span>Hãng: {product.brand || "Chưa rõ"}</span>
           <div>
-            <strong>Số lượng tồn: {quantityForSale}</strong>
+            <strong>{isOutOfStock ? "Liên hệ" : `Số lượng tồn: ${quantityForSale}`}</strong>
           </div>
         </div>
 
         <Box className="catalog-product-purchase" onClick={(event) => event.stopPropagation()}>
-          {isOutOfStock ? (
+          {isContactOnly ? (
             <Button
               className="catalog-contact-button"
               variant="outlined"

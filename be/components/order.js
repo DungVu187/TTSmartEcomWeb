@@ -17,6 +17,8 @@ const {
   isVersionConflict,
   rollbackOrThrow,
 } = require('../services/inventory');
+const { getCustomerStationProductIds } = require('../services/productAccess');
+const { isContactOnlyVariant } = require('../services/productPricing');
 
 const router = express.Router();
 
@@ -121,7 +123,10 @@ async function computeOrderTotal(cartItems) {
   return total;
 }
 
-async function prepareOrderItemsForCreation(items) {
+async function prepareOrderItemsForCreation(items, {
+  enforcePublicProducts = false,
+  allowedProductIds = null,
+} = {}) {
   if (!Array.isArray(items) || items.length === 0) {
     return { error: { status: 400, message: "Danh sách sản phẩm không hợp lệ" } };
   }
@@ -148,10 +153,29 @@ async function prepareOrderItemsForCreation(items) {
     if (!product) {
       return { error: { status: 404, message: `Sản phẩm với ID ${item.productId} không tồn tại.` } };
     }
+    if (enforcePublicProducts && product.display !== true) {
+      return { error: { status: 403, message: "Sản phẩm hiện không được phép bán." } };
+    }
+    if (allowedProductIds instanceof Set && !allowedProductIds.has(String(product._id))) {
+      return {
+        error: {
+          status: 403,
+          message: "Sản phẩm không thuộc phạm vi trạm được gán cho tài khoản.",
+        },
+      };
+    }
 
     const variant = product.variant[item.variantIndex];
     if (!variant) {
       return { error: { status: 400, message: `Phiên bản sản phẩm không hợp lệ cho sản phẩm ${item.productId}.` } };
+    }
+    if (enforcePublicProducts && isContactOnlyVariant(variant)) {
+      return {
+        error: {
+          status: 409,
+          message: `Sản phẩm ${product.name} hiện chỉ nhận liên hệ.`,
+        },
+      };
     }
 
     const stockKey = `${product._id.toString()}:${item.variantIndex}`;
@@ -943,16 +967,36 @@ router.delete("/delete-image", [authenticateAdmin, checkPermission('order.edit')
 
 router.post("/create-order", authenticateUser, async (req, res) => {
   const { cartItems, stationCode } = req.body;
-  const userPhone = req.user.phone;
-  const userName = req.user.name;
 
   const io = req.app.get('io'); // 👈 lấy socket io từ app
 
   try {
-    const preparedOrder = await prepareOrderItemsForCreation(cartItems);
+    const orderingUser = await User.findById(req.user.userId);
+    if (!orderingUser) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng." });
+    }
+
+    const normalizedStationCode = String(stationCode || "").trim();
+    const selectedStation = normalizedStationCode
+      ? await Station.findOne({ stationCode: normalizedStationCode })
+      : null;
+    if (normalizedStationCode && !selectedStation) {
+      return res.status(404).json({ message: "Không tìm thấy trạm được chọn." });
+    }
+
+    const allowedProductIds = await getCustomerStationProductIds(orderingUser, {
+      stationId: selectedStation?._id,
+    });
+    const preparedOrder = await prepareOrderItemsForCreation(cartItems, {
+      enforcePublicProducts: orderingUser.role === "customer",
+      allowedProductIds,
+    });
     if (preparedOrder.error) {
       return res.status(preparedOrder.error.status).json({ message: preparedOrder.error.message });
     }
+
+    const userPhone = orderingUser.phone;
+    const userName = orderingUser.name;
 
     const appliedAdjustments = await applyStockAdjustments(
       createReservationAdjustments(preparedOrder.preparedItems)
@@ -981,29 +1025,23 @@ router.post("/create-order", authenticateUser, async (req, res) => {
     
     try {
       if (preparedOrder.cartItems.length > 0) {
-        const user = await User.findById(req.user.userId);
-        if (user) {
-          user.cart = user.cart.filter((cartItem) => {
-            return !preparedOrder.cartItems.some(
-              (orderedItem) =>
-                orderedItem.productId.toString() === cartItem.productId.toString() &&
-                orderedItem.variantIndex === cartItem.variantIndex
-            );
-          });
+        orderingUser.cart = orderingUser.cart.filter((cartItem) => {
+          return !preparedOrder.cartItems.some(
+            (orderedItem) =>
+              orderedItem.productId.toString() === cartItem.productId.toString() &&
+              orderedItem.variantIndex === cartItem.variantIndex
+          );
+        });
 
-          // Tự động gán trạm cho user nếu trạm đó chưa được liên kết với user
-          if (stationCode) {
-            const station = await Station.findOne({ stationCode: String(stationCode).trim() });
-            if (station) {
-              const stationIdStr = station._id.toString();
-              if (!user.station.includes(stationIdStr)) {
-                user.station.push(stationIdStr);
-              }
-            }
+        // Tự động gán trạm cho user nếu trạm đó chưa được liên kết với user
+        if (selectedStation) {
+          const stationIdStr = selectedStation._id.toString();
+          if (!orderingUser.station.includes(stationIdStr)) {
+            orderingUser.station.push(stationIdStr);
           }
-
-          await user.save();
         }
+
+        await orderingUser.save();
       }
     } catch (postSaveError) {
       console.error("Order created but cart/station cleanup failed:", postSaveError);
@@ -1014,20 +1052,14 @@ router.post("/create-order", authenticateUser, async (req, res) => {
     let stationCodesStr = "Không có";
 
     try {
-      if (stationCode) {
-        const station = await Station.findOne({ stationCode: String(stationCode).trim() });
-        if (station) {
-          stationNamesStr = station.stationName || "Không có";
-          stationCodesStr = station.stationCode || "Không có";
-        }
-      } else {
-        const user = await User.findById(req.user.userId);
-        if (user && user.station && user.station.length > 0) {
-          const stations = await Station.find({ _id: { $in: user.station } });
-          if (stations && stations.length > 0) {
-            stationNamesStr = stations.map(s => s.stationName).filter(Boolean).join(", ");
-            stationCodesStr = stations.map(s => s.stationCode).filter(Boolean).join(", ");
-          }
+      if (selectedStation) {
+        stationNamesStr = selectedStation.stationName || "Không có";
+        stationCodesStr = selectedStation.stationCode || "Không có";
+      } else if (orderingUser.station && orderingUser.station.length > 0) {
+        const stations = await Station.find({ _id: { $in: orderingUser.station } });
+        if (stations && stations.length > 0) {
+          stationNamesStr = stations.map(s => s.stationName).filter(Boolean).join(", ");
+          stationCodesStr = stations.map(s => s.stationCode).filter(Boolean).join(", ");
         }
       }
     } catch (postSaveError) {

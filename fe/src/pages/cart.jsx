@@ -341,7 +341,7 @@ function Cart() {
                   <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}>
                     <Checkbox
                       checked={item.status}
-                      disabled={item.available === false || isContactOnly}
+                      disabled={!item.status && (item.available === false || isContactOnly)}
                       onChange={() => {
                         updateCartItemStatus(
                           item.productId,

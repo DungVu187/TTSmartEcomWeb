@@ -251,6 +251,9 @@ const VoiceSearchFAB = () => {
         flexDirection: "column",
         alignItems: "flex-end",
         gap: 1.5,
+        "@media (max-width: 760px)": {
+          display: "none",
+        },
       }}
     >
       {/* Ô nhập chữ để test đầu vào khi máy không có micro; đi qua cùng luồng chuẩn hóa */}

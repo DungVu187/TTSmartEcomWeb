@@ -12,6 +12,7 @@ const {
   isVersionConflict,
   rollbackOrThrow,
 } = require("../services/inventory");
+const { parseProductNumber } = require("../services/productPricing");
 
 const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -25,6 +26,8 @@ const epOrderSchema = new mongoose.Schema(
         status: { type: Boolean, default: 0 },
         productId: { type: String },
         price: { type: String },
+        importPriceSnapshot: { type: String, default: "" },
+        profitPercent: { type: Number, min: 0, max: 100, default: undefined },
         unit: { type: String },
         quantity: {
           type: Number,
@@ -114,7 +117,154 @@ const adjustExportStock = async ({ productId, delta, req, order, note, isAIScan,
   };
 };
 
-const EXPORT_LINE_EDITABLE_FIELDS = ["price", "unit", "quantity", "quantityEx", "note", "vat"];
+const EXPORT_LINE_EDITABLE_FIELDS = ["unit", "quantity", "quantityEx", "note", "vat"];
+
+const normalizeProfitPercent = (value, fallback = 0) => {
+  const parsed = value === undefined || value === null || value === ""
+    ? Number(fallback)
+    : Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    throw createRouteError(400, "% lợi nhuận phải nằm trong khoảng từ 0 đến 100");
+  }
+  return Math.round(parsed * 100) / 100;
+};
+
+const formatSnapshotPrice = (value) => String(Math.max(0, Math.round(parseProductNumber(value))));
+
+const calculateExportPrice = (importPriceSnapshot, profitPercent) => {
+  const importPrice = parseProductNumber(importPriceSnapshot);
+  return String(Math.max(0, Math.round(importPrice * (1 + profitPercent / 100))));
+};
+
+const loadProductPricing = async (productId) => {
+  const product = await Product.findById(productId)
+    .select("variant.importPrice variant.earn")
+    .lean();
+  if (!product) {
+    throw createRouteError(404, `Product ${productId} not found`);
+  }
+  const variant = product.variant?.[0];
+  if (!variant) {
+    throw createRouteError(400, "Sản phẩm không có biến thể");
+  }
+  return variant;
+};
+
+const resolveNewExportPricing = async (line) => {
+  const variant = await loadProductPricing(line.productId);
+  const hasExplicitSnapshot = line.importPriceSnapshot !== undefined &&
+    line.importPriceSnapshot !== null &&
+    line.importPriceSnapshot !== "";
+  const profitPercent = normalizeProfitPercent(
+    line.profitPercent,
+    variant.earn ?? 0
+  );
+
+  if (hasExplicitSnapshot) {
+    const importPriceSnapshot = formatSnapshotPrice(line.importPriceSnapshot);
+    return {
+      importPriceSnapshot,
+      profitPercent,
+      price: calculateExportPrice(importPriceSnapshot, profitPercent),
+    };
+  }
+
+  const productImportPrice = parseProductNumber(variant.importPrice);
+  if (productImportPrice > 0 || line.price === undefined) {
+    const importPriceSnapshot = formatSnapshotPrice(productImportPrice);
+    return {
+      importPriceSnapshot,
+      profitPercent,
+      price: calculateExportPrice(importPriceSnapshot, profitPercent),
+    };
+  }
+
+  const legacyPrice = parseProductNumber(line.price);
+  const importPriceSnapshot = formatSnapshotPrice(
+    legacyPrice / (1 + profitPercent / 100)
+  );
+  return {
+    importPriceSnapshot,
+    profitPercent,
+    price: String(Math.max(0, Math.round(legacyPrice))),
+  };
+};
+
+const getExistingPricingBase = (line, variant) => {
+  const profitPercent = normalizeProfitPercent(
+    line.profitPercent,
+    variant?.earn ?? 0
+  );
+  const hasStoredSnapshot = line.importPriceSnapshot !== undefined &&
+    line.importPriceSnapshot !== null &&
+    line.importPriceSnapshot !== "";
+  let importPriceSnapshot = hasStoredSnapshot
+    ? parseProductNumber(line.importPriceSnapshot)
+    : 0;
+  if (!hasStoredSnapshot) {
+    const productImportPrice = parseProductNumber(variant?.importPrice);
+    const currentExportPrice = parseProductNumber(line.price);
+    importPriceSnapshot = productImportPrice > 0
+      ? productImportPrice
+      : currentExportPrice / (1 + profitPercent / 100);
+  }
+
+  const normalizedSnapshot = formatSnapshotPrice(importPriceSnapshot);
+  return {
+    importPriceSnapshot: normalizedSnapshot,
+    profitPercent,
+    price: line.price !== undefined && line.price !== null && line.price !== ""
+      ? String(Math.max(0, Math.round(parseProductNumber(line.price))))
+      : calculateExportPrice(normalizedSnapshot, profitPercent),
+  };
+};
+
+const resolveUpdatedExportPricing = async (line, updates) => {
+  const hasStoredSnapshot = line.importPriceSnapshot !== undefined &&
+    line.importPriceSnapshot !== null &&
+    line.importPriceSnapshot !== "";
+  const hasStoredProfit = line.profitPercent !== undefined &&
+    line.profitPercent !== null &&
+    line.profitPercent !== "";
+  const variant = hasStoredSnapshot && hasStoredProfit
+    ? null
+    : await loadProductPricing(line.productId);
+  const base = getExistingPricingBase(line, variant);
+
+  if (updates.profitPercent !== undefined) {
+    const profitPercent = normalizeProfitPercent(updates.profitPercent);
+    return {
+      importPriceSnapshot: base.importPriceSnapshot,
+      profitPercent,
+      price: calculateExportPrice(base.importPriceSnapshot, profitPercent),
+    };
+  }
+
+  if (updates.price !== undefined) {
+    const requestedPrice = parseProductNumber(updates.price);
+    const importPrice = parseProductNumber(base.importPriceSnapshot);
+    if (importPrice <= 0) {
+      const importPriceSnapshot = formatSnapshotPrice(
+        requestedPrice / (1 + base.profitPercent / 100)
+      );
+      return {
+        importPriceSnapshot,
+        profitPercent: base.profitPercent,
+        price: String(Math.max(0, Math.round(requestedPrice))),
+      };
+    }
+    const profitPercent = normalizeProfitPercent(
+      ((requestedPrice / importPrice) - 1) * 100
+    );
+    return {
+      importPriceSnapshot: base.importPriceSnapshot,
+      profitPercent,
+      price: calculateExportPrice(base.importPriceSnapshot, profitPercent),
+    };
+  }
+
+  return base;
+};
 
 const parseExportLineQuantities = (line) => {
   const quantity = Number(line?.quantity);
@@ -158,14 +308,16 @@ const pickExportLineFields = (line) => EXPORT_LINE_EDITABLE_FIELDS.reduce(
   {}
 );
 
-const buildNewExportLine = (line, stockAppliedQuantity, stockUpdateSkipped = false) => {
+const buildNewExportLine = async (line, stockAppliedQuantity, stockUpdateSkipped = false) => {
   const { quantity, quantityEx } = parseExportLineQuantities(line);
   if (!mongoose.Types.ObjectId.isValid(line?.productId)) {
     throw createRouteError(400, "Mã sản phẩm không hợp lệ");
   }
+  const pricing = await resolveNewExportPricing(line);
   return {
     productId: String(line.productId),
     ...pickExportLineFields(line),
+    ...pricing,
     quantity,
     quantityEx,
     status: quantityEx === quantity,
@@ -192,9 +344,35 @@ const assertSkippableAIScanExport = async (line) => {
   }
 };
 
+const ensureOrderPricingSnapshots = async (order) => {
+  await Promise.all((order.productList || []).map(async (line) => {
+    const hasSnapshot = line.importPriceSnapshot !== undefined &&
+      line.importPriceSnapshot !== null &&
+      line.importPriceSnapshot !== "";
+    const hasProfit = line.profitPercent !== undefined &&
+      line.profitPercent !== null &&
+      line.profitPercent !== "";
+    const hasPrice = line.price !== undefined &&
+      line.price !== null &&
+      line.price !== "";
+    if (hasSnapshot && hasProfit && hasPrice) return;
+
+    const pricing = await resolveUpdatedExportPricing(line, {});
+    line.importPriceSnapshot = pricing.importPriceSnapshot;
+    line.profitPercent = pricing.profitPercent;
+    line.price = pricing.price;
+  }));
+  return order;
+};
+
+const saveExportOrder = async (order) => {
+  await ensureOrderPricingSnapshots(order);
+  return order.save();
+};
+
 const saveWithStockRollback = async (order, appliedAdjustments) => {
   try {
-    return await order.save();
+    return await saveExportOrder(order);
   } catch (error) {
     await rollbackOrThrow(appliedAdjustments, error);
   }
@@ -306,7 +484,7 @@ router.post(
       if (productList !== undefined && !Array.isArray(productList)) {
         throw createRouteError(400, "productList phải là một mảng");
       }
-      const normalizedProductList = (productList || []).map((line) => {
+      const normalizedProductList = await Promise.all((productList || []).map(async (line) => {
         const { quantityEx } = parseExportLineQuantities(line);
         if (
           quantityEx !== 0 ||
@@ -318,7 +496,7 @@ router.post(
           );
         }
         return buildNewExportLine(line, 0, false);
-      });
+      }));
       const newOrder = new EpOrder({
         orderName: orderName || "",
         note: typeof note === "string" ? note : "",
@@ -377,7 +555,7 @@ router.post(
         });
       }
 
-      order.productList.push(buildNewExportLine(
+      order.productList.push(await buildNewExportLine(
         newProduct,
         stockDelta,
         shouldSkipStockUpdate
@@ -427,7 +605,7 @@ router.delete(
         }, 0)
         .toString();
 
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveExportOrder(order);
       res.json(updatedOrder);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -466,7 +644,7 @@ router.put(
         }, 0)
         .toString();
 
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveExportOrder(order);
       res.json(updatedOrder);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -521,7 +699,7 @@ router.put(
 
       order.status = status;
       order.completedAt = status ? new Date() : null;
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveExportOrder(order);
       res.json(updatedOrder);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -652,7 +830,7 @@ router.put(
       }
 
       productItem.status = status;
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveExportOrder(order);
       res.json(updatedOrder);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -683,7 +861,8 @@ router.put(
 
       const productItem = order.productList[productIndex];
       if (status !== true || productItem.status === true) {
-        return res.json(order);
+        const normalizedOrder = await saveExportOrder(order);
+        return res.json(normalizedOrder);
       }
 
       const product = await Product.findById(productItem.productId)
@@ -756,9 +935,11 @@ router.get(
       const productList = await Promise.all(
         (order.productList || []).map(async (item) => {
           const product = await Product.findById(item.productId).lean();
+          const pricing = getExistingPricingBase(item, product?.variant?.[0]);
 
           return {
             ...item,
+            ...pricing,
             name: product?.name || "",
             brand: product?.brand || "",
             image: product?.variant?.[0]?.imgUrl || "",
@@ -805,9 +986,11 @@ router.put(
       }
 
       const editableFields = pickExportLineFields(req.body);
+      const pricing = await resolveUpdatedExportPricing(currentProduct, req.body);
       const candidateLine = {
         ...currentProduct.toObject(),
         ...editableFields,
+        ...pricing,
       };
       const { quantity, quantityEx } = parseExportLineQuantities(candidateLine);
       const currentProgress = toQuantity(currentProduct.quantityEx);
@@ -831,6 +1014,7 @@ router.put(
       order.productList[productIndex] = {
         ...order.productList[productIndex].toObject(),
         ...editableFields,
+        ...pricing,
         productId: currentProduct.productId,
         quantity,
         quantityEx,
@@ -872,7 +1056,7 @@ router.put(
 
       if (orderName !== undefined) order.orderName = orderName || "";
       if (note !== undefined) order.note = typeof note === "string" ? note : "";
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveExportOrder(order);
       res.json(updatedOrder);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -912,6 +1096,8 @@ router.put(
       const toLineKey = (item) => JSON.stringify({
         productId: String(item.productId),
         price: item.price || "",
+        importPriceSnapshot: item.importPriceSnapshot || "",
+        profitPercent: item.profitPercent ?? null,
         unit: item.unit || "",
         quantity: Number(item.quantity),
         quantityEx: Number(item.quantityEx),
@@ -924,7 +1110,13 @@ router.put(
         counts.set(key, (counts.get(key) || 0) + 1);
         return counts;
       }, new Map());
-      const currentCounts = countLines(order.productList);
+      const normalizedCurrentLines = await Promise.all(
+        order.productList.map(async (item) => ({
+          ...item.toObject(),
+          ...await resolveUpdatedExportPricing(item, {}),
+        }))
+      );
+      const currentCounts = countLines(normalizedCurrentLines);
       const reorderedCounts = countLines(productList);
       const isSameLines = currentCounts.size === reorderedCounts.size &&
         [...currentCounts.entries()].every(
@@ -936,10 +1128,10 @@ router.put(
         });
       }
 
-      const currentLineBuckets = order.productList.reduce((buckets, item) => {
+      const currentLineBuckets = normalizedCurrentLines.reduce((buckets, item) => {
         const key = toLineKey(item);
         if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key).push(item.toObject());
+        buckets.get(key).push(item);
         return buckets;
       }, new Map());
       order.productList = productList.map((item) => {
@@ -956,7 +1148,7 @@ router.put(
         }, 0)
         .toString();
 
-      const updatedOrder = await order.save();
+      const updatedOrder = await saveExportOrder(order);
       res.json(updatedOrder);
     } catch (error) {
       res.status(400).json({ message: error.message });

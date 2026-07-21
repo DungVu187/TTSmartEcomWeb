@@ -313,7 +313,7 @@ const SalesOrderDetail = () => {
   const { can } = usePermissions();
   const canCreate = can("order.create");
   const canEdit = can("order.edit");
-  const canDelete = can("order.delete");
+  const canCancel = can("order.delete");
   const canExcel = canEdit && can("order.excel");
   const canScanAi = canEdit && can("order.scan_ai");
   const canAddImage = canCreate || canEdit;
@@ -613,14 +613,17 @@ const SalesOrderDetail = () => {
     }
   };
 
-  const handleDeleteOrder = async () => {
+  const handleCancelOrder = async () => {
     if (!order || locked) return;
-    if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này?")) return;
+    if (!window.confirm("Bạn có chắc muốn hủy đơn hàng này?")) return;
 
-    const result = await apiFetch(`${apiUrl}/orders/${id}`, { method: "DELETE" });
-    if (result) {
-      toast.success("Đã xóa đơn hàng");
-      navigate("/order");
+    const result = await apiFetch(`${apiUrl}/orders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ state: "Cancelled" }),
+    });
+    if (result?.order) {
+      await fetchOrder();
+      toast.success("Đã hủy đơn hàng");
     }
   };
 
@@ -972,9 +975,9 @@ const SalesOrderDetail = () => {
               Sao chép đơn
             </Button>
           )}
-          {canDelete && (
-            <Button variant="outlined" color="error" onClick={handleDeleteOrder} disabled={locked || bulkProcessing}>
-              Xóa đơn
+          {canCancel && (
+            <Button variant="outlined" color="error" onClick={handleCancelOrder} disabled={locked || bulkProcessing}>
+              Hủy đơn
             </Button>
           )}
           {canExcel && (

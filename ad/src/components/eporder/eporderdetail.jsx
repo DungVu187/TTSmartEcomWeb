@@ -158,29 +158,41 @@ const SortableTableRow = ({
       </TableCell>
       <TableCell align="center">{product.code || "N/A"}</TableCell>
       <TableCell align="center">{product.brand || "N/A"}</TableCell>
-      <TableCell align="center">
+      <TableCell align="center" sx={{ width: 72 }}>
         <NumericFormat
-          value={tempProductList[index]?.price || ""}
+          value={tempProductList[index]?.profitPercent ?? ""}
           customInput={TextField}
-          thousandSeparator="."
-          decimalSeparator=","
+          decimalScale={2}
+          allowNegative={false}
+          isAllowed={({ floatValue }) => floatValue === undefined || floatValue <= 100}
           onValueChange={(values) => {
             const { value } = values;
-            handleTempUpdateProduct(index, "price", value, false);
+            handleTempUpdateProduct(index, "profitPercent", value, false);
           }}
-          onBlur={() => {
-            const value = tempProductList[index]?.price || "";
-            handleTempUpdateProduct(index, "price", value, true);
-          }}
-          onKeyPress={(e) => {
+          onKeyDown={(e) => {
             if (e.key === "Enter") {
-              const value = tempProductList[index]?.price || "";
-              handleTempUpdateProduct(index, "price", value, true);
+              e.preventDefault();
+              const value = tempProductList[index]?.profitPercent ?? "";
+              handleTempUpdateProduct(index, "profitPercent", value, true);
             }
           }}
           size="small"
           disabled={product.status || !canEdit}
-          sx={{ width: "120px" }}
+          suffix="%"
+          sx={{ width: "66px" }}
+        />
+      </TableCell>
+      <TableCell align="center" sx={{ width: 96, whiteSpace: "nowrap" }}>
+        <NumericFormat
+          value={tempProductList[index]?.price || "0"}
+          displayType="text"
+          thousandSeparator="."
+          decimalSeparator=","
+          renderText={(value) => (
+            <Typography variant="body2" fontWeight={600}>
+              {value}
+            </Typography>
+          )}
         />
       </TableCell>
       <TableCell align="center">
@@ -201,7 +213,7 @@ const SortableTableRow = ({
           }}
           size="small"
           disabled={product.status || !canEdit}
-          sx={{ width: "70px" }}
+          sx={{ width: "58px" }}
         />
       </TableCell>
       <TableCell align="center">
@@ -226,7 +238,7 @@ const SortableTableRow = ({
           }}
           size="small"
           disabled={product.status || !canEdit}
-          sx={{ width: "100px" }}
+          sx={{ width: "64px" }}
         />
       </TableCell>
       <TableCell align="center">{product.quantityEx || 0}</TableCell>
@@ -249,7 +261,7 @@ const SortableTableRow = ({
           size="small"
           disabled={product.status || !canEdit}
           sx={{
-            width: "50px",
+            width: "62px",
             "& .MuiOutlinedInput-root": {
               backgroundColor: "#a6e3b5",
             },
@@ -276,6 +288,7 @@ const SortableTableRow = ({
           size="small"
           multiline
           disabled={product.status || !canEdit}
+          fullWidth
         />
       </TableCell>
       <TableCell align="center">
@@ -322,7 +335,6 @@ const ExportOrderDetail = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [codeTerm, setCodeTerm] = useState("")
   const [receiveInput, setReceiveInput] = useState({});
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
@@ -1339,17 +1351,7 @@ const ExportOrderDetail = () => {
         const productIds = data.productList.map((item) => item.productId);
         const productDetailsData = await fetchProductDetails(productIds);
         setProductDetails(productDetailsData);
-        const updatedTempList = data.productList.map((item) => {
-          const product =
-            productDetailsData.find(
-              (p) => p._id === item.productId.toString()
-            ) || {};
-          return {
-            ...item,
-            price: item.price || product.variant?.[0]?.importPrice || "0",
-          };
-        });
-        setTempProductList(updatedTempList);
+        setTempProductList(data.productList);
       } else {
         setTempProductList([]);
         setProductDetails([]);
@@ -1408,7 +1410,6 @@ const ExportOrderDetail = () => {
   const fetchAllProducts = async () => {
     const query = new URLSearchParams();
     if (searchTerm.trim() !== "") query.append("search", searchTerm.trim());
-    if (codeTerm.trim() !== "") query.append("code", codeTerm.trim());
 
     const result = await apiFetch(`${apiUrl}/products/?${query.toString()}`);
     if (result) {
@@ -1421,7 +1422,7 @@ const ExportOrderDetail = () => {
     if (!openAddDialog) return;
 
     const delayDebounceFn = setTimeout(() => {
-      if (searchTerm.trim() !== "" || codeTerm.trim()  !== "") {
+      if (searchTerm.trim() !== "") {
         fetchAllProducts();
       } else {
         setProducts([]);
@@ -1429,17 +1430,12 @@ const ExportOrderDetail = () => {
     }, 1000);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, codeTerm, openAddDialog]);
+  }, [searchTerm, openAddDialog]);
 
   // Hàm thêm sản phẩm vào đơn hàng
   const handleAddProduct = async (product) => {
-    const productDetailsData = await fetchProductDetails([product._id]);
-    const selectedProduct = productDetailsData[0] || {};
-    const importPrice = selectedProduct.variant?.[0]?.importPrice || "0";
-
     const newProduct = {
       productId: product._id,
-      price: importPrice,
       unit: "cái",
       quantity: 1,
       note: "",
@@ -1485,11 +1481,18 @@ const ExportOrderDetail = () => {
     value,
     save = false
   ) => {
+    let normalizedValue = value || "";
+    if (field === "quantity") {
+      normalizedValue = parseInt(value) || 0;
+    } else if (field === "profitPercent" && value !== "") {
+      normalizedValue = Number(value);
+    }
+
     // Cập nhật tạm thời
     const updatedTempList = [...tempProductList];
     updatedTempList[productIndex] = {
       ...updatedTempList[productIndex],
-      [field]: field === "quantity" ? parseInt(value) || 0 : value || "",
+      [field]: normalizedValue,
     };
     setTempProductList(updatedTempList);
 
@@ -1504,16 +1507,20 @@ const ExportOrderDetail = () => {
         return;
       }
 
-      const updatedProduct = {
-        ...order.productList[productIndex],
-        [field]: field === "quantity" ? parseInt(value) || 0 : value || "",
-      };
+      if (
+        field === "profitPercent" &&
+        (!Number.isFinite(normalizedValue) || normalizedValue < 0 || normalizedValue > 100)
+      ) {
+        toast.error("% lợi nhuận phải từ 0 đến 100");
+        setTempProductList(order.productList);
+        return;
+      }
 
       const updatedOrder = await apiFetch(
         `${apiUrl}/eporders/orders/${id}/products/${productIndex}`,
         {
           method: "PUT",
-          body: JSON.stringify(updatedProduct),
+          body: JSON.stringify({ [field]: normalizedValue }),
         }
       );
 
@@ -1727,6 +1734,8 @@ const ExportOrderDetail = () => {
     const copiedProductList = order.productList.map((product) => ({
       productId: product.productId,
       price: product.price,
+      importPriceSnapshot: product.importPriceSnapshot,
+      profitPercent: product.profitPercent,
       unit: product.unit,
       quantity: product.quantity,
       quantityEx: 0,
@@ -2266,6 +2275,12 @@ const ExportOrderDetail = () => {
               size="small"
               fullWidth
               disabled={!canEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleUpdateOrderName(order?.orderName || "", order?.note || "");
+                }
+              }}
             />
             <TextField
               label="Ghi chú"
@@ -2276,6 +2291,12 @@ const ExportOrderDetail = () => {
               size="small"
               fullWidth
               disabled={!canEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleUpdateOrderName(order?.orderName || "", order?.note || "");
+                }
+              }}
             />
             {canEdit && (
               <Button
@@ -2526,23 +2547,48 @@ const ExportOrderDetail = () => {
         collisionDetection={closestCenter}
         onDragEnd={canEdit ? handleDragEnd : undefined}
       >
-        <TableContainer component={Paper} sx={{ userSelect: "none", overflow: "auto", height: "100%", maxHeight: "none" }}>
-          <Table stickyHeader>
+        <TableContainer component={Paper} sx={{ userSelect: "none", overflowX: "hidden", height: "100%", maxHeight: "none" }}>
+          <Table
+            stickyHeader
+            size="small"
+            sx={{
+              width: "100%",
+              tableLayout: "fixed",
+              "& .MuiTableCell-root": {
+                px: 0.6,
+                py: 0.55,
+                fontSize: "0.76rem",
+                lineHeight: 1.25,
+                overflow: "hidden",
+              },
+              "& .MuiTableCell-head": {
+                fontWeight: 700,
+                whiteSpace: "normal",
+              },
+              "& .MuiInputBase-input": {
+                px: 0.75,
+                py: 0.7,
+                fontSize: "0.78rem",
+                textAlign: "center",
+              },
+            }}
+          >
             <TableHead>
               <TableRow>
-                <TableCell align="center"></TableCell>
-                <TableCell align="center">Tên</TableCell>
-                <TableCell align="center">Hình ảnh</TableCell>
-                <TableCell align="center">Mã</TableCell>
-                <TableCell align="center">Hãng</TableCell>
-                <TableCell align="center">Giá xuất</TableCell>
-                <TableCell align="center">Đơn vị</TableCell>
-                <TableCell align="center">Số lượng xuất</TableCell>
-                <TableCell align="center">Đã xuất</TableCell>
-                <TableCell align="center">Nhập số lượng xuất</TableCell>
-                <TableCell align="center">Ghi chú</TableCell>
-                <TableCell align="center">Trạng thái</TableCell>
-                <TableCell align="center"></TableCell>
+                <TableCell align="center" sx={{ width: 34 }}></TableCell>
+                <TableCell align="center" sx={{ width: "14%" }}>Tên</TableCell>
+                <TableCell align="center" sx={{ width: 52 }}>Hình ảnh</TableCell>
+                <TableCell align="center" sx={{ width: "8%" }}>Mã</TableCell>
+                <TableCell align="center" sx={{ width: "8%" }}>Hãng</TableCell>
+                <TableCell align="center" sx={{ width: 72 }}>% lợi nhuận</TableCell>
+                <TableCell align="center" sx={{ width: 96 }}>Giá xuất</TableCell>
+                <TableCell align="center" sx={{ width: 62 }}>Đơn vị</TableCell>
+                <TableCell align="center" sx={{ width: 72 }}>Số lượng xuất</TableCell>
+                <TableCell align="center" sx={{ width: 60 }}>Đã xuất</TableCell>
+                <TableCell align="center" sx={{ width: 76 }}>Nhập SL xuất</TableCell>
+                <TableCell align="center" sx={{ width: "12%" }}>Ghi chú</TableCell>
+                <TableCell align="center" sx={{ width: 64 }}>Trạng thái</TableCell>
+                <TableCell align="center" sx={{ width: 42 }}></TableCell>
               </TableRow>
             </TableHead>
             <SortableContext
@@ -2573,7 +2619,7 @@ const ExportOrderDetail = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={13} align="center">
+                    <TableCell colSpan={14} align="center">
                       <Typography>Chưa có sản phẩm trong đơn hàng</Typography>
                     </TableCell>
                   </TableRow>
@@ -2590,18 +2636,9 @@ const ExportOrderDetail = () => {
         <DialogContent>
           <Box mb={2} mt={2} sx={{ display: 'grid', gap: 2}}>
             <TextField
-              label="Tìm kiếm sản phẩm"
+              label="Tìm theo tên hoặc mã sản phẩm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              variant="outlined"
-              size="small"
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              label="Tìm kiếm sản phẩm"
-              value={codeTerm}
-              onChange={(e) => setCodeTerm(e.target.value)}
               variant="outlined"
               size="small"
               fullWidth

@@ -8,6 +8,7 @@ function SafeProductImage({ src, alt, className = "" }) {
     if (!canvas || !src) return undefined;
 
     let disposed = false;
+    let animationFrameId = null;
     let sourceImage = new Image();
 
     const draw = () => {
@@ -48,18 +49,35 @@ function SafeProductImage({ src, alt, className = "" }) {
       }
     };
 
+    const scheduleDraw = () => {
+      if (disposed || animationFrameId !== null) return;
+
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = null;
+        draw();
+      });
+    };
+
     sourceImage.decoding = "sync";
-    sourceImage.onload = draw;
+    sourceImage.onload = scheduleDraw;
     sourceImage.src = src;
 
     const resizeObserver = typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver(draw)
+      ? new ResizeObserver(scheduleDraw)
       : null;
-    resizeObserver?.observe(canvas);
+    resizeObserver?.observe(canvas.parentElement || canvas);
+
+    if (!resizeObserver) {
+      window.addEventListener("resize", scheduleDraw);
+    }
 
     return () => {
       disposed = true;
       resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleDraw);
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
       sourceImage.onload = null;
       sourceImage.src = "";
       sourceImage = null;

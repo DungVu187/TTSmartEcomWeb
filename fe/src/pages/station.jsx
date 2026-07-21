@@ -95,6 +95,8 @@ const Station = () => {
       });
   }, [stationIds, stationMap, searchTerm]);
 
+  const primaryStation = stationIds.map((id) => stationMap[id]).find(Boolean);
+
   if (loading) {
     return (
       <div className="station-page-container">
@@ -145,6 +147,12 @@ const Station = () => {
               </div>
               <h1 className="station-banner-eyebrow-title">Trạm của tôi</h1>
             </div>
+            {primaryStation && (
+              <h2 className="station-banner-title">
+                {primaryStation.stationName}
+                {primaryStation.location ? ` - ${primaryStation.location}` : ""}
+              </h2>
+            )}
             <p style={{ marginTop: "12px" }}>Danh sách các trạm đã được gán cho tài khoản của bạn để quản lý và theo dõi.</p>
           </div>
         </section>
@@ -242,8 +250,9 @@ const Station = () => {
             </div>
           ) : viewMode === "list" ? (
             /* Table list view */
-            <div className="station-table-wrapper">
-              <table className="station-custom-table">
+            <>
+              <div className="station-table-wrapper">
+                <table className="station-custom-table">
                 <thead>
                   <tr>
                     <th>Ảnh trạm</th>
@@ -302,8 +311,34 @@ const Station = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+
+              <div className="station-mobile-list">
+                {filteredStations.map((station) => (
+                  <button
+                    type="button"
+                    className="station-mobile-card"
+                    key={station._id}
+                    onClick={() => navigate(`/station/${station.inviteCode || station.stationCode}`)}
+                  >
+                    <span className="station-mobile-card-image">
+                      {station.imgUrl ? (
+                        <img src={resolveImageUrl(station.imgUrl)} alt="" />
+                      ) : (
+                        <i className="fa-solid fa-industry" />
+                      )}
+                    </span>
+                    <span className="station-mobile-card-content">
+                      <strong>{station.stationName}</strong>
+                      <small>{station.inviteCode || station.stationCode}</small>
+                      <span className="station-status-pill active">● Hoạt động</span>
+                    </span>
+                    <i className="fa-solid fa-angle-right station-mobile-card-arrow" />
+                  </button>
+                ))}
+              </div>
+            </>
           ) : (
             /* Grid bento view */
             <div className="station-grid-wrapper">

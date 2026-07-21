@@ -97,7 +97,7 @@ describe('Sales order detail admin API', () => {
 
     expect(response.status).toBe(201);
     expect(response.body.success).toBe(true);
-    expect(response.body.order.orderCode).toMatch(/^TTSM-\d+$/);
+    expect(response.body.order.orderCode).toMatch(/^TTS-\d+$/);
     expect(response.body.order.cartItems).toHaveLength(0);
     expect(response.body.order.total).toBe(0);
   });

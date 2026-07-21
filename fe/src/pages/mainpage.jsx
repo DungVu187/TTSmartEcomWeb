@@ -1,9 +1,33 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardContent, Grid, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/languagecontext";
+import "../components/style/stationdisplay.css";
 
-const apiUrl = process.env.REACT_APP_BACK_END;
+const apiUrl = process.env.REACT_APP_BACK_END || "";
+
+const resolveImageUrl = (url) => {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
+  return `${apiUrl}${url}`;
+};
+
+const getSectionIcon = (sectionName) => {
+  const name = String(sectionName || "").toLowerCase().trim();
+  if (name.includes("trung tâm")) return "fa-solid fa-house";
+  if (name.includes("băng")) return "fa-solid fa-layer-group";
+  if (name.includes("cối")) return "fa-solid fa-boxes-stacked";
+  if (name.includes("cốt liệu")) return "fa-solid fa-warehouse";
+  if (name.includes("silo")) return "fa-solid fa-building-columns";
+  if (name.includes("tủ điện") || name.includes("tủ điều khiển") || name.includes("cabinet")) return "fa-solid fa-microchip";
+  if (name.includes("trạm trộn") || name.includes("mixer")) return "fa-solid fa-building";
+  if (name.includes("bơm") || name.includes("pump")) return "fa-solid fa-faucet-drip";
+  if (name.includes("cân") || name.includes("scale") || name.includes("loadcell")) return "fa-solid fa-scale-balanced";
+  if (name.includes("lọc") || name.includes("filter")) return "fa-solid fa-filter";
+  if (name.includes("khí") || name.includes("nén") || name.includes("air")) return "fa-solid fa-wind";
+  if (name.includes("động cơ") || name.includes("motor")) return "fa-solid fa-bolt";
+  if (name.includes("van") || name.includes("valve")) return "fa-solid fa-circle-notch";
+  return "fa-solid fa-industry";
+};
 
 const MainPage = () => {
   const { t } = useLanguage();
@@ -15,7 +39,7 @@ const MainPage = () => {
       .then((res) => res.json())
       .then((data) => {
         const fullSections = data.Section || [];
-        const filtered = fullSections.filter((sec) => sec.imgUrl); // Chỉ lấy section có ảnh
+        const filtered = fullSections.filter((sec) => sec.imgUrl);
         const sorted = filtered.sort((a, b) =>
           a.name.localeCompare(b.name, undefined, { numeric: true })
         );
@@ -31,45 +55,62 @@ const MainPage = () => {
   };
 
   return (
-    <div style={{ backgroundColor: "#ebf6fe", padding: 16, minHeight: "100vh" }}>
-      <div style={{ maxWidth: "1800px", margin: "auto" }}>
-        <Grid container spacing={2}>
-          {sections.map((section, index) => (
-            <Grid item key={index} xs={12} sm={6} md={6} lg={6} xl={6}>
-              <Card
+    <div className="station-detail-container">
+      <div className="station-detail-bg-dots-left" />
+      <div className="station-detail-bg-dots-right" />
+
+      <section className="station-detail-content-shell">
+        <div className="station-detail-grid">
+          {sections.map((section, index) => {
+            const hasPhoto = !!section.imgUrl;
+            const iconClass = getSectionIcon(section.name);
+            const isTramTron = String(section.name || "").toLowerCase().includes("trạm trộn");
+
+            return (
+              <div
+                key={index}
+                className={`station-detail-card ${hasPhoto ? "has-photo" : "no-photo"} ${isTramTron ? "is-tram-tron" : ""}`}
                 onClick={() => handleClick(section.name)}
-                sx={{
-                  height: "300px",
-                  backgroundImage: `url(${section.imgUrl})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  boxShadow: "none",
-                  cursor: "pointer",
-                  transition: "filter 0.3s ease",
-                  "&:hover": {
-                    filter: "brightness(1.1)",
-                  },
-                  textTransform: 'uppercase'
-                }}
               >
-                <CardContent
-                  sx={{
-                    height: "100%",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: "rgba(0, 0, 0, 0.4)",
-                  }}
-                >
-                  <Typography variant="h5" align="center" color="#fff">
-                    {t(section.name)}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </div>
+                <div className="station-detail-card-left">
+                  <div className="station-detail-card-icon-badge">
+                    <i className={iconClass} />
+                  </div>
+
+                  <h2 className="station-detail-card-title">{t(section.name)}</h2>
+
+                  {isTramTron && (
+                    <div className="station-detail-table-preview">
+                      <div className="station-detail-table-headers">
+                        <span>Viên</span>
+                        <span>Số nút</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {hasPhoto && (
+                  <div className="station-detail-card-right-img">
+                    <img src={resolveImageUrl(section.imgUrl)} alt={t(section.name)} />
+                    <div className="station-detail-card-img-gradient" />
+                  </div>
+                )}
+
+                {isTramTron && (
+                  <div className="station-detail-rows-select">
+                    <span>Rows per page: 10</span>
+                    <i className="fa-solid fa-angle-down" />
+                  </div>
+                )}
+
+                <button className="station-detail-card-btn" type="button" aria-label="Xem chi tiết">
+                  <i className="fa-solid fa-arrow-right" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 };

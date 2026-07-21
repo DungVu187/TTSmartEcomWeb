@@ -208,6 +208,28 @@ describe('Orders API Tests (Phase 5)', () => {
     expect(await Order.countDocuments({ userPhone: '0987654331' })).toBe(0);
   });
 
+  it('allows an admin without assigned stations to ignore a stale station code', async () => {
+    const product = await createProduct();
+    await createUser({ phone: '0987654334', role: 'admin' });
+    const agent = await loginAgent({ phone: '0987654334', role: 'admin' });
+
+    const response = await agent
+      .post('/orders/create-order')
+      .send({
+        stationCode: 'STALE-STATION-CODE',
+        cartItems: [{
+          productId: product._id.toString(),
+          variantIndex: 0,
+          quantity: 2,
+        }],
+      });
+
+    expect(response.status).toBe(201);
+    const updatedProduct = await Product.findById(product._id);
+    expect(updatedProduct.variant[0].quantityForSale).toBe(8);
+    expect(await Order.countDocuments({ userPhone: '0987654334' })).toBe(1);
+  });
+
   it('không tạo đơn hoặc trừ kho với sản phẩm đang ẩn', async () => {
     const hiddenProduct = await Product.create({
       type: 'PLC',
@@ -360,7 +382,7 @@ describe('Orders API Tests (Phase 5)', () => {
     const order = await createOrder({
       userPhone: '0900000002',
       product,
-      orderCode: 'TTSM-IDOR-01'
+      orderCode: 'TTS-IDOR-01'
     });
     const userAAgent = await loginAgent({ phone: '0900000001' });
 
@@ -387,12 +409,12 @@ describe('Orders API Tests (Phase 5)', () => {
     const orderToCancel = await createOrder({
       userPhone: '0900000003',
       product,
-      orderCode: 'TTSM-OWNER-01'
+      orderCode: 'TTS-OWNER-01'
     });
     const orderToDelete = await createOrder({
       userPhone: '0900000003',
       product,
-      orderCode: 'TTSM-OWNER-02'
+      orderCode: 'TTS-OWNER-02'
     });
 
     const cancelResponse = await ownerAgent
@@ -415,7 +437,7 @@ describe('Orders API Tests (Phase 5)', () => {
     const order = await createOrder({
       userPhone: '0900000004',
       product,
-      orderCode: 'TTSM-ADMIN-01'
+      orderCode: 'TTS-ADMIN-01'
     });
     const adminAgent = await loginAgent({ phone: '0900000005', role: 'admin' });
 
@@ -437,7 +459,7 @@ describe('Orders API Tests (Phase 5)', () => {
     const order = await createOrder({
       userPhone: '0900000006',
       product,
-      orderCode: 'TTSM-ONLINE-01',
+      orderCode: 'TTS-ONLINE-01',
       quantity: 2
     });
     const adminAgent = await loginAgent({ phone: '0900000007', role: 'admin' });
@@ -473,7 +495,7 @@ describe('Orders API Tests (Phase 5)', () => {
     await createUser({ phone: '0900000010', role: 'admin' });
 
     const cancelledOrder = await Order.create({
-      orderCode: 'TTSM-CANCELLED-01',
+      orderCode: 'TTS-CANCELLED-01',
       userPhone: '0900000009',
       userName: 'Customer 0900000009',
       cartItems: [{
@@ -508,7 +530,7 @@ describe('Orders API Tests (Phase 5)', () => {
     const order = await createOrder({
       userPhone: '0900000008',
       product,
-      orderCode: 'TTSM-DELETED-USER-01'
+      orderCode: 'TTS-DELETED-USER-01'
     });
 
     const beforeDeleteResponse = await customerAgent.get(`/orders/${order._id}`);
@@ -723,7 +745,7 @@ describe('Orders API Tests (Phase 5)', () => {
     });
     const adminAgent = await loginAgent({ phone: '0900000024', role: 'admin' });
     const order = await Order.create({
-      orderCode: 'TTSM-PARTIAL',
+      orderCode: 'TTS-PARTIAL',
       userPhone: '0911111124',
       userName: 'Partial Test',
       cartItems: [

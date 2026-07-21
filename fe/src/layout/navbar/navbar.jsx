@@ -82,6 +82,7 @@ function Navbar() {
   };
 
   const loginPath = `/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
+  const cartItemCount = getCartItemCount();
 
   return (
     <header className="store-header">
@@ -104,7 +105,10 @@ function Navbar() {
 
           <nav className="store-nav-actions" aria-label="Tiện ích khách hàng">
             <Link to="/station"><i className="fa-solid fa-industry" /><span>Trạm của tôi</span></Link>
-            <div className="store-nav-popover">
+            <Link className="store-mobile-account-link" to={isLoggedIn ? "/profile" : loginPath} aria-label="Tài khoản">
+              <i className="fa-regular fa-user" />
+            </Link>
+            <div className="store-nav-popover store-account-popover">
               <button type="button"><i className="fa-regular fa-user" /><span>{isLoggedIn ? userName : "Tài khoản"}</span></button>
               <div className="store-popover-menu">
                 {isLoggedIn ? (
@@ -127,7 +131,7 @@ function Navbar() {
                 <button type="button" onClick={() => setLanguage("en")}>English</button>
               </div>
             </div>
-            <Link className="store-cart-link" to="/cart"><span className="store-cart-icon"><i className="fa-solid fa-cart-shopping" /><b>{getCartItemCount()}</b></span><span>Giỏ hàng</span></Link>
+            <Link className="store-cart-link" to="/cart"><span className="store-cart-icon"><i className="fa-solid fa-cart-shopping" /><b className={cartItemCount === 0 ? "is-empty" : ""}>{cartItemCount}</b></span><span>Giỏ hàng</span></Link>
           </nav>
         </div>
 

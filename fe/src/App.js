@@ -23,6 +23,7 @@ import ChangePassword from './pages/changepassword.jsx';
 import Profile from './pages/profile.jsx';
 import VoiceSearchFAB from './components/VoiceSearchFAB.jsx';
 import CustomerRouteHistory from './components/customerroutehistory.jsx';
+import MobileBottomNav from './layout/mobilebottomnav/mobilebottomnav.jsx';
 
 import { LanguageProvider } from './context/languagecontext.jsx';
 
@@ -59,6 +60,7 @@ function App() {
             </ScrollRestoration>
           </div>
 
+          <MobileBottomNav />
           <VoiceSearchFAB />
           <Toaster position="top-center" />
         </BrowserRouter>

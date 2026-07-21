@@ -199,6 +199,7 @@
 }
 
 @media (max-width: 760px) {
+  .store-footer { display: none; }
   .store-footer-shell { width: calc(100% - 28px); }
   .store-footer-grid { grid-template-columns: repeat(2, 1fr); gap: 32px 24px; padding-top: 38px; }
   .store-footer-brand, .store-footer-newsletter { grid-column: 1 / -1; }

@@ -34,7 +34,13 @@ html {
 
 @media (max-width: 760px) {
   .main-content {
-    padding-top: 106px;
+    padding-top: 124px;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    background: #f6f9fe;
+  }
+
+  .page-container {
+    padding-bottom: 0;
   }
 }
 

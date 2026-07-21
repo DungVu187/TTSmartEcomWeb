@@ -549,6 +549,31 @@ function ProductDisplay() {
           </div>
         </section>
       </div>
+
+      <div className="product-mobile-action-bar">
+        <a className="product-mobile-action-link" href="https://zalo.me/0813158383" target="_blank" rel="noreferrer">
+          <i className="fa-regular fa-comment-dots" />
+          <span>Chat</span>
+        </a>
+        <a className="product-mobile-action-link" href="tel:0813158383">
+          <i className="fa-solid fa-phone" />
+          <span>Gọi</span>
+        </a>
+        {isContactOnly ? (
+          <a className="product-mobile-contact-button" href="tel:0913158383">
+            Liên hệ báo giá
+          </a>
+        ) : (
+          <>
+            <button type="button" className="product-mobile-cart-button" onClick={handleAddToCart} disabled={isOutOfStock}>
+              Thêm vào giỏ
+            </button>
+            <button type="button" className="product-mobile-buy-button" onClick={handleBuyNow} disabled={isOutOfStock}>
+              Mua ngay
+            </button>
+          </>
+        )}
+      </div>
     </main>
   );
 }

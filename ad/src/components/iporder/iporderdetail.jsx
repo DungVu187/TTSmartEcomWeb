@@ -323,7 +323,6 @@ const ImportOrderDetail = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [codeTerm, setCodeTerm] = useState("");
   const [receiveInput, setReceiveInput] = useState({});
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
@@ -1412,7 +1411,6 @@ const ImportOrderDetail = () => {
   const fetchAllProducts = async () => {
     const query = new URLSearchParams();
     if (searchTerm.trim() !== "") query.append("search", searchTerm.trim());
-    if (codeTerm.trim() !== "") query.append("code", codeTerm.trim());
 
     const result = await apiFetch(`${apiUrl}/products/?${query.toString()}`);
     if (result) {
@@ -1425,7 +1423,7 @@ const ImportOrderDetail = () => {
     if (!openAddDialog) return;
 
     const delayDebounceFn = setTimeout(() => {
-      if (searchTerm.trim() !== "" || codeTerm.trim() !== "") {
+      if (searchTerm.trim() !== "") {
         fetchAllProducts();
       } else {
         setProducts([]);
@@ -1433,7 +1431,7 @@ const ImportOrderDetail = () => {
     }, 1000);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, codeTerm, openAddDialog]);
+  }, [searchTerm, openAddDialog]);
 
   // Hàm thêm sản phẩm vào đơn hàng
   const handleAddProduct = async (product) => {
@@ -2229,6 +2227,12 @@ const ImportOrderDetail = () => {
               size="small"
               fullWidth
               disabled={!canEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleUpdateOrderName(order?.orderName || "", order?.note || "");
+                }
+              }}
             />
             <TextField
               label="Ghi chú"
@@ -2237,6 +2241,12 @@ const ImportOrderDetail = () => {
               size="small"
               fullWidth
               disabled={!canEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleUpdateOrderName(order?.orderName || "", order?.note || "");
+                }
+              }}
             />
             {canEdit && (
               <Button
@@ -2551,21 +2561,13 @@ const ImportOrderDetail = () => {
         <DialogContent>
           <Box mb={2} mt={2} sx={{ display: "grid", gap: 2 }}>
             <TextField
-              label="Tìm theo tên sản phẩm"
+              label="Tìm theo tên hoặc mã sản phẩm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               variant="outlined"
               size="small"
               fullWidth
               autoFocus
-            />
-            <TextField
-              label="Tìm theo mã sản phẩm"
-              value={codeTerm}
-              onChange={(e) => setCodeTerm(e.target.value)}
-              variant="outlined"
-              size="small"
-              fullWidth
             />
           </Box>
           {products.length > 0 ? (

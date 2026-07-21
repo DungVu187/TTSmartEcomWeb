@@ -55,7 +55,13 @@ const createEpOrder = async ({ orderName = 'Export order', productList = [] } = 
   });
 };
 
-const createProduct = async ({ quantityInStorage = 10, quantityForSale = 10 } = {}) => {
+const createProduct = async ({
+  quantityInStorage = 10,
+  quantityForSale = 10,
+  importPrice = '',
+  earn = 25,
+  price = '100000'
+} = {}) => {
   return Product.create({
     type: 'PLC',
     name: 'EP Test Product',
@@ -64,7 +70,9 @@ const createProduct = async ({ quantityInStorage = 10, quantityForSale = 10 } = 
     value: 'PLC',
     warranty: '12 thang',
     variant: [{
-      price: '100000',
+      price,
+      importPrice,
+      earn,
       color: 'Xam',
       quantityForSale,
       quantityInStorage
@@ -73,6 +81,153 @@ const createProduct = async ({ quantityInStorage = 10, quantityForSale = 10 } = 
 };
 
 describe('EpOrder API', () => {
+  it('snapshots import price and profit while keeping product pricing unchanged', async () => {
+    const agent = await createAdminAgent();
+    const product = await createProduct({
+      importPrice: '100',
+      earn: 20,
+      price: '120'
+    });
+
+    const createRes = await agent
+      .post('/eporders/orders')
+      .send({
+        orderName: 'Pricing snapshot',
+        productList: [{
+          productId: product._id.toString(),
+          unit: 'cai',
+          quantity: 2,
+          quantityEx: 0,
+          status: false
+        }]
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.productList[0]).toMatchObject({
+      importPriceSnapshot: '100',
+      profitPercent: 20,
+      price: '120'
+    });
+    expect(createRes.body.total).toBe('240');
+
+    product.variant[0].importPrice = '200';
+    product.variant[0].earn = 50;
+    product.variant[0].price = '300';
+    await product.save();
+
+    const getRes = await agent.get(`/eporders/orders/${createRes.body._id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.productList[0]).toMatchObject({
+      importPriceSnapshot: '100',
+      profitPercent: 20,
+      price: '120'
+    });
+
+    const updateRes = await agent
+      .put(`/eporders/orders/${createRes.body._id}/products/0`)
+      .send({ profitPercent: 30 });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.productList[0]).toMatchObject({
+      importPriceSnapshot: '100',
+      profitPercent: 30,
+      price: '130'
+    });
+    expect(updateRes.body.total).toBe('260');
+
+    const unchangedProduct = await Product.findById(product._id).lean();
+    expect(unchangedProduct.variant[0]).toMatchObject({
+      importPrice: '200',
+      earn: 50,
+      price: '300'
+    });
+  });
+
+  it('keeps legacy line pricing visible after adding another product', async () => {
+    const agent = await createAdminAgent();
+    const legacyProduct = await createProduct({
+      importPrice: '5480000',
+      earn: 0,
+      price: '5480000'
+    });
+    const addedProduct = await createProduct({
+      importPrice: '100000',
+      earn: 20,
+      price: '120000'
+    });
+    const order = await createEpOrder({
+      orderName: 'Legacy pricing',
+      productList: [{
+        productId: legacyProduct._id.toString(),
+        price: '',
+        unit: 'cai',
+        quantity: 1,
+        quantityEx: 0,
+        status: false
+      }]
+    });
+
+    const addRes = await agent
+      .post(`/eporders/orders/${order._id}/products`)
+      .send({
+        productId: addedProduct._id.toString(),
+        unit: 'cai',
+        quantity: 1,
+        quantityEx: 0,
+        status: false
+      });
+
+    expect(addRes.status).toBe(200);
+    expect(addRes.body.productList[0]).toMatchObject({
+      importPriceSnapshot: '5480000',
+      profitPercent: 0,
+      price: '5480000'
+    });
+    expect(addRes.body.productList[1]).toMatchObject({
+      importPriceSnapshot: '100000',
+      profitPercent: 20,
+      price: '120000'
+    });
+    expect(addRes.body.total).toBe('5600000');
+
+    const persistedOrder = await EpOrder.findById(order._id).lean();
+    expect(persistedOrder.productList[0]).toMatchObject({
+      importPriceSnapshot: '5480000',
+      profitPercent: 0,
+      price: '5480000'
+    });
+  });
+
+  it.each([-1, 101])('rejects profit percent outside 0-100: %s', async (profitPercent) => {
+    const agent = await createAdminAgent();
+    const product = await createProduct({ importPrice: '100', earn: 20 });
+    const order = await createEpOrder({
+      orderName: 'Invalid profit',
+      productList: [{
+        productId: product._id.toString(),
+        price: '120',
+        importPriceSnapshot: '100',
+        profitPercent: 20,
+        unit: 'cai',
+        quantity: 1,
+        quantityEx: 0,
+        status: false
+      }]
+    });
+
+    const res = await agent
+      .put(`/eporders/orders/${order._id}/products/0`)
+      .send({ profitPercent });
+
+    expect(res.status).toBe(400);
+    const unchangedOrder = await EpOrder.findById(order._id).lean();
+    expect(unchangedOrder.productList[0]).toMatchObject({
+      importPriceSnapshot: '100',
+      profitPercent: 20,
+      price: '120'
+    });
+  });
+
   it('ticks one export order line and subtracts storage and sale quantities', async () => {
     const agent = await createAdminAgent();
     const product = await createProduct({ quantityInStorage: 10, quantityForSale: 8 });

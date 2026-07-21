@@ -31,7 +31,7 @@ Thumbs.db
 .codex-backups/
 
 # Backend uploads
-be/upload/
+# be/upload/ (Commented out to include uploads in deploy)
 
 # Backups and data archives
 backups/
@@ -46,4 +46,5 @@ wdata/
 /PROJECT_STATE.md
 /scripts/
 /skills/
+
 

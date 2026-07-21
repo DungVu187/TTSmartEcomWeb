@@ -312,8 +312,8 @@ function Dashboard() {
             ) : (
               <Swiper
                 modules={[Autoplay]}
-                spaceBetween={16}
-                slidesPerView={1}
+                spaceBetween={12}
+                slidesPerView={1.55}
                 loop={section1Products.length > 1}
                 autoplay={{
                   delay: 3000,
@@ -321,11 +321,13 @@ function Dashboard() {
                   pauseOnMouseEnter: true,
                 }}
                 breakpoints={{
-                  480: { slidesPerView: 2 },
-                  768: { slidesPerView: 3 },
-                  1024: { slidesPerView: 4 },
-                  1280: { slidesPerView: 5 },
-                  1440: { slidesPerView: 6 },
+                  390: { slidesPerView: 1.75 },
+                  480: { slidesPerView: 2.2 },
+                  761: { slidesPerView: 2, spaceBetween: 16 },
+                  768: { slidesPerView: 3, spaceBetween: 16 },
+                  1024: { slidesPerView: 4, spaceBetween: 16 },
+                  1280: { slidesPerView: 5, spaceBetween: 16 },
+                  1440: { slidesPerView: 6, spaceBetween: 16 },
                 }}
                 className="home-product-swiper"
               >
@@ -418,8 +420,8 @@ function Dashboard() {
               <Swiper
                 modules={[Navigation, Autoplay]}
                 navigation
-                spaceBetween={16}
-                slidesPerView={1}
+                spaceBetween={12}
+                slidesPerView={1.55}
                 loop={sec.products.length > 1}
                 autoplay={{
                   delay: 4000,
@@ -427,10 +429,12 @@ function Dashboard() {
                   pauseOnMouseEnter: true,
                 }}
                 breakpoints={{
-                  480: { slidesPerView: 2 },
-                  768: { slidesPerView: 3 },
-                  1024: { slidesPerView: 4 },
-                  1280: { slidesPerView: 5 },
+                  390: { slidesPerView: 1.75 },
+                  480: { slidesPerView: 2.2 },
+                  761: { slidesPerView: 2, spaceBetween: 16 },
+                  768: { slidesPerView: 3, spaceBetween: 16 },
+                  1024: { slidesPerView: 4, spaceBetween: 16 },
+                  1280: { slidesPerView: 5, spaceBetween: 16 },
                 }}
                 className="home-category-swiper"
               >

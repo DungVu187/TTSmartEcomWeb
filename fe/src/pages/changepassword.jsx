@@ -1,198 +1,199 @@
-import React, { useState, useEffect } from 'react';
-import { useLanguage } from '../context/languagecontext.jsx';
+import React, { useMemo, useState } from "react";
 import {
-  Box,
   Button,
-  Container,
-  TextField,
-  Typography,
-  Paper,
+  IconButton,
   InputAdornment,
-  IconButton
-} from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+  TextField,
+} from "@mui/material";
+import {
+  InfoOutlined,
+  LockOutlined,
+  LockResetRounded,
+  ShieldOutlined,
+  VerifiedUserOutlined,
+  Visibility,
+  VisibilityOff,
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import { useLanguage } from "../context/languagecontext.jsx";
+import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
+import "./styles/changepassword.css";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const ChangePassword = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [phone, setPhone] = useState('');
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/users/profile`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await res.json();
-        if (res.ok && data.phone) {
-          setPhone(data.phone);
-        } else {
-          toast.error(t('failed_to_get_user_info', 'Không lấy được thông tin người dùng'));
-        }
-      } catch (error) {
-        console.error('Lỗi khi lấy profile:', error);
-        toast.error(t('failed_to_get_user_info', 'Không thể lấy thông tin người dùng'));
-      }
-    };
-    fetchProfile();
-  }, []);
+  const passwordScore = useMemo(() => {
+    if (!newPassword) return 0;
+    return [
+      newPassword.length >= 6,
+      newPassword.length >= 10,
+      /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword),
+      /\d/.test(newPassword),
+      /[^A-Za-z0-9]/.test(newPassword),
+    ].filter(Boolean).length;
+  }, [newPassword]);
 
-  const handleChangePassword = async () => {
+  const strength = useMemo(() => {
+    if (passwordScore <= 2) return { label: t("password_strength_weak", "Yếu"), tone: "weak" };
+    if (passwordScore === 3) return { label: t("password_strength_medium", "Trung bình"), tone: "medium" };
+    if (passwordScore === 4) return { label: t("password_strength_good", "Tốt"), tone: "good" };
+    return { label: t("password_strength_strong", "Mạnh"), tone: "strong" };
+  }, [passwordScore, t]);
+
+  const passwordsMismatch = confirmPassword !== "" && newPassword !== confirmPassword;
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
     if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error(t('fill_all_fields', 'Vui lòng nhập đầy đủ thông tin'));
+      toast.error(t("fill_all_fields", "Vui lòng nhập đầy đủ thông tin"));
       return;
     }
-    if (newPassword !== confirmPassword) {
-      toast.error(t('passwords_do_not_match', 'Mật khẩu mới không trùng khớp!'));
+    if (newPassword.length < 6) {
+      toast.error(t("password_minimum_length", "Mật khẩu phải có ít nhất 6 ký tự"));
       return;
     }
-    if (!phone) {
-      toast.error(t('phone_not_found', 'Không xác định được số điện thoại'));
+    if (passwordsMismatch) {
+      toast.error(t("passwords_do_not_match", "Mật khẩu mới không trùng khớp!"));
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/users/change-password`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
+      const response = await fetch(apiUrl + "/users/change-password", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
-
       const data = await response.json();
 
-      if (response.ok) {
-        toast.success(t('change_password_success', 'Đổi mật khẩu thành công'));
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        try {
-          await fetch(`${apiUrl}/users/logout`, { method: 'POST', credentials: 'include' });
-        } catch (e) {
-          // Bỏ qua lỗi logout, session cũ đã bị vô hiệu và vẫn cần đưa người dùng về đăng nhập.
+      if (!response.ok) {
+        if (response.status === 401) {
+          toast.error(t("session_expired", "Phiên đăng nhập đã hết hạn"));
+          navigate("/login?redirect=" + encodeURIComponent("/change-password"));
+          return;
         }
-        setTimeout(() => navigate('/login'), 1200);
-      } else {
-        toast.error(data.message || t('change_password_failed', 'Đổi mật khẩu thất bại'));
+        throw new Error(data.message || t("change_password_failed", "Đổi mật khẩu thất bại"));
       }
+
+      toast.success(t("change_password_success", "Đổi mật khẩu thành công"));
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      try {
+        await fetch(apiUrl + "/users/logout", { method: "POST", credentials: "include" });
+      } catch (logoutError) {
+        console.error("Không thể xóa phiên sau khi đổi mật khẩu:", logoutError);
+      }
+      window.setTimeout(() => navigate("/login"), 1200);
     } catch (error) {
-      console.error('Lỗi khi đổi mật khẩu:', error);
-      toast.error(t('server_error', 'Lỗi máy chủ, thử lại sau'));
+      toast.error(error.message || t("server_error", "Lỗi máy chủ, thử lại sau"));
     } finally {
       setLoading(false);
     }
   };
 
+  const visibilityButton = (visible, toggle, label) => (
+    <InputAdornment position="end">
+      <IconButton aria-label={label} onClick={toggle} edge="end">
+        {visible ? <VisibilityOff /> : <Visibility />}
+      </IconButton>
+    </InputAdornment>
+  );
+
   return (
-    <Box sx={{ width: '100%', minHeight: '100vh', backgroundColor: '#ebf6fe', py: 8 }}>
-      <Container maxWidth="sm">
-        <Paper sx={{ p: 4, boxShadow: 'none' }}>
-          <Typography variant="h5" gutterBottom>
-            {t('change_password')}
-          </Typography>
+    <AccountLayout
+      title={t("change_password", "Đổi mật khẩu")}
+      description={t("change_password_description", "Vui lòng tạo mật khẩu mới để bảo vệ tài khoản của bạn.")}
+    >
+      <section className="change-password-panel">
+        <form className="change-password-form" onSubmit={handleChangePassword}>
+          <div className="change-password-field-row">
+            <span className="change-password-field-icon"><LockOutlined /></span>
+            <div className="change-password-field-content">
+              <label htmlFor="current-password">{t("current_password", "Mật khẩu hiện tại")}</label>
+              <TextField
+                id="current-password"
+                type={showCurrentPassword ? "text" : "password"}
+                placeholder={t("current_password_placeholder", "Nhập mật khẩu hiện tại")}
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                fullWidth
+                autoComplete="current-password"
+                InputProps={{ endAdornment: visibilityButton(showCurrentPassword, () => setShowCurrentPassword((visible) => !visible), t("toggle_password_visibility", "Hiện hoặc ẩn mật khẩu")) }}
+              />
+            </div>
+          </div>
 
-          <TextField
-            label={t('current_password')}
-            type={showCurrentPassword ? 'text' : 'password'}
-            fullWidth
-            size="small"
-            margin="normal"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    edge="end"
-                  >
-                    {showCurrentPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
+          <div className="change-password-field-row">
+            <span className="change-password-field-icon"><LockResetRounded /></span>
+            <div className="change-password-field-content">
+              <label htmlFor="new-password">{t("new_password", "Mật khẩu mới")}</label>
+              <TextField
+                id="new-password"
+                type={showNewPassword ? "text" : "password"}
+                placeholder={t("new_password_placeholder", "Nhập mật khẩu mới")}
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                fullWidth
+                autoComplete="new-password"
+                InputProps={{ endAdornment: visibilityButton(showNewPassword, () => setShowNewPassword((visible) => !visible), t("toggle_password_visibility", "Hiện hoặc ẩn mật khẩu")) }}
+              />
+              <div className={"password-strength is-" + strength.tone}>
+                <div className="password-strength-heading">
+                  <span>{t("password_strength", "Độ mạnh mật khẩu")}:</span>
+                  <strong>{newPassword ? strength.label : "—"}</strong>
+                </div>
+                <div className="password-strength-bars" aria-hidden="true">
+                  {[1, 2, 3, 4, 5].map((bar) => <span className={bar <= passwordScore ? "is-filled" : ""} key={bar} />)}
+                </div>
+              </div>
+              <p className="password-rule-note"><InfoOutlined />{t("password_rule_note", "Mật khẩu phải có ít nhất 6 ký tự; nên kết hợp chữ hoa, chữ thường, số và ký tự đặc biệt.")}</p>
+            </div>
+          </div>
 
-          <TextField
-            label={t('new_password')}
-            type={showNewPassword ? 'text' : 'password'}
-            fullWidth
-            size="small"
-            margin="normal"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    edge="end"
-                  >
-                    {showNewPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
+          <div className="change-password-field-row">
+            <span className="change-password-field-icon"><ShieldOutlined /></span>
+            <div className="change-password-field-content">
+              <label htmlFor="confirm-password">{t("confirm_new_password", "Xác nhận mật khẩu mới")}</label>
+              <TextField
+                id="confirm-password"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder={t("confirm_password_placeholder", "Nhập lại mật khẩu mới")}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                fullWidth
+                autoComplete="new-password"
+                error={passwordsMismatch}
+                helperText={passwordsMismatch ? t("passwords_do_not_match", "Mật khẩu mới không trùng khớp") : ""}
+                InputProps={{ endAdornment: visibilityButton(showConfirmPassword, () => setShowConfirmPassword((visible) => !visible), t("toggle_password_visibility", "Hiện hoặc ẩn mật khẩu")) }}
+              />
+            </div>
+          </div>
 
-          <TextField
-            label={t('confirm_new_password')}
-            type={showConfirmPassword ? 'text' : 'password'}
-            fullWidth
-            size="small"
-            margin="normal"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            error={confirmPassword !== '' && newPassword !== confirmPassword}
-            helperText={confirmPassword !== '' && newPassword !== confirmPassword ? t('passwords_do_not_match') : ''}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                  >
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            sx={{ mt: 2 }}
-            onClick={handleChangePassword}
-            disabled={loading || (confirmPassword !== '' && newPassword !== confirmPassword)}
-          >
-            {loading ? t('processing') : t('change_password')}
+          <Button className="change-password-submit" type="submit" variant="contained" disabled={loading} startIcon={<LockOutlined />}>
+            {loading ? t("processing", "Đang xử lý...") : t("change_password", "Đổi mật khẩu")}
           </Button>
-        </Paper>
-      </Container>
-    </Box>
+        </form>
+      </section>
+
+      <div className="change-password-security-note">
+        <span />
+        <VerifiedUserOutlined />
+        <p>{t("encrypted_security_note", "Thông tin của bạn được mã hóa và bảo mật tuyệt đối.")}</p>
+        <span />
+      </div>
+    </AccountLayout>
   );
 };
 

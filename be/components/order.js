@@ -367,16 +367,16 @@ const handleInvoiceUpload = (req, res, next) => {
 // API lấy danh sách đơn hàng với phân trang
 router.get("/", [authenticateAdmin, checkPermission('order.view')], async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
-      payment, 
-      state, 
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      payment,
+      state,
       phone,
       name,
-      startDate, 
-      endDate, 
+      startDate,
+      endDate,
       id,
       byCompletedDate,
     } = req.query;
@@ -604,7 +604,7 @@ router.post("/admin-create-order", [authenticateAdmin, checkPermission('order.cr
         { $inc: { seq: 1 } },
         { new: true, upsert: true }
       );
-      const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+      const orderCode = `TTS-${String(counter.seq).padStart(2, '0')}`;
 
       savedOrder = await new Order({
         orderCode,
@@ -647,7 +647,7 @@ router.post("/admin-draft", [authenticateAdmin, checkPermission('order.create')]
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
     );
-    const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+    const orderCode = `TTS-${String(counter.seq).padStart(2, '0')}`;
 
     const savedOrder = await new Order({
       orderCode,
@@ -976,7 +976,10 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy người dùng." });
     }
 
-    const normalizedStationCode = String(stationCode || "").trim();
+    const requiresCustomerStation = orderingUser.role === "customer";
+    const normalizedStationCode = requiresCustomerStation
+      ? String(stationCode || "").trim()
+      : "";
     const selectedStation = normalizedStationCode
       ? await Station.findOne({ stationCode: normalizedStationCode })
       : null;
@@ -1004,13 +1007,13 @@ router.post("/create-order", authenticateUser, async (req, res) => {
 
     let savedOrder;
     try {
-      // Tự tăng số thứ tự và tạo mã dạng TTSM-01
+      // Tự tăng số thứ tự và tạo mã dạng TTS-01
       const counter = await Counter.findOneAndUpdate(
         { id: "orderCode" },
         { $inc: { seq: 1 } },
         { new: true, upsert: true }
       );
-      const orderCode = `TTSM-${String(counter.seq).padStart(2, '0')}`;
+      const orderCode = `TTS-${String(counter.seq).padStart(2, '0')}`;
 
       savedOrder = await new Order({
         orderCode,
@@ -1022,7 +1025,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
     } catch (error) {
       await rollbackOrThrow(appliedAdjustments, error);
     }
-    
+
     try {
       if (preparedOrder.cartItems.length > 0) {
         orderingUser.cart = orderingUser.cart.filter((cartItem) => {
@@ -1104,7 +1107,7 @@ router.post("/create-order", authenticateUser, async (req, res) => {
       total: preparedOrder.total,
       createdAt: savedOrder.createdAt,
     });
-    
+
     res.status(201).json({
       message: "Đặt hàng thành công",
       order: savedOrder,

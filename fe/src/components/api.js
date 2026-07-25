@@ -1,5 +1,6 @@
 import axios from "axios";
 import { toast } from "react-hot-toast";
+import { getStoredTranslation } from "../context/languagecontext.jsx";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACK_END,
@@ -19,7 +20,7 @@ api.interceptors.response.use(
       error.response.data?.message?.includes("Token không hợp lệ");
 
     if (error.response?.status === 401 || isInvalidToken) {
-      toast.error("Token đã hết hạn, bạn cần đăng nhập lại");
+      toast.error(getStoredTranslation("token_expired_login"));
       window.location.href =
         "/login?redirect=" +
         encodeURIComponent(window.location.pathname + window.location.search);

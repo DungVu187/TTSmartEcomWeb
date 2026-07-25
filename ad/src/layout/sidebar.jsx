@@ -34,6 +34,7 @@ import TocIcon from '@mui/icons-material/Toc';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import ShoppingCartCheckoutIcon from "@mui/icons-material/ShoppingCartCheckout";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
+import PolicyOutlinedIcon from "@mui/icons-material/PolicyOutlined";
 import toast from "react-hot-toast";
 import { useOrderContext } from "../context/ordercontext";
 import { usePermissions } from "../context/permissioncontext";
@@ -255,8 +256,15 @@ const Sidebar = () => {
       icon: <ManageIcon />,
       subItems: stationSubItems,
     },
-    can("storefront.manage") && { text: "Nội dung trang chủ", path: "/manage", icon: <ManageIcon /> },
-    can("storefront.manage") && { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
+    can("storefront.manage") && {
+      text: "Quản lý trang chủ",
+      icon: <ManageIcon />,
+      subItems: [
+        { text: "Nội dung trang chủ", path: "/manage", icon: <ManageIcon /> },
+        { text: "Hiển thị sản phẩm", path: "/sectiondisplay", icon: <DisplayIcon /> },
+        { text: "Chính sách", path: "/policies", icon: <PolicyOutlinedIcon /> },
+      ],
+    },
     isAdminOrSuperadmin && {
       text: "Phân quyền",
       path: "/account",

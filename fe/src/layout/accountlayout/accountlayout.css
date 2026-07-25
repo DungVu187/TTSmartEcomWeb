@@ -1,18 +1,18 @@
 .account-layout-page {
   width: 100%;
-  min-height: 100vh;
-  padding: 28px 24px 48px;
-  background: radial-gradient(circle at 9% 9%, rgba(60, 117, 246, .08), transparent 25%), radial-gradient(circle at 93% 34%, rgba(91, 149, 255, .07), transparent 25%), #f7f9fd;
+  min-height: 650px;
+  padding: 30px 0 58px;
+  background: radial-gradient(circle at 78% 0%, rgba(61, 132, 229, .09), transparent 30%), linear-gradient(180deg, #f7faff 0%, #f3f7fc 100%);
   color: #10203b;
 }
 
 .account-layout-shell {
-  width: min(1510px, 100%);
+  width: min(1380px, calc(100% - 56px));
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 285px minmax(0, 1fr);
   grid-template-rows: auto auto;
-  column-gap: 26px;
+  column-gap: 20px;
   row-gap: 0;
   align-items: start;
 }
@@ -21,12 +21,12 @@
   grid-column: 1;
   grid-row: 2;
   position: sticky;
-  top: 126px;
-  padding: 20px 16px 16px;
-  border: 1px solid #e4eaf3;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, .94);
-  box-shadow: 0 14px 40px rgba(25, 55, 97, .06);
+  top: 18px;
+  padding: 17px 13px 13px;
+  border: 1px solid #e1e8f1;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 8px 28px rgba(30, 68, 114, .07);
 }
 
 .account-sidebar-heading {
@@ -104,28 +104,29 @@
 .account-support-card span { font-size: 12px; font-weight: 700; }
 .account-support-card strong { font-size: 15px; letter-spacing: .02em; }
 .account-layout-main { min-width: 0; grid-column: 2; grid-row: 2; }
-.account-page-header { grid-column: 2; grid-row: 1; margin: 2px 0 26px; }
+.account-page-header { grid-column: 1 / -1; grid-row: 1; margin: 0 0 22px; }
 
 .account-breadcrumb {
-  margin-bottom: 9px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #7a8ba6;
-  font-size: 13px;
-  font-weight: 600;
+  color: #8491a3;
+  font-size: 14px;
+  font-weight: 400;
 }
 
 .account-breadcrumb a { color: inherit; text-decoration: none; }
 .account-breadcrumb a:hover { color: #2e65df; }
-.account-page-header h1 { margin: 0; color: #10203b; font-size: clamp(27px, 2.2vw, 34px); line-height: 1.2; letter-spacing: -.025em; }
-.account-page-header p { max-width: 760px; margin: 8px 0 0; color: #71819a; font-size: 14px; line-height: 1.6; }
+.account-page-header h1 { margin: 0; color: #162b4a; font-size: 30px; line-height: 1.2; letter-spacing: -.02em; }
+.account-page-header p { max-width: 760px; margin: 8px 0 0; color: #65748a; font-size: 15px; line-height: 1.65; }
 
 @media (max-width: 1080px) {
-  .account-layout-page { padding: 22px 18px 42px; }
+  .account-layout-page { padding: 24px 0 42px; }
+  .account-layout-shell { width: calc(100% - 36px); }
   .account-layout-shell { grid-template-columns: 1fr; grid-template-rows: auto auto auto; column-gap: 0; row-gap: 0; }
-  .account-sidebar { grid-column: 1; grid-row: 1; position: static; padding: 12px; margin-bottom: 22px; }
-  .account-page-header { grid-column: 1; grid-row: 2; }
+  .account-page-header { grid-column: 1; grid-row: 1; }
+  .account-sidebar { grid-column: 1; grid-row: 2; position: static; padding: 12px; margin-bottom: 22px; }
   .account-layout-main { grid-column: 1; grid-row: 3; }
   .account-sidebar-heading { min-height: 46px; padding: 0 5px 11px; }
   .account-sidebar-menu { padding: 10px 0 0; flex-direction: row; overflow-x: auto; border-bottom: 0; scrollbar-width: none; }
@@ -136,7 +137,8 @@
 }
 
 @media (max-width: 760px) {
-  .account-layout-page { padding: 8px 8px 22px; }
+  .account-layout-page { padding: 18px 0 92px; background: #f6f8fc; }
+  .account-layout-shell { width: calc(100% - 28px); }
   .account-layout-shell { row-gap: 0; }
   .account-sidebar { padding: 0; margin-bottom: 12px; overflow: hidden; border-radius: 14px; box-shadow: 0 6px 20px rgba(25, 55, 97, .05); }
   .account-sidebar-heading { min-height: 50px; padding: 8px 12px; border-bottom: 1px solid #e7edf5; font-size: 14px; }
@@ -147,8 +149,8 @@
   .account-sidebar-link svg { font-size: 16px; }
   .account-sidebar-link:nth-child(n + 4) { display: none; }
   .account-sidebar-link.is-active { background: #eef3ff; }
-  .account-page-header { margin: 0 2px 14px; }
-  .account-breadcrumb { margin-bottom: 5px; gap: 6px; font-size: 11px; }
-  .account-page-header h1 { font-size: 23px; line-height: 1.18; }
-  .account-page-header p { margin-top: 5px; font-size: 12px; line-height: 1.45; }
+  .account-page-header { margin: 0 0 18px; }
+  .account-breadcrumb { margin-bottom: 7px; gap: 6px; font-size: 11px; }
+  .account-page-header h1 { font-size: 26px; line-height: 1.18; }
+  .account-page-header p { margin-top: 6px; font-size: 14px; line-height: 1.55; }
 }

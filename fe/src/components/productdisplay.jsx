@@ -31,11 +31,11 @@ const withImageVersion = (url, version) => {
   return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
 };
 
-const variantFilterLabels = {
-  color: "Màu sắc",
-  shape: "Hình dạng",
-  frame: "Khung",
-  buttonCount: "Số nút",
+const variantFilterLabelKeys = {
+  color: "color_label",
+  shape: "shape_label",
+  frame: "frame_label",
+  buttonCount: "button_count",
 };
 
 function ProductDisplay() {
@@ -98,11 +98,11 @@ function ProductDisplay() {
       setFilters({ color: "", shape: "", frame: "", buttonCount: "" });
     } catch (error) {
       console.error("Error fetching product:", error);
-      toast.error("Không thể tải thông tin sản phẩm");
+      toast.error(t("failed_to_load_product"));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   const fetchReviews = useCallback(async () => {
     try {
@@ -119,9 +119,9 @@ function ProductDisplay() {
         : { comment: "", rating: 5 });
     } catch (error) {
       console.error("Error fetching reviews:", error);
-      toast.error("Không thể tải đánh giá sản phẩm");
+      toast.error(t("failed_to_load_reviews"));
     }
-  }, [productId, userEmail]);
+  }, [productId, t, userEmail]);
 
   useEffect(() => {
     fetchUserProfile();
@@ -195,7 +195,7 @@ function ProductDisplay() {
     );
 
     if (!matchingVariant) {
-      toast.error("Sản phẩm không tồn tại");
+      toast.error(t("product_does_not_exist"));
       newFilters[filterKey] = "";
     } else {
       setSelectedVariant(matchingVariant);
@@ -334,19 +334,19 @@ function ProductDisplay() {
   const isContactOnly = isContactOnlyVariant(selectedVariant);
   const productImage = withImageVersion(selectedVariant?.imgUrl, product.updatedAt || product._id);
   const variantRows = [
-    ["Mã sản phẩm", product.code],
-    ["Hãng sản xuất", product.brand],
-    ["Loại sản phẩm", product.type],
-    ["Màu sắc", selectedVariant?.color],
-    ["Hình dạng", selectedVariant?.shape],
-    ["Khung", selectedVariant?.frame],
-    ["Số nút", selectedVariant?.buttonCount],
+    [t("product_code_label"), product.code],
+    [t("manufacturer_label"), product.brand],
+    [t("product_type_summary_label"), product.type],
+    [t("color_label"), selectedVariant?.color],
+    [t("shape_label"), selectedVariant?.shape],
+    [t("frame_label"), selectedVariant?.frame],
+    [t("button_count"), selectedVariant?.buttonCount],
   ].filter(([, value]) => value);
 
   return (
     <main className="product-detail-page">
       <div className="product-detail-shell">
-        <nav className="product-detail-breadcrumb" aria-label="Breadcrumb">
+        <nav className="product-detail-breadcrumb" aria-label={t("breadcrumb")}>
           <Link to="/"><i className="fa-solid fa-house" /> {t("home")}</Link>
           <i className="fa-solid fa-angle-right" />
           <Link to="/product">{t("products")}</Link>
@@ -361,9 +361,9 @@ function ProductDisplay() {
               <div className="product-gallery-main">
                 <SafeProductImage src={productImage} alt={product.name} className="product-main-canvas" />
                 <div className="product-gallery-benefits">
-                  <span><i className="fa-solid fa-expand" /> Ảnh thật 100%</span>
-                  <span><i className="fa-solid fa-shield-halved" /> Bảo hành chính hãng</span>
-                  <span><i className="fa-solid fa-rotate" /> Đổi trả theo chính sách</span>
+                  <span><i className="fa-solid fa-expand" /> {t("real_image_100")}</span>
+                  <span><i className="fa-solid fa-shield-halved" /> {t("official_warranty")}</span>
+                  <span><i className="fa-solid fa-rotate" /> {t("return_by_policy")}</span>
                 </div>
               </div>
             </div>
@@ -375,15 +375,15 @@ function ProductDisplay() {
             <div className="product-rating-line">
               <strong>{Number(product.averageReviews || 0).toFixed(1)}</strong>
               <Rating value={Number(product.averageReviews || 0)} readOnly precision={0.5} size="small" />
-              <span>({product.reviewCount || reviews.length} đánh giá)</span>
+              <span>({product.reviewCount || reviews.length} {t("reviews_suffix")})</span>
               <i />
-              <span>Đã bán {product.purchaseCount || 0}</span>
+              <span>{t("sold_label")} {product.purchaseCount || 0}</span>
             </div>
             <div className="product-price-line">
               <strong>{formatVariantPrice(selectedVariant)}</strong>
-              <span className={isOutOfStock ? "is-out" : "is-in"}>{isOutOfStock ? t("out_of_stock_val") : "Còn hàng"}</span>
+              <span className={isOutOfStock ? "is-out" : "is-in"}>{isOutOfStock ? t("out_of_stock_val") : t("in_stock")}</span>
             </div>
-            <p className="product-vat-note">Giá chưa bao gồm VAT</p>
+            <p className="product-vat-note">{t("vat_excluded")}</p>
 
             {variantRows.length > 0 && (
               <div className="product-summary-list">
@@ -392,12 +392,12 @@ function ProductDisplay() {
             )}
 
             <div className="product-variant-filters">
-              {Object.entries(variantFilterLabels).map(([key, label]) => {
+              {Object.entries(variantFilterLabelKeys).map(([key, labelKey]) => {
                 const values = Array.from(activeValues[key] || []).filter(Boolean);
                 if (values.length === 0) return null;
                 return (
                   <div className="product-variant-filter" key={key}>
-                    <span>{label}</span>
+                    <span>{t(labelKey)}</span>
                     <div>{values.map((value) => (
                       <button
                         type="button"
@@ -418,7 +418,7 @@ function ProductDisplay() {
                 <span>{qty}</span>
                 <button type="button" onClick={() => setQty((current) => current + 1)}>+</button>
               </div>
-              <small>{isContactOnly ? t("contact_only_product") : `Còn ${selectedVariant.quantityForSale} sản phẩm`}</small>
+              <small>{isContactOnly ? t("contact_only_product") : t("remaining_products").replace("{count}", selectedVariant.quantityForSale)}</small>
             </div>
 
             {isContactOnly ? (
@@ -428,39 +428,39 @@ function ProductDisplay() {
             ) : (
               <div className="product-primary-actions">
                 <Button variant="contained" onClick={handleAddToCart} startIcon={<ShoppingCartIcon />}>{t("add_to_cart")}</Button>
-                <Button variant="outlined" onClick={handleBuyNow}><i className="fa-solid fa-bolt" /> Mua ngay</Button>
+                <Button variant="outlined" onClick={handleBuyNow}><i className="fa-solid fa-bolt" /> {t("buy_now")}</Button>
               </div>
             )}
 
             <div className="product-contact-actions">
-              <a href="tel:0813158383"><i className="fa-solid fa-phone" /> Gọi ngay 0813.15.83.83</a>
-              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><i className="fa-regular fa-comment-dots" /> Chat Zalo</a>
-              <a href="mailto:ttsmart.ltd@gmail.com"><i className="fa-regular fa-envelope" /> Gửi email</a>
+              <a href="tel:0813158383"><i className="fa-solid fa-phone" /> {t("call_now")}</a>
+              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><i className="fa-regular fa-comment-dots" /> {t("chat_zalo")}</a>
+              <a href="mailto:ttsmart.ltd@gmail.com"><i className="fa-regular fa-envelope" /> {t("send_email")}</a>
             </div>
           </div>
 
           <aside className="product-service-column">
             <div className="product-service-card">
               <h2>{t("customer_support")}</h2>
-              <a href="tel:0813158383"><SmartphoneIcon /> Đường dây nóng&nbsp; 0813.15.83.83</a>
+              <a href="tel:0813158383"><SmartphoneIcon /> {t("hotline_number")}</a>
               <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><img src="/icons8-zalo.svg" alt="" /> {t("contact_zalo")}</a>
               <a href="mailto:ttsmart.ltd@gmail.com"><MailOutlineIcon /> {t("send_email")}</a>
               <Link to="/policy"><HelpOutlineIcon /> {t("faqs")}</Link>
             </div>
             <div className="product-service-card">
-              <h2>Cam kết từ TTSmart</h2>
+              <h2>{t("ttsmart_commitment")}</h2>
               <span><VerifiedIcon /> {t("genuine_100")}</span>
               <span><BeenhereIcon /> {t("genuine_warranty_label")}</span>
               <span><UndoOutlinedIcon /> {t("return_3_days")}</span>
-              <span><i className="fa-solid fa-truck-fast" /> Giao hàng toàn quốc</span>
-              <span><i className="fa-solid fa-headset" /> Hỗ trợ kỹ thuật 24/7</span>
+              <span><i className="fa-solid fa-truck-fast" /> {t("nationwide_delivery")}</span>
+              <span><i className="fa-solid fa-headset" /> {t("technical_support_247")}</span>
             </div>
           </aside>
         </section>
 
         {relatedProducts.length > 0 && (
           <section className="related-products-card">
-            <div className="related-products-heading"><h2>Sản phẩm liên quan</h2><Link to={`/product?type=${encodeURIComponent(product.type || "")}`}>Xem tất cả</Link></div>
+            <div className="related-products-heading"><h2>{t("related_products")}</h2><Link to={`/product?type=${encodeURIComponent(product.type || "")}`}>{t("view_all")}</Link></div>
             <div className="related-products-grid">
               {relatedProducts.map((item) => {
                 const variant = item.variant?.[0] || {};
@@ -472,7 +472,7 @@ function ProductDisplay() {
                       alt={item.name}
                       className="related-product-canvas"
                     />
-                    <div><h3>{item.name}</h3><strong>{formatVariantPrice(variant)}</strong><Rating value={Number(item.averageReviews || 0)} readOnly size="small" /><span className={`related-product-status ${inStock ? "is-in" : "is-out"}`}>{inStock ? "Còn hàng" : t("out_of_stock_val")}</span></div>
+                    <div><h3>{item.name}</h3><strong>{formatVariantPrice(variant)}</strong><Rating value={Number(item.averageReviews || 0)} readOnly size="small" /><span className={`related-product-status ${inStock ? "is-in" : "is-out"}`}>{inStock ? t("in_stock") : t("out_of_stock_val")}</span></div>
                   </Link>
                 );
               })}
@@ -491,7 +491,7 @@ function ProductDisplay() {
                 {product.features && <section><h2>{t("features")}</h2><p>{product.features}</p></section>}
                 {product.operatingMethod && <section><h2>{t("operating_method")}</h2><p>{product.operatingMethod}</p></section>}
                 {product.advantages && <section><h2>{t("advantages")}</h2><p>{product.advantages}</p></section>}
-                {!product.description && !product.features && !product.operatingMethod && !product.advantages && <p>Thông tin sản phẩm đang được cập nhật.</p>}
+                {!product.description && !product.features && !product.operatingMethod && !product.advantages && <p>{t("product_info_updating")}</p>}
               </div>
             )}
 
@@ -512,14 +512,14 @@ function ProductDisplay() {
                       rel="noreferrer"
                     >
                       <i className={`fa-regular ${document.sourceType === "file" ? "fa-file-pdf" : "fa-file-lines"}`} />
-                      {document.label?.trim() || (document.sourceType === "file" ? "Tài liệu PDF" : "Tài liệu kỹ thuật")}
+                      {document.label?.trim() || (document.sourceType === "file" ? t("pdf_document") : t("technical_document"))}
                     </a>
                   ))
                 ) : (
                   <>
-                    {product.infoDoc.manual?.trim() && <a href={product.infoDoc.manual} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> Manual</a>}
-                    {product.infoDoc.dataSheet?.trim() && <a href={product.infoDoc.dataSheet} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> Data sheet</a>}
-                    {product.infoDoc.catalog?.trim() && <a href={product.infoDoc.catalog} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> Catalog</a>}
+                    {product.infoDoc.manual?.trim() && <a href={product.infoDoc.manual} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("manual_label")}</a>}
+                    {product.infoDoc.dataSheet?.trim() && <a href={product.infoDoc.dataSheet} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("datasheet_label")}</a>}
+                    {product.infoDoc.catalog?.trim() && <a href={product.infoDoc.catalog} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("catalog_label")}</a>}
                     {product.infoDoc.others?.trim() && <a href={product.infoDoc.others} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("other_documents")}</a>}
                   </>
                 )}
@@ -553,23 +553,23 @@ function ProductDisplay() {
       <div className="product-mobile-action-bar">
         <a className="product-mobile-action-link" href="https://zalo.me/0813158383" target="_blank" rel="noreferrer">
           <i className="fa-regular fa-comment-dots" />
-          <span>Chat</span>
+          <span>{t("chat")}</span>
         </a>
         <a className="product-mobile-action-link" href="tel:0813158383">
           <i className="fa-solid fa-phone" />
-          <span>Gọi</span>
+          <span>{t("call")}</span>
         </a>
         {isContactOnly ? (
           <a className="product-mobile-contact-button" href="tel:0913158383">
-            Liên hệ báo giá
+            {t("contact_for_quote")}
           </a>
         ) : (
           <>
             <button type="button" className="product-mobile-cart-button" onClick={handleAddToCart} disabled={isOutOfStock}>
-              Thêm vào giỏ
+              {t("add_to_cart_short")}
             </button>
             <button type="button" className="product-mobile-buy-button" onClick={handleBuyNow} disabled={isOutOfStock}>
-              Mua ngay
+              {t("buy_now")}
             </button>
           </>
         )}

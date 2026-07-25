@@ -47,6 +47,7 @@ function App() {
                   <Route path="/myorder" element={<MyOrder />} />
                   <Route path="/introduction" element={<Intro />} />
                   <Route path="/policy" element={<Policy />} />
+                  <Route path="/policy/:policyKey" element={<Policy />} />
                   <Route path="/section/:sectionName" element={<ValueList />} />
                   <Route path="/station" element={<Station />} />
                   <Route path="/station/:code" element={<StationDisplay />} />

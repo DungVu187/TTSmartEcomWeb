@@ -7,10 +7,12 @@ import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const VoiceSearchFAB = () => {
+  const { t } = useLanguage();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -62,7 +64,7 @@ const VoiceSearchFAB = () => {
 
   const startRecording = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast.error("Trình duyệt yêu cầu kết nối bảo mật HTTPS hoặc Localhost để sử dụng Micro!", {
+      toast.error(t("microphone_secure_required"), {
         duration: 5000
       });
       return;
@@ -100,7 +102,7 @@ const VoiceSearchFAB = () => {
         });
 
         if (audioBlob.size < 1000) {
-          toast.error("Vui lòng nói lâu hơn một chút trước khi bấm dừng!");
+          toast.error(t("speak_longer"));
           setIsProcessing(false);
           return;
         }
@@ -109,7 +111,7 @@ const VoiceSearchFAB = () => {
       };
 
       mediaRecorder.start();
-      toast.success("Đang lắng nghe... Bấm lại nút micro khi nói xong.", {
+      toast.success(t("listening_instructions"), {
         id: "voice-status-fe",
         duration: 3000,
       });
@@ -120,7 +122,7 @@ const VoiceSearchFAB = () => {
 
     } catch (err) {
       console.error("Lỗi truy cập micro:", err);
-      toast.error("Không thể mở micro. Vui lòng cấp quyền micro cho trang web.");
+      toast.error(t("microphone_permission_error"));
       setIsRecording(false);
     } finally {
       isStartingRef.current = false;
@@ -140,7 +142,7 @@ const VoiceSearchFAB = () => {
   };
 
   const sendAudioToAPI = async (audioBlob) => {
-    toast.loading("Đang xử lý giọng nói...", { id: "voice-status-fe" });
+    toast.loading(t("processing_voice"), { id: "voice-status-fe" });
     try {
       const formData = new FormData();
       formData.append("audio", audioBlob, "query.webm");
@@ -157,7 +159,7 @@ const VoiceSearchFAB = () => {
         const keyword = data.keyword || "";
         const filters = data.filters || {};
         
-        toast.success(`Tìm kiếm: "${keyword || data.transcript}"`, {
+        toast.success(`${t("search_result_prefix")}: "${keyword || data.transcript}"`, {
           id: "voice-status-fe",
           duration: 3000,
         });
@@ -172,11 +174,11 @@ const VoiceSearchFAB = () => {
 
         navigate(`/product?${params.toString()}`);
       } else {
-        throw new Error(data.message || "Không phân tích được âm thanh.");
+        throw new Error("audio_parse_failed");
       }
     } catch (err) {
       console.error("Lỗi voice-query API:", err);
-      toast.error(err.message || "Gặp lỗi khi xử lý giọng nói.", {
+      toast.error(err.message === "audio_parse_failed" ? t("audio_parse_failed") : t("voice_process_error"), {
         id: "voice-status-fe",
       });
     } finally {
@@ -190,12 +192,12 @@ const VoiceSearchFAB = () => {
     if (e) e.preventDefault();
     const query = textValue.trim();
     if (!query) {
-      toast.error("Vui lòng nhập câu tìm kiếm.");
+      toast.error(t("search_text_required"));
       return;
     }
 
     setIsProcessing(true);
-    toast.loading("Đang xử lý câu tìm kiếm...", { id: "voice-status-fe" });
+    toast.loading(t("processing_search"), { id: "voice-status-fe" });
     try {
       const response = await fetch(`${apiUrl}/products/voice-query-text`, {
         method: "POST",
@@ -210,7 +212,7 @@ const VoiceSearchFAB = () => {
         const keyword = data.keyword || "";
         const filters = data.filters || {};
 
-        toast.success(`Tìm kiếm: "${keyword || data.transcript}"`, {
+        toast.success(`${t("search_result_prefix")}: "${keyword || data.transcript}"`, {
           id: "voice-status-fe",
           duration: 3000,
         });
@@ -226,11 +228,11 @@ const VoiceSearchFAB = () => {
         setTextValue("");
         navigate(`/product?${params.toString()}`);
       } else {
-        throw new Error(data.message || "Không phân tích được câu tìm kiếm.");
+        throw new Error("text_parse_failed");
       }
     } catch (err) {
       console.error("Lỗi voice-query-text API:", err);
-      toast.error(err.message || "Gặp lỗi khi xử lý câu tìm kiếm.", {
+      toast.error(err.message === "text_parse_failed" ? t("text_parse_failed") : t("search_process_error"), {
         id: "voice-status-fe",
       });
     } finally {
@@ -275,7 +277,7 @@ const VoiceSearchFAB = () => {
         >
           <TextField
             variant="standard"
-            placeholder="Nhập câu tìm kiếm, vd: tìm van điện khí TTSM1"
+            placeholder={t("voice_search_placeholder")}
             value={textValue}
             onChange={(e) => setTextValue(e.target.value)}
             autoFocus
@@ -283,7 +285,7 @@ const VoiceSearchFAB = () => {
             InputProps={{ disableUnderline: true }}
             sx={{ width: { xs: 200, sm: 300 } }}
           />
-          <IconButton type="submit" color="primary" disabled={isProcessing} aria-label="Tìm kiếm">
+          <IconButton type="submit" color="primary" disabled={isProcessing} aria-label={t("search")}>
             {isProcessing ? <CircularProgress size={22} color="inherit" /> : <SearchIcon />}
           </IconButton>
         </Box>
@@ -292,7 +294,7 @@ const VoiceSearchFAB = () => {
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {/* Nút bật/tắt chế độ nhập chữ */}
         <Tooltip
-          title={textMode ? "Đóng ô nhập chữ" : "Nhập câu tìm kiếm bằng bàn phím"}
+          title={textMode ? t("close_text_input") : t("keyboard_search")}
           placement="top"
           arrow
         >
@@ -300,7 +302,7 @@ const VoiceSearchFAB = () => {
             size="small"
             color={textMode ? "error" : "default"}
             onClick={() => setTextMode((prev) => !prev)}
-            aria-label="Chuyển chế độ nhập chữ"
+            aria-label={t("switch_to_text_input")}
           >
             {textMode ? <CloseIcon /> : <KeyboardIcon />}
           </Fab>
@@ -309,10 +311,10 @@ const VoiceSearchFAB = () => {
         <Tooltip
           title={
             isRecording
-              ? "Bấm lại để dừng và tìm kiếm"
+              ? t("stop_and_search")
               : isProcessing
-              ? "Đang xử lý..."
-              : "Bấm để bắt đầu tìm kiếm bằng giọng nói"
+              ? t("processing")
+              : t("start_voice_search")
           }
           placement="top"
           arrow

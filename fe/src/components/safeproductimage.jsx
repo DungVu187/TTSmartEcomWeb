@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { getStoredTranslation } from "../context/languagecontext.jsx";
 
 function SafeProductImage({ src, alt, className = "" }) {
   const canvasRef = useRef(null);
@@ -89,7 +90,7 @@ function SafeProductImage({ src, alt, className = "" }) {
       ref={canvasRef}
       className={className}
       role="img"
-      aria-label={alt || "Ảnh sản phẩm"}
+      aria-label={alt || getStoredTranslation("product_image_alt")}
     />
   );
 }

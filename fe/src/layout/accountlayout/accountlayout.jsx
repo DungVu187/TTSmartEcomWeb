@@ -34,12 +34,11 @@ const AccountLayout = ({ title, description, children }) => {
     setLoggingOut(true);
     try {
       const response = await fetch(apiUrl + "/users/logout", { method: "POST", credentials: "include" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("logout_failed", "Đăng xuất thất bại"));
+      if (!response.ok) throw new Error(t("logout_failed"));
       toast.success(t("logout_success", "Đăng xuất thành công"));
       window.location.href = "/login";
-    } catch (error) {
-      toast.error(error.message || t("error_occurred", "Đã xảy ra lỗi"));
+    } catch {
+      toast.error(t("logout_failed"));
     } finally {
       setLoggingOut(false);
     }
@@ -48,6 +47,15 @@ const AccountLayout = ({ title, description, children }) => {
   return (
     <div className="account-layout-page">
       <div className="account-layout-shell">
+        <header className="account-page-header">
+          <div className="account-breadcrumb">
+            <Link to="/dashboard">{t("home", "Trang chủ")}</Link>
+            <span>/</span>
+            <span>{t("account", "Tài khoản")}</span>
+          </div>
+          <h1>{title}</h1>
+          {description && <p>{description}</p>}
+        </header>
         <aside className="account-sidebar" aria-label={t("account", "Tài khoản")}>
           <div className="account-sidebar-heading">
             <span className="account-sidebar-heading-icon"><AccountCircleOutlined /></span>
@@ -76,15 +84,6 @@ const AccountLayout = ({ title, description, children }) => {
             </div>
           </div>
         </aside>
-        <header className="account-page-header">
-          <div className="account-breadcrumb">
-            <Link to="/dashboard">{t("home", "Trang chủ")}</Link>
-            <span>/</span>
-            <span>{t("account", "Tài khoản")}</span>
-          </div>
-          <h1>{title}</h1>
-          {description && <p>{description}</p>}
-        </header>
         <main className="account-layout-main">
           {children}
         </main>

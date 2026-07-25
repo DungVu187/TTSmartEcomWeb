@@ -91,7 +91,7 @@ const ValueList = () => {
             textTransform: "uppercase",
           }}
         >
-          {t(sectionName)}
+          {sectionName}
         </Typography>
 
         {values.map((value) => {
@@ -109,7 +109,7 @@ const ValueList = () => {
                   gutterBottom
                   sx={{ margin: "10px 0 0 20px" }}
                 >
-                  {t(value)}
+                  {value}
                 </Typography>
                 <Table>
                   <TableHead>

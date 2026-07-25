@@ -5,12 +5,43 @@ const { ActivityLog } = require("./activitylog");
 const fs = require('fs').promises;
 const multer = require('multer');
 const path = require('path');
+const {
+    DEFAULT_POLICIES,
+    POLICY_KEYS,
+    createDefaultPolicies,
+    ensurePolicyTranslations,
+    normalizePoliciesPayload,
+    policyComparableValue,
+    storefrontPolicySchema,
+} = require('../config/policydefaults');
 require("dotenv").config();
 const router = express.Router();
+
+const STOREFRONT_LOCALES = ['vi', 'zh', 'en'];
+const localizedTextSchema = new mongoose.Schema({
+    vi: { type: String, default: '' },
+    zh: { type: String, default: '' },
+    en: { type: String, default: '' }
+}, { _id: false });
+
+const normalizeLocalizedText = (value, fallback = '', maxLength = 5000) => {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const normalized = {};
+    for (const locale of STOREFRONT_LOCALES) {
+        const rawValue = typeof source[locale] === 'string'
+            ? source[locale]
+            : locale === 'vi' && typeof fallback === 'string' ? fallback : '';
+        const text = rawValue.trim();
+        if (text.length > maxLength) return { error: `Nội dung ${locale} vượt quá độ dài cho phép` };
+        normalized[locale] = text;
+    }
+    return { value: normalized };
+};
 
 const homeCategoryItemSchema = new mongoose.Schema({
     id: { type: String, default: '' },
     label: { type: String, default: '' },
+    labelTranslations: { type: localizedTextSchema, default: () => ({}) },
     type: { type: String, default: '' },
     link: { type: String, default: '' },
     icon: { type: String, default: 'ri-tb-box-multiple' },
@@ -49,13 +80,22 @@ const manageSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    introductionTranslations: {
+        type: localizedTextSchema,
+        default: () => ({})
+    },
     mainPolicy: {
         type: String,
         default: ''
     },
+    policies: {
+        type: [storefrontPolicySchema],
+        default: createDefaultPolicies
+    },
     homeCategoryConfig: {
         configured: { type: Boolean, default: false },
         sidebarTitle: { type: String, default: 'Danh mục sản phẩm' },
+        sidebarTitleTranslations: { type: localizedTextSchema, default: () => ({}) },
         showSidebar: { type: Boolean, default: true },
         showQuickCategories: { type: Boolean, default: true },
         items: { type: [homeCategoryItemSchema], default: [] }
@@ -65,6 +105,7 @@ const manageSchema = new mongoose.Schema({
             type: String,
             default: ''
         },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: {
             type: [String],
             default: []
@@ -76,6 +117,7 @@ const manageSchema = new mongoose.Schema({
     },
     section2: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -83,6 +125,7 @@ const manageSchema = new mongoose.Schema({
     },
     section3: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -90,6 +133,7 @@ const manageSchema = new mongoose.Schema({
     },
     section4: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -97,6 +141,7 @@ const manageSchema = new mongoose.Schema({
     },
     section5: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -104,6 +149,7 @@ const manageSchema = new mongoose.Schema({
     },
     section6: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -111,6 +157,7 @@ const manageSchema = new mongoose.Schema({
     },
     section7: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -118,6 +165,7 @@ const manageSchema = new mongoose.Schema({
     },
     section8: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -125,6 +173,7 @@ const manageSchema = new mongoose.Schema({
     },
     section9: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -132,6 +181,7 @@ const manageSchema = new mongoose.Schema({
     },
     section10: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -139,6 +189,7 @@ const manageSchema = new mongoose.Schema({
     },
     section11: {
         name: { type: String, default: '' },
+        nameTranslations: { type: localizedTextSchema, default: () => ({}) },
         productId: { type: [String], default: [] },
         display: { type: Boolean, default: true },
         image: { type: String, default: '' },
@@ -186,6 +237,24 @@ router.get("/", async (req, res) => {
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi lấy dữ liệu",
+            error: "Lỗi server"
+        });
+    }
+});
+
+router.get("/policies", async (req, res) => {
+    try {
+        const manageData = await Manage.findOne().lean();
+        const policies = manageData?.policies?.length === POLICY_KEYS.length
+            ? manageData.policies
+            : createDefaultPolicies();
+
+        res.json({ success: 1, data: policies.map(ensurePolicyTranslations) });
+    } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).json({
+            success: 0,
+            message: "Lỗi server khi lấy danh sách chính sách",
             error: "Lỗi server"
         });
     }
@@ -415,6 +484,7 @@ router.put("/update-home-categories", [authenticateAdmin, checkPermission('store
         const {
             configured = true,
             sidebarTitle = "Danh mục sản phẩm",
+            sidebarTitleTranslations,
             showSidebar = true,
             showQuickCategories = true,
             items = []
@@ -425,6 +495,10 @@ router.put("/update-home-categories", [authenticateAdmin, checkPermission('store
         }
         if (typeof sidebarTitle !== 'string' || sidebarTitle.trim().length > 80) {
             return res.status(400).json({ success: 0, message: "Tiêu đề danh mục không hợp lệ" });
+        }
+        const normalizedSidebarTitle = normalizeLocalizedText(sidebarTitleTranslations, sidebarTitle, 80);
+        if (normalizedSidebarTitle.error) {
+            return res.status(400).json({ success: 0, message: normalizedSidebarTitle.error });
         }
         if (typeof showSidebar !== 'boolean' || typeof showQuickCategories !== 'boolean') {
             return res.status(400).json({ success: 0, message: "Trạng thái hiển thị không hợp lệ" });
@@ -443,6 +517,10 @@ router.put("/update-home-categories", [authenticateAdmin, checkPermission('store
             }
 
             const label = typeof item.label === 'string' ? item.label.trim() : '';
+            const normalizedLabel = normalizeLocalizedText(item.labelTranslations, label, 80);
+            if (normalizedLabel.error) {
+                return res.status(400).json({ success: 0, message: normalizedLabel.error });
+            }
             const type = typeof item.type === 'string' ? item.type.trim() : '';
             const link = typeof item.link === 'string' ? item.link.trim() : '';
             const icon = typeof item.icon === 'string' ? item.icon.trim() : 'ri-tb-box-multiple';
@@ -476,6 +554,7 @@ router.put("/update-home-categories", [authenticateAdmin, checkPermission('store
             normalizedItems.push({
                 id,
                 label,
+                labelTranslations: normalizedLabel.value,
                 type,
                 link,
                 icon,
@@ -488,6 +567,7 @@ router.put("/update-home-categories", [authenticateAdmin, checkPermission('store
         const homeCategoryConfig = {
             configured,
             sidebarTitle: sidebarTitle.trim() || "Danh mục sản phẩm",
+            sidebarTitleTranslations: normalizedSidebarTitle.value,
             showSidebar,
             showQuickCategories,
             items: normalizedItems
@@ -542,7 +622,7 @@ router.post("/upload-section-image", [authenticateAdmin, checkPermission('storef
 router.put("/update-section/:sectionId", [authenticateAdmin, checkPermission('storefront.manage')], async (req, res) => {
     try {
         const { sectionId } = req.params;
-        const { name, productId, display, image, link } = req.body;
+        const { name, nameTranslations, productId, display, image, link } = req.body;
 
         const match = /^section(1[0-1]|[1-9])$/.test(sectionId); // section1 to section11
         if (!match) {
@@ -554,6 +634,12 @@ router.put("/update-section/:sectionId", [authenticateAdmin, checkPermission('st
 
         if (name !== undefined && typeof name !== 'string') {
             return res.status(400).json({ success: 0, message: "Tên section phải là chuỗi" });
+        }
+        const normalizedName = nameTranslations !== undefined
+            ? normalizeLocalizedText(nameTranslations, name || '', 150)
+            : null;
+        if (normalizedName?.error) {
+            return res.status(400).json({ success: 0, message: normalizedName.error });
         }
         if (productId !== undefined && !Array.isArray(productId)) {
             return res.status(400).json({ success: 0, message: "productId phải là một mảng" });
@@ -575,6 +661,10 @@ router.put("/update-section/:sectionId", [authenticateAdmin, checkPermission('st
 
         const updateData = {};
         if (name !== undefined) updateData[`${sectionId}.name`] = name;
+        if (normalizedName) {
+            updateData[`${sectionId}.nameTranslations`] = normalizedName.value;
+            if (name === undefined) updateData[`${sectionId}.name`] = normalizedName.value.vi;
+        }
         if (productId !== undefined) updateData[`${sectionId}.productId`] = productId;
         if (display !== undefined) updateData[`${sectionId}.display`] = display;
         if (image !== undefined) updateData[`${sectionId}.image`] = image;
@@ -706,7 +796,7 @@ router.delete("/delete-image", [authenticateAdmin, checkPermission('storefront.m
 // PUT: Cập nhật introduction
 router.put("/update-introduction", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_introduction", "Trang Giới thiệu"), async (req, res) => {
     try {
-        const { introduction } = req.body;
+        const { introduction = '', translations } = req.body;
 
         if (typeof introduction !== 'string') {
             return res.status(400).json({
@@ -715,17 +805,26 @@ router.put("/update-introduction", [authenticateAdmin, checkPermission('storefro
             });
         }
 
+        const normalizedTranslations = normalizeLocalizedText(translations, introduction, 20000);
+        if (normalizedTranslations.error) {
+            return res.status(400).json({ success: 0, message: normalizedTranslations.error });
+        }
+        const introductionValue = normalizedTranslations.value.vi;
+
         let manage = await Manage.findOne();
         let updatedManage;
 
         if (manage) {
             updatedManage = await Manage.findOneAndUpdate(
                 {},
-                { $set: { introduction } },
+                { $set: { introduction: introductionValue, introductionTranslations: normalizedTranslations.value } },
                 { new: true }
             );
         } else {
-            updatedManage = await new Manage({ introduction }).save();
+            updatedManage = await new Manage({
+                introduction: introductionValue,
+                introductionTranslations: normalizedTranslations.value
+            }).save();
         }
 
         res.json({
@@ -778,6 +877,48 @@ router.put("/update-policy", [authenticateAdmin, checkPermission('storefront.man
         res.status(500).json({
             success: 0,
             message: "Lỗi server khi cập nhật mainPolicy",
+            error: "Lỗi server"
+        });
+    }
+});
+
+router.put("/update-policies", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_policies", "Trang Chính sách"), async (req, res) => {
+    try {
+        const normalized = normalizePoliciesPayload(req.body?.policies);
+        if (normalized.error) {
+            return res.status(400).json({ success: 0, message: normalized.error });
+        }
+
+        const manage = await Manage.findOne();
+        const currentPolicies = manage?.policies?.length === POLICY_KEYS.length
+            ? manage.policies.map(ensurePolicyTranslations)
+            : createDefaultPolicies();
+        const updatedAt = new Date();
+        const policies = normalized.policies.map((policy) => {
+            const currentPolicy = currentPolicies.find((item) => item.key === policy.key);
+            const unchanged = currentPolicy
+                && policyComparableValue(currentPolicy) === policyComparableValue(policy);
+
+            return {
+                ...policy,
+                updatedAt: unchanged && currentPolicy.updatedAt ? currentPolicy.updatedAt : updatedAt
+            };
+        });
+
+        const updatedManage = manage
+            ? await Manage.findOneAndUpdate({}, { $set: { policies } }, { new: true, runValidators: true })
+            : await new Manage({ policies }).save();
+
+        res.json({
+            success: 1,
+            message: "Cập nhật chính sách thành công",
+            data: updatedManage.policies
+        });
+    } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).json({
+            success: 0,
+            message: "Lỗi server khi cập nhật chính sách",
             error: "Lỗi server"
         });
     }
@@ -1435,5 +1576,7 @@ router.put("/update-section10", [authenticateAdmin, checkPermission('storefront.
 
 module.exports = {
     Manage,
+    DEFAULT_POLICIES,
+    POLICY_KEYS,
     router,
 };

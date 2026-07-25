@@ -29,7 +29,7 @@ function Navbar() {
         if (response.ok) {
           const data = await response.json();
           setIsLoggedIn(true);
-          setUserName(data.name || data.phone || "Tài khoản");
+          setUserName(data.name || data.phone || "");
         } else {
           setIsLoggedIn(false);
           setUserName("");
@@ -65,17 +65,16 @@ function Navbar() {
         method: "POST",
         credentials: "include",
       });
-      const data = await response.json();
       if (response.ok) {
         setIsLoggedIn(false);
         setUserName("");
-        toast.success("Đăng xuất thành công");
+        toast.success(t("logout_success"));
         window.location.href = "/login";
       } else {
-        toast.error(data.message || "Đăng xuất thất bại");
+        toast.error(t("logout_failed"));
       }
     } catch (error) {
-      toast.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
+      toast.error(t("generic_error_retry"));
     } finally {
       setIsLoading(false);
     }
@@ -86,58 +85,51 @@ function Navbar() {
 
   return (
     <header className="store-header">
-      <div className="store-utility-bar">
-        <div className="store-header-shell store-utility-content">
-          <div><span><i className="fa-solid fa-location-dot" /> Giao hàng toàn quốc</span><a href="tel:0813158383"><i className="fa-solid fa-phone" /> Hỗ trợ kỹ thuật 24/7: 08.1315.8383</a></div>
-          <div><Link to="/policy"><i className="fa-regular fa-file-lines" /> Tài liệu</Link><a href="#tin-tuc"><i className="fa-regular fa-newspaper" /> Tin tức</a><Link to="/introduction"><i className="fa-regular fa-envelope" /> Liên hệ</Link></div>
-        </div>
-      </div>
-
       <div className="store-main-nav">
         <div className="store-header-shell store-main-nav-content">
-          <button className="store-menu-button" type="button" onClick={() => setIsMenuOpen(true)} aria-label="Mở danh mục"><i className="fa-solid fa-bars" /></button>
+          <button className="store-menu-button" type="button" onClick={() => setIsMenuOpen(true)} aria-label={t("open_categories")}><i className="fa-solid fa-bars" /></button>
           <Link className="store-logo" to="/"><img src={logo} alt="TTSmart" /></Link>
 
           <form className="store-search" onSubmit={handleSearch}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm sản phẩm, mã sản phẩm, hãng..." aria-label="Tìm kiếm sản phẩm" />
-            <button type="submit" aria-label="Tìm kiếm"><i className="fa-solid fa-magnifying-glass" /></button>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("search_placeholder")} aria-label={t("search_products")} />
+            <button type="submit" aria-label={t("search")}><i className="fa-solid fa-magnifying-glass" /></button>
           </form>
 
-          <nav className="store-nav-actions" aria-label="Tiện ích khách hàng">
-            <Link to="/station"><i className="fa-solid fa-industry" /><span>Trạm của tôi</span></Link>
-            <Link className="store-mobile-account-link" to={isLoggedIn ? "/profile" : loginPath} aria-label="Tài khoản">
+          <nav className="store-nav-actions" aria-label={t("customer_utilities")}>
+            <Link to="/station"><i className="fa-solid fa-industry" /><span>{t("my_stations_nav")}</span></Link>
+            <Link className="store-mobile-account-link" to={isLoggedIn ? "/profile" : loginPath} aria-label={t("account")}>
               <i className="fa-regular fa-user" />
             </Link>
             <div className="store-nav-popover store-account-popover">
-              <button type="button"><i className="fa-regular fa-user" /><span>{isLoggedIn ? userName : "Tài khoản"}</span></button>
+              <button type="button"><i className="fa-regular fa-user" /><span>{isLoggedIn ? userName || t("account_fallback") : t("account")}</span></button>
               <div className="store-popover-menu">
                 {isLoggedIn ? (
                   <>
-                    <Link to="/profile">Thông tin cá nhân</Link>
-                    <Link to="/myorder">Đơn hàng của tôi</Link>
-                    <Link to="/change-password">Đổi mật khẩu</Link>
-                    <button type="button" onClick={handleLogout} disabled={isLoading}>{isLoading ? "Đang đăng xuất..." : "Đăng xuất"}</button>
+                    <Link to="/profile">{t("personal_info")}</Link>
+                    <Link to="/myorder">{t("my_orders")}</Link>
+                    <Link to="/change-password">{t("change_password")}</Link>
+                    <button type="button" onClick={handleLogout} disabled={isLoading}>{isLoading ? t("logging_out") : t("logout")}</button>
                   </>
                 ) : (
-                  <><Link to={loginPath}>Đăng nhập</Link><Link to="/myorder">Đơn hàng của tôi</Link></>
+                  <><Link to={loginPath}>{t("login")}</Link><Link to="/myorder">{t("my_orders")}</Link></>
                 )}
               </div>
             </div>
             <div className="store-nav-popover store-language-menu">
-              <button type="button"><i className="fa-solid fa-globe" /><span>{language === "vi" ? "Tiếng Việt" : language === "zh" ? "中文" : "English"}</span><i className="fa-solid fa-angle-down store-action-chevron" /></button>
+              <button type="button"><i className="fa-solid fa-globe" /><span>{language === "vi" ? t("vietnamese") : language === "zh" ? t("chinese") : t("english")}</span><i className="fa-solid fa-angle-down store-action-chevron" /></button>
               <div className="store-popover-menu">
-                <button type="button" onClick={() => setLanguage("vi")}>Tiếng Việt</button>
-                <button type="button" onClick={() => setLanguage("zh")}>中文</button>
-                <button type="button" onClick={() => setLanguage("en")}>English</button>
+                <button type="button" onClick={() => setLanguage("vi")}>{t("vietnamese")}</button>
+                <button type="button" onClick={() => setLanguage("zh")}>{t("chinese")}</button>
+                <button type="button" onClick={() => setLanguage("en")}>{t("english")}</button>
               </div>
             </div>
-            <Link className="store-cart-link" to="/cart"><span className="store-cart-icon"><i className="fa-solid fa-cart-shopping" /><b className={cartItemCount === 0 ? "is-empty" : ""}>{cartItemCount}</b></span><span>Giỏ hàng</span></Link>
+            <Link className="store-cart-link" to="/cart"><span className="store-cart-icon"><i className="fa-solid fa-cart-shopping" /><b className={cartItemCount === 0 ? "is-empty" : ""}>{cartItemCount}</b></span><span>{t("cart")}</span></Link>
           </nav>
         </div>
 
         <form className="store-mobile-search" onSubmit={handleSearch}>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm sản phẩm, mã sản phẩm..." />
-          <button type="submit"><i className="fa-solid fa-magnifying-glass" /></button>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("search_placeholder")} aria-label={t("search_products")} />
+          <button type="submit" aria-label={t("search")}><i className="fa-solid fa-magnifying-glass" /></button>
         </form>
       </div>
 
@@ -159,7 +151,7 @@ function Navbar() {
           )}
 
           <div className="store-drawer-language">
-            <strong>{language === "vi" ? "NGÔN NGỮ" : language === "zh" ? "语言" : "LANGUAGE"}</strong>
+            <strong>{t("language_label")}</strong>
             <div>
               <button type="button" className={language === "vi" ? "is-active" : ""} onClick={() => { setLanguage("vi"); closeMenu(); }}>VI</button>
               <button type="button" className={language === "zh" ? "is-active" : ""} onClick={() => { setLanguage("zh"); closeMenu(); }}>ZH</button>
@@ -167,7 +159,7 @@ function Navbar() {
             </div>
           </div>
         </div>
-        <div className="store-drawer-footer"><a href="tel:0813158383"><i className="fa-solid fa-headset" /> Hotline: 08.1315.8383</a></div>
+        <div className="store-drawer-footer"><a href="tel:0813158383"><i className="fa-solid fa-headset" /> {t("hotline_label")}: 08.1315.8383</a></div>
       </aside>
     </header>
   );

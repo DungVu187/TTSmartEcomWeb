@@ -93,7 +93,9 @@ const StationDisplay = () => {
 
         setSections(resultSections);
       } catch (err) {
-        setError(err.message);
+        setError(err.message === "failed_to_get_station_info"
+          ? t("failed_to_get_station_info")
+          : t("unknown_error"));
       } finally {
         setLoading(false);
       }
@@ -117,7 +119,7 @@ const StationDisplay = () => {
   if (error) {
     return (
       <div className="station-detail-container" style={{ padding: "40px" }}>
-        <Alert severity="error">{t(error)}</Alert>
+        <Alert severity="error">{error}</Alert>
       </div>
     );
   }
@@ -147,13 +149,13 @@ const StationDisplay = () => {
                     <i className={iconClass} />
                   </div>
 
-                  <h2 className="station-detail-card-title">{t(section.name)}</h2>
+                  <h2 className="station-detail-card-title">{section.name}</h2>
 
                   {isTramTron && (
                     <div className="station-detail-table-preview">
                       <div className="station-detail-table-headers">
-                        <span>Viên</span>
-                        <span>Số nút</span>
+                        <span>{t("item_label")}</span>
+                        <span>{t("button_count")}</span>
                       </div>
                     </div>
                   )}
@@ -161,19 +163,19 @@ const StationDisplay = () => {
 
                 {hasPhoto && (
                   <div className="station-detail-card-right-img">
-                    <img src={resolveImageUrl(section.imgUrl)} alt={t(section.name)} />
+                    <img src={resolveImageUrl(section.imgUrl)} alt={section.name} />
                     <div className="station-detail-card-img-gradient" />
                   </div>
                 )}
 
                 {isTramTron && (
                   <div className="station-detail-rows-select">
-                    <span>Rows per page: 10</span>
+                    <span>{t("rows_per_page_10")}</span>
                     <i className="fa-solid fa-angle-down" />
                   </div>
                 )}
 
-                <button className="station-detail-card-btn" type="button" aria-label="Xem chi tiết">
+                <button className="station-detail-card-btn" type="button" aria-label={t("view_details")}>
                   <i className="fa-solid fa-arrow-right" />
                 </button>
               </div>

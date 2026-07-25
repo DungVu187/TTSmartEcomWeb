@@ -1,10 +1,12 @@
 import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useLanguage } from "../../context/languagecontext.jsx";
 import "./mobilebottomnav.css";
 
 const getNavClass = ({ isActive }) => `mobile-bottom-nav-item${isActive ? " is-active" : ""}`;
 
 function MobileBottomNav() {
+  const { t } = useLanguage();
   const { pathname } = useLocation();
   const isProductDetail = /^\/product\/[^/]+$/.test(pathname);
   const isHidden = isProductDetail || pathname === "/cart" || pathname === "/login";
@@ -12,26 +14,26 @@ function MobileBottomNav() {
   if (isHidden) return null;
 
   return (
-    <nav className="mobile-bottom-nav" aria-label="Điều hướng mobile">
+    <nav className="mobile-bottom-nav" aria-label={t("mobile_navigation")}>
       <NavLink className={getNavClass} to="/" end>
         <i className="fa-solid fa-house" />
-        <span>Trang chủ</span>
+        <span>{t("home")}</span>
       </NavLink>
       <NavLink className={getNavClass} to="/product">
         <i className="fa-solid fa-border-all" />
-        <span>Danh mục</span>
+        <span>{t("categories")}</span>
       </NavLink>
       <NavLink className={getNavClass} to="/station">
         <i className="fa-solid fa-industry" />
-        <span>Trạm của tôi</span>
+        <span>{t("my_stations_nav")}</span>
       </NavLink>
       <NavLink className={getNavClass} to="/profile">
         <i className="fa-regular fa-user" />
-        <span>Tài khoản</span>
+        <span>{t("account")}</span>
       </NavLink>
       <a className="mobile-bottom-nav-item" href="tel:0813158383">
         <i className="fa-solid fa-headset" />
-        <span>Hỗ trợ</span>
+        <span>{t("support")}</span>
       </a>
     </nav>
   );

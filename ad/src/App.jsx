@@ -10,6 +10,7 @@ import Login from './components/login';
 import ProtectedRoute from './components/protectedroute';
 import RoleGuard from './components/RoleGuard';
 import Manage from './components/manage';
+import PolicyManagement from './components/policymanagement';
 import SectionDisplay from './components/sectiondisplay';
 import SoldProducts from './components/soldproducts';
 import IpOrders from './components/iporder/iporders';
@@ -54,6 +55,7 @@ const App = () => {
                       <Route path="/order" element={<RoleGuard requiredPermission="order.view"><Orders /></RoleGuard>} />
                       <Route path="/salesorder/:id" element={<RoleGuard requiredPermission="order.view"><SalesOrderDetail /></RoleGuard>} />
                       <Route path="/manage" element={<RoleGuard requiredPermission="storefront.manage"><Manage /></RoleGuard>} />
+                      <Route path="/policies" element={<RoleGuard requiredPermission="storefront.manage"><PolicyManagement /></RoleGuard>} />
                       <Route path="/sectiondisplay" element={<RoleGuard requiredPermission="storefront.manage"><SectionDisplay /></RoleGuard>} />
                       <Route path="/soldproducts" element={<RoleGuard requiredPermission="order.view"><SoldProducts /></RoleGuard>} />
                       <Route path="/orderedproducts" element={<RoleGuard requiredPermission="iporder.view"><OrderedProducts /></RoleGuard>} />

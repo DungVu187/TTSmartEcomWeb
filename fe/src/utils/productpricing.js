@@ -1,3 +1,5 @@
+import { getStoredLocale, getStoredTranslation } from "../context/languagecontext.jsx";
+
 const parseProductNumber = (value) => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const normalized = String(value ?? "")
@@ -20,7 +22,7 @@ export const isContactOnlyVariant = (variant) => {
 };
 
 export const formatVariantPrice = (variant, suffix = "VNĐ") => {
-  if (isContactOnlyVariant(variant)) return "Liên hệ";
-  const formattedPrice = parseProductNumber(variant.price).toLocaleString("vi-VN");
+  if (isContactOnlyVariant(variant)) return getStoredTranslation("contact_price");
+  const formattedPrice = parseProductNumber(variant.price).toLocaleString(getStoredLocale());
   return suffix ? `${formattedPrice} ${suffix}` : formattedPrice;
 };

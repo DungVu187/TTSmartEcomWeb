@@ -43,7 +43,7 @@ const Profile = () => {
   const [openAddressDialog, setOpenAddressDialog] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressId, setAddressId] = useState(null);
-  const [label, setLabel] = useState("Công trình");
+  const [label, setLabel] = useState(() => t("construction"));
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
@@ -72,8 +72,8 @@ const Profile = () => {
         setUser(data);
         setName(data.name || "");
         setEmail(data.email || "");
-      } catch (error) {
-        if (active) toast.error(error.message);
+      } catch {
+        if (active) toast.error(t("failed_to_load_profile", "Không thể tải thông tin hồ sơ"));
       } finally {
         if (active) setLoading(false);
       }
@@ -107,7 +107,7 @@ const Profile = () => {
         credentials: "include",
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("update_failed", "Cập nhật thất bại"));
+      if (!response.ok) throw new Error(t("update_failed", "Cập nhật thất bại"));
 
       const updatedUser = data.user || { ...user, name: name.trim(), email: email.trim() };
       setUser(updatedUser);
@@ -115,8 +115,8 @@ const Profile = () => {
       setEmail(updatedUser.email || "");
       setIsEditingInfo(false);
       toast.success(t("update_success", "Cập nhật thông tin thành công!"));
-    } catch (error) {
-      toast.error(error.message);
+    } catch {
+      toast.error(t("update_failed", "Cập nhật thất bại"));
     } finally {
       setSavingInfo(false);
     }
@@ -124,7 +124,7 @@ const Profile = () => {
 
   const handleOpenAddAddress = () => {
     setAddressId(null);
-    setLabel("Công trình");
+    setLabel(t("construction"));
     setReceiverName(user?.name || "");
     setReceiverPhone(user?.phone || "");
     setAddressDetail("");
@@ -133,7 +133,7 @@ const Profile = () => {
 
   const handleOpenEditAddress = (address) => {
     setAddressId(address._id);
-    setLabel(address.label || "Công trình");
+    setLabel(address.label || t("construction"));
     setReceiverName(address.receiverName || "");
     setReceiverPhone(address.receiverPhone || "");
     setAddressDetail(address.addressDetail || "");
@@ -156,7 +156,7 @@ const Profile = () => {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          label: label.trim() || "Công trình",
+          label: label.trim() || t("construction"),
           receiverName: receiverName.trim(),
           receiverPhone: receiverPhone.trim(),
           addressDetail: addressDetail.trim(),
@@ -164,13 +164,13 @@ const Profile = () => {
         credentials: "include",
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("failed_to_save_address", "Không thể lưu địa chỉ"));
+      if (!response.ok) throw new Error(t("failed_to_save_address", "Không thể lưu địa chỉ"));
 
       setUser((currentUser) => ({ ...currentUser, addresses: data.addresses }));
       setOpenAddressDialog(false);
       toast.success(addressId ? t("update_address_success", "Cập nhật địa chỉ thành công!") : t("add_address_success", "Thêm địa chỉ thành công!"));
-    } catch (error) {
-      toast.error(error.message);
+    } catch {
+      toast.error(t("failed_to_save_address", "Không thể lưu địa chỉ"));
     } finally {
       setSavingAddress(false);
     }
@@ -184,11 +184,11 @@ const Profile = () => {
         credentials: "include",
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("failed_to_delete_address", "Không thể xóa địa chỉ"));
+      if (!response.ok) throw new Error(t("failed_to_delete_address", "Không thể xóa địa chỉ"));
       setUser((currentUser) => ({ ...currentUser, addresses: data.addresses }));
       toast.success(t("delete_address_success", "Xóa địa chỉ thành công!"));
-    } catch (error) {
-      toast.error(error.message);
+    } catch {
+      toast.error(t("failed_to_delete_address", "Không thể xóa địa chỉ"));
     }
   };
 
@@ -199,11 +199,11 @@ const Profile = () => {
         credentials: "include",
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("failed_to_set_default_address", "Không thể thiết lập địa chỉ mặc định"));
+      if (!response.ok) throw new Error(t("failed_to_set_default_address", "Không thể thiết lập địa chỉ mặc định"));
       setUser((currentUser) => ({ ...currentUser, addresses: data.addresses }));
       toast.success(t("set_default_address_success", "Đã đặt làm địa chỉ mặc định!"));
-    } catch (error) {
-      toast.error(error.message);
+    } catch {
+      toast.error(t("failed_to_set_default_address", "Không thể thiết lập địa chỉ mặc định"));
     }
   };
 

@@ -2379,9 +2379,13 @@ Nhiệm vụ của bạn là đọc hình ảnh hóa đơn được gửi lên v
 Hướng dẫn trích xuất:
 - NHIỀU HÓA ĐƠN TRONG 1 ẢNH: Một ảnh có thể chứa NHIỀU hóa đơn độc lập đặt cạnh nhau (ví dụ 2 tờ "Đơn 1", "Đơn 2" chụp chung 1 khung hình — mỗi tờ có bảng "Tên hàng/Số lượng/Đơn giá/Thành tiền" và dòng "Cộng" riêng). Khi đó, hãy trích xuất TẤT CẢ sản phẩm của mọi hóa đơn vào cùng một mảng JSON, theo thứ tự từ trái sang phải, trên xuống dưới. Đối chiếu tổng tiền (xem mục dưới) phải thực hiện RIÊNG cho từng hóa đơn, không cộng gộp các hóa đơn với nhau.
 - Trường \`stt\` phải lấy chính xác số thứ tự hoặc số dòng được ghi trực tiếp trên hóa đơn cho mặt hàng đó (giữ nguyên định dạng gốc như "01", "1", "A" trên hóa đơn). Nếu cột số thứ tự trên hóa đơn bị để trống hoặc không được ghi số thứ tự cụ thể (chỉ ghi dấu * hoặc bỏ trống), bạn BẮT BUỘC phải tự động đánh số thứ tự tuần tự tăng dần từ 1 cho đến hết (1, 2, 3, 4...) cho các dòng mặt hàng. Ngược lại, nếu hóa đơn CÓ ghi STT nhưng KHÔNG liên tục (ví dụ 1, 6, 7, 12...), hãy GIỮ NGUYÊN số gốc, không tự "sửa" lại cho liền mạch.
-- Trường \`code\` chỉ lấy mã sản phẩm, mã hàng, hoặc model thực tế của sản phẩm (ví dụ: "GW1S-3E20", "NFO-40 500/5A"). Tuyệt đối KHÔNG gộp hoặc điền mã PO (Purchase Order - ví dụ: "SOHL2606183B1D4B"), mã đơn mua hàng, số hóa đơn, số lô (Lot number), hoặc các mã quản lý kho riêng của nhà cung cấp vào trường này. Nếu phát hiện một mã PO/mã quản lý giống hệt nhau lặp đi lặp lại ở tất cả các dòng của hóa đơn, bạn phải LOẠI BỎ hoàn toàn phần mã lặp lại đó ra khỏi trường \`code\`, chỉ giữ lại phần model thực của sản phẩm ở phía sau.
+- Trường \`code\` là mã nhận diện đầy đủ gồm MODEL/MÃ CATALOG và các thông số kỹ thuật dùng để phân biệt phiên bản nếu chúng nằm trong cùng ô/cụm tên sản phẩm. Ví dụ: "SC-N2 AC220V", "SC-N2S AC220V", "TR-N3 34A", "TR-5-1N 9A", "BW403S0 400A", "NFO-40 500/5A". Trường \`rawScannedName\` phải giữ nguyên toàn bộ tên đọc được trên hóa đơn.
+- Không đưa các từ mô tả loại sản phẩm như "Khởi động từ", "Relay nhiệt", "Aptomat", "Rơ le", "Timer", tên hãng, STT, số lượng, đơn vị, đơn giá, thành tiền, VAT, mã PO hoặc mã quản lý kho vào \`code\`.
+- Các ví dụ bắt buộc: "Khởi động từ SC-N2 AC220V" -> \`code\`: "SC-N2 AC220V"; "Khởi động từ SC-N2S AC220V" -> \`code\`: "SC-N2S AC220V"; "Relay nhiệt TR-N3 34A" -> \`code\`: "TR-N3 34A"; "Relay nhiệt TR-5-1N 9A" -> \`code\`: "TR-5-1N 9A"; "S-T10 AC200V" -> \`code\`: "S-T10 AC200V".
+- Không cắt model theo tiền tố: "SC-N2S" khác "SC-N2", "TR-5-1N" khác "TR-5-1". Giữ nguyên chuỗi catalog gắn liền như "RN2S-NL-D24", "BCL63E0CG-3P010" và mã nhiều phần như "NFO-40 500/5A".
+- Chỉ nối thông số đứng sau model trong cùng ô/cụm tên sản phẩm. Nếu không chắc token thuộc tên sản phẩm hay thuộc cột số lượng/giá/VAT thì không tự nối token đó vào \`code\`.
 - Trường \`brand\` là tên hãng/nhà sản xuất được ghi trên hóa đơn cho sản phẩm đó (ví dụ: Siemens, Mitsubishi, LS, Schneider). Nếu hóa đơn không ghi hãng hoặc không đọc chắc chắn được thì đặt là null. TUYỆT ĐỐI không suy đoán hoặc bịa hãng.
-- BẮT BUỘC ĐỌC ĐỦ MÃ HÀNG TỪNG DÒNG (CỰC KỲ QUAN TRỌNG): Hóa đơn thường có một cột "Mã hàng"/"Mã SP"/"Model" riêng biệt (tách rời với cột "Mã số PO"). Gần như MỌI dòng sản phẩm đều có mã hàng thực ở cột này. Bạn phải quét kỹ cột đó cho TỪNG dòng và điền vào trường \`code\`. TUYỆT ĐỐI KHÔNG để trống \`code\` khi trong dòng đó có bất kỳ chuỗi nào trông giống mã model (có chứa cả chữ và số, hoặc có dấu gạch nối "-", dấu gạch chéo "/", ví dụ: "NFO-40 500/5A", "GW1S-3E20", "RN2S-NL-D24", "S-T10 AC200V"). Nếu nét chữ ở cột mã hàng bị mờ/khó đọc, hãy cố suy luận và đọc gần đúng nhất chứ KHÔNG được bỏ trống trường \`code\`. Chỉ để \`code\` là chuỗi rỗng khi dòng đó thật sự không có cột mã hàng hoặc là dòng tiêu đề phân loại.
+- BẮT BUỘC ĐỌC ĐỦ MÃ HÀNG TỪNG DÒNG: Hóa đơn có thể có cột "Mã hàng"/"Mã SP"/"Model" riêng hoặc model nằm trong cột tên hàng. Phải giữ cả model và thông số phân biệt phiên bản thuộc cùng tên sản phẩm. Nếu chỉ thấy một thông số như "AC220V" nhưng không nhận diện được model thì để \`code\` rỗng, không dùng riêng thông số làm mã.
 - LƯU Ý PHÂN BIỆT CỘT: Đừng vì cột "Mã số PO" (mã dài lặp lại như "SOHL260618A52FC4") nằm sát bên trái mà bỏ qua hoặc nhầm lẫn cột "Mã hàng" thực nằm ngay cạnh nó. Hai cột này độc lập: cột PO thì loại bỏ, cột mã hàng thì phải đọc và giữ lại.
 - Trường \`vat\` là thuế suất VAT đọc được từ hóa đơn cho mặt hàng đó (ví dụ: "10%", "8%", "0%", hoặc null nếu không có/không đọc được). Nếu hóa đơn không có cột thuế riêng từng dòng mà chỉ ghi MỘT mức thuế suất chung ở cuối (ví dụ "Thuế suất GTGT: 8%"), hãy áp mức đó cho \`vat\` của TẤT CẢ các dòng thuộc hóa đơn.
 - Trường \`taxAmount\` là SỐ TIỀN THUẾ GTGT của riêng dòng sản phẩm đó (cột "Tiền thuế"/"Tiền thuế GTGT" trên hóa đơn), là một số nguyên (đơn vị VND), ví dụ cột ghi "57,754" -> 57754. Nếu hóa đơn có sẵn cột "Tiền thuế" cho từng dòng thì lấy đúng con số đó. Nếu hóa đơn CHỈ có cột \`% Thuế\`/thuế suất mà KHÔNG có cột tiền thuế riêng, hãy tự tính: \`taxAmount = round([Thành tiền] x [thuế suất %] / 100)\` (ví dụ Thành tiền 721.920, thuế 8% -> taxAmount = 57754). Nếu dòng không chịu thuế hoặc không đọc được thuế suất, để \`taxAmount\` là 0. Hãy đối chiếu tổng các \`taxAmount\` của mọi dòng với dòng "Tiền thuế GTGT" tổng ở cuối hóa đơn (nếu có) để tự kiểm tra và sửa các dòng đọc sai trước khi xuất JSON.
@@ -2652,85 +2656,222 @@ Hướng dẫn trích xuất:
             return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
         };
 
+        const normalizeCodeDisplay = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+        const normalizeCodeKey = (value) => normalizeProductCodeForCompare(value);
+        const sanitizeCodeToken = (value) => String(value || '')
+            .trim()
+            .replace(/^[,;:()[\]{}]+|[,;:()[\]{}]+$/g, '');
+
+        const isTechnicalSpecToken = (value) => {
+            const token = sanitizeCodeToken(value).toUpperCase();
+            if (!token) return false;
+            return /^(?:(?:AC|DC)?\d+(?:[.,]\d+)?(?:V|A|W|KW|MW|HP|HZ|KA|MA|VAC|VDC)|\d+\/\d+(?:A|V)?|\d+(?:P|POLE)|\d+(?:X\d+)+)$/i.test(token);
+        };
+
+        const isModelLikeToken = (value) => {
+            const token = sanitizeCodeToken(value);
+            const compact = normalizeCodeKey(token);
+            return compact.length >= 2
+                && /[a-z]/i.test(token)
+                && /\d/.test(token)
+                && !isTechnicalSpecToken(token);
+        };
+
+        const extractCodeSegment = (value) => {
+            const displayValue = normalizeCodeDisplay(value);
+            if (!displayValue) return '';
+            if (/^\d+$/.test(displayValue)) return displayValue;
+
+            const tokens = displayValue.split(/\s+/).map(sanitizeCodeToken).filter(Boolean);
+            const modelIndex = tokens.findIndex(isModelLikeToken);
+            if (modelIndex < 0) return '';
+
+            const codeTokens = [tokens[modelIndex]];
+            for (let index = modelIndex + 1; index < tokens.length; index += 1) {
+                if (!isTechnicalSpecToken(tokens[index])) break;
+                codeTokens.push(tokens[index]);
+            }
+            return normalizeCodeDisplay(codeTokens.join(' '));
+        };
+
+        const extractCoreModelKey = (value) => {
+            const segment = extractCodeSegment(value);
+            if (!segment) return '';
+            if (/^\d+$/.test(segment)) return normalizeCodeKey(segment);
+            const modelToken = segment.split(/\s+/).find(isModelLikeToken);
+            return normalizeCodeKey(modelToken || '');
+        };
+
+        const buildCanonicalCode = (rawCode, rawName) => {
+            const codeSegment = extractCodeSegment(rawCode);
+            const nameSegment = extractCodeSegment(rawName);
+            if (!codeSegment) return nameSegment;
+            if (!nameSegment) return codeSegment;
+
+            const codeCore = extractCoreModelKey(codeSegment);
+            const nameCore = extractCoreModelKey(nameSegment);
+            const codeKey = normalizeCodeKey(codeSegment);
+            const nameKey = normalizeCodeKey(nameSegment);
+
+            if (codeCore && codeCore === nameCore && nameKey.startsWith(codeKey) && nameKey.length > codeKey.length) {
+                return nameSegment;
+            }
+            return codeSegment;
+        };
+
+        const extractTechnicalSpecKeys = (value) => {
+            const segment = extractCodeSegment(value);
+            if (!segment) return new Set();
+            const tokens = segment.split(/\s+/).slice(1).filter(isTechnicalSpecToken);
+            return new Set(tokens.map(normalizeCodeKey).filter(Boolean));
+        };
+
+        const hasTypeOverlap = (scanType, productName) => {
+            const productType = tokenizeTypeWords(productName || '');
+            if (scanType.size === 0 || productType.size === 0) return true;
+            for (const token of scanType) {
+                if (productType.has(token)) return true;
+            }
+            return false;
+        };
+
+        const brandsCompatible = (scannedBrand, productBrand) => {
+            const scanBrandKey = normalizeBrandKey(scannedBrand);
+            const productBrandKey = normalizeBrandKey(productBrand);
+            if (!scanBrandKey || !productBrandKey || productBrandKey === 'n/a' || productBrandKey === 'chuaro') {
+                return true;
+            }
+            return scanBrandKey === productBrandKey;
+        };
+
         const BrandModel = mongoose.models.Brand;
         const brandDocs = BrandModel
             ? await BrandModel.find().select('Brand').lean()
             : [];
 
-        // 5. Tự động so khớp sản phẩm trong Database bằng Javascript (Nhanh và chính xác)
+        // 5. Tạo mã chuẩn từ dữ liệu ảnh trước, sau đó mới dùng DB để đối khớp.
         const matchedItems = items.map(item => {
             const resolvedBrand = resolveBrand(item.brand, brandDocs);
-            const scanName = item.rawScannedName || '';
-            const scanCodeKind = codeKind(item.code);
-            const scanSpec = tokenizeSpec(`${scanName} ${scanCodeKind === 'model' ? item.code : ''}`);
+            const scanName = normalizeCodeDisplay(item.rawScannedName);
+            const rawScannedCode = normalizeCodeDisplay(item.code);
+            const canonicalCode = buildCanonicalCode(rawScannedCode, scanName);
+            const normalizedCodeKey = normalizeCodeKey(canonicalCode);
+            const coreModelKey = extractCoreModelKey(canonicalCode);
             const scanType = tokenizeTypeWords(scanName);
-            const hasScanSpec = scanSpec.size > 0;
+            const sourceConfidence = String(item.confidence || 'medium').toLowerCase();
+            const isLowConfidence = sourceConfidence === 'low';
 
-            const ctx = {
-                scanCodeKind,
-                scanSpec,
-                scanType,
-                hasScanSpec
-            };
+            let matchStatus = 'NEW_PRODUCT';
+            let matchedProductId = 'NEW_PRODUCT';
+            let candidateProductIds = [];
+            let autoSelected = false;
+            let requiresReview = false;
+            let matchReason = 'Không tìm thấy sản phẩm có cùng model trong DB.';
+            let confidence = canonicalCode ? sourceConfidence : 'low';
 
-            let matchedProductId = null;
-            let confidence = 'high';
+            const exactMatches = normalizedCodeKey
+                ? activeProducts.filter(product => normalizeCodeKey(product.code) === normalizedCodeKey)
+                : [];
 
-            // Bước 5.1: Đối khớp theo mã model (filter tất cả, không find)
-            if (item.code && scanCodeKind === 'model') {
-                const cc = cleanCode(item.code);
-                const byCode = activeProducts.filter(p => codeKind(p.code) === 'model' && cleanCode(p.code) === cc);
-                const passed = byCode.filter(p => passGates(p, ctx, item)); // R3: lọc spec/type giữa các biến thể trùng mã
+            if (exactMatches.length === 1) {
+                matchedProductId = exactMatches[0]._id.toString();
+                matchStatus = 'MATCHED';
+                matchReason = 'Khớp chính xác mã sản phẩm đầy đủ.';
+                confidence = 'high';
+            } else if (exactMatches.length > 1) {
+                matchedProductId = null;
+                matchStatus = 'POSSIBLE_MATCH';
+                candidateProductIds = exactMatches.map(product => product._id.toString());
+                matchReason = 'Có nhiều sản phẩm có mã chuẩn tương đương; cần người dùng xác nhận.';
+                confidence = 'low';
+            } else if (coreModelKey) {
+                const coreCandidates = activeProducts.filter(product => {
+                    const productCore = extractCoreModelKey(product.code) || extractCoreModelKey(product.name);
+                    return productCore === coreModelKey;
+                });
 
-                if (passed.length === 1) {
-                    matchedProductId = passed[0]._id.toString();
-                    confidence = ctx.hasScanSpec ? 'high' : 'low';
-                    if (!item.vat && passed[0].vat) {
-                        item.vat = passed[0].vat;
-                    }
-                } else if (passed.length > 1) { // nhiều biến thể trùng mã -> fuzzy tie-breaker, medium
-                    const best = passed.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
-                    matchedProductId = best._id.toString();
-                    confidence = 'medium';
-                    if (!item.vat && best.vat) {
-                        item.vat = best.vat;
-                    }
-                } else if (byCode.length > 0) {
-                    // Fallback: Nếu trùng khớp hoàn toàn mã model trong DB nhưng không vượt qua được passGates
-                    // (ví dụ: lệch từ đồng nghĩa của loại hoặc thông số do ngôn ngữ)
-                    // Ta vẫn khớp với sản phẩm này để tránh việc tạo sản phẩm trùng lặp mã trong kho
-                    const best = byCode.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
-                    matchedProductId = best._id.toString();
+                if (coreCandidates.length > 0) {
+                    matchStatus = 'POSSIBLE_MATCH';
+                    matchedProductId = null;
+                    candidateProductIds = coreCandidates.map(product => product._id.toString());
                     confidence = 'low';
-                    if (!item.vat && best.vat) {
-                        item.vat = best.vat;
+
+                    const safeAutoCandidates = coreCandidates.filter(product => {
+                        if (isLowConfidence) return false;
+                        if (!brandsCompatible(resolvedBrand.brand, product.brand)) return false;
+                        if (!hasTypeOverlap(scanType, product.name)) return false;
+
+                        const derivedProductCode = buildCanonicalCode(product.code, product.name);
+                        const derivedProductKey = normalizeCodeKey(derivedProductCode);
+                        const productNameKey = normalizeCodeKey(product.name);
+                        return derivedProductKey === normalizedCodeKey
+                            || (normalizedCodeKey && productNameKey.includes(normalizedCodeKey));
+                    });
+
+                    if (coreCandidates.length === 1 && safeAutoCandidates.length === 1) {
+                        const candidate = safeAutoCandidates[0];
+                        matchedProductId = candidate._id.toString();
+                        autoSelected = true;
+                        requiresReview = true;
+                        confidence = 'medium';
+                        matchReason = `Khớp duy nhất model ${canonicalCode || rawScannedCode}; tên DB chứa đủ mã chuẩn nhưng DB đang dùng mã ngắn.`;
+                    } else if (coreCandidates.length === 1) {
+                        const candidate = coreCandidates[0];
+                        const candidateCode = buildCanonicalCode(candidate.code, candidate.name);
+                        const scanSpecs = extractTechnicalSpecKeys(canonicalCode);
+                        const candidateSpecs = extractTechnicalSpecKeys(candidateCode);
+                        const hasConflictingSpecs = scanSpecs.size > 0
+                            && candidateSpecs.size > 0
+                            && [...scanSpecs].some(spec => !candidateSpecs.has(spec));
+                        matchReason = hasConflictingSpecs
+                            ? `Khớp model ${coreModelKey} nhưng thông số DB khác; cần chọn đúng phiên bản.`
+                            : `Khớp model ${coreModelKey} nhưng DB đang dùng mã ngắn hoặc thiếu thông số; cần người dùng xác nhận.`;
+                    } else {
+                        matchReason = `Có ${coreCandidates.length} sản phẩm cùng model ${coreModelKey}; cần chọn đúng phiên bản.`;
                     }
                 }
             }
 
-            // Bước 5.2: Fuzzy tên toàn DB
-            if (!matchedProductId) {
-                const candidates = activeProducts.filter(p => passGates(p, ctx, item));
-                if (candidates.length > 0) {
-                    const best = candidates.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
-                    matchedProductId = best._id.toString();
-                    const pSpec = tokenizeSpec(`${best.name || ''} ${best.code || ''}`);
-
-                    confidence = !ctx.hasScanSpec ? 'low'                      // R6: không spec -> low
-                        : pSpec.size === ctx.scanSpec.size ? 'high'      // spec bằng nhau -> high
-                            : 'medium';                                      // R7: candidate dư thừa spec -> medium
-                    if (!item.vat && best.vat) {
-                        item.vat = best.vat;
-                    }
+            if (!coreModelKey && exactMatches.length === 0) {
+                const scanCodeKind = codeKind(canonicalCode);
+                const scanSpec = tokenizeSpec(`${scanName} ${canonicalCode}`);
+                const ctx = {
+                    scanCodeKind,
+                    scanSpec,
+                    scanType,
+                    hasScanSpec: scanSpec.size > 0
+                };
+                const fallbackCandidates = activeProducts.filter(product => passGates(product, ctx, { ...item, code: canonicalCode }));
+                if (fallbackCandidates.length > 0) {
+                    matchStatus = 'POSSIBLE_MATCH';
+                    matchedProductId = null;
+                    candidateProductIds = fallbackCandidates.map(product => product._id.toString());
+                    matchReason = 'Không đọc chắc chắn model; đã tìm thấy sản phẩm gần giống để người dùng chọn.';
+                    confidence = 'low';
                 }
+            }
+
+            if (matchedProductId && matchedProductId !== 'NEW_PRODUCT' && !item.vat) {
+                const selectedProduct = activeProducts.find(product => product._id.toString() === matchedProductId);
+                if (selectedProduct?.vat) item.vat = selectedProduct.vat;
             }
 
             return {
                 ...item,
+                code: canonicalCode || rawScannedCode,
+                rawScannedCode,
+                canonicalCode: canonicalCode || rawScannedCode,
+                normalizedCodeKey,
+                coreModelKey,
                 brand: resolvedBrand.brand,
                 brandIsNew: resolvedBrand.brandIsNew,
-                matchedProductId: matchedProductId || "NEW_PRODUCT",
-                confidence: matchedProductId ? confidence : 'high'
+                matchStatus,
+                matchedProductId,
+                candidateProductIds,
+                autoSelected,
+                requiresReview,
+                matchReason,
+                confidence
             };
         });
 

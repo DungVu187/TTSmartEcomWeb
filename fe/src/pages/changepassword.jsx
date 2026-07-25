@@ -75,15 +75,13 @@ const ChangePassword = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      const data = await response.json();
-
       if (!response.ok) {
         if (response.status === 401) {
           toast.error(t("session_expired", "Phiên đăng nhập đã hết hạn"));
           navigate("/login?redirect=" + encodeURIComponent("/change-password"));
           return;
         }
-        throw new Error(data.message || t("change_password_failed", "Đổi mật khẩu thất bại"));
+      throw new Error(t("change_password_failed"));
       }
 
       toast.success(t("change_password_success", "Đổi mật khẩu thành công"));
@@ -96,8 +94,8 @@ const ChangePassword = () => {
         console.error("Không thể xóa phiên sau khi đổi mật khẩu:", logoutError);
       }
       window.setTimeout(() => navigate("/login"), 1200);
-    } catch (error) {
-      toast.error(error.message || t("server_error", "Lỗi máy chủ, thử lại sau"));
+    } catch {
+      toast.error(t("change_password_failed"));
     } finally {
       setLoading(false);
     }

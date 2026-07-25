@@ -2,6 +2,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-hot-toast";
 import AutoLog from "./autolog";
+import { LanguageProvider } from "../context/languagecontext.jsx";
 
 let mockCode = "secure-token";
 const mockNavigate = jest.fn();
@@ -22,6 +23,12 @@ const responseOf = ({ ok = true, data = {} } = {}) => ({
   ok,
   json: jest.fn().mockResolvedValue(data),
 });
+
+const renderAutoLog = () => render(
+  <LanguageProvider>
+    <AutoLog />
+  </LanguageProvider>
+);
 
 describe("customer automatic login", () => {
   const originalLocation = window.location;
@@ -69,7 +76,7 @@ describe("customer automatic login", () => {
   test("posts the one-time token using cookie credentials", async () => {
     fetch.mockResolvedValueOnce(responseOf());
 
-    render(<AutoLog />);
+    renderAutoLog();
 
     expect(screen.getByText("Đang đăng nhập tự động...")).toBeInTheDocument();
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
@@ -88,7 +95,7 @@ describe("customer automatic login", () => {
     window.location.search = "?redirect=%2Fstation%2FHN-01%2Fsensors";
     fetch.mockResolvedValueOnce(responseOf());
 
-    render(<AutoLog />);
+    renderAutoLog();
 
     await waitFor(() => expect(assignedHref).toBe("/station/HN-01/sensors"));
   });
@@ -97,21 +104,21 @@ describe("customer automatic login", () => {
     window.location.search = "?redirect=https%3A%2F%2Fevil.example%2Fsteal";
     fetch.mockResolvedValueOnce(responseOf());
 
-    render(<AutoLog />);
+    renderAutoLog();
 
     await waitFor(() => expect(assignedHref).toBe("/station"));
   });
 
-  test("shows the backend error and does not redirect when the token is rejected", async () => {
+  test("shows the localized error and does not redirect when the token is rejected", async () => {
     fetch.mockResolvedValueOnce(responseOf({
       ok: false,
       data: { message: "Mã đăng nhập đã hết hạn" },
     }));
 
-    render(<AutoLog />);
+    renderAutoLog();
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Mã đăng nhập đã hết hạn");
+      expect(toast.error).toHaveBeenCalledWith("Đăng nhập tự động thất bại.");
     });
     expect(toast.success).not.toHaveBeenCalled();
     expect(assignedHref).toBe("");
@@ -120,7 +127,7 @@ describe("customer automatic login", () => {
   test("does not call the API when the route has no token", async () => {
     mockCode = "";
 
-    render(<AutoLog />);
+    renderAutoLog();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không có mã đăng nhập."));
     expect(fetch).not.toHaveBeenCalled();

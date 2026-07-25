@@ -69,6 +69,7 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Đơn nhập hàng')).not.toBeInTheDocument();
     expect(screen.queryByText('Đơn xuất hàng')).not.toBeInTheDocument();
     expect(screen.queryByText('Khách - Trạm')).not.toBeInTheDocument();
+    expect(screen.queryByText('Quản lý trang chủ')).not.toBeInTheDocument();
     expect(screen.queryByText('Nội dung trang chủ')).not.toBeInTheDocument();
     expect(screen.queryByText('Hiển thị sản phẩm')).not.toBeInTheDocument();
     expect(screen.queryByText('Từ vựng Voice')).not.toBeInTheDocument();
@@ -110,6 +111,23 @@ describe('Sidebar', () => {
 
     expect(screen.getByText('Khách hàng')).toBeInTheDocument();
     expect(screen.queryByText('Trạm')).not.toBeInTheDocument();
+  });
+
+  it('groups storefront management links in one dropdown', () => {
+    mockPermissions.can = vi.fn((perm) => perm === 'storefront.manage');
+
+    render(<Sidebar />);
+
+    expect(screen.getByText('Quản lý trang chủ')).toBeInTheDocument();
+    expect(screen.queryByText('Nội dung trang chủ')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hiển thị sản phẩm')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chính sách')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Quản lý trang chủ'));
+
+    expect(screen.getByText('Nội dung trang chủ')).toBeInTheDocument();
+    expect(screen.getByText('Hiển thị sản phẩm')).toBeInTheDocument();
+    expect(screen.getByText('Chính sách')).toBeInTheDocument();
   });
 
   it('shows admin-only menus for admin/superadmin', () => {

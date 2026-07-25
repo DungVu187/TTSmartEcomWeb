@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import toast from "react-hot-toast";
 import ShopContextProvider, { ShopContext } from "./shopcontext";
+import { LanguageProvider } from "./languagecontext.jsx";
 
 jest.mock("react-hot-toast", () => {
   const toastMock = {
@@ -57,13 +58,16 @@ const CartConsumer = () => {
 };
 
 const renderCartContext = () => render(
-  <ShopContextProvider>
-    <CartConsumer />
-  </ShopContextProvider>
+  <LanguageProvider>
+    <ShopContextProvider>
+      <CartConsumer />
+    </ShopContextProvider>
+  </LanguageProvider>
 );
 
 describe("ShopContextProvider", () => {
   beforeEach(() => {
+    localStorage.setItem("language", "vi");
     process.env.REACT_APP_BACK_END = "http://backend.test";
     global.fetch = jest.fn();
     jest.spyOn(console, "error").mockImplementation(() => {});
@@ -129,7 +133,7 @@ describe("ShopContextProvider", () => {
         }),
       })
     );
-    expect(toast.success).toHaveBeenCalledWith("Đã thêm sản phẩm vào giỏ hàng");
+    expect(toast.success).toHaveBeenCalledWith("Đã thêm sản phẩm vào giỏ hàng.");
   });
 
   test("sends quantity and status updates to their dedicated endpoints", async () => {
@@ -168,7 +172,7 @@ describe("ShopContextProvider", () => {
       })
     );
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith("Đã cập nhật trạng thái sản phẩm");
+      expect(toast.success).toHaveBeenCalledWith("Đã cập nhật trạng thái sản phẩm.");
     });
   });
 
@@ -207,7 +211,7 @@ describe("ShopContextProvider", () => {
     );
     expect(fetch.mock.calls.flatMap(([, options]) => Object.keys(options))).not.toContain("Authorization");
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith("Đã xóa toàn bộ giỏ hàng");
+      expect(toast.success).toHaveBeenCalledWith("Đã xóa toàn bộ giỏ hàng.");
     });
   });
 

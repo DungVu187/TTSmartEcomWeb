@@ -27,7 +27,7 @@ import { useLanguage } from "../context/languagecontext.jsx";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 
 function Cart() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const navigate = useNavigate();
   const {
     cartItems,
@@ -179,7 +179,7 @@ function Cart() {
           }, 1000);
           return;
         }
-        throw new Error(data.message || t("cancel_order_failed"));
+        throw new Error(t("order_creation_failed"));
       }
 
       toast.success(t("order_success"));
@@ -191,7 +191,7 @@ function Cart() {
       }
     } catch (error) {
       console.error("Lỗi khi đặt hàng:", error);
-      toast.error(error.message || t("error_occurred"));
+      toast.error(t("order_creation_failed"));
     } finally {
       setIsCreatingOrder(false);
     }
@@ -310,7 +310,7 @@ function Cart() {
                     />
                     <IconButton
                       edge="end"
-                      aria-label="delete"
+                      aria-label={t("remove_from_cart")}
                       onClick={() => removeFromCart(item.productId, item.variantIndex)}
                       sx={{ color: "error.main" }}
                     >
@@ -512,7 +512,7 @@ function Cart() {
                     </Box>
                     <IconButton
                       edge="end"
-                      aria-label="delete"
+                      aria-label={t("remove_from_cart")}
                       onClick={() => removeFromCart(item.productId, item.variantIndex)}
                       sx={{ color: "error.main", ml: 2 }}
                     >
@@ -534,7 +534,7 @@ function Cart() {
         >
           <h2>{t("total")}</h2>
           <p style={{ fontWeight: "600", marginLeft: "10px" }}>
-            {totalPrice.toLocaleString("vi-VN")} VND
+            {totalPrice.toLocaleString(locale)} VND
           </p>
         </div>
         <div style={{ display: "grid", justifyContent: "end" }}>

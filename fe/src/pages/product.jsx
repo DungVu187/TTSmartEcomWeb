@@ -19,6 +19,7 @@ import Item from "../components/item";
 import { useLanguage } from "../context/languagecontext.jsx";
 
 const apiUrl = process.env.REACT_APP_BACK_END;
+const ALL_FILTER_VALUE = "__all__";
 const filterSelectMenuProps = {
   disableScrollLock: true,
   PaperProps: {
@@ -40,10 +41,10 @@ function Product() {
 
   const initialFilters = {
     search: queryParams.get("search") || "",
-    brand: queryParams.get("brand") || "Tất cả",
-    type: queryParams.get("type") || "Tất cả",
-    section: queryParams.get("section") || "Tất cả",
-    value: queryParams.get("value") || "Tất cả",
+    brand: queryParams.get("brand") || ALL_FILTER_VALUE,
+    type: queryParams.get("type") || ALL_FILTER_VALUE,
+    section: queryParams.get("section") || ALL_FILTER_VALUE,
+    value: queryParams.get("value") || ALL_FILTER_VALUE,
     sortBy: queryParams.get("sortBy") || "purchaseCount",
     sortOrder: queryParams.get("sortOrder") || "desc",
   };
@@ -69,7 +70,7 @@ function Product() {
   // States mới cho việc lọc theo trạm trộn
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userStations, setUserStations] = useState([]);
-  const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || "Tất cả");
+  const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || ALL_FILTER_VALUE);
 
   const fetchProducts = async (currStationId = null, overrides = null) => {
     setIsLoadingProducts(true);
@@ -83,14 +84,14 @@ function Product() {
         page: activePage,
         limit,
         search: f.search,
-        brand: f.brand === "Tất cả" ? "" : f.brand,
-        type: f.type === "Tất cả" ? "" : f.type,
-        section: f.section === "Tất cả" ? "" : f.section,
-        value: f.value === "Tất cả" ? "" : f.value,
+        brand: f.brand === ALL_FILTER_VALUE ? "" : f.brand,
+        type: f.type === ALL_FILTER_VALUE ? "" : f.type,
+        section: f.section === ALL_FILTER_VALUE ? "" : f.section,
+        value: f.value === ALL_FILTER_VALUE ? "" : f.value,
         sortBy: f.sortBy || "purchaseCount",
         sortOrder: f.sortOrder || "desc",
         display: "true",
-        stationId: activeStationId === "Tất cả" ? "" : activeStationId,
+        stationId: activeStationId === ALL_FILTER_VALUE ? "" : activeStationId,
       };
 
       const query = new URLSearchParams(updatedFilters).toString();
@@ -153,10 +154,10 @@ function Product() {
   useEffect(() => {
     const updatedFilters = {
       search: queryParams.get("search") || "",
-      brand: queryParams.get("brand") || "Tất cả",
-      type: queryParams.get("type") || "Tất cả",
-      section: queryParams.get("section") || "Tất cả",
-      value: queryParams.get("value") || "Tất cả",
+      brand: queryParams.get("brand") || ALL_FILTER_VALUE,
+      type: queryParams.get("type") || ALL_FILTER_VALUE,
+      section: queryParams.get("section") || ALL_FILTER_VALUE,
+      value: queryParams.get("value") || ALL_FILTER_VALUE,
       sortBy: queryParams.get("sortBy") || "purchaseCount",
       sortOrder: queryParams.get("sortOrder") || "desc",
     };
@@ -165,7 +166,7 @@ function Product() {
     const parsedPage = pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 1;
     setPage(parsedPage);
 
-    const stationIdParam = queryParams.get("stationId") || "Tất cả";
+    const stationIdParam = queryParams.get("stationId") || ALL_FILTER_VALUE;
     setSelectedStation(stationIdParam);
 
     // Truyền thẳng filter/page vừa parse từ URL để không đọc phải state cũ
@@ -178,12 +179,12 @@ function Product() {
     setFilters((prev) => ({
       ...prev,
       [name]: value,
-      ...(name === "section" ? { value: "Tất cả" } : {}),
+      ...(name === "section" ? { value: ALL_FILTER_VALUE } : {}),
     }));
 
-    if (name === "section" && value !== "Tất cả") {
+    if (name === "section" && value !== ALL_FILTER_VALUE) {
       fetchValues(value);
-    } else if (name === "section" && value === "Tất cả") {
+    } else if (name === "section" && value === ALL_FILTER_VALUE) {
       setValues([]);
     }
   };
@@ -203,7 +204,7 @@ function Product() {
     const stationId = e.target.value;
     setSelectedStation(stationId);
     
-    if (stationId !== "Tất cả") {
+    if (stationId !== ALL_FILTER_VALUE) {
       const selected = userStations.find(s => s._id === stationId);
       if (selected && selected.stationCode) {
         sessionStorage.setItem("activeStationCode", selected.stationCode);
@@ -214,13 +215,13 @@ function Product() {
     
     const urlQuery = new URLSearchParams({
       ...filters,
-      brand: filters.brand === "Tất cả" ? "" : filters.brand,
-      type: filters.type === "Tất cả" ? "" : filters.type,
-      section: filters.section === "Tất cả" ? "" : filters.section,
-      value: filters.value === "Tất cả" ? "" : filters.value,
+      brand: filters.brand === ALL_FILTER_VALUE ? "" : filters.brand,
+      type: filters.type === ALL_FILTER_VALUE ? "" : filters.type,
+      section: filters.section === ALL_FILTER_VALUE ? "" : filters.section,
+      value: filters.value === ALL_FILTER_VALUE ? "" : filters.value,
       sortBy: filters.sortBy || "purchaseCount",
       sortOrder: filters.sortOrder || "desc",
-      stationId: stationId === "Tất cả" ? "" : stationId,
+      stationId: stationId === ALL_FILTER_VALUE ? "" : stationId,
       page: 1,
     }).toString();
 
@@ -232,13 +233,13 @@ function Product() {
     e.preventDefault();
     const urlQuery = new URLSearchParams({
       ...filters,
-      brand: filters.brand === "Tất cả" ? "" : filters.brand,
-      type: filters.type === "Tất cả" ? "" : filters.type,
-      section: filters.section === "Tất cả" ? "" : filters.section,
-      value: filters.value === "Tất cả" ? "" : filters.value,
+      brand: filters.brand === ALL_FILTER_VALUE ? "" : filters.brand,
+      type: filters.type === ALL_FILTER_VALUE ? "" : filters.type,
+      section: filters.section === ALL_FILTER_VALUE ? "" : filters.section,
+      value: filters.value === ALL_FILTER_VALUE ? "" : filters.value,
       sortBy: filters.sortBy || "purchaseCount",
       sortOrder: filters.sortOrder || "desc",
-      stationId: selectedStation === "Tất cả" ? "" : selectedStation,
+      stationId: selectedStation === ALL_FILTER_VALUE ? "" : selectedStation,
       page: 1,
     }).toString();
 
@@ -250,13 +251,13 @@ function Product() {
   const handlePageChange = (event, newPage) => {
     const urlQuery = new URLSearchParams({
       ...filters,
-      brand: filters.brand === "Tất cả" ? "" : filters.brand,
-      type: filters.type === "Tất cả" ? "" : filters.type,
-      section: filters.section === "Tất cả" ? "" : filters.section,
-      value: filters.value === "Tất cả" ? "" : filters.value,
+      brand: filters.brand === ALL_FILTER_VALUE ? "" : filters.brand,
+      type: filters.type === ALL_FILTER_VALUE ? "" : filters.type,
+      section: filters.section === ALL_FILTER_VALUE ? "" : filters.section,
+      value: filters.value === ALL_FILTER_VALUE ? "" : filters.value,
       sortBy: filters.sortBy || "purchaseCount",
       sortOrder: filters.sortOrder || "desc",
-      stationId: selectedStation === "Tất cả" ? "" : selectedStation,
+      stationId: selectedStation === ALL_FILTER_VALUE ? "" : selectedStation,
       page: newPage,
     }).toString();
 
@@ -281,7 +282,7 @@ function Product() {
         setSections(sectionsData);
 
         const initialSection = queryParams.get("section");
-        if (initialSection && initialSection !== "Tất cả") {
+        if (initialSection && initialSection !== ALL_FILTER_VALUE) {
           fetchValues(initialSection);
         }
       } catch (error) {
@@ -291,7 +292,7 @@ function Product() {
     fetchData();
   }, []);
 
-  const isValueDisabled = filters.section === "Tất cả";
+  const isValueDisabled = filters.section === ALL_FILTER_VALUE;
 
   const filterForm = (
     <form onSubmit={handleSubmit} className="filter-product-string">
@@ -309,7 +310,7 @@ function Product() {
             fullWidth
             sx={{ backgroundColor: "white" }}
           >
-            <MenuItem value="Tất cả">{t("all_my_stations")}</MenuItem>
+            <MenuItem value={ALL_FILTER_VALUE}>{t("all_my_stations")}</MenuItem>
             {userStations.map((station, index) => (
               <MenuItem key={index} value={station._id}>
                 {station.stationName || station.stationCode} ({station.stationCode})
@@ -331,7 +332,7 @@ function Product() {
       />
       <InputLabel>{t("search_by_brand")}</InputLabel>
       <Select
-        value={filters.brand || "Tất cả"}
+        value={filters.brand || ALL_FILTER_VALUE}
         MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
@@ -342,16 +343,16 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">{t("all_brands")}</MenuItem>
+        <MenuItem value={ALL_FILTER_VALUE}>{t("all_brands")}</MenuItem>
         {brands.map((brand, index) => (
           <MenuItem key={index} value={brand.Brand}>
-            {t(brand.Brand)}
+            {brand.Brand}
           </MenuItem>
         ))}
       </Select>
       <InputLabel>{t("search_by_type")}</InputLabel>
       <Select
-        value={filters.type || "Tất cả"}
+        value={filters.type || ALL_FILTER_VALUE}
         MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
@@ -362,16 +363,16 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">{t("all_types")}</MenuItem>
+        <MenuItem value={ALL_FILTER_VALUE}>{t("all_types")}</MenuItem>
         {types.map((type, index) => (
           <MenuItem key={index} value={type.Type}>
-            {t(type.Type)}
+            {type.Type}
           </MenuItem>
         ))}
       </Select>
       <InputLabel>{t("search_by_section")}</InputLabel>
       <Select
-        value={filters.section || "Tất cả"}
+        value={filters.section || ALL_FILTER_VALUE}
         MenuProps={filterSelectMenuProps}
         onChange={handleFilterChange}
         name="section"
@@ -379,16 +380,16 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">{t("all_sections")}</MenuItem>
+        <MenuItem value={ALL_FILTER_VALUE}>{t("all_sections")}</MenuItem>
         {sections.map((section, index) => (
           <MenuItem key={index} value={section}>
-            {t(section)}
+            {section}
           </MenuItem>
         ))}
       </Select>
       <InputLabel>{t("search_by_equipment")}</InputLabel>
       <Select
-        value={filters.value || "Tất cả"}
+        value={filters.value || ALL_FILTER_VALUE}
         MenuProps={filterSelectMenuProps}
         onChange={(e) =>
           handleFilterChange({
@@ -400,10 +401,10 @@ function Product() {
         fullWidth
         sx={{ margin: "8px 0" }}
       >
-        <MenuItem value="Tất cả">{t("all_equipment")}</MenuItem>
+        <MenuItem value={ALL_FILTER_VALUE}>{t("all_equipment")}</MenuItem>
         {values.map((value, index) => (
           <MenuItem key={index} value={value}>
-            {t(value)}
+            {value}
           </MenuItem>
         ))}
       </Select>
@@ -460,7 +461,7 @@ function Product() {
   return (
     <main className="product-catalog-page">
       <div className="product-catalog-shell">
-        <nav className="product-breadcrumb" aria-label="Breadcrumb">
+        <nav className="product-breadcrumb" aria-label={t("breadcrumb")}>
           <Link to="/"><i className="fa-solid fa-house" /> {t("home")}</Link>
           <i className="fa-solid fa-angle-right" />
           <span>{t("products")}</span>
@@ -495,8 +496,11 @@ function Product() {
             <div className="product-results-toolbar">
               <span>
                 {isLoadingProducts
-                  ? "Đang tải sản phẩm..."
-                  : `Hiển thị ${firstProductIndex}–${lastProductIndex} trong ${totalProducts} sản phẩm`}
+                  ? t("loading_products")
+                  : t("product_display_range")
+                    .replace("{first}", firstProductIndex)
+                    .replace("{last}", lastProductIndex)
+                    .replace("{total}", totalProducts)}
               </span>
               <div className="product-view-indicator" aria-hidden="true">
                 <i className="fa-solid fa-table-cells-large is-active" />
@@ -507,7 +511,7 @@ function Product() {
             {isLoadingProducts ? (
               <div className="product-loading-state">
                 <span className="product-loading-spinner" />
-                Đang tải sản phẩm...
+                {t("loading_products")}
               </div>
             ) : products.length > 0 ? (
               <div className="product-list-container">

@@ -18,9 +18,9 @@
   min-width: 0;
   padding: 24px;
   border: 1px solid #e2e8f1;
-  border-radius: 18px;
+  border-radius: 13px;
   background: rgba(255, 255, 255, .97);
-  box-shadow: 0 14px 40px rgba(25, 55, 97, .055);
+  box-shadow: 0 8px 28px rgba(30, 68, 114, .07);
 }
 
 .profile-personal-panel {

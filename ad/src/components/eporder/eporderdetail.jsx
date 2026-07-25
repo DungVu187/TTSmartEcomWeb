@@ -891,12 +891,18 @@ const ExportOrderDetail = () => {
         // Áp dụng Level 1 Matching trên Frontend
         const items = res.items || [];
         const processedItems = items.map(item => {
+          if (item.matchStatus) {
+            return item;
+          }
           const l1Match = performLevel1Matching(item, tempProductList, productDetails);
           if (l1Match) {
             return {
               ...item,
               matchedProductId: l1Match.productId,
-              confidence: l1Match.confidence
+              confidence: l1Match.confidence,
+              matchStatus: "MATCHED",
+              autoSelected: false,
+              requiresReview: false,
             };
           }
           return item;
@@ -1000,11 +1006,36 @@ const ExportOrderDetail = () => {
 
   // Hàm xác nhận nhập sản phẩm đã quét AI vào đơn hàng
   const handleConfirmScanImport = async () => {
+    const unresolvedItems = scanResults.filter(
+      (row) => row.matchStatus === "POSSIBLE_MATCH" && !row.matchedProductId
+    );
+    if (unresolvedItems.length > 0) {
+      toast.error(`Còn ${unresolvedItems.length} sản phẩm cần chọn đúng phiên bản trước khi xác nhận.`);
+      return;
+    }
+
     // Lọc ra các dòng đã được chọn sản phẩm khớp
     const validItems = scanResults.filter((row) => row.matchedProductId);
     if (validItems.length === 0) {
       toast.error("Vui lòng đối khớp ít nhất một sản phẩm hợp lệ!");
       return;
+    }
+
+    const reviewItems = validItems.filter(
+      (row) => row.autoSelected && row.requiresReview && row.matchedProductId !== "NEW_PRODUCT"
+    );
+    if (reviewItems.length > 0) {
+      const reviewLines = reviewItems.slice(0, 10).map((row) => {
+        const product = allProducts.find((item) => item._id === row.matchedProductId);
+        return `• ${row.canonicalCode || row.code || row.rawScannedName} → ${product?.name || "Sản phẩm đã gợi ý"}`;
+      });
+      if (reviewItems.length > 10) {
+        reviewLines.push(`• Và ${reviewItems.length - 10} sản phẩm khác`);
+      }
+      const approved = window.confirm(
+        `Có ${reviewItems.length} sản phẩm được tự động chọn theo model nhưng DB đang dùng mã ngắn.\n\n${reviewLines.join("\n")}\n\nBạn đã kiểm tra và muốn tiếp tục?`
+      );
+      if (!approved) return;
     }
 
     setIsScanning(true);
@@ -1072,7 +1103,7 @@ const ExportOrderDetail = () => {
           const newProductPayload = {
             type: "Chưa phân loại",
             name: row.rawScannedName || "Sản phẩm mới AI quét",
-            code: row.code || "",
+            code: row.canonicalCode || row.code || "",
             brand: row.brand && row.brand.trim() ? row.brand.trim() : "Chưa rõ",
             section: "Chưa phân loại",
             value: "Chưa rõ",
@@ -1116,44 +1147,7 @@ const ExportOrderDetail = () => {
         } else {
           details = productDetailsMap[productId];
           if (!details) continue;
-
-          // Cập nhật giá sản phẩm cũ
-          const importPriceNum = Number(row.price) || 0;
-          const existingEarn = Number(details.variant?.[0]?.earn) || 0;
-
-          const updatePayload = {};
-          // Chỉ cập nhật giá khi quét được giá nhập hợp lệ (> 0); nếu không, giữ nguyên giá cũ.
-          if (importPriceNum > 0) {
-            const calculatedRetailPrice = Math.ceil((importPriceNum * (1 + existingEarn / 100)) / 1000) * 1000;
-            updatePayload.variant = [
-              {
-                ...(details.variant?.[0] || {}),
-                importPrice: importPriceNum.toString(),
-                price: calculatedRetailPrice.toString(),
-              },
-            ];
-          }
-          const scannedVat = row.vat?.toString().trim();
-          if (scannedVat) {
-            updatePayload.vat = scannedVat;
-          }
-          const scannedBrand = String(row.brand || "").trim();
-          const currentBrand = String(details.brand || "").trim().toLowerCase();
-          if (scannedBrand && (!currentBrand || currentBrand === "n/a" || currentBrand === "chưa rõ")) {
-            updatePayload.brand = scannedBrand;
-          }
-
-          try {
-            const updateRes = await apiFetch(`${apiUrl}/products/${productId}`, {
-              method: "PUT",
-              body: JSON.stringify(updatePayload),
-            });
-            if (updateRes) {
-              details = updateRes;
-            }
-          } catch (err) {
-            console.error(`Không thể cập nhật giá cho sản phẩm cũ ${productId}:`, err);
-          }
+          // Dữ liệu AI chỉ áp dụng cho dòng đơn hàng, không sửa giá/VAT/hãng của sản phẩm master.
         }
 
         // Tìm xem sản phẩm đã có sẵn trong đơn hàng hay chưa
@@ -2810,8 +2804,18 @@ const ExportOrderDetail = () => {
                         const matchedProduct = row.matchedProductId === "NEW_PRODUCT"
                           ? NEW_PRODUCT_OPTION
                           : allProducts.find((p) => p._id === row.matchedProductId);
+                        const candidateIds = new Set(row.candidateProductIds || []);
+                        const candidateProducts = allProducts.filter((product) => candidateIds.has(product._id));
+                        const remainingProducts = allProducts.filter((product) => !candidateIds.has(product._id));
+                        const productOptions = row.matchStatus === "POSSIBLE_MATCH"
+                          ? [...candidateProducts, NEW_PRODUCT_OPTION, ...remainingProducts]
+                          : [NEW_PRODUCT_OPTION, ...allProducts];
                         return (
-                          <TableRow key={index} hover>
+                          <TableRow
+                            key={index}
+                            hover
+                            sx={row.autoSelected && row.requiresReview ? { bgcolor: "#fff8e1" } : undefined}
+                          >
                             <TableCell align="center">
                               <TextField
                                 value={row.stt || ""}
@@ -2827,7 +2831,7 @@ const ExportOrderDetail = () => {
                             </TableCell>
                             <TableCell>
                               <Autocomplete
-                                options={[NEW_PRODUCT_OPTION, ...allProducts]}
+                                options={productOptions}
                                 getOptionLabel={(option) => {
                                   if (!option) return "";
                                   if (option._id === "NEW_PRODUCT") return option.name;
@@ -2838,7 +2842,16 @@ const ExportOrderDetail = () => {
                                 value={matchedProduct || null}
                                 onChange={(event, newValue) => {
                                   const updated = [...scanResults];
-                                  updated[index].matchedProductId = newValue ? newValue._id : null;
+                                  updated[index] = {
+                                    ...updated[index],
+                                    matchedProductId: newValue ? newValue._id : null,
+                                    matchStatus: newValue
+                                      ? (newValue._id === "NEW_PRODUCT" ? "NEW_PRODUCT" : "MATCHED")
+                                      : ((updated[index].candidateProductIds || []).length > 0 ? "POSSIBLE_MATCH" : "NEW_PRODUCT"),
+                                    autoSelected: false,
+                                    requiresReview: false,
+                                    userSelected: Boolean(newValue),
+                                  };
                                   if (newValue && newValue.vat && !updated[index].vat?.toString().trim()) {
                                     updated[index].vat = newValue.vat;
                                   }
@@ -2857,6 +2870,16 @@ const ExportOrderDetail = () => {
                                     : `${matchedProduct.name}${matchedProduct.code ? ` (${matchedProduct.code})` : ""}${matchedProduct.brand ? ` [${matchedProduct.brand}]` : ""}`}
                                 </Typography>
                               )}
+                              {row.autoSelected && row.requiresReview && (
+                                <Typography variant="caption" color="warning.dark" display="block" sx={{ mt: 0.5, fontWeight: 700 }}>
+                                  ⚠ Đã tự chọn theo model — DB đang dùng mã ngắn. Vui lòng kiểm tra.
+                                </Typography>
+                              )}
+                              {row.matchStatus === "POSSIBLE_MATCH" && !row.matchedProductId && (
+                                <Typography variant="caption" color="warning.dark" display="block" sx={{ mt: 0.5, fontWeight: 700 }}>
+                                  ⚠ {row.matchReason || "Có sản phẩm cùng model; vui lòng chọn đúng phiên bản."}
+                                </Typography>
+                              )}
                               {row.confidence === 'low' && (
                                 <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5, fontWeight: 'bold' }}>
                                   ⚠️ Độ tin cậy thấp (Không có thông số kỹ thuật)
@@ -2867,9 +2890,14 @@ const ExportOrderDetail = () => {
                               <Typography variant="body2" color="text.secondary" fontWeight="medium">
                                 {row.rawScannedName}
                               </Typography>
-                              {row.code && (
-                                <Typography variant="caption" display="block" color="primary.main">
-                                  Code: {row.code}
+                              {(row.rawScannedCode || row.code) && (
+                                <Typography variant="caption" display="block" color="text.secondary">
+                                  Mã AI đọc: {row.rawScannedCode || row.code}
+                                </Typography>
+                              )}
+                              {(row.canonicalCode || row.code) && (
+                                <Typography variant="caption" display="block" color="primary.main" fontWeight={600}>
+                                  Mã chuẩn: {row.canonicalCode || row.code}
                                 </Typography>
                               )}
                             </TableCell>
@@ -2980,7 +3008,11 @@ const ExportOrderDetail = () => {
           </Button>
           <Button 
             onClick={handleConfirmScanImport} 
-            disabled={isScanning || scanResults.filter(r => r.matchedProductId).length === 0}
+            disabled={
+              isScanning
+              || scanResults.filter((row) => row.matchedProductId).length === 0
+              || scanResults.some((row) => row.matchStatus === "POSSIBLE_MATCH" && !row.matchedProductId)
+            }
             variant="contained" 
             sx={{
               bgcolor: '#512da8',

@@ -25,10 +25,10 @@ import "./styles/myorder.css";
 const apiUrl = process.env.REACT_APP_BACK_END;
 const ordersPerPage = 10;
 
-const formatMoney = (value) => new Intl.NumberFormat("vi-VN").format(Number(value) || 0) + " VND";
+const formatMoney = (value, locale) => new Intl.NumberFormat(locale).format(Number(value) || 0) + " VND";
 const getOrderCode = (order) => order?.orderCode || order?._id || "";
 
-const enrichOrdersWithProducts = async (rawOrders) => {
+const enrichOrdersWithProducts = async (rawOrders, unavailableProductName) => {
   const productIds = [...new Set(rawOrders.flatMap((order) => (order.cartItems || []).map((item) => item.productId)).filter(Boolean))];
   const products = await Promise.all(productIds.map(async (productId) => {
     try {
@@ -50,7 +50,7 @@ const enrichOrdersWithProducts = async (rawOrders) => {
       const variant = variants[item.variantIndex] || {};
       return {
         ...item,
-        productName: product?.name || "Sản phẩm không còn tồn tại",
+        productName: product?.name || unavailableProductName,
         productBrand: product?.brand || "",
         productImage: variant.imgUrl || product?.imgUrl || "",
         productPrice: variant.price,
@@ -64,7 +64,7 @@ const enrichOrdersWithProducts = async (rawOrders) => {
 };
 
 const MyOrder = () => {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const location = useLocation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,11 +99,12 @@ const MyOrder = () => {
       }
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("error_loading_orders", "Không thể tải đơn hàng"));
-      setOrders(await enrichOrdersWithProducts(data.orders || []));
-    } catch (fetchError) {
-      setError(fetchError.message);
-      toast.error(fetchError.message);
+      if (!response.ok) throw new Error(t("error_loading_orders", "Không thể tải đơn hàng"));
+      setOrders(await enrichOrdersWithProducts(data.orders || [], t("product_no_longer_exists")));
+    } catch {
+      const message = t("error_loading_orders", "Không thể tải đơn hàng");
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -191,15 +192,14 @@ const MyOrder = () => {
         body: JSON.stringify({ state: "Cancelled" }),
         credentials: "include",
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || t("cancel_order_failed", "Hủy đơn hàng thất bại"));
+      if (!response.ok) throw new Error(t("cancel_order_failed", "Hủy đơn hàng thất bại"));
 
       setOrders((currentOrders) => currentOrders.map((order) => order._id === selectedOrder._id ? { ...order, state: "Cancelled" } : order));
       setOpenCancelDialog(false);
       setOpenDialog(false);
       toast.success(t("cancel_order_success", "Hủy đơn hàng thành công"));
-    } catch (cancelError) {
-      toast.error(cancelError.message);
+    } catch {
+      toast.error(t("cancel_order_failed", "Hủy đơn hàng thất bại"));
     } finally {
       setIsCancelling(false);
     }
@@ -299,7 +299,7 @@ const MyOrder = () => {
                         </td>
                         <td><span className="order-date-cell">{moment(order.createdAt).format("DD/MM/YYYY")}<small>{moment(order.createdAt).format("HH:mm")}</small></span></td>
                         <td>{renderProductSummary(order)}</td>
-                        <td><strong className="order-total-cell">{formatMoney(order.total)}</strong></td>
+                        <td><strong className="order-total-cell">{formatMoney(order.total, locale)}</strong></td>
                         <td><span className={"order-pill payment-" + (order.payment ? "paid" : "unpaid")}>{order.payment ? t("paid", "Đã thanh toán") : t("unpaid", "Chưa thanh toán")}</span></td>
                         <td><span className={"order-pill status-" + status.tone}>{status.label}</span></td>
                         <td><button type="button" className="order-detail-button" onClick={() => openOrderDetails(order)}>{t("view_details", "Xem chi tiết")}<ArrowForwardIosRounded /></button></td>
@@ -328,7 +328,7 @@ const MyOrder = () => {
                     </div>
                     {renderProductSummary(order)}
                     <div className="order-mobile-summary">
-                      <div><span>{t("total_money", "Tổng tiền")}</span><strong>{formatMoney(order.total)}</strong></div>
+                      <div><span>{t("total_money", "Tổng tiền")}</span><strong>{formatMoney(order.total, locale)}</strong></div>
                       <span className={"order-pill payment-" + (order.payment ? "paid" : "unpaid")}>{order.payment ? t("paid", "Đã thanh toán") : t("unpaid", "Chưa thanh toán")}</span>
                     </div>
                     <button type="button" className="order-mobile-detail-button" onClick={() => openOrderDetails(order)}>{t("view_details", "Xem chi tiết")}<ArrowForwardIosRounded /></button>
@@ -357,7 +357,7 @@ const MyOrder = () => {
             <div className="order-dialog-content">
               <div className="order-dialog-summary">
                 <div><span>{t("order_date", "Ngày đặt")}</span><strong>{moment(selectedOrder.createdAt).format("DD/MM/YYYY HH:mm")}</strong></div>
-                <div><span>{t("total_money", "Tổng tiền")}</span><strong>{formatMoney(selectedOrder.total)}</strong></div>
+                <div><span>{t("total_money", "Tổng tiền")}</span><strong>{formatMoney(selectedOrder.total, locale)}</strong></div>
                 <div><span>{t("payment", "Thanh toán")}</span><strong>{selectedOrder.payment ? t("paid", "Đã thanh toán") : t("unpaid", "Chưa thanh toán")}</strong></div>
               </div>
               <h3>{t("product_list", "Danh sách sản phẩm")}</h3>

@@ -14,8 +14,10 @@ import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/shopcontext";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import SafeProductImage from "./safeproductimage";
+import { useLanguage } from "../context/languagecontext.jsx";
 
 function Item({ product }) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { addToCart } = useContext(ShopContext);
   const [quantity, setQuantity] = useState(1);
@@ -60,9 +62,9 @@ function Item({ product }) {
         </div>
 
         <div className="catalog-product-meta">
-          <span>Hãng: {product.brand || "Chưa rõ"}</span>
+          <span>{t("brand_label")} {product.brand || t("unknown")}</span>
           <div>
-            <strong>{isOutOfStock ? "Liên hệ" : `Số lượng tồn: ${quantityForSale}`}</strong>
+            <strong>{isOutOfStock ? t("out_of_stock") : `${t("stock_quantity")}: ${quantityForSale}`}</strong>
           </div>
         </div>
 
@@ -83,7 +85,7 @@ function Item({ product }) {
                 <span>{quantity}</span>
                 <button type="button" onClick={() => setQuantity((current) => current + 1)}>+</button>
               </div>
-              <IconButton className="catalog-cart-button" onClick={handleAddToCartClick} aria-label={`Thêm ${product.name} vào giỏ hàng`}>
+              <IconButton className="catalog-cart-button" onClick={handleAddToCartClick} aria-label={`${t("add_product_to_cart")}: ${product.name}`}>
                 <ShoppingCartIcon fontSize="small" />
               </IconButton>
             </>

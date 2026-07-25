@@ -332,8 +332,12 @@ const Station = () => {
           disableRowSelectionOnClick
           onRowClick={(params) => navigate(`/station/${params.row.code}`)}
           sx={{
+            "& .MuiDataGrid-columnHeaders": {
+              borderBottom: "1px solid #000",
+            },
             "& .MuiDataGrid-cell": {
               alignItems: "center",
+              borderBottom: "1px solid #000",
             },
             "& .MuiDataGrid-row": {
               cursor: "pointer",

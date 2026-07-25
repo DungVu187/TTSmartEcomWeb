@@ -1,74 +1,67 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Box, Typography } from "@mui/material";
+import { useLanguage } from "../context/languagecontext.jsx";
+import { getLocalizedText } from "../utils/localizedcontent";
+
 const apiUrl = process.env.REACT_APP_BACK_END;
 
 const Intro = () => {
-  const [introduction, setIntroduction] = useState("");
+  const { t, language } = useLanguage();
+  const [manageData, setManageData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  // Fetch dữ liệu introduction từ API khi component mount
   useEffect(() => {
     const fetchIntroduction = async () => {
       try {
         const response = await fetch(`${apiUrl}/manages/`, {
-          headers: {
-            "Content-Type": 'application/json',
-          },
+          headers: { "Content-Type": "application/json" },
         });
         const result = await response.json();
-        if (result.success) {
-          setIntroduction(result.data.introduction || "Chưa có nội dung giới thiệu");
-        }
-      } catch (error) {
-        console.error("Error fetching introduction:", error);
-        setIntroduction("Lỗi khi tải dữ liệu");
+        if (!response.ok || !result.success) throw new Error("Unable to load introduction");
+        setManageData(result.data);
+      } catch (fetchError) {
+        console.error("Error fetching introduction:", fetchError);
+        setError(true);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchIntroduction();
   }, []);
 
-  // Hàm xử lý định dạng văn bản
-  const formatIntroduction = (text) => {
-    if (!text) return null;
+  const introduction = useMemo(() => getLocalizedText(
+    manageData?.introductionTranslations,
+    language,
+    manageData?.introduction || ""
+  ), [language, manageData]);
 
-    // Tách các đoạn văn bằng ký tự xuống dòng (\n)
+  const formatIntroduction = (text) => {
+    if (!text) return <Typography>{t("introduction_empty")}</Typography>;
     const paragraphs = text.split("\n").filter((line) => line.trim() !== "");
 
     return paragraphs.map((paragraph, index) => {
       const isHeading = /^\d+\.\s/.test(paragraph.trim());
-      
-      if (isHeading) {
-        return (
-          <Typography
-            key={index}
-            variant="body1"
-            sx={{
-              fontWeight: "bold", // In đậm đề mục
-              marginBottom: "1rem",
-            }}
-          >
-            {paragraph}
-          </Typography>
-        );
-      } else {
-        return (
-          <Typography
-            key={index}
-            variant="body1"
-            sx={{
-              textIndent: "2rem", // Lui đầu dòng cho đoạn văn
-              marginBottom: "1rem",
-            }}
-          >
-            {paragraph}
-          </Typography>
-        );
-      }
+      return (
+        <Typography
+          key={`${index}-${paragraph.slice(0, 20)}`}
+          variant="body1"
+          sx={{
+            fontWeight: isHeading ? "bold" : "normal",
+            textIndent: isHeading ? 0 : "2rem",
+            marginBottom: "1rem",
+            lineHeight: 1.8,
+          }}
+        >
+          {paragraph}
+        </Typography>
+      );
     });
   };
 
   return (
-    <div
+    <main
       style={{
         width: "100%",
         backgroundColor: "rgb(235, 246, 254)",
@@ -78,21 +71,27 @@ const Intro = () => {
     >
       <Box
         sx={{
-          maxWidth: "1920px",
-          width: "80%",
-          padding: 4,
+          maxWidth: "1200px",
+          width: { xs: "calc(100% - 24px)", md: "80%" },
+          padding: { xs: 2.5, md: 4 },
           backgroundColor: "white",
           margin: "2rem auto",
-          borderRadius: "5px",
-          boxShadow: "0 2px 5px rgba(0, 0, 0, 0.1)",
+          borderRadius: "10px",
+          boxShadow: "0 2px 12px rgba(0, 0, 0, 0.08)",
         }}
       >
-        <Typography variant="h5" gutterBottom align="center">
-          Giới thiệu
+        <Typography variant="h4" gutterBottom align="center" sx={{ fontWeight: 700, mb: 3 }}>
+          {t("introduction")}
         </Typography>
-        <Box>{formatIntroduction(introduction)}</Box>
+        {loading ? (
+          <Typography align="center">{t("loading_introduction")}</Typography>
+        ) : error ? (
+          <Typography align="center" color="error">{t("introduction_load_error")}</Typography>
+        ) : (
+          <Box>{formatIntroduction(introduction)}</Box>
+        )}
       </Box>
-    </div>
+    </main>
   );
 };
 

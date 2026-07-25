@@ -8,7 +8,6 @@ function Footer() {
   const { t } = useLanguage();
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-  const keepVisualOnly = (event) => event.preventDefault();
 
   return (
     <footer className="store-footer">
@@ -23,9 +22,9 @@ function Footer() {
               <li><i className="fa-solid fa-envelope" /><a href="mailto:ttsmart.ltd@gmail.com">ttsmart.ltd@gmail.com</a></li>
             </ul>
             <div className="store-footer-socials">
-              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer" aria-label="Zalo"><i className="fa-solid fa-comment-dots" /></a>
-              <a href="tel:0813158383" aria-label="Hotline"><i className="fa-solid fa-phone" /></a>
-              <a href="mailto:ttsmart.ltd@gmail.com" aria-label="Email"><i className="fa-solid fa-envelope" /></a>
+              <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer" aria-label={t("contact_zalo")}><i className="fa-solid fa-comment-dots" /></a>
+              <a href="tel:0813158383" aria-label={t("hotline_label")}><i className="fa-solid fa-phone" /></a>
+              <a href="mailto:ttsmart.ltd@gmail.com" aria-label={t("send_email")}><i className="fa-solid fa-envelope" /></a>
             </div>
           </section>
 
@@ -40,38 +39,25 @@ function Footer() {
 
           <section className="store-footer-column">
             <h3>{t("policies")}</h3>
-            <Link to="/policy" onClick={scrollToTop}>{t("purchase_policy")}</Link>
-            <Link to="/policy" onClick={scrollToTop}>Chính sách bảo hành</Link>
-            <Link to="/policy" onClick={scrollToTop}>{t("return_warranty")}</Link>
-            <Link to="/policy" onClick={scrollToTop}>Vận chuyển & giao nhận</Link>
-            <Link to="/policy" onClick={scrollToTop}>Chính sách bảo mật</Link>
+            <Link to="/policy/purchase" onClick={scrollToTop}>{t("purchase_policy")}</Link>
+            <Link to="/policy/warranty" onClick={scrollToTop}>{t("return_warranty")}</Link>
+            <Link to="/policy/shipping" onClick={scrollToTop}>{t("shipping_policy")}</Link>
+            <Link to="/policy/privacy" onClick={scrollToTop}>{t("privacy_policy")}</Link>
           </section>
 
           <section className="store-footer-column">
-            <h3>Hỗ trợ</h3>
-            <Link to="/policy" onClick={scrollToTop}>Hướng dẫn mua hàng</Link>
-            <Link to="/policy" onClick={scrollToTop}>Hướng dẫn thanh toán</Link>
-            <Link to="/policy" onClick={scrollToTop}>Tài liệu kỹ thuật</Link>
-            <Link to="/policy" onClick={scrollToTop}>{t("faqs")}</Link>
-            <a href="tel:0813158383">Hỗ trợ kỹ thuật 24/7</a>
+            <h3>{t("support")}</h3>
+            <Link to="/policy/purchase" onClick={scrollToTop}>{t("shopping_guide")}</Link>
+            <Link to="/policy/warranty" onClick={scrollToTop}>{t("warranty_request")}</Link>
+            <a href="mailto:ttsmart.ltd@gmail.com">{t("send_support_request")}</a>
+            <a href="tel:0813158383">{t("technical_support_247")}</a>
           </section>
 
-          <section className="store-footer-newsletter">
-            <h3>Đăng ký nhận tin</h3>
-            <p>Nhận thông tin khuyến mãi và sản phẩm mới nhất từ TTSmart.</p>
-            <form onSubmit={keepVisualOnly}>
-              <input type="email" placeholder="Nhập email của bạn" aria-label="Email đăng ký nhận tin" />
-              <button type="submit" aria-label="Đăng ký"><i className="fa-solid fa-paper-plane" /></button>
-            </form>
-            <div className="store-footer-badges">
-              <span>VISA</span><span>Mastercard</span><span>QR</span><span>ZaloPay</span>
-            </div>
-          </section>
         </div>
 
         <div className="store-footer-bottom">
           <span>{t("copyright")}</span>
-          <button type="button" onClick={scrollToTop} aria-label="Lên đầu trang"><i className="fa-solid fa-angle-up" /></button>
+          <button type="button" onClick={scrollToTop} aria-label={t("back_to_top")}><i className="fa-solid fa-angle-up" /></button>
         </div>
       </div>
     </footer>

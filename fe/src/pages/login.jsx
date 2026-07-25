@@ -16,7 +16,6 @@ function LogIn() {
   const [isForgotPasswordActive, setIsForgotPasswordActive] = useState(false);
   const [forgotPasswordStep, setForgotPasswordStep] = useState(1); // 1 = nhập SĐT/Email, 2 = nhập OTP & đặt lại mật khẩu mới
   const [forgotIdentifier, setForgotIdentifier] = useState(""); // SĐT hoặc Email
-  const [forgotPhone, setForgotPhone] = useState(""); // Lưu SĐT thực tế từ response
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -82,7 +81,6 @@ function LogIn() {
         }
       );
 
-      const data = await response.json();
       if (response.ok) {
         toast.success(t("register_success", "Đăng ký thành công"));
         setName("");
@@ -92,7 +90,7 @@ function LogIn() {
         setConfirmPassword("");
         setIsSignUpActive(false);
       } else {
-        toast.error(data.message);
+        toast.error(t("register_failed"));
       }
     } catch (error) {
       toast.error(t("error_occurred"));
@@ -178,16 +176,11 @@ function LogIn() {
         }
       );
 
-      const data = await response.json();
       if (response.ok) {
-        toast.success(data.message || t("otp_sent_success", "Mã OTP đã được gửi"));
-        // Lưu số điện thoại thực tế từ response để dùng cho logInString
-        if (data.phone) {
-          setForgotPhone(data.phone);
-        }
+        toast.success(t("otp_sent_success", "Mã OTP đã được gửi"));
         setForgotPasswordStep(2);
       } else {
-        toast.error(data.message);
+        toast.error(t("otp_send_failed"));
       }
     } catch (error) {
       toast.error(t("error_occurred"));
@@ -224,18 +217,16 @@ function LogIn() {
         }
       );
 
-      const data = await response.json();
       if (response.ok) {
-        toast.success(data.message || t("reset_password_success", "Đặt lại mật khẩu thành công"));
+        toast.success(t("reset_password_success", "Đặt lại mật khẩu thành công"));
         setIsForgotPasswordActive(false);
         setForgotPasswordStep(1);
         setForgotIdentifier("");
-        setForgotPhone("");
         setOtp("");
         setNewPassword("");
         setConfirmNewPassword("");
       } else {
-        toast.error(data.message);
+        toast.error(t("reset_password_failed"));
       }
     } catch (error) {
       toast.error(t("error_occurred"));

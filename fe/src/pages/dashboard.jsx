@@ -11,6 +11,8 @@ import HomeCategoryIcon from "../components/homecategoryicon";
 import SafeProductImage from "../components/safeproductimage";
 import { getCategoryIcon, normalizeTypeName } from "../utils/homecategoryicons";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
+import { useLanguage } from "../context/languagecontext.jsx";
+import { getLocalizedText } from "../utils/localizedcontent";
 
 const apiUrl = process.env.REACT_APP_BACK_END || "";
 
@@ -76,15 +78,17 @@ const resolveSectionLink = (name, types) => {
 };
 
 function SectionHeader({ title, href = "/product" }) {
+  const { t } = useLanguage();
   return (
     <div className="home-section-heading">
       <h2>{title}</h2>
-      <Link to={href}>Xem tất cả <i className="fa-solid fa-angle-right" /></Link>
+      <Link to={href}>{t("view_all")} <i className="fa-solid fa-angle-right" /></Link>
     </div>
   );
 }
 
 function Dashboard() {
+  const { t, language } = useLanguage();
   const location = useLocation();
   const { addToCart } = useContext(ShopContext);
   const [manageData, setManageData] = useState(null);
@@ -160,7 +164,7 @@ function Dashboard() {
           );
           return {
             id: item.id || `configured-category-${index}`,
-            label: item.label,
+            label: getLocalizedText(item.labelTranslations, language, item.label),
             type: item.type || "",
             link: item.link || "",
             icon: item.icon || matchedType?.icon || getCategoryIcon(item.type),
@@ -171,7 +175,7 @@ function Dashboard() {
         });
     }
     return buildAutomaticCategories(types);
-  }, [manageData?.homeCategoryConfig, types]);
+  }, [language, manageData?.homeCategoryConfig, types]);
   const sidebarCategories = homeCategories.filter((category) => category.showSidebar);
   const quickCategories = homeCategories.filter((category) => category.showQuick);
   const hasSidebarCategories = (
@@ -185,8 +189,12 @@ function Dashboard() {
       : true
   ) && quickCategories.length > 0;
   const sidebarTitle = manageData?.homeCategoryConfig?.configured
-    ? manageData.homeCategoryConfig.sidebarTitle || "Danh mục sản phẩm"
-    : "Danh mục sản phẩm";
+    ? getLocalizedText(
+        manageData.homeCategoryConfig.sidebarTitleTranslations,
+        language,
+        manageData.homeCategoryConfig.sidebarTitle || t("product_categories")
+      )
+    : t("product_categories");
   const featuredBrands = useMemo(() => {
     if (manageData?.partners && Array.isArray(manageData.partners) && manageData.partners.length > 0) {
       return manageData.partners.map((partner) => ({ label: partner, query: partner }));
@@ -213,7 +221,8 @@ function Dashboard() {
         if (secProducts.length >= 5) {
           list.push({
             key,
-            name: sec.name,
+            name: getLocalizedText(sec.nameTranslations, language, sec.name),
+            filterName: sec.name,
             image: sec.image,
             products: secProducts.slice(0, 5), // Lấy tối đa đúng 5 sản phẩm
           });
@@ -221,7 +230,7 @@ function Dashboard() {
       }
     }
     return list;
-  }, [manageData, products]);
+  }, [language, manageData, products]);
 
   return (
     <main className="customer-home">
@@ -241,7 +250,7 @@ function Dashboard() {
                 ))}
               </div>
               <Link className="home-category-all" to="/product">
-                <i className="fa-solid fa-border-all" /> Xem tất cả danh mục
+                <i className="fa-solid fa-border-all" /> {t("view_all_categories")}
               </Link>
             </aside>
           )}
@@ -258,16 +267,16 @@ function Dashboard() {
                   <div className="home-hero-slide" style={{ backgroundImage: `url(${image})` }}>
                     <div className="home-hero-overlay" />
                     <div className="home-hero-copy">
-                      <p className="home-hero-eyebrow">TTSMART INDUSTRIAL SOLUTIONS</p>
-                      <h1>Giải pháp thiết bị<br /><span>cho trạm trộn bê tông</span></h1>
+                      <p className="home-hero-eyebrow">{t("industrial_solutions")}</p>
+                      <h1>{t("equipment_solutions")}<br /><span>{t("for_concrete_mixing_stations")}</span></h1>
                       <ul>
-                        <li><i className="fa-regular fa-circle-check" /> Chính hãng - Chất lượng</li>
-                        <li><i className="fa-regular fa-circle-check" /> Tư vấn kỹ thuật chuyên sâu</li>
-                        <li><i className="fa-regular fa-circle-check" /> Bảo hành chính hãng</li>
+                        <li><i className="fa-regular fa-circle-check" /> {t("genuine_quality")}</li>
+                        <li><i className="fa-regular fa-circle-check" /> {t("expert_technical_consulting")}</li>
+                        <li><i className="fa-regular fa-circle-check" /> {t("official_warranty")}</li>
                       </ul>
                       <div className="home-hero-actions">
-                        <Link className="home-primary-button" to="/product">Khám phá ngay</Link>
-                        <Link className="home-secondary-button" to="/product"><i className="fa-regular fa-file-lines" /> Tải catalogue</Link>
+                        <Link className="home-primary-button" to="/product">{t("explore_now")}</Link>
+                        <Link className="home-secondary-button" to="/product"><i className="fa-regular fa-file-lines" /> {t("download_catalogue")}</Link>
                       </div>
                     </div>
                   </div>
@@ -278,7 +287,7 @@ function Dashboard() {
         </section>
 
         {showQuickCategories && (
-          <section className="home-quick-categories" aria-label="Danh mục nổi bật">
+          <section className="home-quick-categories" aria-label={t("featured_categories")}>
             {quickCategories.map((category) => {
               const matchingProduct = category.type
                 ? products.find((product) => product.type?.trim() === category.type.trim())
@@ -299,16 +308,16 @@ function Dashboard() {
             })}
             <Link className="home-quick-category-more" to="/product">
               <div className="home-quick-category-image"><i className="fa-solid fa-border-all" /></div>
-              <span>Xem tất cả</span>
+              <span>{t("view_all")}</span>
             </Link>
           </section>
         )}
 
         {section1Products.length >= 6 && manageData?.section1?.display !== false && (
           <section className="home-section">
-            <SectionHeader title={manageData?.section1?.name || "Sản phẩm bán chạy"} />
+            <SectionHeader title={manageData?.section1?.name || t("best_selling_products")} />
             {loading ? (
-              <div className="home-loading-row">Đang tải sản phẩm...</div>
+              <div className="home-loading-row">{t("loading_products")}</div>
             ) : (
               <Swiper
                 modules={[Autoplay]}
@@ -348,18 +357,18 @@ function Dashboard() {
                         <Link className="home-product-name" to={`/product/${product._id}`}>{product.name}</Link>
                         <div className="home-product-rating"><span>★★★★★</span> <small>({product.reviewCount || 0})</small></div>
                         <div className="home-product-price">
-                          {formatVariantPrice(variant, "đ")}
+                          {formatVariantPrice(variant)}
                         </div>
                         <div className="home-product-actions">
                           <button
                             type="button"
                             disabled={!canPurchase}
                             onClick={() => canPurchase && addToCart(product._id, 0, 1)}
-                            aria-label={`Thêm ${product.name} vào giỏ hàng`}
+                            aria-label={`${t("add_product_to_cart")}: ${product.name}`}
                           >
                             <i className="fa-solid fa-cart-shopping" />
                           </button>
-                          <button type="button" aria-label="Thêm vào yêu thích"><i className="fa-regular fa-heart" /></button>
+                          <button type="button" aria-label={t("add_to_favorites")}><i className="fa-regular fa-heart" /></button>
                         </div>
                       </article>
                     </SwiperSlide>
@@ -372,10 +381,10 @@ function Dashboard() {
 
         <section className="home-trust-strip">
           {[
-            ["fa-certificate", "Hàng chính hãng", "Cam kết 100% chính hãng"],
-            ["fa-shield-halved", "Bảo hành uy tín", "Bảo hành chính hãng"],
-            ["fa-truck-fast", "Giao hàng toàn quốc", "Giao nhanh - Đúng hẹn"],
-            ["fa-headset", "Hỗ trợ 24/7", "Tư vấn kỹ thuật miễn phí"],
+            ["fa-certificate", t("genuine_products"), t("genuine_commitment")],
+            ["fa-shield-halved", t("trusted_warranty"), t("official_warranty")],
+            ["fa-truck-fast", t("nationwide_delivery"), t("fast_on_time_delivery")],
+            ["fa-headset", t("support_247"), t("free_technical_consulting")],
           ].map(([icon, title, text]) => (
             <div key={title}><i className={`fa-solid ${icon}`} /><span><strong>{title}</strong><small>{text}</small></span></div>
           ))}
@@ -383,7 +392,7 @@ function Dashboard() {
 
         {manageData?.displayPartners !== false && (
           <section className="home-section home-brand-section">
-            <SectionHeader title="Thương hiệu nổi bật" />
+            <SectionHeader title={t("featured_brands")} />
             <div className="home-brand-grid">
               {featuredBrands.map((brand, index) => (
                 <Link key={brand.label} to={`/product?brand=${encodeURIComponent(brand.query)}`}>
@@ -408,9 +417,9 @@ function Dashboard() {
                 )}
               </div>
               <div className="highlight-info-group">
-                <h3 className="highlight-title">{sec.name || "Danh mục"}</h3>
-                <Link to={resolveSectionLink(sec.name, types)} className="highlight-more-btn">
-                  Xem thêm
+                <h3 className="highlight-title">{sec.name || t("category")}</h3>
+                <Link to={resolveSectionLink(sec.filterName, types)} className="highlight-more-btn">
+                  {t("view_more")}
                 </Link>
               </div>
             </div>
@@ -456,24 +465,24 @@ function Dashboard() {
                         
                         {/* Thông số kỹ thuật chi tiết */}
                         <div className="home-product-specs">
-                          <div><span>Loại sản phẩm:</span> <strong>{product.type || "N/A"}</strong></div>
-                          <div><span>Cụm:</span> <strong>{product.section || "N/A"}</strong></div>
-                          <div><span>Thiết bị:</span> <strong>{product.value || "N/A"}</strong></div>
+                          <div><span>{t("product_type_label")}</span> <strong>{product.type || "N/A"}</strong></div>
+                          <div><span>{t("cluster_label")}</span> <strong>{product.section || "N/A"}</strong></div>
+                          <div><span>{t("equipment_label")}</span> <strong>{product.value || "N/A"}</strong></div>
                         </div>
 
                         <div className="home-product-price">
-                          {formatVariantPrice(variant, "đ")}
+                          {formatVariantPrice(variant)}
                         </div>
                         <div className="home-product-actions">
                           <button
                             type="button"
                             disabled={!canPurchase}
                             onClick={() => canPurchase && addToCart(product._id, 0, 1)}
-                            aria-label={`Thêm ${product.name} vào giỏ hàng`}
+                            aria-label={`${t("add_product_to_cart")}: ${product.name}`}
                           >
                             <i className="fa-solid fa-cart-shopping" />
                           </button>
-                          <button type="button" aria-label="Thêm vào yêu thích"><i className="fa-regular fa-heart" /></button>
+                          <button type="button" aria-label={t("add_to_favorites")}><i className="fa-regular fa-heart" /></button>
                         </div>
                       </article>
                     </SwiperSlide>

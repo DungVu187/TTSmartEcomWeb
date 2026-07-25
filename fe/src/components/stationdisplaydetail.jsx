@@ -67,7 +67,7 @@ const StationDisplayDetail = () => {
 
         const grouped = {};
         filtered.forEach((p) => {
-          const val = p.value || 'Không xác định';
+          const val = p.value || t("unknown");
           if (!grouped[val]) grouped[val] = [];
           grouped[val].push(p);
         });
@@ -84,7 +84,7 @@ const StationDisplayDetail = () => {
 
       } catch (err) {
         console.error('Lỗi khi load dữ liệu:', err);
-        setError(err.message || "Lỗi không xác định");
+        setError(err.message === "station_not_found" ? t("station_not_found") : t("unknown_error"));
       } finally {
         setLoading(false);
       }
@@ -144,10 +144,12 @@ const StationDisplayDetail = () => {
     );
   }
 
+  const totalDevices = Object.values(productsByValue).reduce((total, products) => total + products.length, 0);
+
   if (error) {
     return (
       <div className="station-detail-container" style={{ padding: "40px" }}>
-        <Alert severity="error">{t(error)}</Alert>
+        <Alert severity="error">{error}</Alert>
       </div>
     );
   }
@@ -159,18 +161,18 @@ const StationDisplayDetail = () => {
         <div className="station-detail-header-banner-pattern" />
         
         <div className="station-detail-breadcrumbs">
-          <Link to="/station">Trạm của tôi</Link>
+          <Link to="/station">{t("my_stations_nav")}</Link>
           <span className="separator">›</span>
           <Link to={`/station/${code}`}>{stationName}</Link>
           <span className="separator">›</span>
-          <span>{t(section)}</span>
+          <span>{section}</span>
         </div>
 
         <div className="station-detail-title-wrapper" style={{ textAlign: "center", marginTop: "12px" }}>
           {stationName && (
             <span className="station-detail-subtitle-banner">{stationName}</span>
           )}
-          <h1 className="station-detail-title-banner" style={{ marginTop: "4px" }}>{t(section)}</h1>
+          <h1 className="station-detail-title-banner" style={{ marginTop: "4px" }}>{section}</h1>
         </div>
       </section>
 
@@ -182,14 +184,14 @@ const StationDisplayDetail = () => {
 
           return (
             <div key={value} className="station-detail-list-wrapper">
-              <h2 className="station-detail-list-title">{t(value)}</h2>
+              <h2 className="station-detail-list-title">{value}</h2>
               
               <div className="station-detail-table-wrapper">
                 <table className="station-detail-custom-table">
                   <thead>
                     <tr>
-                      <th style={{ width: "90px", textAlign: "center" }}>Hình ảnh</th>
-                      <th>Tên sản phẩm</th>
+                      <th style={{ width: "90px", textAlign: "center" }}>{t("image_heading")}</th>
+                      <th>{t("product_name")}</th>
                       <th style={{ width: "160px", textAlign: "center" }}></th>
                       <th style={{ width: "320px", textAlign: "right" }}></th>
                     </tr>
@@ -299,14 +301,17 @@ const StationDisplayDetail = () => {
         {/* Mock pagination matching the mockup */}
         <div className="station-detail-pagination">
           <span className="station-pagination-info" style={{ color: "#64748b", fontSize: "13px", fontWeight: "500" }}>
-            Hiển thị 1-{values.length * 2} trong số {values.length * 2} thiết bị
+            {t("device_display_range")
+              .replace("{first}", totalDevices ? 1 : 0)
+              .replace("{last}", totalDevices)
+              .replace("{total}", totalDevices)}
           </span>
           
           <div className="station-pagination-controls" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <select className="station-page-select" defaultValue="10">
-              <option value="10">10 / trang</option>
-              <option value="20">20 / trang</option>
-              <option value="50">50 / trang</option>
+              <option value="10">{t("page_size_10")}</option>
+              <option value="20">{t("page_size_20")}</option>
+              <option value="50">{t("page_size_50")}</option>
             </select>
             
             <div className="station-page-nav-wrapper">

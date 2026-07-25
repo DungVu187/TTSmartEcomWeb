@@ -27,7 +27,11 @@ if (!(Test-Path -Path $MongoDumpPath)) {
 }
 
 $DateString = Get-Date -Format "yyyy-MM-dd"
+<<<<<<< HEAD
 $BackupFileName = "${DbName}_${DateString}_ 400.archive"
+=======
+$BackupFileName = "${DbName}_${DateString}_ 400.archive.gz"
+>>>>>>> 6fb78fc (FINAL)
 $BackupFile = Join-Path -Path $BackupRoot -ChildPath $BackupFileName
 
 $Time1 = Get-LogTimestamp
@@ -36,7 +40,11 @@ Write-BackupLog "[INFO] Database: $DbName"
 Write-BackupLog "[INFO] Archive: $BackupFile"
 
 try {
+<<<<<<< HEAD
     & $MongoDumpPath --db $DbName --archive=$BackupFile 2>&1 | Out-Null
+=======
+    & $MongoDumpPath --db $DbName --archive=$BackupFile --gzip 2>&1 | Out-Null
+>>>>>>> 6fb78fc (FINAL)
 
     if ($LASTEXITCODE -ne 0) {
         throw "mongodump exited with code $LASTEXITCODE"
@@ -55,7 +63,11 @@ try {
     Write-BackupLog "[INFO] $Time2 - Backup completed! File size: $BackupSize bytes"
 
     $LimitDate = (Get-Date).AddDays(-7)
+<<<<<<< HEAD
     Get-ChildItem -Path $BackupRoot -Filter "${DbName}_*.archive" | Where-Object { $_.LastWriteTime -lt $LimitDate } | ForEach-Object {
+=======
+    Get-ChildItem -Path $BackupRoot -Filter "${DbName}_*.archive*" | Where-Object { $_.LastWriteTime -lt $LimitDate } | ForEach-Object {
+>>>>>>> 6fb78fc (FINAL)
         Remove-Item -Path $_.FullName -Force
     }
 

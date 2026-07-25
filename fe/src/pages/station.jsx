@@ -43,7 +43,7 @@ const Station = () => {
         const res = await fetch(`${apiUrl}/users/my-stations`, {
           credentials: "include",
         });
-        if (!res.ok) throw new Error(t("failed_to_get_user_stations", "Không thể lấy trạm người dùng"));
+        if (!res.ok) throw new Error("failed_to_get_user_stations");
         const data = await res.json();
         const ids = data.stations || [];
         setStationIds(ids);
@@ -62,7 +62,7 @@ const Station = () => {
           body: JSON.stringify({ ids }),
         });
 
-        if (!stationRes.ok) throw new Error(t("failed_to_get_station_info", "Không thể lấy thông tin trạm"));
+        if (!stationRes.ok) throw new Error("failed_to_get_station_info");
         const stations = await stationRes.json();
 
         const map = {};
@@ -70,7 +70,13 @@ const Station = () => {
         setStationMap(map);
       } catch (err) {
         console.error("❌ Lỗi khi tải dữ liệu:", err);
-        setError(err.message || "Lỗi không xác định");
+        if (err.message === "failed_to_get_user_stations") {
+          setError(t("failed_to_get_user_stations", "Không thể lấy trạm người dùng"));
+        } else if (err.message === "failed_to_get_station_info") {
+          setError(t("failed_to_get_station_info", "Không thể lấy thông tin trạm"));
+        } else {
+          setError(t("unknown_error"));
+        }
       } finally {
         setLoading(false);
       }
@@ -101,7 +107,7 @@ const Station = () => {
     return (
       <div className="station-page-container">
         <div className="station-shell" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
-          <div className="home-loading-row" style={{ width: "100%", padding: "40px" }}>Đang tải dữ liệu trạm...</div>
+          <div className="home-loading-row" style={{ width: "100%", padding: "40px" }}>{t("loading_station_data")}</div>
         </div>
       </div>
     );
@@ -113,9 +119,9 @@ const Station = () => {
         <div className="station-shell">
           <div className="station-login-box">
             <i className="fa-solid fa-lock" />
-            <h2>Yêu cầu đăng nhập</h2>
-            <p>Bạn cần đăng nhập bằng tài khoản khách hàng để truy cập và hiển thị danh sách các trạm của mình.</p>
-            <Link className="station-login-btn" to={`/login?redirect=${encodeURIComponent("/station")}`}>Đăng nhập ngay</Link>
+            <h2>{t("login_required_title")}</h2>
+            <p>{t("login_required_station_desc")}</p>
+            <Link className="station-login-btn" to={`/login?redirect=${encodeURIComponent("/station")}`}>{t("login_now")}</Link>
           </div>
         </div>
       </div>
@@ -145,7 +151,7 @@ const Station = () => {
               <div className="station-banner-icon-badge">
                 <i className="fa-solid fa-industry" />
               </div>
-              <h1 className="station-banner-eyebrow-title">Trạm của tôi</h1>
+              <h1 className="station-banner-eyebrow-title">{t("my_stations_nav")}</h1>
             </div>
             {primaryStation && (
               <h2 className="station-banner-title">
@@ -153,7 +159,7 @@ const Station = () => {
                 {primaryStation.location ? ` - ${primaryStation.location}` : ""}
               </h2>
             )}
-            <p style={{ marginTop: "12px" }}>Danh sách các trạm đã được gán cho tài khoản của bạn để quản lý và theo dõi.</p>
+            <p style={{ marginTop: "12px" }}>{t("assigned_stations_desc")}</p>
           </div>
         </section>
 
@@ -164,9 +170,9 @@ const Station = () => {
               <i className="fa-solid fa-network-wired" />
             </div>
             <div className="station-stat-info">
-              <span className="station-stat-label">Tổng số trạm</span>
+              <span className="station-stat-label">{t("total_stations")}</span>
               <span className="station-stat-number">{stationIds.length}</span>
-              <span className="station-stat-subtext">Trạm đang hoạt động</span>
+              <span className="station-stat-subtext">{t("active_stations")}</span>
             </div>
           </div>
           
@@ -175,9 +181,9 @@ const Station = () => {
               <i className="fa-solid fa-circle-check" />
             </div>
             <div className="station-stat-info">
-              <span className="station-stat-label">Trạm hoạt động</span>
+              <span className="station-stat-label">{t("active_station")}</span>
               <span className="station-stat-number">{stationIds.length}</span>
-              <span className="station-stat-subtext">100% tổng số trạm</span>
+              <span className="station-stat-subtext">{t("percent_of_total_stations").replace("{percent}", 100)}</span>
             </div>
           </div>
           
@@ -186,9 +192,9 @@ const Station = () => {
               <i className="fa-solid fa-screwdriver-wrench" />
             </div>
             <div className="station-stat-info">
-              <span className="station-stat-label">Trạm bảo trì</span>
+              <span className="station-stat-label">{t("maintenance_station")}</span>
               <span className="station-stat-number">0</span>
-              <span className="station-stat-subtext">0% tổng số trạm</span>
+              <span className="station-stat-subtext">{t("percent_of_total_stations").replace("{percent}", 0)}</span>
             </div>
           </div>
           
@@ -197,9 +203,9 @@ const Station = () => {
               <i className="fa-solid fa-circle-pause" />
             </div>
             <div className="station-stat-info">
-              <span className="station-stat-label">Trạm dừng hoạt động</span>
+              <span className="station-stat-label">{t("stopped_station")}</span>
               <span className="station-stat-number">0</span>
-              <span className="station-stat-subtext">0% tổng số trạm</span>
+              <span className="station-stat-subtext">{t("percent_of_total_stations").replace("{percent}", 0)}</span>
             </div>
           </div>
         </section>
@@ -210,7 +216,7 @@ const Station = () => {
           {/* Header toolbar */}
           <div className="station-list-header">
             <div className="station-list-title-container">
-              <h2 className="station-list-title">Danh sách trạm được gán</h2>
+              <h2 className="station-list-title">{t("assigned_station_list")}</h2>
               <span className="station-list-count-badge">{filteredStations.length}</span>
             </div>
             
@@ -219,7 +225,7 @@ const Station = () => {
                 <i className="fa-solid fa-magnifying-glass" />
                 <input
                   type="text"
-                  placeholder="Tìm kiếm trạm..."
+                  placeholder={t("search_stations")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -231,14 +237,14 @@ const Station = () => {
                   className={`station-view-btn ${viewMode === "list" ? "active" : ""}`}
                   onClick={() => setViewMode("list")}
                 >
-                  <i className="fa-solid fa-list" /> Danh sách
+                  <i className="fa-solid fa-list" /> {t("list_view")}
                 </button>
                 <button
                   type="button"
                   className={`station-view-btn ${viewMode === "grid" ? "active" : ""}`}
                   onClick={() => setViewMode("grid")}
                 >
-                  <i className="fa-solid fa-grip" /> Lưới
+                  <i className="fa-solid fa-grip" /> {t("grid_view")}
                 </button>
               </div>
             </div>
@@ -246,7 +252,7 @@ const Station = () => {
 
           {filteredStations.length === 0 ? (
             <div className="home-loading-row" style={{ padding: "40px" }}>
-              Không tìm thấy trạm nào phù hợp.
+              {t("no_matching_stations")}
             </div>
           ) : viewMode === "list" ? (
             /* Table list view */
@@ -255,13 +261,13 @@ const Station = () => {
                 <table className="station-custom-table">
                 <thead>
                   <tr>
-                    <th>Ảnh trạm</th>
-                    <th>Tên trạm</th>
-                    <th>Mã trạm</th>
-                    <th>Số sản phẩm</th>
-                    <th>Vị trí</th>
-                    <th>Trạng thái</th>
-                    <th>Thao tác</th>
+                    <th>{t("station_image")}</th>
+                    <th>{t("station_name")}</th>
+                    <th>{t("station_code")}</th>
+                    <th>{t("product_count")}</th>
+                    <th>{t("location")}</th>
+                    <th>{t("status")}</th>
+                    <th>{t("actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -294,7 +300,7 @@ const Station = () => {
                       <td>{station.location || "-"}</td>
                       <td>
                         <span className="station-status-pill active">
-                          ● Hoạt động
+                          ● {t("active")}
                         </span>
                       </td>
                       <td>
@@ -304,7 +310,7 @@ const Station = () => {
                             className="station-btn-detail"
                             onClick={() => navigate(`/station/${station.inviteCode || station.stationCode}`)}
                           >
-                            <i className="fa-solid fa-arrow-up-right-from-square" /> Xem chi tiết
+                            <i className="fa-solid fa-arrow-up-right-from-square" /> {t("view_details")}
                           </button>
                         </div>
                       </td>
@@ -332,7 +338,7 @@ const Station = () => {
                     <span className="station-mobile-card-content">
                       <strong>{station.stationName}</strong>
                       <small>{station.inviteCode || station.stationCode}</small>
-                      <span className="station-status-pill active">● Hoạt động</span>
+                      <span className="station-status-pill active">● {t("active")}</span>
                     </span>
                     <i className="fa-solid fa-angle-right station-mobile-card-arrow" />
                   </button>
@@ -355,21 +361,21 @@ const Station = () => {
                       <i className="fa-solid fa-industry" />
                     )}
                     <div className="station-grid-status">
-                      <span className="station-status-pill active">● Hoạt động</span>
+                      <span className="station-status-pill active">● {t("active")}</span>
                     </div>
                   </div>
                   
                   <div className="station-grid-content">
                     <h3 className="station-grid-title">{station.stationName}</h3>
-                    <span className="station-grid-code">Mã: {station.stationCode}</span>
+                    <span className="station-grid-code">{t("code_label")} {station.stationCode}</span>
                     
                     <div className="station-grid-meta">
                       <div className="station-grid-meta-item">
-                        <span className="station-grid-meta-label">Số sản phẩm</span>
+                        <span className="station-grid-meta-label">{t("product_count")}</span>
                         <span className="station-grid-meta-value">{station.productId?.length || 0}</span>
                       </div>
                       <div className="station-grid-meta-item">
-                        <span className="station-grid-meta-label">Vị trí</span>
+                        <span className="station-grid-meta-label">{t("location")}</span>
                         <span className="station-grid-meta-value">{station.location || "-"}</span>
                       </div>
                     </div>
@@ -381,7 +387,7 @@ const Station = () => {
                       className="station-btn-detail"
                       onClick={() => navigate(`/station/${station.inviteCode || station.stationCode}`)}
                     >
-                      <i className="fa-solid fa-arrow-up-right-from-square" /> Xem chi tiết
+                      <i className="fa-solid fa-arrow-up-right-from-square" /> {t("view_details")}
                     </button>
                   </div>
                 </div>
@@ -392,14 +398,17 @@ const Station = () => {
           {/* Pagination Footer */}
           <div className="station-pagination-container">
             <span className="station-pagination-info">
-              Hiển thị 1-{filteredStations.length} trong số {filteredStations.length} trạm
+              {t("station_display_range")
+                .replace("{first}", filteredStations.length ? 1 : 0)
+                .replace("{last}", filteredStations.length)
+                .replace("{total}", filteredStations.length)}
             </span>
             
             <div className="station-pagination-controls">
               <select className="station-page-select" defaultValue="10">
-                <option value="10">10 / trang</option>
-                <option value="20">20 / trang</option>
-                <option value="50">50 / trang</option>
+                <option value="10">{t("page_size_10")}</option>
+                <option value="20">{t("page_size_20")}</option>
+                <option value="50">{t("page_size_50")}</option>
               </select>
               
               <div className="station-page-nav-wrapper">

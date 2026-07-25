@@ -216,7 +216,7 @@ const Manage = () => {
     topPurchaseUrl: "",
     highestRatingUrl: "",
     introduction: "",
-    mainPolicy: "",
+    introductionTranslations: { vi: "", zh: "", en: "" },
     homeCategoryConfig: {
       configured: false,
       sidebarTitle: "Danh mục sản phẩm",
@@ -229,8 +229,8 @@ const Manage = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [bannerThumbsSwiper, setBannerThumbsSwiper] = useState(null);
-  const [introductionInput, setIntroductionInput] = useState("");
-  const [mainPolicyInput, setMainPolicyInput] = useState("");
+  const [introductionInputs, setIntroductionInputs] = useState({ vi: "", zh: "", en: "" });
+  const [introductionLanguage, setIntroductionLanguage] = useState("vi");
   const [newPartnerName, setNewPartnerName] = useState("");
 
   const bannerInputRef = useRef(null);
@@ -249,8 +249,11 @@ const Manage = () => {
       const result = await response.json();
       if (result.success) {
         setManageData(result.data);
-        setIntroductionInput(result.data.introduction || "");
-        setMainPolicyInput(result.data.mainPolicy || "");
+        setIntroductionInputs({
+          vi: result.data.introductionTranslations?.vi || result.data.introduction || "",
+          zh: result.data.introductionTranslations?.zh || result.data.introduction || "",
+          en: result.data.introductionTranslations?.en || result.data.introduction || "",
+        });
       } else {
         toast.error(result.message || "Lỗi khi lấy dữ liệu");
       }
@@ -483,13 +486,17 @@ const Manage = () => {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ introduction: introductionInput }),
+        body: JSON.stringify({
+          introduction: introductionInputs.vi,
+          translations: introductionInputs,
+        }),
       });
       const result = await response.json();
       if (result.success) {
         setManageData((prev) => ({
           ...prev,
           introduction: result.data.introduction,
+          introductionTranslations: result.data.introductionTranslations,
         }));
         toast.success("Cập nhật thành công");
       } else {
@@ -497,35 +504,6 @@ const Manage = () => {
       }
     } catch (error) {
       console.error("Error updating introduction:", error);
-      toast.error("Đã xảy ra lỗi khi cập nhật");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateMainPolicy = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${apiUrl}/manages/update-policy`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ mainPolicy: mainPolicyInput }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        setManageData((prev) => ({
-          ...prev,
-          mainPolicy: result.data.mainPolicy,
-        }));
-        toast.success("Cập nhật thành công");
-      } else {
-        toast.error(result.message || "Cập nhật thất bại");
-      }
-    } catch (error) {
-      console.error("Error updating mainPolicy:", error);
       toast.error("Đã xảy ra lỗi khi cập nhật");
     } finally {
       setLoading(false);
@@ -644,27 +622,40 @@ const Manage = () => {
         </TableContainer>
       </Box>
 
-      <TextUpdateSection
-        title="Giới thiệu"
-        buttonLoadingText="Đang cập nhật..."
-        buttonText="Cập nhật"
-        label="Nhập nội dung giới thiệu"
-        value={introductionInput}
-        onChange={(e) => setIntroductionInput(e.target.value)}
-        onUpdate={handleUpdateIntroduction}
-        loading={loading}
-      />
-
-      <TextUpdateSection
-        title="Chính sách"
-        buttonLoadingText="Đang cập nhật..."
-        buttonText="Cập nhật"
-        label="Nhập nội dung chính sách"
-        value={mainPolicyInput}
-        onChange={(e) => setMainPolicyInput(e.target.value)}
-        onUpdate={handleUpdateMainPolicy}
-        loading={loading}
-      />
+      <Box sx={{ mb: 4, width: "900px" }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>Giới thiệu ba ngôn ngữ</Typography>
+        <Typography sx={{ color: "#64748b", mb: 2 }}>
+          Nội dung này hiển thị tại trang Giới thiệu phía khách hàng theo ngôn ngữ đang chọn.
+        </Typography>
+        <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+          {[
+            { key: "vi", label: "Tiếng Việt" },
+            { key: "zh", label: "中文简体" },
+            { key: "en", label: "English" },
+          ].map((language) => (
+            <Button
+              key={language.key}
+              variant={introductionLanguage === language.key ? "contained" : "outlined"}
+              onClick={() => setIntroductionLanguage(language.key)}
+            >
+              {language.label}
+            </Button>
+          ))}
+        </Box>
+        <TextUpdateSection
+          title=""
+          buttonLoadingText="Đang cập nhật..."
+          buttonText="Cập nhật cả ba ngôn ngữ"
+          label="Nhập nội dung giới thiệu"
+          value={introductionInputs[introductionLanguage]}
+          onChange={(event) => setIntroductionInputs((current) => ({
+            ...current,
+            [introductionLanguage]: event.target.value,
+          }))}
+          onUpdate={handleUpdateIntroduction}
+          loading={loading}
+        />
+      </Box>
 
       <Dialog
         open={openDialog}

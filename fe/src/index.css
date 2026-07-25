@@ -26,7 +26,7 @@ html {
 }
 
 .main-content {
-  padding-top: 104px;
+  padding-top: 72px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;

@@ -1,8 +1,9 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
+import { customerTranslations } from "./customertranslations.js";
 
 const LanguageContext = createContext(null);
 
-const translations = {
+const baseTranslations = {
   vi: {
     // Navbar
     "my_stations_nav": "Trạm của tôi",
@@ -830,6 +831,25 @@ const translations = {
   }
 };
 
+const translations = {
+  vi: { ...baseTranslations.vi, ...customerTranslations.vi },
+  zh: { ...baseTranslations.zh, ...customerTranslations.zh },
+  en: { ...baseTranslations.en, ...customerTranslations.en },
+};
+
+export const getStoredTranslation = (key, fallback = null) => {
+  const savedLanguage = localStorage.getItem("language");
+  const language = savedLanguage && translations[savedLanguage] ? savedLanguage : "vi";
+  return translations[language]?.[key] ?? (fallback !== null ? fallback : key);
+};
+
+export const getStoredLocale = () => {
+  const savedLanguage = localStorage.getItem("language");
+  if (savedLanguage === "zh") return "zh-CN";
+  if (savedLanguage === "en") return "en-US";
+  return "vi-VN";
+};
+
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguageState] = useState(() => {
     const saved = localStorage.getItem("language");
@@ -843,6 +863,10 @@ export const LanguageProvider = ({ children }) => {
     }
   };
 
+  useEffect(() => {
+    document.documentElement.lang = language === "zh" ? "zh-CN" : language;
+  }, [language]);
+
   const t = (key, fallback = null) => {
     if (!key) return "";
 
@@ -852,17 +876,13 @@ export const LanguageProvider = ({ children }) => {
       return langDict[key];
     }
 
-    // Fallback parsing (e.g. database values translation)
-    const upperKey = String(key).trim().toUpperCase();
-    if (langDict && langDict[upperKey] !== undefined) {
-      return langDict[upperKey];
-    }
-
     return fallback !== null ? fallback : key;
   };
 
+  const locale = language === "zh" ? "zh-CN" : language === "en" ? "en-US" : "vi-VN";
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, locale, t }}>
       {children}
     </LanguageContext.Provider>
   );

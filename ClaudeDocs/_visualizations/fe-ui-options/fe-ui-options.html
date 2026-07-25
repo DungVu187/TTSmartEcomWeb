@@ -1,0 +1,1187 @@
+<div id="tts-ui-compare">
+  <style>
+    #tts-ui-compare {
+      --background: #f4f6f8;
+      --foreground: #17222b;
+      --card: #ffffff;
+      --card-foreground: #17222b;
+      --primary: #075b83;
+      --primary-foreground: #ffffff;
+      --secondary: #e9eef1;
+      --secondary-foreground: #17222b;
+      --muted: #edf1f3;
+      --muted-foreground: #52616c;
+      --accent: #dcecf3;
+      --accent-foreground: #123d52;
+      --border: #cbd5db;
+      --input: #ffffff;
+      --ring: #075b83;
+      --viz-series-1: #08769d;
+      --viz-series-2: #d59b37;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      #tts-ui-compare {
+        --background: #11191f;
+        --foreground: #edf3f5;
+        --card: #172229;
+        --card-foreground: #edf3f5;
+        --primary: #71bdd5;
+        --primary-foreground: #10212a;
+        --secondary: #223139;
+        --secondary-foreground: #edf3f5;
+        --muted: #1c2a31;
+        --muted-foreground: #b4c1c7;
+        --accent: #214150;
+        --accent-foreground: #eaf7fb;
+        --border: #3a4b54;
+        --input: #172229;
+        --ring: #71bdd5;
+        --viz-series-1: #71bdd5;
+        --viz-series-2: #dcb360;
+      }
+    }
+
+    #tts-ui-compare {
+      --tts-accent: var(--viz-series-1);
+      --tts-accent-soft: color-mix(in srgb, var(--viz-series-1) 14%, var(--background));
+      --tts-warm-soft: color-mix(in srgb, var(--viz-series-2) 11%, var(--background));
+      --tts-ink-soft: color-mix(in srgb, var(--foreground) 72%, var(--background));
+      --tts-line: color-mix(in srgb, var(--border) 82%, transparent);
+      color: var(--foreground);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+
+    #tts-ui-compare .card {
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      background: var(--card);
+      color: var(--card-foreground);
+      box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+    }
+
+    #tts-ui-compare .btn {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.25rem;
+      padding: 0.48rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+      font: inherit;
+      font-weight: 500;
+      line-height: 1;
+      text-decoration: none;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), background-color 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #tts-ui-compare .btn:hover {
+      background: var(--accent);
+      color: var(--accent-foreground);
+    }
+
+    #tts-ui-compare .btn:active {
+      transform: scale(0.98);
+    }
+
+    #tts-ui-compare .btn:focus-visible,
+    #tts-ui-compare .form-control:focus-visible,
+    #tts-ui-compare .form-select:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--ring) 45%, transparent);
+      outline-offset: 2px;
+    }
+
+    #tts-ui-compare .btn-primary,
+    #tts-ui-compare .btn[aria-selected="true"] {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    #tts-ui-compare .btn-block {
+      width: 100%;
+      margin-bottom: 0.55rem;
+    }
+
+    #tts-ui-compare .form-label {
+      display: grid;
+      gap: 0.35rem;
+      color: var(--foreground);
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .form-control,
+    #tts-ui-compare .form-select {
+      min-height: 2.4rem;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 0.45rem;
+      background: var(--input);
+      color: var(--foreground);
+      font: inherit;
+    }
+
+    #tts-ui-compare .viz-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.22rem 0.5rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--accent-foreground);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    #tts-ui-compare .text-small {
+      font-size: 0.78rem;
+    }
+
+    #tts-ui-compare .text-muted {
+      color: var(--muted-foreground);
+    }
+
+    #tts-ui-compare * {
+      box-sizing: border-box;
+    }
+
+    #tts-ui-compare [hidden] {
+      display: none !important;
+    }
+
+    #tts-ui-compare .direction-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    #tts-ui-compare .preview-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(230px, 0.28fr);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    #tts-ui-compare .mock-browser {
+      overflow: hidden;
+      padding: 0;
+    }
+
+    #tts-ui-compare .browser-bar {
+      display: grid;
+      grid-template-columns: auto minmax(160px, 1fr) auto;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.7rem 0.9rem;
+      border-bottom: 1px solid var(--tts-line);
+      background: var(--muted);
+      color: var(--muted-foreground);
+    }
+
+    #tts-ui-compare .browser-controls {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    #tts-ui-compare .browser-controls span {
+      display: block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    #tts-ui-compare .browser-address {
+      padding: 0.35rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 0.4rem;
+      background: var(--background);
+      color: var(--muted-foreground);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #tts-ui-compare .shop-frame {
+      background: var(--background);
+    }
+
+    #tts-ui-compare .shop-nav {
+      min-height: 66px;
+      display: grid;
+      grid-template-columns: auto minmax(170px, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.8rem 1.1rem;
+      border-bottom: 1px solid var(--tts-line);
+    }
+
+    #tts-ui-compare .shop-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      min-width: 128px;
+    }
+
+    #tts-ui-compare .shop-logo img {
+      display: block;
+      width: 126px;
+      height: 35px;
+      object-fit: contain;
+    }
+
+    #tts-ui-compare .shop-links,
+    #tts-ui-compare .shop-actions,
+    #tts-ui-compare .station-switch,
+    #tts-ui-compare .filter-row,
+    #tts-ui-compare .detail-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    #tts-ui-compare .shop-links {
+      justify-content: center;
+    }
+
+    #tts-ui-compare .shop-actions {
+      justify-content: flex-end;
+      white-space: nowrap;
+    }
+
+    #tts-ui-compare .shop-link,
+    #tts-ui-compare .plain-link {
+      color: var(--foreground);
+      text-decoration: none;
+    }
+
+    #tts-ui-compare .shop-link:hover,
+    #tts-ui-compare .plain-link:hover {
+      color: var(--tts-accent);
+      text-decoration: underline;
+      text-underline-offset: 0.2rem;
+    }
+
+    #tts-ui-compare .compact-search {
+      width: 100%;
+      min-width: 170px;
+    }
+
+    #tts-ui-compare .hero-a {
+      position: relative;
+      min-height: 286px;
+      overflow: hidden;
+      display: grid;
+      align-items: end;
+      background: var(--muted);
+    }
+
+    #tts-ui-compare .hero-a img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #tts-ui-compare .hero-a-content {
+      position: relative;
+      max-width: 460px;
+      margin: 1.25rem;
+      padding: 1rem 1.15rem;
+      border-left: 4px solid var(--tts-accent);
+      background: color-mix(in srgb, var(--card) 91%, transparent);
+      color: var(--card-foreground);
+    }
+
+    #tts-ui-compare .hero-a-content h2,
+    #tts-ui-compare .station-hero h2,
+    #tts-ui-compare .quick-head h2 {
+      margin: 0 0 0.45rem;
+      font-weight: 500;
+      letter-spacing: -0.025em;
+    }
+
+    #tts-ui-compare .hero-a-content p,
+    #tts-ui-compare .station-hero p,
+    #tts-ui-compare .quick-head p {
+      margin: 0 0 0.8rem;
+      color: var(--tts-ink-soft);
+    }
+
+    #tts-ui-compare .section-pad {
+      padding: 1.25rem;
+    }
+
+    #tts-ui-compare .section-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    #tts-ui-compare .section-heading h3 {
+      margin: 0;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    #tts-ui-compare .product-item {
+      min-width: 0;
+      border-top: 2px solid var(--tts-line);
+      padding-top: 0.75rem;
+    }
+
+    #tts-ui-compare .product-item img,
+    #tts-ui-compare .quick-product img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: var(--muted);
+    }
+
+    #tts-ui-compare .product-item h4 {
+      margin: 0.7rem 0 0.3rem;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .product-item p,
+    #tts-ui-compare .product-item small {
+      display: block;
+      margin: 0 0 0.5rem;
+      color: var(--muted-foreground);
+    }
+
+    #tts-ui-compare .price {
+      color: var(--foreground) !important;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .integration {
+      padding: 1rem;
+    }
+
+    #tts-ui-compare .integration h3 {
+      margin: 0 0 0.35rem;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .integration > p {
+      margin: 0 0 1rem;
+      color: var(--muted-foreground);
+    }
+
+    #tts-ui-compare .map-list {
+      display: grid;
+      gap: 0;
+      margin: 0 0 1rem;
+    }
+
+    #tts-ui-compare .map-row {
+      padding: 0.72rem 0;
+      border-top: 1px solid var(--tts-line);
+    }
+
+    #tts-ui-compare .map-row strong,
+    #tts-ui-compare .map-row code {
+      display: block;
+    }
+
+    #tts-ui-compare .map-row code {
+      margin-top: 0.2rem;
+      color: var(--muted-foreground);
+      overflow-wrap: anywhere;
+    }
+
+    #tts-ui-compare .integration-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    #tts-ui-compare .station-topline {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      padding: 0.65rem 1rem;
+      background: var(--tts-accent-soft);
+      border-bottom: 1px solid var(--tts-line);
+    }
+
+    #tts-ui-compare .station-topline strong {
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .station-shell {
+      display: grid;
+      grid-template-columns: 184px minmax(0, 1fr) 226px;
+      min-height: 650px;
+    }
+
+    #tts-ui-compare .station-side {
+      padding: 1rem;
+      border-right: 1px solid var(--tts-line);
+      background: var(--muted);
+    }
+
+    #tts-ui-compare .station-side strong {
+      display: block;
+      margin-bottom: 0.7rem;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .station-side nav {
+      display: grid;
+      gap: 0.25rem;
+    }
+
+    #tts-ui-compare .station-side a {
+      padding: 0.6rem 0.7rem;
+      color: var(--foreground);
+      text-decoration: none;
+      border-left: 3px solid transparent;
+    }
+
+    #tts-ui-compare .station-side a[aria-current="page"] {
+      border-left-color: var(--tts-accent);
+      background: var(--accent);
+      color: var(--accent-foreground);
+    }
+
+    #tts-ui-compare .station-main {
+      min-width: 0;
+      padding: 1rem;
+    }
+
+    #tts-ui-compare .station-hero {
+      min-height: 220px;
+      display: grid;
+      grid-template-columns: minmax(0, 0.82fr) minmax(180px, 1.18fr);
+      background: var(--tts-warm-soft);
+      overflow: hidden;
+    }
+
+    #tts-ui-compare .station-copy {
+      padding: 1.2rem;
+      align-self: center;
+    }
+
+    #tts-ui-compare .station-hero img {
+      width: 100%;
+      height: 100%;
+      min-height: 220px;
+      object-fit: cover;
+    }
+
+    #tts-ui-compare .station-products {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+      margin-top: 1rem;
+    }
+
+    #tts-ui-compare .station-cart {
+      padding: 1rem;
+      border-left: 1px solid var(--tts-line);
+      background: var(--muted);
+    }
+
+    #tts-ui-compare .station-cart h3 {
+      margin: 0 0 0.8rem;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .cart-line,
+    #tts-ui-compare .cart-total {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.7rem;
+      padding: 0.75rem 0;
+      border-top: 1px solid var(--tts-line);
+    }
+
+    #tts-ui-compare .cart-line small {
+      display: block;
+      color: var(--muted-foreground);
+      margin-top: 0.2rem;
+    }
+
+    #tts-ui-compare .cart-total {
+      margin-top: 0.3rem;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .quick-nav {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      padding: 0.7rem 1rem;
+      border-bottom: 3px solid var(--tts-accent);
+    }
+
+    #tts-ui-compare .quick-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 0;
+    }
+
+    #tts-ui-compare .quick-catalog {
+      min-width: 0;
+      padding: 1rem;
+    }
+
+    #tts-ui-compare .quick-head {
+      margin-bottom: 1rem;
+    }
+
+    #tts-ui-compare .filter-row {
+      padding: 0.75rem;
+      background: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+
+    #tts-ui-compare .filter-row .form-control,
+    #tts-ui-compare .filter-row .form-select {
+      min-width: 150px;
+      flex: 1 1 150px;
+    }
+
+    #tts-ui-compare .quick-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    #tts-ui-compare .quick-table th,
+    #tts-ui-compare .quick-table td {
+      padding: 0.7rem 0.45rem;
+      text-align: left;
+      border-top: 1px solid var(--tts-line);
+      vertical-align: middle;
+    }
+
+    #tts-ui-compare .quick-table th {
+      color: var(--muted-foreground);
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .quick-product {
+      display: grid;
+      grid-template-columns: 54px minmax(100px, 1fr);
+      gap: 0.65rem;
+      align-items: center;
+    }
+
+    #tts-ui-compare .quick-product img {
+      width: 54px;
+      height: 46px;
+    }
+
+    #tts-ui-compare .quick-product strong,
+    #tts-ui-compare .quick-product small {
+      display: block;
+    }
+
+    #tts-ui-compare .quick-product small {
+      color: var(--muted-foreground);
+      margin-top: 0.15rem;
+    }
+
+    #tts-ui-compare .qty-control {
+      display: inline-grid;
+      grid-template-columns: auto minmax(28px, auto) auto;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    #tts-ui-compare .qty-value {
+      text-align: center;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .quick-summary {
+      padding: 1rem;
+      border-left: 1px solid var(--tts-line);
+      background: var(--muted);
+    }
+
+    #tts-ui-compare .quick-summary h3 {
+      margin: 0 0 0.8rem;
+      font-weight: 500;
+    }
+
+    #tts-ui-compare .summary-note {
+      padding: 0.8rem;
+      margin: 0.8rem 0;
+      background: var(--tts-accent-soft);
+      color: var(--foreground);
+    }
+
+    #tts-ui-compare .status-line {
+      min-height: 1.25rem;
+      margin-top: 0.65rem;
+      color: var(--muted-foreground);
+    }
+
+    #tts-ui-compare .mobile-bar {
+      display: none;
+    }
+
+    @media (max-width: 920px) {
+      #tts-ui-compare .preview-layout {
+        grid-template-columns: 1fr;
+      }
+
+      #tts-ui-compare .integration {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      #tts-ui-compare .integration > p {
+        grid-column: 1 / -1;
+      }
+
+      #tts-ui-compare .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      #tts-ui-compare .station-shell {
+        grid-template-columns: 150px minmax(0, 1fr);
+      }
+
+      #tts-ui-compare .station-cart {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid var(--tts-line);
+      }
+
+      #tts-ui-compare .quick-body {
+        grid-template-columns: 1fr;
+      }
+
+      #tts-ui-compare .quick-summary {
+        border-left: 0;
+        border-top: 1px solid var(--tts-line);
+      }
+    }
+
+    @media (max-width: 640px) {
+      #tts-ui-compare .browser-bar {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      #tts-ui-compare .browser-meta {
+        display: none;
+      }
+
+      #tts-ui-compare .shop-nav,
+      #tts-ui-compare .quick-nav,
+      #tts-ui-compare .station-topline {
+        grid-template-columns: 1fr auto;
+      }
+
+      #tts-ui-compare .shop-links,
+      #tts-ui-compare .quick-nav .compact-search,
+      #tts-ui-compare .station-switch {
+        display: none;
+      }
+
+      #tts-ui-compare .shop-actions a:not(:last-child) {
+        display: none;
+      }
+
+      #tts-ui-compare .hero-a {
+        min-height: 330px;
+      }
+
+      #tts-ui-compare .hero-a-content {
+        margin: 0.8rem;
+      }
+
+      #tts-ui-compare .section-heading {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      #tts-ui-compare .product-grid,
+      #tts-ui-compare .station-products {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      #tts-ui-compare .station-shell {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+
+      #tts-ui-compare .station-side {
+        border-right: 0;
+        border-bottom: 1px solid var(--tts-line);
+      }
+
+      #tts-ui-compare .station-side nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      #tts-ui-compare .station-hero {
+        grid-template-columns: 1fr;
+      }
+
+      #tts-ui-compare .station-hero img {
+        min-height: 180px;
+      }
+
+      #tts-ui-compare .integration {
+        grid-template-columns: 1fr;
+      }
+
+      #tts-ui-compare .quick-table th:nth-child(3),
+      #tts-ui-compare .quick-table td:nth-child(3),
+      #tts-ui-compare .quick-table th:nth-child(4),
+      #tts-ui-compare .quick-table td:nth-child(4) {
+        display: none;
+      }
+
+      #tts-ui-compare .mobile-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.7rem;
+        padding: 0.8rem 1rem;
+        border-top: 1px solid var(--tts-line);
+        background: var(--card);
+      }
+    }
+
+    @media (max-width: 420px) {
+      #tts-ui-compare .product-grid,
+      #tts-ui-compare .station-products {
+        grid-template-columns: 1fr;
+      }
+
+      #tts-ui-compare .quick-table th:nth-child(2),
+      #tts-ui-compare .quick-table td:nth-child(2) {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      #tts-ui-compare .direction-panel:not([hidden]) .mock-browser {
+        animation: tts-panel-enter 420ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      #tts-ui-compare .product-item img,
+      #tts-ui-compare .quick-product img {
+        transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      #tts-ui-compare .product-item:hover img,
+      #tts-ui-compare .quick-product:hover img {
+        transform: translateY(-2px) scale(1.015);
+      }
+    }
+
+    @keyframes tts-panel-enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+
+  <div class="direction-picker" role="tablist" aria-label="Chọn hướng giao diện">
+    <button class="btn direction-tab" type="button" role="tab" aria-selected="false" aria-controls="tts-direction-a" data-direction="a">
+      A. Cửa hàng tin cậy
+    </button>
+    <button class="btn btn-primary direction-tab" type="button" role="tab" aria-selected="true" aria-controls="tts-direction-b" data-direction="b">
+      B. Danh mục theo trạm
+    </button>
+    <button class="btn direction-tab" type="button" role="tab" aria-selected="false" aria-controls="tts-direction-c" data-direction="c">
+      C. Đặt hàng nhanh
+    </button>
+  </div>
+
+  <section class="direction-panel" id="tts-direction-a" role="tabpanel" hidden>
+    <div class="preview-layout">
+      <div class="card mock-browser">
+        <div class="browser-bar">
+          <div class="browser-controls" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="browser-address">localhost:3000</div>
+          <div class="browser-meta text-small">Trang chủ bán lẻ</div>
+        </div>
+        <div class="shop-frame">
+          <header class="shop-nav">
+            <a class="shop-logo" href="http://localhost:3000" target="_blank" rel="noreferrer">
+              <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/TTSlogo.jpg" alt="Logo TTSmart">
+            </a>
+            <nav class="shop-links" aria-label="Điều hướng mẫu A">
+              <a class="shop-link" href="http://localhost:3000/product" target="_blank" rel="noreferrer">Sản phẩm</a>
+              <a class="shop-link" href="http://localhost:3000/station" target="_blank" rel="noreferrer">Trạm của tôi</a>
+              <a class="shop-link" href="http://localhost:3000/introduction" target="_blank" rel="noreferrer">Giới thiệu</a>
+            </nav>
+            <div class="shop-actions">
+              <a class="plain-link" href="http://localhost:3000/login" target="_blank" rel="noreferrer">Tài khoản</a>
+              <a class="plain-link" href="http://localhost:3000/cart" target="_blank" rel="noreferrer">Giỏ hàng <span class="viz-badge cart-count">2</span></a>
+            </div>
+          </header>
+
+          <div class="section-pad">
+            <label class="form-label" for="search-a">Tìm sản phẩm</label>
+            <input id="search-a" class="form-control compact-search" type="search" value="Khóa cửa thông minh" aria-label="Tìm sản phẩm mẫu">
+          </div>
+
+          <section class="hero-a" aria-label="Sản phẩm nổi bật">
+            <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/banner.jpg" alt="Aqara Hub M3 Matter trong không gian nhà ở">
+            <div class="hero-a-content">
+              <h2>Thiết bị thông minh cho nhu cầu thật</h2>
+              <p>Xem đúng giá, tình trạng hàng và trạm đang phục vụ.</p>
+              <a class="btn btn-primary" href="http://localhost:3000/product" target="_blank" rel="noreferrer">Xem sản phẩm</a>
+            </div>
+          </section>
+
+          <section class="section-pad">
+            <div class="section-heading">
+              <h3>Sản phẩm đang được quan tâm</h3>
+              <a class="plain-link" href="http://localhost:3000/product" target="_blank" rel="noreferrer">Xem toàn bộ</a>
+            </div>
+            <div class="product-grid">
+              <article class="product-item">
+                <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution1.jpg" alt="Khóa cửa thông minh">
+                <h4>Khóa cửa thông minh</h4>
+                <small>Còn hàng tại trạm</small>
+                <p class="price">4.290.000 VND</p>
+                <button class="btn quick-add" type="button" data-product="Khóa cửa thông minh">Thêm giỏ</button>
+              </article>
+              <article class="product-item">
+                <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution2.jpg" alt="Bộ điều khiển đèn">
+                <h4>Bộ điều khiển đèn</h4>
+                <small>Hai phiên bản</small>
+                <p class="price">890.000 VND</p>
+                <button class="btn quick-add" type="button" data-product="Bộ điều khiển đèn">Thêm giỏ</button>
+              </article>
+              <article class="product-item">
+                <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/banner.jpg" alt="Aqara Hub M3 Matter">
+                <h4>Aqara Hub M3 Matter</h4>
+                <small>Trung tâm kết nối</small>
+                <p class="price">2.690.000 VND</p>
+                <button class="btn quick-add" type="button" data-product="Aqara Hub M3 Matter">Thêm giỏ</button>
+              </article>
+              <article class="product-item">
+                <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution3.jpg" alt="Bộ bảo mật trung tâm">
+                <h4>Bộ bảo mật trung tâm</h4>
+                <small>Liên hệ kiểm tra hàng</small>
+                <p class="price">Liên hệ</p>
+                <a class="btn" href="tel:0913158383">Gọi tư vấn</a>
+              </article>
+            </div>
+            <p class="status-line text-small" aria-live="polite"></p>
+          </section>
+          <div class="mobile-bar"><span>Sản phẩm</span><span>Giỏ hàng 2</span></div>
+        </div>
+      </div>
+
+      <aside class="card integration">
+        <div>
+          <h3>Hướng A</h3>
+          <p>Quen thuộc, dễ dùng, phù hợp khách mua lẻ và người lần đầu vào website.</p>
+        </div>
+        <div class="map-list">
+          <div class="map-row"><strong>Banner và nhóm sản phẩm</strong><code>GET /manages/</code></div>
+          <div class="map-row"><strong>Danh sách, lọc, tìm kiếm</strong><code>GET /products</code></div>
+          <div class="map-row"><strong>Chi tiết và đánh giá</strong><code>/product/:productId</code></div>
+          <div class="map-row"><strong>Giỏ hàng</strong><code>/carts/addToCart</code></div>
+          <div class="map-row"><strong>Tài khoản</strong><code>/users/profile</code></div>
+        </div>
+        <div class="integration-actions">
+          <a class="btn" href="http://localhost:3000" target="_blank" rel="noreferrer">Mở FE hiện tại</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="direction-panel" id="tts-direction-b" role="tabpanel">
+    <div class="preview-layout">
+      <div class="card mock-browser">
+        <div class="browser-bar">
+          <div class="browser-controls" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="browser-address">localhost:3000/station/TT01</div>
+          <div class="browser-meta text-small">Trạm là điểm bắt đầu</div>
+        </div>
+        <div class="shop-frame">
+          <div class="station-topline">
+            <a class="shop-logo" href="http://localhost:3000" target="_blank" rel="noreferrer">
+              <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/TTSlogo.jpg" alt="Logo TTSmart">
+            </a>
+            <div class="station-switch">
+              <span>Đang mua tại</span>
+              <strong>Trạm căn hộ mẫu - TT01</strong>
+              <a class="plain-link" href="http://localhost:3000/station" target="_blank" rel="noreferrer">Đổi trạm</a>
+            </div>
+            <div class="shop-actions">
+              <a class="plain-link" href="http://localhost:3000/myorder" target="_blank" rel="noreferrer">Đơn hàng</a>
+              <a class="plain-link" href="http://localhost:3000/cart" target="_blank" rel="noreferrer">Giỏ <span class="viz-badge cart-count">2</span></a>
+            </div>
+          </div>
+
+          <div class="station-shell">
+            <aside class="station-side">
+              <strong>Nhóm thiết bị</strong>
+              <nav aria-label="Nhóm sản phẩm theo trạm">
+                <a href="http://localhost:3000/station/TT01/security" target="_blank" rel="noreferrer" aria-current="page">An ninh</a>
+                <a href="http://localhost:3000/station/TT01/lighting" target="_blank" rel="noreferrer">Chiếu sáng</a>
+                <a href="http://localhost:3000/station/TT01/control" target="_blank" rel="noreferrer">Điều khiển</a>
+                <a href="http://localhost:3000/station/TT01/sensor" target="_blank" rel="noreferrer">Cảm biến</a>
+              </nav>
+            </aside>
+
+            <main class="station-main">
+              <section class="station-hero">
+                <div class="station-copy">
+                  <span class="viz-badge">Đề xuất cho trạm</span>
+                  <h2>Bộ an ninh căn hộ</h2>
+                  <p>Sản phẩm hiển thị theo đúng danh mục của trạm đang chọn.</p>
+                  <a class="btn btn-primary" href="http://localhost:3000/station/TT01/security" target="_blank" rel="noreferrer">Xem danh mục</a>
+                </div>
+                <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution1.jpg" alt="Khóa cửa thông minh tại căn hộ">
+              </section>
+
+              <div class="section-heading" style="margin-top: 1rem;">
+                <h3>Có tại trạm này</h3>
+                <label class="form-label" for="station-sort">Sắp xếp
+                  <select id="station-sort" class="form-select">
+                    <option>Phù hợp nhất</option>
+                    <option>Giá thấp trước</option>
+                    <option>Bán chạy</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="station-products">
+                <article class="product-item">
+                  <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution1.jpg" alt="Khóa cửa TT Lock S1">
+                  <h4>Khóa cửa TT Lock S1</h4>
+                  <small>Còn 8 sản phẩm</small>
+                  <p class="price">4.290.000 VND</p>
+                  <button class="btn quick-add" type="button" data-product="Khóa cửa TT Lock S1">Thêm giỏ</button>
+                </article>
+                <article class="product-item">
+                  <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/banner.jpg" alt="Aqara Hub M3">
+                  <h4>Aqara Hub M3</h4>
+                  <small>Còn 5 sản phẩm</small>
+                  <p class="price">2.690.000 VND</p>
+                  <button class="btn quick-add" type="button" data-product="Aqara Hub M3">Thêm giỏ</button>
+                </article>
+                <article class="product-item">
+                  <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution3.jpg" alt="Cảm biến cửa">
+                  <h4>Cảm biến cửa</h4>
+                  <small>Còn 14 sản phẩm</small>
+                  <p class="price">590.000 VND</p>
+                  <button class="btn quick-add" type="button" data-product="Cảm biến cửa">Thêm giỏ</button>
+                </article>
+              </div>
+              <p class="status-line text-small" aria-live="polite"></p>
+            </main>
+
+            <aside class="station-cart">
+              <h3>Giỏ tại trạm TT01</h3>
+              <div class="cart-line">
+                <div>Khóa cửa TT Lock S1<small>Phiên bản màu đen</small></div>
+                <strong>1</strong>
+              </div>
+              <div class="cart-line">
+                <div>Cảm biến cửa<small>Phiên bản tiêu chuẩn</small></div>
+                <strong>1</strong>
+              </div>
+              <div class="cart-total"><span>Tạm tính</span><span>4.880.000 VND</span></div>
+              <a class="btn btn-primary btn-block" href="http://localhost:3000/cart" target="_blank" rel="noreferrer">Kiểm tra giỏ</a>
+              <p class="text-small text-muted">Địa chỉ và thông tin nhận hàng được nhập ở bước giỏ hàng.</p>
+            </aside>
+          </div>
+          <div class="mobile-bar"><span>Trạm TT01</span><span>Giỏ hàng 2</span></div>
+        </div>
+      </div>
+
+      <aside class="card integration">
+        <div>
+          <h3>Hướng B <span class="viz-badge">Khuyến nghị</span></h3>
+          <p>Khớp nhất với điểm riêng của TTSmartEcomWeb: người dùng mua theo trạm và chỉ thấy sản phẩm phù hợp.</p>
+        </div>
+        <div class="map-list">
+          <div class="map-row"><strong>Trạm của người dùng</strong><code>GET /users/my-stations</code></div>
+          <div class="map-row"><strong>Thông tin trạm công khai</strong><code>GET /stations/public/:code</code></div>
+          <div class="map-row"><strong>Sản phẩm thuộc trạm</strong><code>POST /products/fetch-by-ids</code></div>
+          <div class="map-row"><strong>Danh mục theo section</strong><code>/station/:code/:section</code></div>
+          <div class="map-row"><strong>Giỏ và đăng nhập</strong><code>/carts/* + authToken cookie</code></div>
+        </div>
+        <div class="integration-actions">
+          <a class="btn" href="http://localhost:3000/station" target="_blank" rel="noreferrer">Mở route trạm</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="direction-panel" id="tts-direction-c" role="tabpanel" hidden>
+    <div class="preview-layout">
+      <div class="card mock-browser">
+        <div class="browser-bar">
+          <div class="browser-controls" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="browser-address">localhost:3000/product?stationId=TT01</div>
+          <div class="browser-meta text-small">Tối ưu thao tác đặt hàng</div>
+        </div>
+        <div class="shop-frame">
+          <header class="quick-nav">
+            <a class="shop-logo" href="http://localhost:3000" target="_blank" rel="noreferrer">
+              <img src="file:///D:/TTSmartEcomWeb/fe/src/assets/TTSlogo.jpg" alt="Logo TTSmart">
+            </a>
+            <input class="form-control compact-search" type="search" value="Tìm theo tên hoặc mã sản phẩm" aria-label="Tìm nhanh sản phẩm">
+            <div class="shop-actions">
+              <a class="plain-link" href="http://localhost:3000/myorder" target="_blank" rel="noreferrer">Đơn đã mua</a>
+              <a class="plain-link" href="http://localhost:3000/profile" target="_blank" rel="noreferrer">Nguyễn Minh</a>
+            </div>
+          </header>
+
+          <div class="quick-body">
+            <main class="quick-catalog">
+              <div class="quick-head">
+                <h2>Chọn nhanh, kiểm tra một lần</h2>
+                <p>Phù hợp khách đã biết sản phẩm hoặc thường đặt nhiều thiết bị cùng lúc.</p>
+              </div>
+
+              <div class="filter-row">
+                <label class="form-label" for="quick-station">Trạm
+                  <select id="quick-station" class="form-select"><option>Trạm căn hộ mẫu - TT01</option></select>
+                </label>
+                <label class="form-label" for="quick-type">Nhóm
+                  <select id="quick-type" class="form-select"><option>Tất cả sản phẩm</option><option>An ninh</option><option>Chiếu sáng</option></select>
+                </label>
+                <button class="btn" type="button" data-tooltip="Dùng chức năng tìm sản phẩm bằng giọng nói hiện có">Tìm bằng giọng nói</button>
+              </div>
+
+              <table class="quick-table">
+                <thead>
+                  <tr><th>Sản phẩm</th><th>Giá</th><th>Tồn</th><th>Phiên bản</th><th>Số lượng</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><div class="quick-product"><img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution1.jpg" alt="Khóa cửa TT Lock S1"><div><strong>Khóa cửa TT Lock S1</strong><small>LOCK-S1</small></div></div></td>
+                    <td>4.290.000</td><td>8</td><td>Đen</td>
+                    <td><div class="qty-control"><button class="btn qty-btn" type="button" data-step="-1">-</button><span class="qty-value">1</span><button class="btn qty-btn" type="button" data-step="1">+</button></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="quick-product"><img src="file:///D:/TTSmartEcomWeb/fe/src/assets/banner.jpg" alt="Aqara Hub M3"><div><strong>Aqara Hub M3</strong><small>HUB-M3</small></div></div></td>
+                    <td>2.690.000</td><td>5</td><td>Tiêu chuẩn</td>
+                    <td><div class="qty-control"><button class="btn qty-btn" type="button" data-step="-1">-</button><span class="qty-value">0</span><button class="btn qty-btn" type="button" data-step="1">+</button></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="quick-product"><img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution2.jpg" alt="Bộ điều khiển đèn"><div><strong>Bộ điều khiển đèn</strong><small>LIGHT-02</small></div></div></td>
+                    <td>890.000</td><td>21</td><td>Hai kênh</td>
+                    <td><div class="qty-control"><button class="btn qty-btn" type="button" data-step="-1">-</button><span class="qty-value">1</span><button class="btn qty-btn" type="button" data-step="1">+</button></div></td>
+                  </tr>
+                  <tr>
+                    <td><div class="quick-product"><img src="file:///D:/TTSmartEcomWeb/fe/src/assets/solution/solution3.jpg" alt="Cảm biến cửa"><div><strong>Cảm biến cửa</strong><small>SENSOR-D1</small></div></div></td>
+                    <td>590.000</td><td>14</td><td>Tiêu chuẩn</td>
+                    <td><div class="qty-control"><button class="btn qty-btn" type="button" data-step="-1">-</button><span class="qty-value">0</span><button class="btn qty-btn" type="button" data-step="1">+</button></div></td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="status-line text-small" aria-live="polite">Thay đổi số lượng để xem cách thao tác.</p>
+            </main>
+
+            <aside class="quick-summary">
+              <h3>Đơn đang chọn</h3>
+              <div class="cart-line"><span>Sản phẩm</span><strong class="quick-total-items">2</strong></div>
+              <div class="cart-line"><span>Trạm</span><strong>TT01</strong></div>
+              <div class="summary-note">Tồn kho và giá được kiểm tra lại khi tạo đơn.</div>
+              <a class="btn btn-primary btn-block" href="http://localhost:3000/cart" target="_blank" rel="noreferrer">Sang giỏ hàng</a>
+              <a class="btn btn-block" href="http://localhost:3000/myorder" target="_blank" rel="noreferrer">Xem đơn hàng</a>
+            </aside>
+          </div>
+          <div class="mobile-bar"><span>Đã chọn <span class="quick-total-items">2</span></span><span>Sang giỏ hàng</span></div>
+        </div>
+      </div>
+
+      <aside class="card integration">
+        <div>
+          <h3>Hướng C</h3>
+          <p>Mật độ cao hơn nhưng vẫn dễ đọc. Phù hợp khách mua lặp lại và nhân viên đặt nhiều thiết bị.</p>
+        </div>
+        <div class="map-list">
+          <div class="map-row"><strong>Lọc theo trạm và từ khóa</strong><code>GET /products?stationId=&amp;search=</code></div>
+          <div class="map-row"><strong>Tìm bằng giọng nói</strong><code>/products/voice-query-text</code></div>
+          <div class="map-row"><strong>Cập nhật số lượng</strong><code>PUT /carts/updateCartItem</code></div>
+          <div class="map-row"><strong>Tạo đơn</strong><code>POST /orders/create-order</code></div>
+          <div class="map-row"><strong>Lịch sử đơn</strong><code>GET /orders/userOrders</code></div>
+          <div class="map-row"><strong>Địa chỉ đã lưu</strong><code>/users/profile/addresses</code></div>
+        </div>
+        <div class="integration-actions">
+          <a class="btn" href="http://localhost:3000/product" target="_blank" rel="noreferrer">Mở danh mục</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const root = document.getElementById("tts-ui-compare");
+      if (!root) return;
+
+      const tabs = Array.from(root.querySelectorAll(".direction-tab"));
+      const panels = Array.from(root.querySelectorAll(".direction-panel"));
+
+      const selectDirection = (direction) => {
+        tabs.forEach((tab) => {
+          const selected = tab.dataset.direction === direction;
+          tab.setAttribute("aria-selected", String(selected));
+          tab.classList.toggle("btn-primary", selected);
+        });
+        panels.forEach((panel) => {
+          panel.hidden = panel.id !== `tts-direction-${direction}`;
+        });
+      };
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => selectDirection(tab.dataset.direction));
+      });
+
+      root.addEventListener("click", (event) => {
+        const addButton = event.target.closest(".quick-add");
+        if (addButton) {
+          root.querySelectorAll(".cart-count").forEach((count) => {
+            count.textContent = String(Number(count.textContent || "0") + 1);
+          });
+          const panel = addButton.closest(".direction-panel");
+          const status = panel ? panel.querySelector(".status-line") : null;
+          if (status) status.textContent = `Đã thêm ${addButton.dataset.product} vào giỏ mẫu.`;
+        }
+
+        const qtyButton = event.target.closest(".qty-btn");
+        if (qtyButton) {
+          const control = qtyButton.closest(".qty-control");
+          const value = control ? control.querySelector(".qty-value") : null;
+          if (!value) return;
+          const next = Math.max(0, Number(value.textContent || "0") + Number(qtyButton.dataset.step || "0"));
+          value.textContent = String(next);
+          const total = Array.from(root.querySelectorAll("#tts-direction-c .qty-value"))
+            .reduce((sum, node) => sum + Number(node.textContent || "0"), 0);
+          root.querySelectorAll("#tts-direction-c .quick-total-items").forEach((node) => {
+            node.textContent = String(total);
+          });
+          const status = root.querySelector("#tts-direction-c .status-line");
+          if (status) status.textContent = `Đang chọn ${total} sản phẩm trong bản xem trước.`;
+        }
+      });
+
+      selectDirection("b");
+    })();
+  </script>
+</div>

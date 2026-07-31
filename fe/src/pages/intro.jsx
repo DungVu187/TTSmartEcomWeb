@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useLanguage } from "../context/languagecontext.jsx";
 import { getLocalizedText } from "../utils/localizedcontent";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
+import { getStorefrontContent } from "../api/storefrontCatalogApi";
 
 const Intro = () => {
   const { t, language } = useLanguage();
@@ -14,7 +13,7 @@ const Intro = () => {
   useEffect(() => {
     const fetchIntroduction = async () => {
       try {
-        const response = await fetch(`${apiUrl}/manages/`, {
+        const response = await getStorefrontContent({
           headers: { "Content-Type": "application/json" },
         });
         const result = await response.json();

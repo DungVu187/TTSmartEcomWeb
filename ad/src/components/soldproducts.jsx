@@ -25,8 +25,10 @@ import {
 import { useNavigate } from "react-router-dom";
 import moment from "moment";
 import toast from "react-hot-toast";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  getSalesOrderProductsByIds,
+  getSalesOrders,
+} from "../api/salesOrderManagementApi";
 
 const SoldProducts = () => {
   const [soldProducts, setSoldProducts] = useState([]);
@@ -51,17 +53,10 @@ const SoldProducts = () => {
     filtersRef.current = filters;
   }, [filters]);
 
-  // Hàm gọi API chung
-  const apiFetch = async (url, options = {}) => {
+  // Hàm xử lý response API chung
+  const runApiRequest = useCallback(async (responsePromise) => {
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
-        credentials: "include",
-      });
+      const response = await responsePromise;
 
       if (response.status === 401 || response.status === 403) {
         toast.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -79,7 +74,7 @@ const SoldProducts = () => {
       toast.error(err.message);
       return null;
     }
-  };
+  }, [navigate]);
 
   // Lấy danh sách sản phẩm đã bán
   const fetchSoldProducts = useCallback(
@@ -101,7 +96,7 @@ const SoldProducts = () => {
         if (activeFilters.endDate) queryParams.endDate = activeFilters.endDate;
 
         const query = new URLSearchParams(queryParams).toString();
-        const data = await apiFetch(`${apiUrl}/orders?${query}`);
+        const data = await runApiRequest(getSalesOrders(query));
         if (!data) return;
 
         const orders = data.orders || [];
@@ -142,10 +137,9 @@ const SoldProducts = () => {
         });
 
         const productIds = Array.from(productMap.values()).map((p) => p.productId);
-        const productsData = await apiFetch(`${apiUrl}/products/fetch-by-ids`, {
-          method: "POST",
-          body: JSON.stringify({ ids: productIds }),
-        });
+        const productsData = await runApiRequest(
+          getSalesOrderProductsByIds(productIds)
+        );
 
         if (!productsData?.success) {
           throw new Error("Không thể lấy chi tiết sản phẩm");
@@ -183,7 +177,7 @@ const SoldProducts = () => {
         setLoading(false);
       }
     },
-    [rowsPerPage, navigate]
+    [rowsPerPage, runApiRequest]
   );
 
   // Debounce tìm kiếm productName

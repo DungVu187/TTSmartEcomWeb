@@ -1,4 +1,5 @@
 require("dotenv").config();
+const { TelegramConfig } = require("./models/telegram");
 
 const escapeHtml = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")
@@ -46,7 +47,6 @@ const sendTelegramMessage = async (chatId, text) => {
 
 const sendTelegramOrderNotification = async (orderInfo) => {
   try {
-    const { TelegramConfig } = require("./components/telegram");
     const config = await TelegramConfig.findOne();
     if (!config?.enabled) return;
 

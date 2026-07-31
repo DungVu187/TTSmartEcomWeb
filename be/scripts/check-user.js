@@ -1,6 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const { User } = require('../components/user');
+const { User } = require('../models/user');
 
 const dbName = process.env.DB_NAME || 'Ecom';
 const dbUri = `mongodb://localhost:27017/${dbName}`;

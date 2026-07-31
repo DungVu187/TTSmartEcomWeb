@@ -1,5 +1,6 @@
-const { User, authenticateUser } = require('./user');
-const { Product } = require('./product');
+const { authenticateUser } = require('../middlewares/auth');
+const { User } = require('../models/user');
+const { Product } = require('../models/product');
 const {
     buildProductVisibilityFilter,
     combineProductFilters,

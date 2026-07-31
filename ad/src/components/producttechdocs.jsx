@@ -12,10 +12,10 @@ import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutl
 import LinkIcon from "@mui/icons-material/Link";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import toast from "react-hot-toast";
+import { uploadProductDocument } from "../api/productManagementApi";
 import "./style/producttechdocs.css";
-
-const apiUrl = import.meta.env.VITE_API_URL;
 const MAX_PDF_SIZE = 20 * 1024 * 1024;
+export const MAX_PRODUCT_DOCUMENTS = 5;
 
 const isValidHttpUrl = (value) => {
   try {
@@ -31,8 +31,18 @@ const ProductTechDocs = ({ value = [], onChange, disabled = false }) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
   const documents = Array.isArray(value) ? value : [];
+  const hasReachedDocumentLimit = documents.length >= MAX_PRODUCT_DOCUMENTS;
+
+  const showDocumentLimitError = () => {
+    toast.error(`Chỉ được thêm tối đa ${MAX_PRODUCT_DOCUMENTS} tài liệu kỹ thuật`);
+  };
 
   const handleAddLink = () => {
+    if (hasReachedDocumentLimit) {
+      showDocumentLimitError();
+      return;
+    }
+
     const url = urlInput.trim();
     if (!isValidHttpUrl(url)) {
       toast.error("Vui lòng nhập đường dẫn http hoặc https hợp lệ");
@@ -48,6 +58,11 @@ const ProductTechDocs = ({ value = [], onChange, disabled = false }) => {
     event.target.value = "";
     if (!file) return;
 
+    if (hasReachedDocumentLimit) {
+      showDocumentLimitError();
+      return;
+    }
+
     const isPdf = file.type === "application/pdf" && file.name.toLowerCase().endsWith(".pdf");
     if (!isPdf) {
       toast.error("Chỉ cho phép upload file PDF");
@@ -58,20 +73,10 @@ const ProductTechDocs = ({ value = [], onChange, disabled = false }) => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("document", file);
     setIsUploading(true);
 
     try {
-      const response = await fetch(`${apiUrl}/products/upload/document`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Không thể upload file PDF");
-      }
+      const data = await uploadProductDocument(file);
 
       onChange([
         ...documents,
@@ -108,14 +113,14 @@ const ProductTechDocs = ({ value = [], onChange, disabled = false }) => {
               handleAddLink();
             }
           }}
-          disabled={disabled}
+          disabled={disabled || hasReachedDocumentLimit || isUploading}
         />
         <Button
           type="button"
           variant="outlined"
           startIcon={<LinkIcon />}
           onClick={handleAddLink}
-          disabled={disabled || !urlInput.trim()}
+          disabled={disabled || hasReachedDocumentLimit || isUploading || !urlInput.trim()}
         >
           Thêm link
         </Button>
@@ -124,7 +129,7 @@ const ProductTechDocs = ({ value = [], onChange, disabled = false }) => {
           variant="contained"
           startIcon={<UploadFileIcon />}
           onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isUploading}
+          disabled={disabled || hasReachedDocumentLimit || isUploading}
         >
           {isUploading ? "Đang upload" : "Upload PDF"}
         </Button>
@@ -134,7 +139,7 @@ const ProductTechDocs = ({ value = [], onChange, disabled = false }) => {
           accept="application/pdf,.pdf"
           hidden
           onChange={handleUpload}
-          disabled={disabled || isUploading}
+          disabled={disabled || hasReachedDocumentLimit || isUploading}
         />
       </Box>
 

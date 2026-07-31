@@ -268,6 +268,59 @@ describe('IpOrder API', () => {
     expect(res.body.note).toBe('Ghi chú đơn nhập');
   });
 
+  it('deletes only import lines without received or applied stock progress', async () => {
+    const agent = await createAdminAgent();
+    const order = await createIpOrder({
+      orderName: 'Delete import line',
+      productList: [
+        {
+          productId: new mongoose.Types.ObjectId().toString(),
+          price: '100',
+          unit: 'cai',
+          quantity: 2,
+          quantityRe: 0,
+          stockAppliedQuantity: 0,
+          status: false,
+        },
+        {
+          productId: new mongoose.Types.ObjectId().toString(),
+          price: '250',
+          unit: 'cai',
+          quantity: 3,
+          quantityRe: 0,
+          stockAppliedQuantity: 0,
+          status: false,
+        },
+      ],
+    });
+
+    const deleted = await agent.delete('/iporders/orders/' + order._id + '/products/0');
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.productList).toHaveLength(1);
+    expect(deleted.body.total).toBe('750');
+
+    const protectedOrder = await createIpOrder({
+      orderName: 'Protected import line',
+      productList: [{
+        productId: new mongoose.Types.ObjectId().toString(),
+        price: '100',
+        unit: 'cai',
+        quantity: 2,
+        quantityRe: 1,
+        stockAppliedQuantity: 1,
+        status: false,
+      }],
+    });
+    const blocked = await agent.delete(
+      '/iporders/orders/' + protectedOrder._id + '/products/0'
+    );
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.message).toBe(
+      'Không thể xóa sản phẩm đã phát sinh nhập kho. Hãy điều chỉnh số lượng nhập về 0 trước.'
+    );
+    expect((await IpOrder.findById(protectedOrder._id)).productList).toHaveLength(1);
+  });
+
   it('returns 403 for staff with iporder.create but missing iporder.edit on edit route', async () => {
     const agent = await createAdminAgent({
       phone: '0922000007',

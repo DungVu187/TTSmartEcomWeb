@@ -26,8 +26,17 @@ import {
 import { DataGrid } from "@mui/x-data-grid";
 import ExcelJS from "exceljs";
 import { usePermissions } from "../context/permissioncontext";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  deleteStation,
+  getStationByCode,
+  getStationImportOrders,
+  getStationProducts,
+  getStationProductsByCodes,
+  replaceStationImage,
+  searchStationProducts,
+  updateStationDetails,
+  updateStationProducts,
+} from "../api/stationAdministrationApi";
 
 const StationDisplay = () => {
   const { code } = useParams();
@@ -61,18 +70,7 @@ const StationDisplay = () => {
   const fetchOrders = async (type, search) => {
     setOrdersLoading(true);
     try {
-      const endpoint = type === "ep" ? "eporders" : "iporders";
-      const url = new URL(`${apiUrl}/${endpoint}/orders`);
-      url.searchParams.set("limit", "50");
-      if (search) {
-        url.searchParams.set("orderName", search);
-      }
-      const res = await fetch(url.toString(), {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Không thể tải danh sách đơn hàng");
-      const data = await res.json();
-      setOrdersList(data.orders || []);
+      setOrdersList(await getStationImportOrders({ type, search }));
     } catch (err) {
       console.error("Lỗi khi tải đơn hàng:", err);
     } finally {
@@ -107,16 +105,9 @@ const StationDisplay = () => {
       const currentIds = station.productId || [];
       const newIds = Array.from(new Set([...currentIds, ...idsFromOrder]));
 
-      const updateRes = await fetch(`${apiUrl}/stations/${station._id}/products`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ productId: newIds }),
+      const updatedStation = await updateStationProducts(station._id, newIds, {
+        failureMessage: "Cập nhật sản phẩm vào trạm thất bại",
       });
-
-      if (!updateRes.ok) throw new Error("Cập nhật sản phẩm vào trạm thất bại");
-
-      const updatedStation = await updateRes.json();
       setStation(updatedStation);
       setOpenOrderDialog(false);
       alert("Đã nhập sản phẩm từ đơn hàng thành công");
@@ -143,13 +134,7 @@ const StationDisplay = () => {
     debounceTimeout.current = setTimeout(async () => {
       try {
         setSearchLoading(true);
-        const url = new URL(`${apiUrl || window.location.origin}/products`);
-        if (searchInput.name) url.searchParams.set("search", searchInput.name);
-        if (searchInput.code) url.searchParams.set("code", searchInput.code);
-        const res = await fetch(url.toString(), {
-          credentials: "include",
-        });
-        const data = await res.json();
+        const data = await searchStationProducts(searchInput);
         setSearchResults(data.products || []);
       } catch (err) {
         console.error("Lỗi tìm sản phẩm:", err);
@@ -162,14 +147,7 @@ const StationDisplay = () => {
   useEffect(() => {
     const fetchStation = async () => {
       try {
-        const res = await fetch(`${apiUrl}/stations/code/${code}`, {
-          credentials: "include",
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Không tìm thấy trạm");
-        }
-        const data = await res.json();
+        const data = await getStationByCode(code);
         setStation(data);
         setForm({
           stationCode: data.stationCode || "",
@@ -189,12 +167,7 @@ const StationDisplay = () => {
   useEffect(() => {
     const fetchProductData = async () => {
       if (!station?.productId?.length) return setProductData([]);
-      const res = await fetch(`${apiUrl}/products/fetch-by-ids`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: station.productId }),
-      });
-      const data = await res.json();
+      const data = await getStationProducts(station.productId);
       setProductData(data.products || []);
     };
     fetchProductData();
@@ -208,19 +181,7 @@ const StationDisplay = () => {
     if (!station?._id) return;
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/stations/${station._id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Cập nhật thất bại");
-      }
-
-      const updated = await res.json();
+      const updated = await updateStationDetails(station._id, form);
       setStation(updated);
       alert("Cập nhật thành công!");
     } catch (err) {
@@ -242,14 +203,7 @@ const StationDisplay = () => {
     if (!station?._id) return;
     if (!window.confirm(`Bạn có chắc chắn muốn xóa trạm ${station.stationName || ""}?`)) return;
     try {
-      const res = await fetch(`${apiUrl}/stations/${station._id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Không thể xóa trạm");
-      }
+      await deleteStation(station._id);
       alert("Xóa trạm thành công!");
       navigate("/station");
     } catch (err) {
@@ -263,14 +217,7 @@ const StationDisplay = () => {
     if (currentIds.includes(productId)) return;
 
     const updatedIds = [...currentIds, productId];
-    const res = await fetch(`${apiUrl}/stations/${station._id}/products`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ productId: updatedIds }),
-    });
-
-    const data = await res.json();
+    const data = await updateStationProducts(station._id, updatedIds);
     setStation(data);
     setOpenProductDialog(false);
     setSearchInput({ name: "", code: "" });
@@ -278,14 +225,7 @@ const StationDisplay = () => {
 
   const handleRemoveProduct = async (productId) => {
     const updatedIds = (station.productId || []).filter((id) => id !== productId);
-    const res = await fetch(`${apiUrl}/stations/${station._id}/products`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ productId: updatedIds }),
-    });
-
-    const data = await res.json();
+    const data = await updateStationProducts(station._id, updatedIds);
     setStation(data);
   };
 
@@ -293,14 +233,9 @@ const StationDisplay = () => {
     if (!station?._id) return;
     if (!window.confirm("Bạn có chắc chắn muốn xóa toàn bộ sản phẩm khỏi trạm này?")) return;
     try {
-      const res = await fetch(`${apiUrl}/stations/${station._id}/products`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ productId: [] }),
+      const data = await updateStationProducts(station._id, [], {
+        failureMessage: "Không thể xóa sản phẩm",
       });
-      if (!res.ok) throw new Error("Không thể xóa sản phẩm");
-      const data = await res.json();
       setStation(data);
       alert("Đã xóa toàn bộ sản phẩm khỏi trạm thành công");
     } catch (err) {
@@ -317,28 +252,11 @@ const StationDisplay = () => {
     if (!file || !station?._id) return;
 
     try {
-      if (station.imgUrl) {
-        await fetch(`${apiUrl}/stations/${station._id}/remove-image`, {
-          method: "DELETE",
-          credentials: "include",
-        });
-      }
-
-      const formData = new FormData();
-      formData.append("station", file);
-
-      const res = await fetch(`${apiUrl}/stations/${station._id}/upload-image`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Không thể upload ảnh");
-      }
-
-      const updated = await res.json();
+      const updated = await replaceStationImage(
+        station._id,
+        Boolean(station.imgUrl),
+        file,
+      );
       setStation(updated.station || updated);
       alert("Ảnh đã được cập nhật");
     } catch (err) {
@@ -378,25 +296,12 @@ const StationDisplay = () => {
         return;
       }
 
-      const res = await fetch(`${apiUrl}/products/by-codes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ codes }),
-      });
-      const data = await res.json();
+      const data = await getStationProductsByCodes(codes);
       const idsFromExcel = (data.products || []).map((p) => p._id);
       const currentIds = station.productId || [];
       const newIds = Array.from(new Set([...currentIds, ...idsFromExcel]));
 
-      const updateRes = await fetch(`${apiUrl}/stations/${station._id}/products`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ productId: newIds }),
-      });
-
-      const updatedStation = await updateRes.json();
+      const updatedStation = await updateStationProducts(station._id, newIds);
       setStation(updatedStation);
       alert("Đã nhập sản phẩm từ Excel thành công");
     } catch (err) {

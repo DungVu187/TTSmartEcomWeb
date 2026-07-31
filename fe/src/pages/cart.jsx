@@ -25,6 +25,12 @@ import "./styles/cart.css";
 import { toast } from "react-hot-toast";
 import { useLanguage } from "../context/languagecontext.jsx";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
+import { getCustomerProfile } from "../api/customerAccountApi";
+import { createCustomerOrder } from "../api/customerOrderApi";
+import {
+  getStorefrontProduct,
+  resolveStorefrontAssetUrl,
+} from "../api/storefrontCatalogApi";
 
 function Cart() {
   const { t, locale } = useLanguage();
@@ -46,10 +52,7 @@ function Cart() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_BACK_END}/users/profile`, {
-          method: "GET",
-          credentials: "include",
-        });
+        const response = await getCustomerProfile();
         if (response.ok) {
           setIsLoggedIn(true);
         } else {
@@ -114,12 +117,7 @@ function Cart() {
 
       // Kiểm tra số lượng tồn kho trước khi đặt hàng
       for (const item of selectedItems) {
-        const productRes = await fetch(
-          `${process.env.REACT_APP_BACK_END}/products/${item.productId}`,
-          {
-            credentials: "include",
-          }
-        );
+        const productRes = await getStorefrontProduct(item.productId);
         if (!productRes.ok) {
           toast.error(t("product_unavailable"));
           return;
@@ -153,21 +151,11 @@ function Cart() {
 
       const activeStationCode = sessionStorage.getItem("activeStationCode");
 
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/orders/create-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            cartItems: selectedItems,
-            total,
-            stationCode: activeStationCode, // Gửi mã trạm đang dùng
-          }),
-          credentials: "include",
-        }
-      );
+      const response = await createCustomerOrder({
+        cartItems: selectedItems,
+        total,
+        stationCode: activeStationCode, // Gửi mã trạm đang dùng
+      });
 
       const data = await response.json();
 
@@ -201,9 +189,7 @@ function Cart() {
     try {
       const productPromises = cartItems.map((item) => {
         const productId = item.productId;
-        return fetch(`${process.env.REACT_APP_BACK_END}/products/${productId}`, {
-          credentials: "include",
-        })
+        return getStorefrontProduct(productId)
           .then((res) => (res.ok ? res.json() : null))
           .catch((err) => {
             console.error("Error fetching product:", err);
@@ -353,7 +339,7 @@ function Cart() {
                     />
                     <ListItemAvatar sx={{ minWidth: { xs: 48, sm: 56 }, ml: 1 }}>
                       <Avatar
-                        src={variant?.imgUrl || "placeholder.jpg"}
+                        src={variant?.imgUrl ? resolveStorefrontAssetUrl(variant.imgUrl) : "placeholder.jpg"}
                         alt={product.name}
                         sx={{ width: { xs: 48, sm: 56 }, height: { xs: 48, sm: 56 } }}
                       />

@@ -1,4 +1,4 @@
-const { ZaloConfig } = require("./components/zalo");
+const { ZaloConfig } = require("./models/zalo");
 
 /**
  * Lấy Access Token hợp lệ. Nếu hết hạn, tự động dùng Refresh Token để làm mới.

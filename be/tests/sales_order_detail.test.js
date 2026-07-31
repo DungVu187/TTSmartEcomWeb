@@ -321,6 +321,90 @@ describe('Sales order detail admin API', () => {
     expect(cancelledResponse.status).toBe(400);
   });
 
+  it('giu enriched item contract qua nam write response', async () => {
+    const originalAddress = process.env.ADDRESS;
+    process.env.ADDRESS = 'https://write-detail.example/base/';
+
+    try {
+      const agent = await createAdminAgent();
+      const firstProduct = await createProduct({ quantityForSale: 10, price: '100.000' });
+      const secondProduct = await createProduct({ quantityForSale: 10, price: '200.000' });
+      const order = await createDraftOrder(agent);
+
+      const expectedItem = (product, quantity, price) => ({
+        productId: product._id.toString(),
+        variantIndex: 0,
+        quantity,
+        name: 'Sales Detail Product',
+        code: product.code,
+        brand: 'Test Brand',
+        imgUrl: '',
+        price,
+      });
+
+      const addedFirst = await agent
+        .post('/orders/' + order._id + '/items')
+        .send({ productId: firstProduct._id.toString(), variantIndex: 0, quantity: 1 });
+      expect(addedFirst.status).toBe(200);
+      expect(addedFirst.body.order.cartItems).toEqual([
+        expectedItem(firstProduct, 1, '100.000'),
+      ]);
+
+      const addedSecond = await agent
+        .post('/orders/' + order._id + '/items')
+        .send({ productId: secondProduct._id.toString(), variantIndex: 0, quantity: 1 });
+      expect(addedSecond.status).toBe(200);
+      expect(addedSecond.body.order.cartItems).toEqual([
+        expectedItem(firstProduct, 1, '100.000'),
+        expectedItem(secondProduct, 1, '200.000'),
+      ]);
+
+      const updated = await agent
+        .put('/orders/' + order._id + '/items/0')
+        .send({ quantity: 2 });
+      expect(updated.status).toBe(200);
+      expect(updated.body.order.cartItems[0]).toEqual(
+        expectedItem(firstProduct, 2, '100.000')
+      );
+
+      const reordered = await agent
+        .put('/orders/' + order._id + '/reorder')
+        .send({
+          cartItems: [
+            { productId: secondProduct._id.toString(), variantIndex: 0, quantity: 1 },
+            { productId: firstProduct._id.toString(), variantIndex: 0, quantity: 2 },
+          ],
+        });
+      expect(reordered.status).toBe(200);
+      expect(reordered.body.order.cartItems).toEqual([
+        expectedItem(secondProduct, 1, '200.000'),
+        expectedItem(firstProduct, 2, '100.000'),
+      ]);
+
+      const images = await agent
+        .put('/orders/' + order._id + '/images')
+        .send({ images: ['/invoice-images/write-detail.webp'] });
+      expect(images.status).toBe(200);
+      expect(images.body.order.images).toEqual(['/invoice-images/write-detail.webp']);
+      expect(images.body.order.cartItems.map((item) => item.productId)).toEqual([
+        secondProduct._id.toString(),
+        firstProduct._id.toString(),
+      ]);
+
+      const deleted = await agent.delete('/orders/' + order._id + '/items/0');
+      expect(deleted.status).toBe(200);
+      expect(deleted.body.order.cartItems).toEqual([
+        expectedItem(firstProduct, 2, '100.000'),
+      ]);
+    } finally {
+      if (originalAddress === undefined) {
+        delete process.env.ADDRESS;
+      } else {
+        process.env.ADDRESS = originalAddress;
+      }
+    }
+  });
+
   it('POST /orders/upload-image thieu file tra 400', async () => {
     const agent = await createAdminAgent();
 

@@ -32,8 +32,13 @@ import {
   getCategoryIcon,
   normalizeTypeName,
 } from "../utils/homecategoryicons";
+import {
+  getPublicStorefrontProductTypes,
+  resolveStorefrontAssetUrl,
+  updateStorefrontHomeCategories,
+  uploadStorefrontSectionImage,
+} from "../api/storefrontManagementApi";
 
-const apiUrl = import.meta.env.VITE_API_URL;
 const contentLanguages = [
   { key: "vi", label: "Tiếng Việt" },
   { key: "zh", label: "中文简体" },
@@ -109,12 +114,6 @@ const normalizeConfig = (value, types) => {
   };
 };
 
-const resolveImageUrl = (url) => {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
-  return `${apiUrl}${url}`;
-};
-
 const HomeCategoryManager = ({ value, onSaved }) => {
   const [types, setTypes] = useState([]);
   const [config, setConfig] = useState(() => normalizeConfig(value, []));
@@ -132,7 +131,7 @@ const HomeCategoryManager = ({ value, onSaved }) => {
 
     const fetchTypes = async () => {
       try {
-        const response = await fetch(`${apiUrl}/products/types`, { cache: "no-store" });
+        const response = await getPublicStorefrontProductTypes();
         const result = await response.json();
         if (active) setTypes(Array.isArray(result) ? result : []);
       } catch (error) {
@@ -272,13 +271,7 @@ const HomeCategoryManager = ({ value, onSaved }) => {
 
     setUploadingIndex(index);
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const response = await fetch(`${apiUrl}/manages/upload-section-image`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
+      const response = await uploadStorefrontSectionImage(file);
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Không thể tải ảnh lên");
@@ -305,12 +298,7 @@ const HomeCategoryManager = ({ value, onSaved }) => {
 
     setSaving(true);
     try {
-      const response = await fetch(`${apiUrl}/manages/update-home-categories`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(config),
-      });
+      const response = await updateStorefrontHomeCategories(config);
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Không thể lưu danh mục trang chủ");
@@ -436,7 +424,7 @@ const HomeCategoryManager = ({ value, onSaved }) => {
               <Box className="home-category-manager__image-column">
                 <Box className="home-category-manager__image-preview">
                   {item.image ? (
-                    <img src={resolveImageUrl(item.image)} alt={item.label || `Danh mục ${index + 1}`} />
+                    <img src={resolveStorefrontAssetUrl(item.image)} alt={item.label || `Danh mục ${index + 1}`} />
                   ) : (
                     <Typography variant="caption" color="text.secondary">Chưa có ảnh riêng</Typography>
                   )}

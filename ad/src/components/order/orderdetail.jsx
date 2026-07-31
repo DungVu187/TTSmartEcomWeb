@@ -48,8 +48,25 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { usePermissions } from "../../context/permissioncontext";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  addSalesOrderItem,
+  cancelSalesOrder,
+  cleanSalesOrderTempImage,
+  createAdminSalesOrderDraft,
+  deleteSalesOrderImage,
+  deleteSalesOrderItem,
+  getAdminSalesOrderDetail,
+  getSalesOrderProductsByCodes,
+  getSalesOrderProductsForScan,
+  reorderSalesOrderItems,
+  resolveSalesOrderAssetUrl,
+  scanSalesOrderInvoice,
+  searchSalesOrderProducts,
+  updateSalesOrderCustomer,
+  updateSalesOrderImages,
+  updateSalesOrderItemQuantity,
+  uploadSalesOrderImage,
+} from "../../api/salesOrderManagementApi";
 
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
@@ -118,9 +135,7 @@ const getLockedOrderMessage = (order) => {
 };
 
 const resolveInvoiceImageUrl = (imageUrl) => {
-  if (!imageUrl) return "";
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  return `${apiUrl}${imageUrl}`;
+  return resolveSalesOrderAssetUrl(imageUrl);
 };
 
 const compressImage = (file, maxWidth = 1800, quality = 0.82) => {
@@ -350,19 +365,10 @@ const SalesOrderDetail = () => {
   const locked = order?.status === "Completed" || order?.state === "Cancelled";
   const orderImages = order?.images || [];
 
-  const apiFetch = useCallback(
-    async (url, options = {}) => {
+  const runSalesOrderRequest = useCallback(
+    async (request) => {
       try {
-        const headers = { ...(options.headers || {}) };
-        if (!(options.body instanceof FormData)) {
-          headers["Content-Type"] = headers["Content-Type"] || "application/json";
-        }
-
-        const response = await fetch(url, {
-          ...options,
-          headers,
-          credentials: "include",
-        });
+        const response = await request;
 
         if (response.status === 401 || response.status === 403) {
           toast.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -402,14 +408,14 @@ const SalesOrderDetail = () => {
   const fetchOrder = useCallback(async () => {
     setLoading(true);
     setError("");
-    const data = await apiFetch(`${apiUrl}/orders/admin-detail/${id}`);
+    const data = await runSalesOrderRequest(getAdminSalesOrderDetail(id));
     if (data?.success) {
       applyOrder(data.order);
     } else {
       setError("Không tải được chi tiết đơn hàng.");
     }
     setLoading(false);
-  }, [apiFetch, id]);
+  }, [id, runSalesOrderRequest]);
 
   useEffect(() => {
     fetchOrder();
@@ -423,18 +429,19 @@ const SalesOrderDetail = () => {
 
     const timer = setTimeout(async () => {
       setProductLoading(true);
-      const query = new URLSearchParams({
-        search: searchTerm,
-        code: codeTerm,
-        limit: 20,
-      }).toString();
-      const data = await apiFetch(`${apiUrl}/products?${query}`);
+      const data = await runSalesOrderRequest(
+        searchSalesOrderProducts({
+          search: searchTerm,
+          code: codeTerm,
+          limit: 20,
+        }),
+      );
       setProducts(data?.products || []);
       setProductLoading(false);
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [apiFetch, codeTerm, openAddDialog, searchTerm]);
+  }, [codeTerm, openAddDialog, runSalesOrderRequest, searchTerm]);
 
   const sortableIds = useMemo(
     () => (order?.cartItems || []).map((item, index) => `${item.productId}-${item.variantIndex}-${index}`),
@@ -443,7 +450,7 @@ const SalesOrderDetail = () => {
 
   const loadAllProductsForScan = async () => {
     if (allProducts.length > 0) return allProducts;
-    const data = await apiFetch(`${apiUrl}/products/?limit=9999`);
+    const data = await runSalesOrderRequest(getSalesOrderProductsForScan());
     const loadedProducts = data?.products || [];
     setAllProducts(loadedProducts);
     return loadedProducts;
@@ -470,10 +477,13 @@ const SalesOrderDetail = () => {
 
       if (existingIndex >= 0) {
         const nextQuantity = Number(workingItems[existingIndex].quantity || 0) + quantity;
-        const result = await apiFetch(`${apiUrl}/orders/${targetOrderId}/items/${existingIndex}`, {
-          method: "PUT",
-          body: JSON.stringify({ quantity: nextQuantity }),
-        });
+        const result = await runSalesOrderRequest(
+          updateSalesOrderItemQuantity(
+            targetOrderId,
+            existingIndex,
+            nextQuantity,
+          ),
+        );
 
         if (result?.success) {
           workingItems[existingIndex].quantity = nextQuantity;
@@ -482,10 +492,9 @@ const SalesOrderDetail = () => {
           skipped.push(rawItem.code || rawItem.name || productId);
         }
       } else {
-        const result = await apiFetch(`${apiUrl}/orders/${targetOrderId}/items`, {
-          method: "POST",
-          body: JSON.stringify({ productId, variantIndex, quantity }),
-        });
+        const result = await runSalesOrderRequest(
+          addSalesOrderItem(targetOrderId, { productId, variantIndex, quantity }),
+        );
 
         if (result?.success) {
           workingItems.push({ productId, variantIndex, quantity });
@@ -500,10 +509,7 @@ const SalesOrderDetail = () => {
   };
 
   const updateOrderImages = async (images) => {
-    const result = await apiFetch(`${apiUrl}/orders/${id}/images`, {
-      method: "PUT",
-      body: JSON.stringify({ images }),
-    });
+    const result = await runSalesOrderRequest(updateSalesOrderImages(id, images));
 
     if (result?.success) {
       applyOrder(result.order);
@@ -527,16 +533,16 @@ const SalesOrderDetail = () => {
 
     const previousOrder = order;
     applyOrder({ ...order, cartItems: reordered });
-    const result = await apiFetch(`${apiUrl}/orders/${id}/reorder`, {
-      method: "PUT",
-      body: JSON.stringify({
-        cartItems: reordered.map(({ productId, variantIndex, quantity }) => ({
+    const result = await runSalesOrderRequest(
+      reorderSalesOrderItems(
+        id,
+        reordered.map(({ productId, variantIndex, quantity }) => ({
           productId,
           variantIndex,
           quantity,
         })),
-      }),
-    });
+      ),
+    );
 
     if (result?.success) {
       applyOrder(result.order);
@@ -557,10 +563,9 @@ const SalesOrderDetail = () => {
 
     if (quantity === order.cartItems[index]?.quantity) return;
 
-    const result = await apiFetch(`${apiUrl}/orders/${id}/items/${index}`, {
-      method: "PUT",
-      body: JSON.stringify({ quantity }),
-    });
+    const result = await runSalesOrderRequest(
+      updateSalesOrderItemQuantity(id, index, quantity),
+    );
 
     if (result?.success) {
       applyOrder(result.order);
@@ -574,9 +579,7 @@ const SalesOrderDetail = () => {
     if (locked) return;
     if (!window.confirm("Bạn có chắc muốn xóa sản phẩm này khỏi đơn hàng?")) return;
 
-    const result = await apiFetch(`${apiUrl}/orders/${id}/items/${index}`, {
-      method: "DELETE",
-    });
+    const result = await runSalesOrderRequest(deleteSalesOrderItem(id, index));
 
     if (result?.success) {
       applyOrder(result.order);
@@ -602,10 +605,9 @@ const SalesOrderDetail = () => {
 
   const handleSaveCustomer = async () => {
     if (locked) return;
-    const result = await apiFetch(`${apiUrl}/orders/${id}/customer`, {
-      method: "PUT",
-      body: JSON.stringify({ userName, userPhone }),
-    });
+    const result = await runSalesOrderRequest(
+      updateSalesOrderCustomer(id, { userName, userPhone }),
+    );
 
     if (result?.success) {
       setOrder((prev) => ({ ...prev, userName: result.order.userName, userPhone: result.order.userPhone }));
@@ -617,10 +619,7 @@ const SalesOrderDetail = () => {
     if (!order || locked) return;
     if (!window.confirm("Bạn có chắc muốn hủy đơn hàng này?")) return;
 
-    const result = await apiFetch(`${apiUrl}/orders/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ state: "Cancelled" }),
-    });
+    const result = await runSalesOrderRequest(cancelSalesOrder(id));
     if (result?.order) {
       await fetchOrder();
       toast.success("Đã hủy đơn hàng");
@@ -630,7 +629,7 @@ const SalesOrderDetail = () => {
   const handleCopyOrder = async () => {
     if (!order) return;
     setBulkProcessing(true);
-    const draft = await apiFetch(`${apiUrl}/orders/admin-draft`, { method: "POST" });
+    const draft = await runSalesOrderRequest(createAdminSalesOrderDraft());
     if (!draft?.success) {
       setBulkProcessing(false);
       return;
@@ -640,10 +639,12 @@ const SalesOrderDetail = () => {
     const { added, skipped } = await mergeItemsIntoOrder(order.cartItems || [], newId, []);
 
     if (order.userPhone) {
-      await apiFetch(`${apiUrl}/orders/${newId}/customer`, {
-        method: "PUT",
-        body: JSON.stringify({ userName: order.userName || "", userPhone: order.userPhone }),
-      });
+      await runSalesOrderRequest(
+        updateSalesOrderCustomer(newId, {
+          userName: order.userName || "",
+          userPhone: order.userPhone,
+        }),
+      );
     }
 
     setBulkProcessing(false);
@@ -739,10 +740,9 @@ const SalesOrderDetail = () => {
         return;
       }
 
-      const codeResult = await apiFetch(`${apiUrl}/products/by-codes`, {
-        method: "POST",
-        body: JSON.stringify({ codes: rows.map((row) => row.code) }),
-      });
+      const codeResult = await runSalesOrderRequest(
+        getSalesOrderProductsByCodes(rows.map((row) => row.code)),
+      );
       const productMap = new Map((codeResult?.products || []).map((product) => [normalizeCode(product.code), product]));
       const itemsToAdd = [];
       const skipped = [];
@@ -787,13 +787,9 @@ const SalesOrderDetail = () => {
         compressImage(file),
         loadAllProductsForScan(),
       ]);
-      const formData = new FormData();
-      formData.append("invoice", compressedFile);
-
-      const result = await apiFetch(`${apiUrl}/products/scan-invoice`, {
-        method: "POST",
-        body: formData,
-      });
+      const result = await runSalesOrderRequest(
+        scanSalesOrderInvoice(compressedFile),
+      );
 
       if (result?.success) {
         const processedItems = performLevel1Matching(result.items || [], catalogProducts, order.cartItems || []);
@@ -818,9 +814,7 @@ const SalesOrderDetail = () => {
   const handleCancelScanDialog = async () => {
     if (isScanning) return;
     if (tempScanImageUrl) {
-      await apiFetch(`${apiUrl}/products/clean-temp-image?imageUrl=${encodeURIComponent(tempScanImageUrl)}`, {
-        method: "DELETE",
-      });
+      await runSalesOrderRequest(cleanSalesOrderTempImage(tempScanImageUrl));
     }
     if (selectedScanImage) URL.revokeObjectURL(selectedScanImage);
     setSelectedScanImage("");
@@ -871,12 +865,9 @@ const SalesOrderDetail = () => {
       const uploadedUrls = [];
       for (const file of files) {
         const compressedFile = await compressImage(file);
-        const formData = new FormData();
-        formData.append("invoice", compressedFile);
-        const result = await apiFetch(`${apiUrl}/orders/upload-image`, {
-          method: "POST",
-          body: formData,
-        });
+        const result = await runSalesOrderRequest(
+          uploadSalesOrderImage(compressedFile),
+        );
         if (result?.success && result.imageUrl) uploadedUrls.push(result.imageUrl);
       }
 
@@ -897,9 +888,7 @@ const SalesOrderDetail = () => {
     const nextImages = orderImages.filter((_, index) => index !== indexToDelete);
     const saved = await updateOrderImages(nextImages);
     if (saved && imageUrl) {
-      await apiFetch(`${apiUrl}/orders/delete-image?imageUrl=${encodeURIComponent(imageUrl)}`, {
-        method: "DELETE",
-      });
+      await runSalesOrderRequest(deleteSalesOrderImage(imageUrl));
       toast.success("Đã xóa ảnh hóa đơn");
     }
   };

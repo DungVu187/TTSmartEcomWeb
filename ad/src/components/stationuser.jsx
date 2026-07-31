@@ -28,9 +28,17 @@ import {
 import { ExpandMore, ExpandLess } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import {
+  addStationToCustomer,
+  deleteCustomer,
+  getCustomerUsers,
+  getStationOptions,
+  registerCustomer,
+  replaceCustomerStations,
+  rotateCustomerAutoLoginToken,
+  updateCustomer,
+} from "../api/stationAdministrationApi";
 import { usePermissions } from "../context/permissioncontext";
-
-const apiUrl = import.meta.env.VITE_API_URL;
 
 const StationUser = () => {
   const { can } = usePermissions();
@@ -73,10 +81,7 @@ const StationUser = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/users/customers`, {
-        credentials: "include",
-      });
-      const data = await res.json();
+      const data = await getCustomerUsers();
       setUsers(data);
     } catch (error) {
       console.error("Lỗi khi tải users:", error);
@@ -87,10 +92,7 @@ const StationUser = () => {
 
   const fetchStations = async () => {
     try {
-      const res = await fetch(`${apiUrl}/stations`, {
-        credentials: "include",
-      });
-      const data = await res.json();
+      const data = await getStationOptions();
       setStations(data);
       const map = {};
       data.forEach((s) => (map[s._id] = s));
@@ -122,18 +124,11 @@ const StationUser = () => {
     }
 
     try {
-      const res = await fetch(`${apiUrl}/users/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone,
-          password: formData.password,
-        }),
+      await registerCustomer({
+        name: formData.name,
+        phone: formData.phone,
+        password: formData.password,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Đăng ký thất bại");
       handleCloseDialog();
       toast.success("Thêm người dùng thành công");
       fetchUsers();
@@ -149,14 +144,7 @@ const StationUser = () => {
 
   const handleAddStation = async (stationId) => {
     try {
-      const res = await fetch(`${apiUrl}/users/${selectedUserId}/stations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ stationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Thêm trạm thất bại");
+      await addStationToCustomer(selectedUserId, stationId);
       toast.success("Đã thêm trạm");
       setOpenStationDialog(false);
       fetchUsers();
@@ -174,18 +162,7 @@ const StationUser = () => {
         (id) => id !== stationIdToRemove
       );
 
-      const res = await fetch(`${apiUrl}/users/stations`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          phone: userPhone,
-          stations: updatedStationList,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Không thể xóa trạm");
+      await replaceCustomerStations(userPhone, updatedStationList);
 
       toast.success("Đã xoá trạm khỏi người dùng");
       fetchUsers();
@@ -198,12 +175,7 @@ const StationUser = () => {
     if (!window.confirm(`Bạn có chắc muốn xóa người dùng ${user.name}?`))
       return;
     try {
-      const res = await fetch(`${apiUrl}/users/${user._id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Không thể xóa");
+      await deleteCustomer(user._id);
       toast.success("Đã xóa người dùng");
       fetchUsers();
     } catch (err) {
@@ -257,18 +229,11 @@ const StationUser = () => {
     if (!editUser) return;
     setEditLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/users/${editUser._id}/permissions`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: editFormData.name,
-          phone: editFormData.phone,
-          email: editFormData.email,
-        }),
+      await updateCustomer(editUser._id, {
+        name: editFormData.name,
+        phone: editFormData.phone,
+        email: editFormData.email,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Cập nhật thất bại");
       toast.success("Cập nhật thông tin thành công");
       setOpenEditDialog(false);
       fetchUsers();
@@ -285,16 +250,7 @@ const StationUser = () => {
     if (!window.confirm(`Bạn có chắc muốn reset mật khẩu của ${editUser.name || editUser.phone} về 123456?`)) return;
     setEditLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/users/${editUser._id}/permissions`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          password: "123456",
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Reset thất bại");
+      await updateCustomer(editUser._id, { password: "123456" }, "Reset thất bại");
       toast.success("Đã reset mật khẩu về 123456");
       setOpenEditDialog(false);
       fetchUsers();
@@ -318,12 +274,7 @@ const StationUser = () => {
       return;
     setEditLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/users/${editUser._id}/rotate-autologin-token`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Xoay mã thất bại");
+      const data = await rotateCustomerAutoLoginToken(editUser._id);
       toast.success("Đã xoay mã đăng nhập tự động thành công!");
       setOpenEditDialog(false);
       setEncryptedString(data.logInString);

@@ -8,8 +8,11 @@ import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useLanguage } from "../context/languagecontext.jsx";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
+import { getCustomerProfile } from "../api/customerAccountApi";
+import {
+  queryStorefrontVoiceAudio,
+  queryStorefrontVoiceText,
+} from "../api/storefrontCatalogApi";
 
 const VoiceSearchFAB = () => {
   const { t } = useLanguage();
@@ -28,10 +31,7 @@ const VoiceSearchFAB = () => {
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
-        const response = await fetch(`${apiUrl}/users/profile`, {
-          method: "GET",
-          credentials: "include",
-        });
+        const response = await getCustomerProfile();
         if (response.ok) {
           setIsLoggedIn(true);
         } else {
@@ -144,14 +144,7 @@ const VoiceSearchFAB = () => {
   const sendAudioToAPI = async (audioBlob) => {
     toast.loading(t("processing_voice"), { id: "voice-status-fe" });
     try {
-      const formData = new FormData();
-      formData.append("audio", audioBlob, "query.webm");
-
-      const response = await fetch(`${apiUrl}/products/voice-query`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
+      const response = await queryStorefrontVoiceAudio(audioBlob);
 
       const data = await response.json();
 
@@ -199,12 +192,7 @@ const VoiceSearchFAB = () => {
     setIsProcessing(true);
     toast.loading(t("processing_search"), { id: "voice-status-fe" });
     try {
-      const response = await fetch(`${apiUrl}/products/voice-query-text`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ text: query }),
-      });
+      const response = await queryStorefrontVoiceText(query);
 
       const data = await response.json();
 

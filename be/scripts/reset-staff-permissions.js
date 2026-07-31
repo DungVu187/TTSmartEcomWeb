@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { User } = require("../components/user");
+const { User } = require("../models/user");
 
 const shouldApply = process.argv.slice(2).includes("--apply");
 const databaseName = process.env.DB_NAME || "Ecom";

@@ -157,24 +157,45 @@
 .product-description-card {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
   align-content: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 1081px) {
+  .product-description-card {
+    contain: size;
+  }
 }
 
 .product-description-card > .MuiTypography-h6 {
   margin-bottom: 0;
 }
 
-.product-description-card > .MuiFormControl-root {
-  margin: 0 !important;
+.product-description-content {
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  min-height: 0;
+  overflow: visible;
 }
 
-.product-description-card > .product-description-field,
-.product-description-card > .product-specifications-field,
-.product-description-card > .product-description-field .MuiInputBase-root,
-.product-description-card > .product-specifications-field .MuiInputBase-root {
+.product-description-content > .MuiFormControl-root {
+  margin: 0 !important;
+  min-height: 0;
+  overflow: visible;
+}
+
+.product-description-content > .product-description-field,
+.product-description-content > .product-specifications-field,
+.product-description-content > .product-tech-docs,
+.product-description-content > .product-description-field .MuiInputBase-root,
+.product-description-content > .product-specifications-field .MuiInputBase-root {
   height: 100%;
+  min-height: 0;
+  max-height: 100%;
 }
 
 .product-description-card .MuiInputBase-root {
@@ -191,7 +212,7 @@
 .product-description-card .MuiInputBase-inputMultiline {
   height: auto !important;
   align-self: stretch !important;
-  max-height: none;
+  max-height: 100%;
   overflow-y: auto !important;
 }
 
@@ -206,7 +227,8 @@
 
 .product-info-card > .MuiTypography-h6,
 .product-info-select-grid,
-.product-info-card > .MuiFormControl-root {
+.product-info-card > .MuiFormControl-root,
+.product-info-card > .MuiAutocomplete-root {
   grid-column: 1 / -1;
 }
 
@@ -220,6 +242,10 @@
 .product-info-card .MuiFormControl-root {
   width: 100%;
   margin: 0 !important;
+}
+
+.product-info-card > .MuiAutocomplete-root {
+  width: 100%;
 }
 
 @media (max-width: 1180px) and (min-width: 1081px) {
@@ -251,6 +277,7 @@
   .product-detail-actions {
     position: relative !important;
   }
+
 }
 
 @media (max-width: 700px) {
@@ -277,7 +304,8 @@
 
   .product-info-card > .MuiTypography-h6,
   .product-info-select-grid,
-  .product-info-card > .MuiFormControl-root {
+  .product-info-card > .MuiFormControl-root,
+  .product-info-card > .MuiAutocomplete-root {
     grid-column: 1;
   }
 }

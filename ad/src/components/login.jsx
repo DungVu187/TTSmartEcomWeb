@@ -15,10 +15,14 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import toast from "react-hot-toast";
 import logo from "../assets/logo.png";
+import { getAuthFailure } from "../api/httpClient";
+import {
+  loginAdmin,
+  requestAdminPasswordReset,
+  resetAdminPassword,
+} from "../api/adminAuthApi";
 
-const apiUrl = import.meta.env.VITE_API_URL || "";
 const dashboardUrl = import.meta.env.VITE_DASHBOARD || "/admin/product";
-const adminLogin = import.meta.env.VITE_APP_ADMIN_LOGIN;
 
 const customTheme = extendTheme({
   colorSchemes: {
@@ -73,12 +77,7 @@ export default function SignInPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${apiUrl}${adminLogin}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
-        credentials: "include",
-      });
+      const response = await loginAdmin({ phone, password });
 
       const data = await response.json();
 
@@ -88,10 +87,11 @@ export default function SignInPage() {
           window.location.href = `${dashboardUrl}`;
         }, 1000);
       } else {
-        if (response.status === 401) {
+        const authFailure = getAuthFailure(response);
+        if (authFailure === "unauthorized") {
           setError("Thông tin đăng nhập không đúng.");
           toast.error("Số điện thoại hoặc mật khẩu không đúng!");
-        } else if (response.status === 403) {
+        } else if (authFailure === "forbidden") {
           setError("Bạn không có quyền truy cập vào trang admin.");
           toast.error("Bạn không có quyền admin!");
         } else {
@@ -121,11 +121,7 @@ export default function SignInPage() {
 
     setForgotLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/users/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: forgotIdentifier }),
-      });
+      const response = await requestAdminPasswordReset(forgotIdentifier);
 
       const data = await response.json();
       if (response.ok) {
@@ -155,15 +151,10 @@ export default function SignInPage() {
 
     setForgotLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/users/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          identifier: forgotIdentifier,
-          otp,
-          newPassword,
-          logInString: "admin-reset", // Admin không cần logInString phức tạp
-        }),
+      const response = await resetAdminPassword({
+        identifier: forgotIdentifier,
+        otp,
+        newPassword,
       });
 
       const data = await response.json();

@@ -2,15 +2,13 @@ import React, { useEffect, useState } from "react";
 import { CircularProgress, Alert } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/languagecontext.jsx";
+import {
+  getPublicStorefrontStation,
+  getStorefrontProductsByIds,
+  getStorefrontSectionImages,
+  resolveStorefrontAssetUrl,
+} from "../api/storefrontCatalogApi";
 import "./style/stationdisplay.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END || "";
-
-const resolveImageUrl = (url) => {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
-  return `${apiUrl}${url}`;
-};
 
 const getSectionIcon = (sectionName) => {
   const name = String(sectionName || "").toLowerCase().trim();
@@ -48,7 +46,7 @@ const StationDisplay = () => {
   useEffect(() => {
     const fetchStationSections = async () => {
       try {
-        const res = await fetch(`${apiUrl}/stations/public/${code}`);
+        const res = await getPublicStorefrontStation(code);
         if (!res.ok) throw new Error("failed_to_get_station_info");
         const data = await res.json();
         const productIds = data.productId || [];
@@ -59,12 +57,7 @@ const StationDisplay = () => {
           return;
         }
 
-        const resProduct = await fetch(`${apiUrl}/products/fetch-by-ids`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: productIds }),
-          credentials: "include",
-        });
+        const resProduct = await getStorefrontProductsByIds(productIds);
         const dataProduct = await resProduct.json();
         const products = dataProduct.products || [];
 
@@ -78,11 +71,7 @@ const StationDisplay = () => {
         const uniqueSections = Array.from(sectionSet);
 
         // Fetch section image URLs
-        const resImages = await fetch(`${apiUrl}/chips/sections/images`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ names: uniqueSections })
-        });
+        const resImages = await getStorefrontSectionImages(uniqueSections);
 
         const imageData = await resImages.json();
 
@@ -163,7 +152,7 @@ const StationDisplay = () => {
 
                 {hasPhoto && (
                   <div className="station-detail-card-right-img">
-                    <img src={resolveImageUrl(section.imgUrl)} alt={section.name} />
+                    <img src={resolveStorefrontAssetUrl(section.imgUrl)} alt={section.name} />
                     <div className="station-detail-card-img-gradient" />
                   </div>
                 )}

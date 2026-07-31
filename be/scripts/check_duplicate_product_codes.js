@@ -1,6 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const { Product } = require('../components/product');
+const { Product } = require('../models/product');
 const { resolveMongoUri } = require('../config/database');
 
 function normalizeProductCodeForCompare(code) {

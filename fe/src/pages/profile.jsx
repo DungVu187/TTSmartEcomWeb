@@ -24,11 +24,16 @@ import {
   RadioButtonUncheckedRounded,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
+import {
+  deleteCustomerAddress,
+  getCustomerProfile,
+  saveCustomerAddress,
+  setDefaultCustomerAddress,
+  updateCustomerProfile,
+} from "../api/customerAccountApi";
 import { useLanguage } from "../context/languagecontext.jsx";
 import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
 import "./styles/profile.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
 
 const Profile = () => {
   const { t } = useLanguage();
@@ -53,10 +58,7 @@ const Profile = () => {
 
     const fetchProfile = async () => {
       try {
-        const response = await fetch(apiUrl + "/users/profile", {
-          method: "GET",
-          credentials: "include",
-        });
+        const response = await getCustomerProfile();
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -100,11 +102,9 @@ const Profile = () => {
 
     setSavingInfo(true);
     try {
-      const response = await fetch(apiUrl + "/users/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
-        credentials: "include",
+      const response = await updateCustomerProfile({
+        name: name.trim(),
+        email: email.trim(),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(t("update_failed", "Cập nhật thất bại"));
@@ -148,21 +148,15 @@ const Profile = () => {
 
     setSavingAddress(true);
     try {
-      const method = addressId ? "PUT" : "POST";
-      const url = addressId
-        ? apiUrl + "/users/profile/addresses/" + addressId
-        : apiUrl + "/users/profile/addresses";
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await saveCustomerAddress(
+        addressId,
+        {
           label: label.trim() || t("construction"),
           receiverName: receiverName.trim(),
           receiverPhone: receiverPhone.trim(),
           addressDetail: addressDetail.trim(),
-        }),
-        credentials: "include",
-      });
+        },
+      );
       const data = await response.json();
       if (!response.ok) throw new Error(t("failed_to_save_address", "Không thể lưu địa chỉ"));
 
@@ -179,10 +173,7 @@ const Profile = () => {
   const handleDeleteAddress = async (id) => {
     if (!window.confirm(t("confirm_delete_address", "Bạn có chắc chắn muốn xóa địa chỉ này?"))) return;
     try {
-      const response = await fetch(apiUrl + "/users/profile/addresses/" + id, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const response = await deleteCustomerAddress(id);
       const data = await response.json();
       if (!response.ok) throw new Error(t("failed_to_delete_address", "Không thể xóa địa chỉ"));
       setUser((currentUser) => ({ ...currentUser, addresses: data.addresses }));
@@ -194,10 +185,7 @@ const Profile = () => {
 
   const handleSetDefaultAddress = async (id) => {
     try {
-      const response = await fetch(apiUrl + "/users/profile/addresses/" + id + "/default", {
-        method: "PUT",
-        credentials: "include",
-      });
+      const response = await setDefaultCustomerAddress(id);
       const data = await response.json();
       if (!response.ok) throw new Error(t("failed_to_set_default_address", "Không thể thiết lập địa chỉ mặc định"));
       setUser((currentUser) => ({ ...currentUser, addresses: data.addresses }));

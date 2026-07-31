@@ -16,11 +16,10 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { apiFetch, getAuthFailure } from "../api/httpClient";
 import { useLanguage } from "../context/languagecontext.jsx";
 import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
 import "./styles/changepassword.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
 
 const ChangePassword = () => {
   const { t } = useLanguage();
@@ -69,19 +68,17 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(apiUrl + "/users/change-password", {
+      const response = await apiFetch("/users/change-password", {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        json: { currentPassword, newPassword },
       });
       if (!response.ok) {
-        if (response.status === 401) {
+        if (getAuthFailure(response) === "unauthorized") {
           toast.error(t("session_expired", "Phiên đăng nhập đã hết hạn"));
           navigate("/login?redirect=" + encodeURIComponent("/change-password"));
           return;
         }
-      throw new Error(t("change_password_failed"));
+        throw new Error(t("change_password_failed"));
       }
 
       toast.success(t("change_password_success", "Đổi mật khẩu thành công"));
@@ -89,7 +86,7 @@ const ChangePassword = () => {
       setNewPassword("");
       setConfirmPassword("");
       try {
-        await fetch(apiUrl + "/users/logout", { method: "POST", credentials: "include" });
+        await apiFetch("/users/logout", { method: "POST" });
       } catch (logoutError) {
         console.error("Không thể xóa phiên sau khi đổi mật khẩu:", logoutError);
       }

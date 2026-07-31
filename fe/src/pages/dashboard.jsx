@@ -13,28 +13,22 @@ import { getCategoryIcon, normalizeTypeName } from "../utils/homecategoryicons";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import { useLanguage } from "../context/languagecontext.jsx";
 import { getLocalizedText } from "../utils/localizedcontent";
-
-const apiUrl = process.env.REACT_APP_BACK_END || "";
-
-const resolveImageUrl = (url) => {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
-  return `${apiUrl}${url}`;
-};
+import {
+  getStorefrontContent,
+  getStorefrontProductsByIds,
+  getStorefrontProductTypes,
+  resolveStorefrontAssetUrl,
+} from "../api/storefrontCatalogApi";
 
 const getVersionedImageUrl = (url, version) => {
   if (!url) return "";
   return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
 };
 
-const DEFAULT_BRANDS = [
-  { label: "SIEMENS", query: "Siemens" },
-  { label: "Schneider Electric", query: "Schneider" },
-  { label: "LS ELECTRIC", query: "LS Electric" },
-  { label: "OMRON", query: "Omron" },
-  { label: "MITSUBISHI", query: "Mitsubishi" },
-  { label: "ABB", query: "ABB" },
-];
+const isImageAsset = (value) => typeof value === "string" && (
+  /^data:image\//i.test(value)
+  || /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i.test(value)
+);
 
 const buildAutomaticCategories = (types) =>
   types.slice(0, 9).map((type, index) => ({
@@ -77,12 +71,14 @@ const resolveSectionLink = (name, types) => {
   return "/product";
 };
 
-function SectionHeader({ title, href = "/product" }) {
+function SectionHeader({ title, href = "/product", showViewAll = true }) {
   const { t } = useLanguage();
   return (
     <div className="home-section-heading">
       <h2>{title}</h2>
-      <Link to={href}>{t("view_all")} <i className="fa-solid fa-angle-right" /></Link>
+      {showViewAll && (
+        <Link to={href}>{t("view_all")} <i className="fa-solid fa-angle-right" /></Link>
+      )}
     </div>
   );
 }
@@ -103,8 +99,8 @@ function Dashboard() {
       setLoading(true);
       try {
         const [manageResponse, typeResponse] = await Promise.all([
-          fetch(`${apiUrl}/manages/`, { cache: "no-store" }),
-          fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
+          getStorefrontContent({ cache: "no-store" }),
+          getStorefrontProductTypes({ cache: "no-store" }),
         ]);
 
         const manageResult = await manageResponse.json();
@@ -122,12 +118,7 @@ function Dashboard() {
         ));
 
         if (productIds.length > 0) {
-          const productResponse = await fetch(`${apiUrl}/products/fetch-by-ids`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids: productIds }),
-            credentials: "include",
-          });
+          const productResponse = await getStorefrontProductsByIds(productIds);
           const productResult = await productResponse.json();
           if (active) setProducts(productResult?.success ? productResult.products || [] : []);
         } else if (active) {
@@ -149,8 +140,8 @@ function Dashboard() {
   }, [location.pathname]);
 
   const heroImages = useMemo(() => {
-    const images = (manageData?.overViewImg || []).map(resolveImageUrl).filter(Boolean).reverse();
-    return images.length > 0 ? images : [`${apiUrl}/images/manage_1783154141653.jpg`];
+    const images = (manageData?.overViewImg || []).map(resolveStorefrontAssetUrl).filter(Boolean).reverse();
+    return images.length > 0 ? images : [resolveStorefrontAssetUrl("/images/manage_1783154141653.jpg")];
   }, [manageData]);
 
   const homeCategories = useMemo(() => {
@@ -195,12 +186,14 @@ function Dashboard() {
         manageData.homeCategoryConfig.sidebarTitle || t("product_categories")
       )
     : t("product_categories");
-  const featuredBrands = useMemo(() => {
-    if (manageData?.partners && Array.isArray(manageData.partners) && manageData.partners.length > 0) {
-      return manageData.partners.map((partner) => ({ label: partner, query: partner }));
-    }
-    return DEFAULT_BRANDS;
+  const featuredBrandImages = useMemo(() => {
+    if (!Array.isArray(manageData?.partners)) return [];
+    return manageData.partners.filter(isImageAsset);
   }, [manageData?.partners]);
+  const shouldRotateBrands = featuredBrandImages.length >= 6;
+  const rotatingBrandImages = featuredBrandImages.length === 6
+    ? [...featuredBrandImages, ...featuredBrandImages]
+    : featuredBrandImages;
 
   const section1Products = useMemo(() => {
     if (!manageData?.section1) return [];
@@ -275,8 +268,7 @@ function Dashboard() {
                         <li><i className="fa-regular fa-circle-check" /> {t("official_warranty")}</li>
                       </ul>
                       <div className="home-hero-actions">
-                        <Link className="home-primary-button" to="/product">{t("explore_now")}</Link>
-                        <Link className="home-secondary-button" to="/product"><i className="fa-regular fa-file-lines" /> {t("download_catalogue")}</Link>
+                        <a className="home-primary-button" href="https://ttsmart.vn" target="_blank" rel="noreferrer">{t("explore_now")}</a>
                       </div>
                     </div>
                   </div>
@@ -297,7 +289,7 @@ function Dashboard() {
                 <HomeCategoryLink key={category.id} category={category}>
                   <div className="home-quick-category-image">
                     {image ? (
-                      <img src={resolveImageUrl(image)} alt="" />
+                      <img src={resolveStorefrontAssetUrl(image)} alt="" />
                     ) : (
                       <HomeCategoryIcon icon={category.icon} />
                     )}
@@ -314,7 +306,7 @@ function Dashboard() {
         )}
 
         {section1Products.length >= 6 && manageData?.section1?.display !== false && (
-          <section className="home-section">
+          <section className="home-section home-section--framed">
             <SectionHeader title={manageData?.section1?.name || t("best_selling_products")} />
             {loading ? (
               <div className="home-loading-row">{t("loading_products")}</div>
@@ -379,39 +371,14 @@ function Dashboard() {
           </section>
         )}
 
-        <section className="home-trust-strip">
-          {[
-            ["fa-certificate", t("genuine_products"), t("genuine_commitment")],
-            ["fa-shield-halved", t("trusted_warranty"), t("official_warranty")],
-            ["fa-truck-fast", t("nationwide_delivery"), t("fast_on_time_delivery")],
-            ["fa-headset", t("support_247"), t("free_technical_consulting")],
-          ].map(([icon, title, text]) => (
-            <div key={title}><i className={`fa-solid ${icon}`} /><span><strong>{title}</strong><small>{text}</small></span></div>
-          ))}
-        </section>
-
-        {manageData?.displayPartners !== false && (
-          <section className="home-section home-brand-section">
-            <SectionHeader title={t("featured_brands")} />
-            <div className="home-brand-grid">
-              {featuredBrands.map((brand, index) => (
-                <Link key={brand.label} to={`/product?brand=${encodeURIComponent(brand.query)}`}>
-                  <strong className={`brand-tone-${(index % 6) + 1}`}>{brand.label}</strong>
-                  <small>{brand.label}</small>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* 10 mục đặc biệt */}
         {specialSections.map((sec) => (
-          <section key={sec.key} className="home-category-row">
+          <section key={sec.key} className="home-category-row home-section--framed">
             {/* Khối trái cố định */}
             <div className={`category-highlight-card ${sec.image ? "has-image" : ""}`}>
               <div className="highlight-image-box">
                 {sec.image ? (
-                  <img src={resolveImageUrl(sec.image)} alt={sec.name} className="highlight-img" />
+                  <img src={resolveStorefrontAssetUrl(sec.image)} alt={sec.name} className="highlight-img" />
                 ) : (
                   <div className="highlight-img-placeholder"><i className="fa-solid fa-microchip" /></div>
                 )}
@@ -492,6 +459,55 @@ function Dashboard() {
             </div>
           </section>
         ))}
+
+        {manageData?.displayPartners !== false && featuredBrandImages.length > 0 && (
+          <section className="home-section home-brand-section">
+            <SectionHeader title={t("featured_brands")} showViewAll={false} />
+            {shouldRotateBrands ? (
+              <Swiper
+                modules={[Autoplay]}
+                loop
+                speed={650}
+                spaceBetween={14}
+                slidesPerView={1.45}
+                autoplay={{
+                  delay: 2200,
+                  disableOnInteraction: false,
+                  pauseOnMouseEnter: true,
+                }}
+                breakpoints={{
+                  480: { slidesPerView: 2.2 },
+                  768: { slidesPerView: 3 },
+                  1024: { slidesPerView: 4 },
+                  1280: { slidesPerView: 6 },
+                }}
+                className="home-brand-swiper"
+              >
+                {rotatingBrandImages.map((image, index) => (
+                  <SwiperSlide key={`${image}-${index}`}>
+                    <div className="home-brand-logo-card">
+                      <img
+                        src={resolveStorefrontAssetUrl(image)}
+                        alt={`${t("featured_brands")} ${(index % featuredBrandImages.length) + 1}`}
+                      />
+                    </div>
+                  </SwiperSlide>
+                ))}
+              </Swiper>
+            ) : (
+              <div className="home-brand-grid">
+                {featuredBrandImages.map((image, index) => (
+                  <div className="home-brand-logo-card" key={`${image}-${index}`}>
+                    <img
+                      src={resolveStorefrontAssetUrl(image)}
+                      alt={`${t("featured_brands")} ${index + 1}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
       </div>
     </main>

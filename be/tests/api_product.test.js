@@ -9,6 +9,7 @@ const { Product } = require('../components/product');
 const { User } = require('../components/user');
 const { StorageHistory } = require('../components/storagehistory');
 const uploadedDocumentPaths = [];
+const uploadedImagePaths = [];
 
 beforeAll(async () => {
   const url = 'mongodb://localhost:27017/EcomTest';
@@ -24,7 +25,11 @@ afterEach(async () => {
   await Product.deleteMany({});
   await User.deleteMany({});
   await StorageHistory.deleteMany({});
-  await Promise.all(uploadedDocumentPaths.splice(0).map(async (filePath) => {
+  const uploadedFilePaths = [
+    ...uploadedDocumentPaths.splice(0),
+    ...uploadedImagePaths.splice(0)
+  ];
+  await Promise.all(uploadedFilePaths.map(async (filePath) => {
     try {
       await fs.unlink(filePath);
     } catch (error) {
@@ -380,6 +385,73 @@ describe('Products API Tests (Phase 4)', () => {
       expect.objectContaining(updatedDocuments[0])
     ]);
     expect(updated.body.infoDoc.manual).toBe('https://legacy.example.com/manual');
+  });
+
+  it('uploads PNG images and rejects invalid MIME, extension, or files larger than 4MB', async () => {
+    const agent = await createStaffAgent({
+      phone: '0987654345',
+      permissions: ['product.create']
+    });
+
+    const invalidMime = await agent
+      .post('/products/upload/image')
+      .attach('product', Buffer.from('not an image'), {
+        filename: 'product.png',
+        contentType: 'text/plain'
+      });
+
+    expect(invalidMime.status).toBe(400);
+    expect(invalidMime.body).toEqual({
+      success: 0,
+      message: 'Chỉ cho phép upload ảnh: .jpg, .jpeg, .png, .webp, .gif, .avif'
+    });
+
+    const invalidExtension = await agent
+      .post('/products/upload/image')
+      .attach('product', Buffer.from('not an image'), {
+        filename: 'product.txt',
+        contentType: 'image/png'
+      });
+
+    expect(invalidExtension.status).toBe(400);
+    expect(invalidExtension.body).toEqual({
+      success: 0,
+      message: 'Chỉ cho phép upload ảnh: .jpg, .jpeg, .png, .webp, .gif, .avif'
+    });
+
+    const oversized = await agent
+      .post('/products/upload/image')
+      .attach('product', Buffer.alloc((4 * 1024 * 1024) + 1, 1), {
+        filename: 'oversized.png',
+        contentType: 'image/png'
+      });
+
+    expect(oversized.status).toBe(400);
+    expect(oversized.body).toEqual({ success: 0, message: 'Dung lượng ảnh tối đa 4MB' });
+
+    const uploaded = await agent
+      .post('/products/upload/image')
+      .attach('product', Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+      ]), {
+        filename: 'product.png',
+        contentType: 'image/png'
+      });
+
+    expect(uploaded.status).toBe(200);
+    expect(uploaded.body).toEqual({
+      success: 1,
+      imgUrl: expect.stringMatching(/^http:\/\/localhost:5000\/images\/product_\d+\.png$/)
+    });
+
+    const filename = path.basename(new URL(uploaded.body.imgUrl).pathname);
+    const uploadedPath = path.join(__dirname, '../upload/images', filename);
+    uploadedImagePaths.push(uploadedPath);
+    await expect(fs.access(uploadedPath)).resolves.toBeUndefined();
+
+    const publicImage = await request(app).get(`/images/${filename}`);
+    expect(publicImage.status).toBe(200);
+    expect(publicImage.headers['content-type']).toContain('image/png');
   });
 
   it('uploads PDF documents and rejects invalid type or files larger than 20MB', async () => {

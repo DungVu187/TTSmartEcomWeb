@@ -30,8 +30,15 @@ import TuneIcon from "@mui/icons-material/Tune";
 import moment from "moment";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  completeExportOrder,
+  createExportOrder,
+  createInventoryOrderTemplate,
+  deleteInventoryOrderTemplate,
+  getInventoryOrderTemplates,
+  getInventoryProductsByIds,
+  listExportOrders,
+} from "../../api/inventoryOrderAdministrationApi";
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -53,6 +60,7 @@ const EpOrders = () => {
   const [productDetails, setProductDetails] = useState({});
   const [orderTemplates, setOrderTemplates] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
+  const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(null);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [filterOrderName, setFilterOrderName] = useState("");
   const [filterUserName, setFilterUserName] = useState("");
@@ -89,16 +97,9 @@ const EpOrders = () => {
   }, [orders]);
 
   // Hàm gọi API chung với xử lý lỗi
-  const apiFetch = async (url, options = {}) => {
+  const handleApiResponse = async (request) => {
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
-        credentials: "include", // Gửi cookie authToken
-      });
+      const response = await request;
 
       if (response.status === 401 || response.status === 403) {
         toast.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -126,18 +127,16 @@ const EpOrders = () => {
     userName = debouncedUserName
   ) => {
     setLoading(true);
-    const queryParams = new URLSearchParams({
+    const queryParams = {
       page,
       orderName,
       userName,
       status: filterStatus === "all" ? "" : filterStatus,
       startDate: filterStartDate,
       endDate: filterEndDate,
-    }).toString();
+    };
 
-    const data = await apiFetch(`${apiUrl}/eporders/orders?${queryParams}`, {
-      method: "GET",
-    });
+    const data = await handleApiResponse(listExportOrders(queryParams));
 
     if (data) {
       setOrders(data.orders || []);
@@ -149,9 +148,7 @@ const EpOrders = () => {
 
   // Hàm lấy danh sách mẫu hóa đơn
   const fetchOrderTemplates = async () => {
-    const data = await apiFetch(`${apiUrl}/users/order-templates`, {
-      method: "GET",
-    });
+    const data = await handleApiResponse(getInventoryOrderTemplates());
     if (data) {
       setOrderTemplates(data.orderTemplates || []);
     }
@@ -160,10 +157,7 @@ const EpOrders = () => {
   // Hàm lấy chi tiết sản phẩm
   const fetchProductDetails = async (productIds) => {
     if (!productIds || productIds.length === 0) return {};
-    const result = await apiFetch(`${apiUrl}/products/fetch-by-ids`, {
-      method: "POST",
-      body: JSON.stringify({ ids: productIds }),
-    });
+    const result = await handleApiResponse(getInventoryProductsByIds(productIds));
     return (
       result?.products.reduce((acc, product) => {
         acc[product._id] = product;
@@ -197,10 +191,9 @@ const EpOrders = () => {
 
   // Hàm tạo đơn xuất mới (trắng)
   const handleCreateNewOrder = async () => {
-    const result = await apiFetch(`${apiUrl}/eporders/orders`, {
-      method: "POST",
-      body: JSON.stringify({ userName: "admin", productList: [] }),
-    });
+    const result = await handleApiResponse(
+      createExportOrder({ userName: "admin", productList: [] })
+    );
 
     if (result) {
       toast.success("Tạo đơn xuất mới thành công");
@@ -227,13 +220,13 @@ const EpOrders = () => {
       };
     });
 
-    const result = await apiFetch(`${apiUrl}/eporders/orders`, {
-      method: "POST",
-      body: JSON.stringify({
+    const result = await handleApiResponse(
+      createExportOrder({
         orderName: template.displayName || "Đơn xuất từ mẫu",
+        note: template.note || "",
         productList,
-      }),
-    });
+      })
+    );
 
     if (result) {
       toast.success(`Tạo đơn xuất từ mẫu "${template.displayName}" thành công`);
@@ -243,13 +236,13 @@ const EpOrders = () => {
 
   // Hàm tạo mẫu hóa đơn mới
   const handleCreateNewTemplate = async () => {
-    const result = await apiFetch(`${apiUrl}/users/order-templates`, {
-      method: "POST",
-      body: JSON.stringify({
+    const result = await handleApiResponse(
+      createInventoryOrderTemplate({
         displayName: "Mẫu_1",
+        note: "",
         products: [],
-      }),
-    });
+      })
+    );
 
     if (result) {
       toast.success("Tạo mẫu hóa đơn mới thành công");
@@ -259,13 +252,44 @@ const EpOrders = () => {
 
   // Hàm chọn mẫu để chỉnh sửa
   const handleSelectTemplate = (index) => {
-    navigate(`/exportordertemplate/${index}`);
+    setSelectedTemplateIndex(index);
+  };
+
+  const handleEditSelectedTemplate = () => {
+    if (selectedTemplateIndex === null) return;
+    navigate(`/exportordertemplate/${selectedTemplateIndex}`);
     handleCloseDialog();
   };
 
+  const handleDeleteSelectedTemplate = async () => {
+    if (selectedTemplateIndex === null) return;
+
+    const selectedTemplate = orderTemplates[selectedTemplateIndex];
+    if (!window.confirm(`Bạn có chắc muốn xóa mẫu "${selectedTemplate?.displayName || "Mẫu không tên"}"?`)) {
+      return;
+    }
+
+    const result = await handleApiResponse(
+      deleteInventoryOrderTemplate(selectedTemplateIndex)
+    );
+
+    if (result) {
+      toast.success("Xóa mẫu hóa đơn thành công");
+      setSelectedTemplateIndex(null);
+      fetchOrderTemplates();
+    }
+  };
+
   // Hàm mở/đóng dialog
-  const handleOpenDialog = () => setOpenDialog(true);
-  const handleCloseDialog = () => setOpenDialog(false);
+  const handleOpenDialog = () => {
+    setSelectedTemplateIndex(null);
+    fetchOrderTemplates();
+    setOpenDialog(true);
+  };
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setSelectedTemplateIndex(null);
+  };
   const handleOpenCreateDialog = () => {
     fetchOrderTemplates();
     setOpenCreateDialog(true);
@@ -288,15 +312,7 @@ const EpOrders = () => {
 
     try {
       // 1. Cập nhật status đơn hàng và set quantityEx = quantity
-      const res = await fetch(
-        `${apiUrl}/eporders/orders/${order._id}/setStatusAndQuantity`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ status: true }),
-        }
-      );
+      const res = await completeExportOrder(order._id);
 
       const data = await res.json(); // ✅ parse JSON trước
 
@@ -635,36 +651,68 @@ const EpOrders = () => {
       </div>
 
       {/* Dialog danh sách mẫu hóa đơn (chỉnh sửa mẫu) */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        disableScrollLock
+        fullWidth
+        maxWidth="xs"
+      >
         <DialogTitle>Danh sách mẫu hóa đơn</DialogTitle>
-        <DialogContent>
-          {orderTemplates.length > 0 ? (
-            orderTemplates.map((template, index) => (
-              <Button
-                key={template._id}
-                variant="outlined"
-                fullWidth
-                sx={{ mb: 1 }}
-                onClick={() => handleSelectTemplate(index)}
-              >
-                {template.displayName || "Mẫu không tên"}
-              </Button>
-            ))
-          ) : (
-            <Typography>Chưa có mẫu hóa đơn nào</Typography>
-          )}
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{ px: 3, py: 2 }}>
+            {orderTemplates.length > 0 ? (
+              orderTemplates.map((template, index) => (
+                <Button
+                  key={template._id || index}
+                  variant={selectedTemplateIndex === index ? "contained" : "outlined"}
+                  fullWidth
+                  sx={{ mb: index === orderTemplates.length - 1 ? 0 : 1 }}
+                  onClick={() => handleSelectTemplate(index)}
+                >
+                  <Box sx={{ width: "100%", textAlign: "left" }}>
+                    <Typography component="div" fontWeight={700}>
+                      {template.displayName || "Mẫu không tên"}
+                    </Typography>
+                    {template.note && (
+                      <Typography component="div" variant="caption" sx={{ opacity: 0.8 }}>
+                        {template.note}
+                      </Typography>
+                    )}
+                  </Box>
+                </Button>
+              ))
+            ) : (
+              <Typography>Chưa có mẫu hóa đơn nào</Typography>
+            )}
+          </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ gap: 1, px: 3, pb: 2 }}>
+          <Button
+            variant="contained"
+            color="success"
+            fullWidth
+            onClick={handleCreateNewTemplate}
+          >
+            Thêm mới
+          </Button>
           <Button
             variant="contained"
             color="primary"
             fullWidth
-            onClick={handleCreateNewTemplate}
+            disabled={selectedTemplateIndex === null}
+            onClick={handleEditSelectedTemplate}
           >
-            Thêm mẫu mới
+            Sửa
           </Button>
-          <Button onClick={handleCloseDialog} color="error">
-            Hủy
+          <Button
+            variant="contained"
+            color="error"
+            fullWidth
+            disabled={selectedTemplateIndex === null}
+            onClick={handleDeleteSelectedTemplate}
+          >
+            Xóa
           </Button>
         </DialogActions>
       </Dialog>
@@ -676,7 +724,7 @@ const EpOrders = () => {
           {orderTemplates.length > 0 ? (
             orderTemplates.map((template, index) => (
               <Button
-                key={template._id}
+                key={template._id || index}
                 variant="outlined"
                 fullWidth
                 sx={{ mb: 1 }}

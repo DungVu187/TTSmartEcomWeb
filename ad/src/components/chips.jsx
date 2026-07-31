@@ -22,7 +22,19 @@ import {
 } from "@mui/material";
 import "./style/chips.css";
 import toast from "react-hot-toast";
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  addChipValue,
+  addProductSectionValue,
+  deleteProductSectionImage,
+  deleteProductSectionValue,
+  getChipValues,
+  getProductSectionDevices,
+  getProductSections,
+  removeChipValue,
+  updateProductSectionImage,
+  updateProductSectionValue,
+  uploadProductSectionImage,
+} from "../api/productManagementApi";
 
 const Chips = ({ onlySection = false }) => {
   const location = useLocation();
@@ -112,24 +124,14 @@ const Chips = ({ onlySection = false }) => {
 
     const handleUpdate = async () => {
       try {
-        const response = await fetch(
-          `${apiUrl}/chips/${selectedSection}/value`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-            body: JSON.stringify({
-              oldValue: selectedDevice,
-              newValue: editDeviceValue,
-            }),
-          }
+        const { ok, data } = await updateProductSectionValue(
+          selectedSection,
+          selectedDevice,
+          editDeviceValue,
         );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Cập nhật thất bại");
+        if (!ok) {
+          throw new Error(data.message || "Cập nhật thất bại");
         }
 
         toast.success("Cập nhật thiết bị thành công!");
@@ -143,23 +145,13 @@ const Chips = ({ onlySection = false }) => {
 
     const handleDelete = async () => {
       try {
-        const response = await fetch(
-          `${apiUrl}/chips/${selectedSection}/value`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-            body: JSON.stringify({
-              value: selectedDevice,
-            }),
-          }
+        const { ok, data } = await deleteProductSectionValue(
+          selectedSection,
+          selectedDevice,
         );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Xóa thất bại");
+        if (!ok) {
+          throw new Error(data.message || "Xóa thất bại");
         }
 
         toast.success("Xóa thiết bị thành công!");
@@ -229,8 +221,7 @@ const Chips = ({ onlySection = false }) => {
   };
 
   const fetchData = async () => {
-    const response = await fetch(`${apiUrl}/chips/getValues`);
-    const data = await response.json();
+    const data = await getChipValues();
     setColorRows(
       data.Color.map((color, index) => ({
         id: index + 1,
@@ -263,18 +254,7 @@ const Chips = ({ onlySection = false }) => {
 
   const fetchSections = async () => {
     try {
-      const response = await fetch(`${apiUrl}/chips/section`);
-
-      if (!response.ok) {
-        throw new Error(`Lỗi: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (!Array.isArray(data)) {
-        throw new Error("Dữ liệu không hợp lệ");
-      }
-      setSections(data);
+      setSections(await getProductSections());
     } catch (error) {
       console.error("Error fetching section:", error);
     }
@@ -282,27 +262,12 @@ const Chips = ({ onlySection = false }) => {
 
 const fetchSectionDevices = async (sectionName) => {
   try {
-    const res = await fetch(`${apiUrl}/chips/section`);
-    const data = await res.json();
-
-    const foundSection = data.find((sec) => sec === sectionName);
-    if (foundSection) {
-      const sectionDoc = await fetch(`${apiUrl}/chips/section-doc`);
-      const sectionJson = await sectionDoc.json();
-
-      const sectionDetail = sectionJson.Section.find(sec => sec.name === sectionName);
-      if (sectionDetail?.imgUrl) {
-        setSectionImageUrl(sectionDetail.imgUrl);
-        setCurrentImageFilename(sectionDetail.imgUrl.split("/").pop());
-      } else {
-        setSectionImageUrl(null);
-        setCurrentImageFilename(null);
-      }
+    const { devices, image } = await getProductSectionDevices(sectionName);
+    if (image !== undefined) {
+      setSectionImageUrl(image.imgUrl);
+      setCurrentImageFilename(image.filename);
     }
-
-    const deviceRes = await fetch(`${apiUrl}/chips/${sectionName}/value`);
-    const deviceData = await deviceRes.json();
-    setSectionDevices(deviceData);
+    setSectionDevices(devices);
   } catch (error) {
     console.error("Error fetching section devices:", error);
     setSectionDevices([]);
@@ -340,21 +305,9 @@ const fetchSectionDevices = async (sectionName) => {
       toast.error("Vui lòng chọn loại và nhập giá trị!");
       return;
     }
-    const response = await fetch(`${apiUrl}/chips/addValue`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        type: chipType,
-        value: chipValue.trim(),
-      }),
-    });
+    const { ok, data } = await addChipValue(chipType, chipValue.trim());
 
-    const data = await response.json().catch(() => ({}));
-
-    if (response.ok) {
+    if (ok) {
       toast.success("Thêm chip thành công!");
       fetchData();
       handleCloseDialog();
@@ -371,19 +324,12 @@ const fetchSectionDevices = async (sectionName) => {
   const handleDeleteChip = async () => {
     if (!selectedChip) return;
 
-    const response = await fetch(`${apiUrl}/chips/removeValue`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        type: selectedChip.type,
-        value: selectedChip.value,
-      }),
-    });
+    const removed = await removeChipValue(
+      selectedChip.type,
+      selectedChip.value,
+    );
 
-    if (response.ok) {
+    if (removed) {
       toast.success("Xóa chip thành công!");
       fetchData();
       setOpenDeleteDialog(false);
@@ -438,18 +384,9 @@ const fetchSectionDevices = async (sectionName) => {
 
   const addValueToSection = async (sectionName, newValue) => {
     try {
-      const response = await fetch(`${apiUrl}/chips/${sectionName}/value`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ value: newValue }),
-      });
+      const { ok, data } = await addProductSectionValue(sectionName, newValue);
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!ok) {
         throw new Error(data.message || "Có lỗi xảy ra");
       }
 
@@ -512,41 +449,23 @@ const fetchSectionDevices = async (sectionName) => {
   const file = event.target.files[0];
   if (!file || !selectedSection) return;
 
-  const formData = new FormData();
-  formData.append("sectionImage", file);
-
   try {
-    const uploadRes = await fetch(`${apiUrl}/chips/upload-section-image`, {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-
-    if (!uploadRes.ok) throw new Error("Lỗi upload ảnh");
-
-    const uploadData = await uploadRes.json();
+    const { ok, data: uploadData } = await uploadProductSectionImage(file);
+    if (!ok) throw new Error("Lỗi upload ảnh");
     const newImgUrl = uploadData.imgUrl;
     const newFilename = newImgUrl.split("/").pop();
 
     // Nếu đã có ảnh cũ => xoá
     if (currentImageFilename) {
-      await fetch(`${apiUrl}/chips/delete-section-image/${currentImageFilename}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      await deleteProductSectionImage(currentImageFilename);
     }
 
     // Gửi API cập nhật imgUrl cho section
-    await fetch(`${apiUrl}/chips/${selectedSection}/value`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        oldValue: sectionDevices[0], // bất kỳ value nào để API không lỗi
-        newValue: sectionDevices[0],
-        imgUrl: newImgUrl,
-      }),
-    });
+    await updateProductSectionImage(
+      selectedSection,
+      sectionDevices[0],
+      newImgUrl,
+    );
 
     setSectionImageUrl(newImgUrl);
     setCurrentImageFilename(newFilename);

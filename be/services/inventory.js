@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Product } = require("../models/product");
 
 class InventoryError extends Error {
   constructor(message, { statusCode = 400, code = "INVENTORY_ERROR" } = {}) {
@@ -19,8 +20,6 @@ class InventoryRollbackError extends Error {
     this.rollbackErrors = rollbackErrors;
   }
 }
-
-const getProductModel = () => mongoose.model("Product");
 
 const normalizeObjectId = (value, fieldName) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
@@ -57,7 +56,6 @@ const normalizeDelta = (value, fieldName) => {
 };
 
 const loadVariantIdentity = async ({ productId, variantIndex }) => {
-  const Product = getProductModel();
   const product = await Product.findById(productId)
     .select("name variant._id variant.quantityForSale variant.quantityInStorage purchaseCount")
     .lean();
@@ -92,7 +90,6 @@ const diagnoseFailedAdjustment = async ({
   quantityInStorageDelta,
   purchaseCountDelta,
 }) => {
-  const Product = getProductModel();
   const product = await Product.findById(productId)
     .select("name variant._id variant.quantityForSale variant.quantityInStorage purchaseCount")
     .lean();
@@ -170,7 +167,6 @@ const adjustVariantStock = async ({
   quantityInStorageDelta = 0,
   purchaseCountDelta = 0,
 }) => {
-  const Product = getProductModel();
   const normalizedProductId = normalizeObjectId(productId, "Mã sản phẩm");
   const normalizedIndex = normalizeVariantIndex(variantIndex);
   const saleDelta = normalizeDelta(quantityForSaleDelta, "quantityForSaleDelta");

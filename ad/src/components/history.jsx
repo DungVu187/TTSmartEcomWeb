@@ -21,8 +21,10 @@ import {
 } from "@mui/material";
 import moment from "moment";
 import { useNavigate } from "react-router-dom";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  getStorageHistory,
+  getStorageHistoryFilterOptions,
+} from "../api/adminAuditApi";
 
 const importNoteTypeOptions = [
   { value: "", label: "Tất cả" },
@@ -135,7 +137,7 @@ const History = ({ direction = "import" }) => {
   const fetchHistories = async (currentPage = page, currentUserName = debouncedUserName, currentOrderName = debouncedOrderName) => {
     try {
       setLoading(true);
-      const query = new URLSearchParams({
+      const res = await getStorageHistory({
         page: currentPage,
         limit,
         direction: historyDirection,
@@ -144,10 +146,6 @@ const History = ({ direction = "import" }) => {
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
         ...(noteType && { noteType }),
-      }).toString();
-
-      const res = await fetch(`${apiUrl}/histories?${query}`, {
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Lỗi khi tải dữ liệu lịch sử");
       const data = await res.json();
@@ -168,9 +166,7 @@ const History = ({ direction = "import" }) => {
 
   const fetchFilterOptions = async () => {
     try {
-      const res = await fetch(`${apiUrl}/histories/filter-options`, {
-        credentials: "include",
-      });
+      const res = await getStorageHistoryFilterOptions();
       if (!res.ok) throw new Error("Lá»—i khi táº£i gá»£i Ã½ lá»c lá»‹ch sá»­");
       const data = await res.json();
       setFilterOptions({

@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { autoLoginCustomer } from "../api/customerAccountApi";
 import { useLanguage } from "../context/languagecontext.jsx";
 
 const AutoLog = () => {
@@ -13,15 +14,7 @@ const AutoLog = () => {
       try {
         if (!code) throw new Error("auto_login_missing_code");
 
-        const response = await fetch(
-          `${process.env.REACT_APP_BACK_END}/users/autologin`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ token: code }),
-          }
-        );
+        const response = await autoLoginCustomer(code);
 
         if (!response.ok) {
           throw new Error("auto_login_failed");

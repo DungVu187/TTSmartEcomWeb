@@ -30,6 +30,11 @@ import toast from "react-hot-toast";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrderContext } from "../context/ordercontext";
 import { io } from "socket.io-client";
+import {
+  createAdminSalesOrderDraft,
+  getSalesOrders,
+  updateSalesOrderField,
+} from "../api/salesOrderManagementApi";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -91,17 +96,10 @@ const Orders = () => {
     return () => clearTimeout(timer);
   }, [filters]);
 
-  // Hàm gọi API chung
-  const apiFetch = useCallback(async (url, options = {}) => {
+  // Hàm xử lý response API chung
+  const runApiRequest = useCallback(async (responsePromise) => {
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
-        credentials: "include",
-      });
+      const response = await responsePromise;
 
       if (response.status === 401 || response.status === 403) {
         toast.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -138,7 +136,7 @@ const Orders = () => {
         ...queryFilters,
       }).toString();
 
-      const data = await apiFetch(`${apiUrl}/orders?${query}`);
+      const data = await runApiRequest(getSalesOrders(query));
       if (data) {
         const formattedOrders = data.orders.map((order) => ({
           ...order,
@@ -152,7 +150,7 @@ const Orders = () => {
       }
       setLoading(false);
     },
-    [apiFetch, debouncedFilters, rowsPerPage]
+    [runApiRequest, debouncedFilters, rowsPerPage]
   );
 
   // Cập nhật đơn hàng
@@ -168,10 +166,9 @@ const Orders = () => {
     const { _id, field, value, type } = confirmAction;
     try {
       if (type === "update") {
-        const result = await apiFetch(`${apiUrl}/orders/update-order/${_id}`, {
-          method: "PUT",
-          body: JSON.stringify({ field, value }),
-        });
+        const result = await runApiRequest(
+          updateSalesOrderField(_id, field, value)
+        );
 
         if (result?.success) {
           setOrders((prev) =>
@@ -279,9 +276,7 @@ const Orders = () => {
 
   // Tạo đơn nháp rỗng rồi chuyển sang trang chi tiết để nhập dần (giống đơn nhập/xuất)
   const createAdminDraftOrder = async () => {
-    const result = await apiFetch(`${apiUrl}/orders/admin-draft`, {
-      method: "POST",
-    });
+    const result = await runApiRequest(createAdminSalesOrderDraft());
 
     if (result?.success) {
       toast.success("Tạo đơn hàng mới thành công");

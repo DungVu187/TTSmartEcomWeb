@@ -7,8 +7,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  queryProductsByVoice,
+  queryProductsByVoiceText,
+} from "../api/voiceApi";
 
 const VoiceSearchFAB = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -124,14 +126,7 @@ const VoiceSearchFAB = () => {
   const sendAudioToAPI = async (audioBlob) => {
     toast.loading("Đang xử lý giọng nói...", { id: "voice-status" });
     try {
-      const formData = new FormData();
-      formData.append("audio", audioBlob, "query.webm");
-
-      const response = await fetch(`${apiUrl}/products/voice-query`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
+      const response = await queryProductsByVoice(audioBlob);
 
       const data = await response.json();
 
@@ -203,12 +198,7 @@ const VoiceSearchFAB = () => {
     setIsProcessing(true);
     toast.loading("Đang xử lý câu tìm kiếm...", { id: "voice-status" });
     try {
-      const response = await fetch(`${apiUrl}/products/voice-query-text`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ text: query }),
-      });
+      const response = await queryProductsByVoiceText(query);
 
       const data = await response.json();
 

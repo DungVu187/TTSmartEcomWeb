@@ -20,9 +20,10 @@ import moment from "moment";
 import { useLanguage } from "../context/languagecontext.jsx";
 import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
 import SafeProductImage from "../components/safeproductimage.jsx";
+import { getStorefrontProduct } from "../api/storefrontCatalogApi";
+import { cancelCustomerOrder, getCustomerOrders } from "../api/customerOrderApi";
 import "./styles/myorder.css";
 
-const apiUrl = process.env.REACT_APP_BACK_END;
 const ordersPerPage = 10;
 
 const formatMoney = (value, locale) => new Intl.NumberFormat(locale).format(Number(value) || 0) + " VND";
@@ -32,7 +33,7 @@ const enrichOrdersWithProducts = async (rawOrders, unavailableProductName) => {
   const productIds = [...new Set(rawOrders.flatMap((order) => (order.cartItems || []).map((item) => item.productId)).filter(Boolean))];
   const products = await Promise.all(productIds.map(async (productId) => {
     try {
-      const response = await fetch(apiUrl + "/products/" + productId, { credentials: "include" });
+      const response = await getStorefrontProduct(productId);
       if (!response.ok) return [productId, null];
       return [productId, await response.json()];
     } catch (error) {
@@ -82,11 +83,7 @@ const MyOrder = () => {
     setError("");
     setAuthRequired(false);
     try {
-      const response = await fetch(apiUrl + "/orders/userOrders", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
+      const response = await getCustomerOrders();
 
       if (response.status === 401) {
         setAuthRequired(true);
@@ -186,12 +183,7 @@ const MyOrder = () => {
     if (!selectedOrder?._id || isCancelling) return;
     setIsCancelling(true);
     try {
-      const response = await fetch(apiUrl + "/orders/" + selectedOrder._id, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: "Cancelled" }),
-        credentials: "include",
-      });
+      const response = await cancelCustomerOrder(selectedOrder._id);
       if (!response.ok) throw new Error(t("cancel_order_failed", "Hủy đơn hàng thất bại"));
 
       setOrders((currentOrders) => currentOrders.map((order) => order._id === selectedOrder._id ? { ...order, state: "Cancelled" } : order));

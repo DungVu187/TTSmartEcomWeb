@@ -1,23 +1,10 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const { authenticateAdminOnly } = require("./user");
-const { ActivityLog } = require("./activitylog");
+const { TelegramConfig } = require("../models/telegram");
+const { authenticateAdminOnly } = require("../middlewares/auth");
+const { ActivityLog } = require("../models/activitylog");
 const { sendTelegramMessage } = require("../telegramService");
 
 const router = express.Router();
-
-const telegramConfigSchema = new mongoose.Schema({
-  enabled: { type: Boolean, default: false },
-  recipients: [{
-    label: { type: String, default: "" },
-    chatId: { type: String, required: true },
-    type: { type: String, enum: ["personal", "group"], default: "personal" },
-    enabled: { type: Boolean, default: true },
-    notifyTypes: { type: [String], default: ["new_order"] },
-  }],
-}, { timestamps: true });
-
-const TelegramConfig = mongoose.models.TelegramConfig || mongoose.model("TelegramConfig", telegramConfigSchema);
 
 const getConfig = async () => {
   let config = await TelegramConfig.findOne();

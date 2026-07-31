@@ -20,8 +20,10 @@ import {
 } from "@mui/material";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  getInventoryProduct,
+  listImportOrders,
+} from "../../api/inventoryOrderAdministrationApi";
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -56,17 +58,10 @@ const OrderedProducts = () => {
   });
 
   // Hàm gọi API chung với xử lý lỗi
-  const apiFetch = async (url, options = {}) => {
-    const { suppressToast = false, ...fetchOptions } = options;
+  const readApiResponse = async (responsePromise, options = {}) => {
+    const { suppressToast = false } = options;
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers: {
-          "Content-Type": "application/json",
-          ...(fetchOptions.headers || {}),
-        },
-        credentials: "include", // Gửi cookie authToken
-      });
+      const response = await responsePromise;
 
       if (response.status === 401 || response.status === 403) {
         toast.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -101,13 +96,7 @@ const OrderedProducts = () => {
         productName: customFilters.productName || undefined,
       };
 
-      const query = new URLSearchParams(
-        Object.entries(queryParams).filter(([, v]) => v !== undefined)
-      ).toString();
-
-      const data = await apiFetch(`${apiUrl}/iporders/orders?${query}`, {
-        method: "GET",
-      });
+      const data = await readApiResponse(listImportOrders(queryParams));
 
       if (!data) {
         setProducts([]);
@@ -155,9 +144,9 @@ const OrderedProducts = () => {
 
       const productsWithDetails = await Promise.all(
         Array.from(productMap.entries()).map(async ([, product]) => {
-          const productData = await apiFetch(
-            `${apiUrl}/products/${product.productId}`,
-            { method: "GET", suppressToast: true }
+          const productData = await readApiResponse(
+            getInventoryProduct(product.productId),
+            { suppressToast: true }
           );
 
           if (!productData) return null;

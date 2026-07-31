@@ -52,7 +52,7 @@ body {
   z-index: 100;
   margin: 0 0 12px !important;
   padding: 14px 16px 10px;
-  border: 1px solid #e5eaf0;
+  border: 1.5px solid #93a3b7;
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 2px 10px rgba(16, 42, 67, 0.045);
@@ -250,6 +250,44 @@ table {
 
 .inventory-order-list-region .MuiTableCell-root {
   padding: 5px 8px !important;
+}
+
+.admin-list-page .MuiOutlinedInput-notchedOutline,
+.inventory-order-list-page .MuiOutlinedInput-notchedOutline,
+.admin-list-controls .MuiOutlinedInput-notchedOutline {
+  border-color: #9eadbf !important;
+  border-width: 1.25px !important;
+}
+
+.admin-list-page .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline,
+.inventory-order-list-page .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline,
+.admin-list-controls .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #71839a !important;
+}
+
+.admin-list-page .MuiButton-outlined,
+.inventory-order-list-page .MuiButton-outlined,
+.admin-list-controls .MuiButton-outlined {
+  border-color: currentColor !important;
+  border-width: 1.5px !important;
+}
+
+.admin-list-table,
+.inventory-order-list-table {
+  border: 1.5px solid #9eadbf !important;
+  border-radius: 10px !important;
+}
+
+.admin-list-table .MuiTableCell-root,
+.inventory-order-list-table .MuiTableCell-root {
+  border-color: #c3cedb !important;
+}
+
+.admin-list-page > .MuiTablePagination-root {
+  margin-top: 8px;
+  border: 1.5px solid #9eadbf;
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 .total-summary-text {

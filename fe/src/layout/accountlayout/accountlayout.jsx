@@ -11,10 +11,9 @@ import {
   SupportAgentOutlined,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../api/httpClient";
 import { useLanguage } from "../../context/languagecontext.jsx";
 import "./accountlayout.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
 
 const AccountLayout = ({ title, description, children }) => {
   const { t } = useLanguage();
@@ -33,7 +32,7 @@ const AccountLayout = ({ title, description, children }) => {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      const response = await fetch(apiUrl + "/users/logout", { method: "POST", credentials: "include" });
+      const response = await apiFetch("/users/logout", { method: "POST" });
       if (!response.ok) throw new Error(t("logout_failed"));
       toast.success(t("logout_success", "Đăng xuất thành công"));
       window.location.href = "/login";

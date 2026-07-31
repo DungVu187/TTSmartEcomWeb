@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import "./styles/login.css";
 import { toast } from "react-hot-toast";
+import {
+  loginCustomer,
+  registerCustomer,
+  requestCustomerPasswordReset,
+  resetCustomerPassword,
+} from "../api/customerAccountApi";
 import { useLanguage } from "../context/languagecontext.jsx";
 
 function LogIn() {
@@ -69,17 +75,7 @@ function LogIn() {
     const user = { name, email, phone, password, inviteCode };
 
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/users/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(user),
-          credentials: "include",
-        }
-      );
+      const response = await registerCustomer(user);
 
       if (response.ok) {
         toast.success(t("register_success", "Đăng ký thành công"));
@@ -129,17 +125,7 @@ function LogIn() {
       : { phone: loginIdentifier, password, inviteCode };
 
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/users/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(user),
-          credentials: "include",
-        }
-      );
+      const response = await loginCustomer(user);
 
       if (response.ok) {
         toast.success(t("login_success", "Đăng nhập thành công"));
@@ -165,16 +151,7 @@ function LogIn() {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/users/forgot-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ identifier: forgotIdentifier }),
-        }
-      );
+      const response = await requestCustomerPasswordReset(forgotIdentifier);
 
       if (response.ok) {
         toast.success(t("otp_sent_success", "Mã OTP đã được gửi"));
@@ -202,20 +179,11 @@ function LogIn() {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_BACK_END}/users/reset-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            identifier: forgotIdentifier,
-            otp,
-            newPassword,
-          }),
-        }
-      );
+      const response = await resetCustomerPassword({
+        identifier: forgotIdentifier,
+        otp,
+        newPassword,
+      });
 
       if (response.ok) {
         toast.success(t("reset_password_success", "Đặt lại mật khẩu thành công"));

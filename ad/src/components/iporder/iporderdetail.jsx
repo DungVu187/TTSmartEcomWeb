@@ -36,6 +36,7 @@ import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import PostAddIcon from "@mui/icons-material/PostAdd";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import ImportExportIcon from "@mui/icons-material/ImportExport";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
@@ -58,8 +59,33 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { usePermissions } from "../../context/permissioncontext";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  addImportOrderLine,
+  cleanInventoryTempImage,
+  completeImportOrderLine,
+  createExportOrderFromImport,
+  createImportOrder,
+  createInventoryOrderTemplate,
+  createInventoryBrand,
+  createInventoryProduct,
+  deleteImportOrder,
+  deleteImportOrderImage,
+  deleteImportOrderLine,
+  getImportOrder,
+  getInventoryProductCatalog,
+  getInventoryProductsByCodes,
+  getInventoryProductsByIds,
+  reorderImportOrderLines,
+  resolveInventoryOrderAssetUrl,
+  scanInventoryInvoice,
+  searchInventoryOrderProducts,
+  setImportOrderStatus,
+  updateInventoryOrderHistoryName,
+  updateImportOrderLine,
+  updateImportOrderMetadata,
+  updateImportOrderName,
+  uploadImportOrderImage,
+} from "../../api/inventoryOrderAdministrationApi";
 
 const removeTonesLocal = (value) => String(value || "")
   .normalize("NFD")
@@ -84,6 +110,38 @@ const VisuallyHiddenInput = styled("input")({
   whiteSpace: "nowrap",
   width: 1,
 });
+
+const orderMetadataFieldSx = {
+  "& .MuiOutlinedInput-notchedOutline": {
+    borderColor: "#9EADBF",
+    borderWidth: "1.5px",
+  },
+  "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+    borderColor: "#71839A",
+  },
+};
+
+const blueOutlinedButtonSx = {
+  color: "#2F6FE4",
+  borderColor: "#2F6FE4",
+  borderWidth: "1.5px",
+  "&:hover": {
+    borderColor: "#245BC4",
+    borderWidth: "1.5px",
+    backgroundColor: "rgba(47, 111, 228, 0.05)",
+  },
+};
+
+const purpleOutlinedButtonSx = {
+  color: "#6D46D8",
+  borderColor: "#8F70E8",
+  borderWidth: "1.5px",
+  "&:hover": {
+    borderColor: "#6D46D8",
+    borderWidth: "1.5px",
+    backgroundColor: "rgba(109, 70, 216, 0.05)",
+  },
+};
 
 // Component con cho hàng có thể kéo thả
 const SortableTableRow = ({
@@ -327,6 +385,10 @@ const ImportOrderDetail = () => {
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
   const [excelMenuAnchor, setExcelMenuAnchor] = useState(null);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [templateDisplayName, setTemplateDisplayName] = useState("");
+  const [templateNote, setTemplateNote] = useState("");
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
 
   // States phục vụ tính năng quét hóa đơn bằng AI
   const [allProducts, setAllProducts] = useState([]);
@@ -580,9 +642,7 @@ const ImportOrderDetail = () => {
       const urlToDelete = tempScanImageUrl;
       setTempScanImageUrl(null);
       try {
-        await apiFetch(`${apiUrl}/products/clean-temp-image?imageUrl=${encodeURIComponent(urlToDelete)}`, {
-          method: "DELETE"
-        });
+        await readApiResponse(cleanInventoryTempImage(urlToDelete));
       } catch (err) {
         console.error("Lỗi khi xóa ảnh tạm mồ côi:", err);
       }
@@ -600,18 +660,10 @@ const ImportOrderDetail = () => {
   );
 
   // Hàm gọi API chung với xử lý lỗi
-  const apiFetch = async (url, options = {}) => {
+  const readApiResponse = async (responsePromise, options = {}) => {
     try {
-      const { ignoredStatuses = [], ...requestOptions } = options;
-      const headers = { ...(requestOptions.headers || {}) };
-      if (!(requestOptions.body instanceof FormData)) {
-        headers["Content-Type"] = headers["Content-Type"] || "application/json";
-      }
-      const response = await fetch(url, {
-        ...requestOptions,
-        headers,
-        credentials: "include",
-      });
+      const { ignoredStatuses = [] } = options;
+      const response = await responsePromise;
 
       if (ignoredStatuses.includes(response.status)) {
         return { ignoredStatus: response.status };
@@ -650,7 +702,7 @@ const ImportOrderDetail = () => {
 
   // Hàm tải toàn bộ sản phẩm từ DB để chọn khi đổi khớp
   const loadAllProductsForScan = async () => {
-    const res = await apiFetch(`${apiUrl}/products/?limit=9999`);
+    const res = await readApiResponse(getInventoryProductCatalog());
     if (res && Array.isArray(res.products)) {
       setAllProducts(res.products);
     }
@@ -905,14 +957,7 @@ const ImportOrderDetail = () => {
       // Nén ảnh tại client
       const compressedFile = await compressImage(file);
 
-      // Tạo FormData và gọi API gửi lên backend
-      const formData = new FormData();
-      formData.append("invoice", compressedFile);
-
-      const res = await apiFetch(`${apiUrl}/products/scan-invoice`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await readApiResponse(scanInventoryInvoice(compressedFile));
 
       if (res && res.success) {
         if (res.imageUrl) {
@@ -967,14 +1012,9 @@ const ImportOrderDetail = () => {
         // Nén ảnh tại client thành WebP
         const compressedFile = await compressImage(file);
 
-        // Gửi lên API upload-image
-        const formData = new FormData();
-        formData.append("invoice", compressedFile);
-
-        const res = await apiFetch(`${apiUrl}/iporders/upload-image`, {
-          method: "POST",
-          body: formData,
-        });
+        const res = await readApiResponse(
+          uploadImportOrderImage(compressedFile)
+        );
 
         if (res && res.success && res.imageUrl) {
           uploadedUrls.push(res.imageUrl);
@@ -985,10 +1025,9 @@ const ImportOrderDetail = () => {
         // Sử dụng functional update để tránh Race Condition và closure state
         setScannedImages((prev) => {
           const updated = [...prev, ...uploadedUrls];
-          apiFetch(`${apiUrl}/iporders/orders/${id}`, {
-            method: "PUT",
-            body: JSON.stringify({ images: updated }),
-          }).catch(err => console.error("Lỗi cập nhật ảnh hóa đơn:", err));
+          readApiResponse(
+            updateImportOrderMetadata(id, { images: updated })
+          ).catch(err => console.error("Lỗi cập nhật ảnh hóa đơn:", err));
           return updated;
         });
         toast.success(`Đã đính kèm thành công ${uploadedUrls.length} ảnh hóa đơn!`);
@@ -1010,18 +1049,15 @@ const ImportOrderDetail = () => {
     const newImages = scannedImages.filter((_, idx) => idx !== indexToDelete);
     
     try {
-      await apiFetch(`${apiUrl}/iporders/orders/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ images: newImages }),
-      });
+      await readApiResponse(
+        updateImportOrderMetadata(id, { images: newImages })
+      );
       
       setScannedImages(newImages);
 
       if (imageUrlToDelete) {
         try {
-          await apiFetch(`${apiUrl}/iporders/delete-image?imageUrl=${encodeURIComponent(imageUrlToDelete)}`, {
-            method: "DELETE"
-          });
+          await readApiResponse(deleteImportOrderImage(imageUrlToDelete));
         } catch (delErr) {
           console.error("Lỗi khi xóa file vật lý ảnh hóa đơn:", delErr);
         }
@@ -1101,9 +1137,7 @@ const ImportOrderDetail = () => {
       let brandFailCount = 0;
       for (const brand of newBrands) {
         try {
-          const brandResult = await apiFetch(`${apiUrl}/chips/brands`, {
-            method: "POST",
-            body: JSON.stringify({ Brand: brand }),
+          const brandResult = await readApiResponse(createInventoryBrand(brand), {
             ignoredStatuses: [400],
           });
           if (!brandResult) {
@@ -1153,10 +1187,9 @@ const ImportOrderDetail = () => {
           };
 
           try {
-            const createRes = await apiFetch(`${apiUrl}/products/create`, {
-              method: "POST",
-              body: JSON.stringify(newProductPayload),
-            });
+            const createRes = await readApiResponse(
+              createInventoryProduct(newProductPayload)
+            );
 
             if (createRes && createRes.product) {
               productId = createRes.product._id;
@@ -1207,11 +1240,9 @@ const ImportOrderDetail = () => {
             isAIScan: true,
           };
 
-          const putUrl = `${apiUrl}/iporders/orders/${id}/products/${existingProductIndex}`;
-          const resOrder = await apiFetch(putUrl, {
-            method: "PUT",
-            body: JSON.stringify(updatedProduct),
-          });
+          const resOrder = await readApiResponse(
+            updateImportOrderLine(id, existingProductIndex, updatedProduct)
+          );
 
           if (resOrder) {
             updatedOrder = resOrder;
@@ -1234,11 +1265,9 @@ const ImportOrderDetail = () => {
             isAIScan: true,
           };
 
-          const postUrl = `${apiUrl}/iporders/orders/${id}/products`;
-          const resOrder = await apiFetch(postUrl, {
-            method: "POST",
-            body: JSON.stringify(newProduct),
-          });
+          const resOrder = await readApiResponse(
+            addImportOrderLine(id, newProduct)
+          );
 
           if (resOrder) {
             updatedOrder = resOrder;
@@ -1258,10 +1287,9 @@ const ImportOrderDetail = () => {
           setTempScanImageUrl(null);
 
           // Cập nhật trường images vào DB của đơn nhập hiện tại
-          const imageUpdateRes = await apiFetch(`${apiUrl}/iporders/orders/${id}`, {
-            method: "PUT",
-            body: JSON.stringify({ images: newImages }),
-          });
+          const imageUpdateRes = await readApiResponse(
+            updateImportOrderMetadata(id, { images: newImages })
+          );
           if (imageUpdateRes) {
             finalOrder = imageUpdateRes;
           }
@@ -1278,23 +1306,15 @@ const ImportOrderDetail = () => {
         // Cập nhật trạng thái tổng thể đơn hàng nếu cần
         const allCompleted = updatedOrder.productList.every((p) => p.status);
         if (allCompleted && !updatedOrder.status) {
-          const statusUpdate = await apiFetch(
-            `${apiUrl}/iporders/orders/${id}/status`,
-            {
-              method: "PUT",
-              body: JSON.stringify({ status: true }),
-            }
+          const statusUpdate = await readApiResponse(
+            setImportOrderStatus(id, true)
           );
           if (statusUpdate) {
             setOrder((prev) => ({ ...prev, status: true }));
           }
         } else if (!allCompleted && updatedOrder.status) {
-          const statusUpdate = await apiFetch(
-            `${apiUrl}/iporders/orders/${id}/status`,
-            {
-              method: "PUT",
-              body: JSON.stringify({ status: false }),
-            }
+          const statusUpdate = await readApiResponse(
+            setImportOrderStatus(id, false)
           );
           if (statusUpdate) {
             setOrder((prev) => ({ ...prev, status: false }));
@@ -1321,19 +1341,16 @@ const ImportOrderDetail = () => {
   // Hàm lấy chi tiết sản phẩm
   const fetchProductDetails = async (productIds) => {
     if (!productIds || productIds.length === 0) return [];
-    const result = await apiFetch(`${apiUrl}/products/fetch-by-ids`, {
-      method: "POST",
-      body: JSON.stringify({ ids: productIds }),
-    });
+    const result = await readApiResponse(
+      getInventoryProductsByIds(productIds)
+    );
     return Array.isArray(result?.products) ? result.products : [];
   };
 
   // Hàm lấy thông tin đơn hàng
   const fetchOrder = async () => {
     setLoading(true);
-    const data = await apiFetch(`${apiUrl}/iporders/orders/${id}`, {
-      method: "GET",
-    });
+    const data = await readApiResponse(getImportOrder(id));
 
     if (data) {
       setOrder(data);
@@ -1403,10 +1420,11 @@ const ImportOrderDetail = () => {
 
   // Hàm tìm kiếm tất cả sản phẩm
   const fetchAllProducts = async () => {
-    const query = new URLSearchParams();
-    if (searchTerm.trim() !== "") query.append("search", searchTerm.trim());
-
-    const result = await apiFetch(`${apiUrl}/products/?${query.toString()}`);
+    const result = await readApiResponse(
+      searchInventoryOrderProducts({
+        search: searchTerm.trim() || undefined,
+      })
+    );
     if (result) {
       setProducts(result.products || []);
     }
@@ -1443,12 +1461,8 @@ const ImportOrderDetail = () => {
       status: false,
     };
 
-    const updatedOrder = await apiFetch(
-      `${apiUrl}/iporders/orders/${id}/products`,
-      {
-        method: "POST",
-        body: JSON.stringify(newProduct),
-      }
+    const updatedOrder = await readApiResponse(
+      addImportOrderLine(id, newProduct)
     );
 
     if (updatedOrder) {
@@ -1493,12 +1507,8 @@ const ImportOrderDetail = () => {
         [field]: field === "quantity" ? parseInt(value) || 0 : value || "",
       };
 
-      const updatedOrder = await apiFetch(
-        `${apiUrl}/iporders/orders/${id}/products/${productIndex}`,
-        {
-          method: "PUT",
-          body: JSON.stringify(updatedProduct),
-        }
+      const updatedOrder = await readApiResponse(
+        updateImportOrderLine(id, productIndex, updatedProduct)
       );
 
       if (updatedOrder) {
@@ -1544,23 +1554,15 @@ const ImportOrderDetail = () => {
       status: newQuantityRe === quantity,
     };
 
-    const updatedOrder = await apiFetch(
-      `${apiUrl}/iporders/orders/${id}/products/${productIndex}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(updatedProduct),
-      }
+    const updatedOrder = await readApiResponse(
+      updateImportOrderLine(id, productIndex, updatedProduct)
     );
 
     if (updatedOrder) {
       const allCompleted = updatedOrder.productList.every((p) => p.status);
       if (allCompleted && !updatedOrder.status) {
-        const statusUpdate = await apiFetch(
-          `${apiUrl}/iporders/orders/${id}/status`,
-          {
-            method: "PUT",
-            body: JSON.stringify({ status: true }),
-          }
+        const statusUpdate = await readApiResponse(
+          setImportOrderStatus(id, true)
         );
         if (statusUpdate) updatedOrder.status = true;
       }
@@ -1588,11 +1590,8 @@ const ImportOrderDetail = () => {
       return;
     }
 
-    const updatedOrder = await apiFetch(
-      `${apiUrl}/iporders/orders/${id}/products/${productIndex}`,
-      {
-        method: "DELETE",
-      }
+    const updatedOrder = await readApiResponse(
+      deleteImportOrderLine(id, productIndex)
     );
 
     if (updatedOrder) {
@@ -1620,25 +1619,20 @@ const ImportOrderDetail = () => {
 
   // Hàm cập nhật tên đơn hàng
   const handleUpdateOrderName = async (newOrderName, newNote) => {
-    const updatedOrder = await apiFetch(
-      `${apiUrl}/iporders/orders/${id}/name`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ orderName: newOrderName, note: newNote }),
-      }
+    const updatedOrder = await readApiResponse(
+      updateImportOrderName(id, {
+        orderName: newOrderName,
+        note: newNote,
+      })
     );
 
     if (updatedOrder) {
       setOrder(updatedOrder);
       toast.success("Cập nhật đơn hàng thành công");
 
-      await apiFetch(`${apiUrl}/histories/update-ordername`, {
-        method: "PUT",
-        body: JSON.stringify({
-          orderId: id,
-          newOrderName: newOrderName,
-        }),
-      });
+      await readApiResponse(
+        updateInventoryOrderHistoryName(id, newOrderName)
+      );
     }
   };
 
@@ -1665,15 +1659,64 @@ const ImportOrderDetail = () => {
       productList: copiedProductList,
     };
 
-    const newOrder = await apiFetch(`${apiUrl}/iporders/orders`, {
-      method: "POST",
-      body: JSON.stringify(newOrderData),
-    });
+    const newOrder = await readApiResponse(createImportOrder(newOrderData));
 
     if (newOrder) {
       toast.success("Sao chép đơn hàng thành công");
       navigate(`/importorder/${newOrder._id}`);
     }
+  };
+
+  const handleOpenTemplateDialog = () => {
+    setTemplateDisplayName(order?.orderName || "");
+    setTemplateNote(order?.note || "");
+    setIsTemplateDialogOpen(true);
+  };
+
+  const handleCloseTemplateDialog = () => {
+    if (isCreatingTemplate) return;
+    setIsTemplateDialogOpen(false);
+  };
+
+  const handleCreateTemplateFromOrder = async () => {
+    if (!templateDisplayName.trim()) {
+      toast.error("Vui lòng nhập tên đơn mẫu");
+      return;
+    }
+
+    const sourceProducts = tempProductList.length > 0
+      ? tempProductList
+      : (order?.productList || []);
+    const products = sourceProducts
+      .filter((product) => product.productId)
+      .map((product) => ({
+        productId: product.productId,
+        quantity: Math.max(1, Number(product.quantity) || 1),
+      }));
+
+    setIsCreatingTemplate(true);
+    try {
+      const result = await readApiResponse(
+        createInventoryOrderTemplate({
+          displayName: templateDisplayName.trim(),
+          note: templateNote.trim(),
+          products,
+        })
+      );
+
+      if (result) {
+        toast.success("Tạo đơn mẫu thành công");
+        setIsTemplateDialogOpen(false);
+      }
+    } finally {
+      setIsCreatingTemplate(false);
+    }
+  };
+
+  const handleTemplateInputKeyDown = (event) => {
+    if (event.key !== "Enter" || event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    handleCreateTemplateFromOrder();
   };
 
   // Hàm tạo đơn xuất từ đơn nhập
@@ -1699,10 +1742,9 @@ const ImportOrderDetail = () => {
       productList: exportProductList,
     };
 
-    const createdOrder = await apiFetch(`${apiUrl}/eporders/orders`, {
-      method: "POST",
-      body: JSON.stringify(newExportOrder),
-    });
+    const createdOrder = await readApiResponse(
+      createExportOrderFromImport(newExportOrder)
+    );
 
     if (createdOrder) {
       toast.success("Tạo đơn xuất thành công");
@@ -1839,12 +1881,8 @@ const ImportOrderDetail = () => {
 
     setTempProductList(reorderedList);
 
-    const updatedOrder = await apiFetch(
-      `${apiUrl}/iporders/orders/${id}/reorder`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ productList: reorderedList }),
-      }
+    const updatedOrder = await readApiResponse(
+      reorderImportOrderLines(id, reorderedList)
     );
 
     if (updatedOrder) {
@@ -1933,10 +1971,9 @@ const ImportOrderDetail = () => {
         }
 
         // Gọi API lấy dữ liệu sản phẩm theo mã
-        const productData = await apiFetch(`${apiUrl}/products/by-codes`, {
-          method: "POST",
-          body: JSON.stringify({ codes }),
-        });
+        const productData = await readApiResponse(
+          getInventoryProductsByCodes(codes)
+        );
 
         if (!productData || !Array.isArray(productData.products)) {
           toast.error("Không lấy được dữ liệu sản phẩm từ API");
@@ -2012,12 +2049,8 @@ const ImportOrderDetail = () => {
                   : existingProduct.note,
             };
 
-            updatedOrder = await apiFetch(
-              `${apiUrl}/iporders/orders/${id}/products/${existingProductIndex}`,
-              {
-                method: "PUT",
-                body: JSON.stringify(updatedProduct),
-              }
+            updatedOrder = await readApiResponse(
+              updateImportOrderLine(id, existingProductIndex, updatedProduct)
             );
 
             if (updatedOrder) {
@@ -2047,12 +2080,8 @@ const ImportOrderDetail = () => {
               status: false,
             };
 
-            updatedOrder = await apiFetch(
-              `${apiUrl}/iporders/orders/${id}/products`,
-              {
-                method: "POST",
-                body: JSON.stringify(newProduct),
-              }
+            updatedOrder = await readApiResponse(
+              addImportOrderLine(id, newProduct)
             );
 
             if (updatedOrder) {
@@ -2062,12 +2091,8 @@ const ImportOrderDetail = () => {
                 (p) => p.status
               );
               if (updatedOrder.status && !allCompleted) {
-                const statusUpdate = await apiFetch(
-                  `${apiUrl}/iporders/orders/${id}/status`,
-                  {
-                    method: "PUT",
-                    body: JSON.stringify({ status: false }),
-                  }
+                const statusUpdate = await readApiResponse(
+                  setImportOrderStatus(id, false)
                 );
                 if (statusUpdate) updatedOrder.status = false;
               }
@@ -2114,13 +2139,7 @@ const ImportOrderDetail = () => {
     if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này?")) return;
 
     try {
-      const response = await fetch(`${apiUrl}/iporders/orders/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      const response = await deleteImportOrder(id);
 
       if (response.ok || response.status === 404) {
         toast.success("Xóa đơn hàng thành công");
@@ -2145,12 +2164,8 @@ const ImportOrderDetail = () => {
     }
 
     // 1. Gọi API setStatusAndQuantity
-    const updatedOrder = await apiFetch(
-      `${apiUrl}/iporders/orders/${id}/products/${productIndex}/setStatusAndQuantity`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ status: true }),
-      }
+    const updatedOrder = await readApiResponse(
+      completeImportOrderLine(id, productIndex)
     );
 
     if (updatedOrder) {
@@ -2195,6 +2210,7 @@ const ImportOrderDetail = () => {
           columnGap: 2,
           rowGap: 1,
           alignItems: "start",
+          border: "1.5px solid #9EADBF",
         }}
       >
         <Box sx={{ minWidth: 0 }}>
@@ -2220,6 +2236,7 @@ const ImportOrderDetail = () => {
               onChange={(e) => setOrder({ ...order, orderName: e.target.value })}
               size="small"
               fullWidth
+              sx={orderMetadataFieldSx}
               disabled={!canEdit}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -2234,6 +2251,7 @@ const ImportOrderDetail = () => {
               onChange={(e) => setOrder({ ...order, note: e.target.value })}
               size="small"
               fullWidth
+              sx={orderMetadataFieldSx}
               disabled={!canEdit}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -2261,7 +2279,7 @@ const ImportOrderDetail = () => {
                 sx={{
                   width: 40,
                   height: 40,
-                  border: "1px solid #D9E2EC",
+                  border: "1.5px solid #9EADBF",
                   borderRadius: "7px",
                 }}
               >
@@ -2291,6 +2309,17 @@ const ImportOrderDetail = () => {
               <MenuItem
                 onClick={() => {
                   setMoreMenuAnchor(null);
+                  handleOpenTemplateDialog();
+                }}
+              >
+                <ListItemIcon><PostAddIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Tạo đơn mẫu</ListItemText>
+              </MenuItem>
+            )}
+            {canCreateRelatedOrder && (
+              <MenuItem
+                onClick={() => {
+                  setMoreMenuAnchor(null);
                   handleCreateExportOrder();
                 }}
               >
@@ -2313,9 +2342,59 @@ const ImportOrderDetail = () => {
             )}
           </Menu>
 
+          <Dialog
+            open={isTemplateDialogOpen}
+            onClose={handleCloseTemplateDialog}
+            disableScrollLock
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>Tạo đơn mẫu từ đơn hiện tại</DialogTitle>
+            <DialogContent>
+              <Box
+                sx={{
+                  pt: 1.5,
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  autoFocus
+                  label="Tên đơn mẫu"
+                  value={templateDisplayName}
+                  onChange={(event) => setTemplateDisplayName(event.target.value)}
+                  onKeyDown={handleTemplateInputKeyDown}
+                  fullWidth
+                  size="small"
+                />
+                <TextField
+                  label="Ghi chú"
+                  value={templateNote}
+                  onChange={(event) => setTemplateNote(event.target.value)}
+                  onKeyDown={handleTemplateInputKeyDown}
+                  fullWidth
+                  size="small"
+                />
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseTemplateDialog} disabled={isCreatingTemplate}>
+                Hủy
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleCreateTemplateFromOrder}
+                disabled={isCreatingTemplate || !templateDisplayName.trim()}
+              >
+                {isCreatingTemplate ? "Đang tạo..." : "Tạo đơn mẫu"}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
           <Box
             sx={{
-              border: "1px solid #E5EAF0",
+              border: "1.5px solid #A7B5C6",
               borderRadius: "9px",
               px: 1.5,
               py: 1.25,
@@ -2328,7 +2407,11 @@ const ImportOrderDetail = () => {
             </Typography>
             <Box display="flex" gap={1} flexWrap="wrap">
               {canEdit && (
-                <Button variant="outlined" onClick={() => setOpenAddDialog(true)}>
+                <Button
+                  variant="outlined"
+                  onClick={() => setOpenAddDialog(true)}
+                  sx={blueOutlinedButtonSx}
+                >
                   Thêm sản phẩm
                 </Button>
               )}
@@ -2338,7 +2421,7 @@ const ImportOrderDetail = () => {
                   variant="outlined"
                   startIcon={<AutoAwesomeIcon />}
                   disabled={isScanning}
-                  sx={{ color: "#6D46D8", borderColor: "#B9A7F5" }}
+                  sx={purpleOutlinedButtonSx}
                 >
                   Quét hóa đơn AI
                   <VisuallyHiddenInput
@@ -2354,6 +2437,7 @@ const ImportOrderDetail = () => {
                   variant="outlined"
                   startIcon={<CloudUploadIcon />}
                   disabled={isScanning}
+                  sx={blueOutlinedButtonSx}
                 >
                   Thêm ảnh thủ công
                   <VisuallyHiddenInput
@@ -2371,6 +2455,7 @@ const ImportOrderDetail = () => {
                   endIcon={<ArrowDropDownIcon />}
                   onClick={(event) => setExcelMenuAnchor(event.currentTarget)}
                   disabled={isProcessingExcel}
+                  sx={blueOutlinedButtonSx}
                 >
                   Nhập/Xuất Excel
                 </Button>
@@ -2426,7 +2511,7 @@ const ImportOrderDetail = () => {
               pt: { xs: 0, lg: 1.5 },
             }}
           >
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.75, color: "text.secondary" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75, color: "#526174" }}>
               Ảnh hóa đơn đính kèm ({scannedImages.length} ảnh):
             </Typography>
             <Box
@@ -2449,14 +2534,14 @@ const ImportOrderDetail = () => {
                     minWidth: 96,
                     width: 96,
                     height: 136,
-                    border: "1px solid #E5EAF0",
+                    border: "1.5px solid #9EADBF",
                     borderRadius: "8px",
                     overflow: "hidden",
-                    boxShadow: "0 2px 6px rgba(16,42,67,0.08)",
+                    boxShadow: "0 4px 12px rgba(16,42,67,0.18)",
                   }}
                 >
                   <img
-                    src={`${apiUrl}${imgUrl}`}
+                    src={resolveInventoryOrderAssetUrl(imgUrl)}
                     alt={`Invoice page ${index + 1}`}
                     loading="lazy"
                     style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
@@ -2491,8 +2576,31 @@ const ImportOrderDetail = () => {
           collisionDetection={closestCenter}
           onDragEnd={canEdit ? handleDragEnd : undefined}
         >
-        <TableContainer component={Paper} sx={{ userSelect: "none", overflow: "auto", height: "100%", maxHeight: "none" }}>
-          <Table stickyHeader>
+        <TableContainer
+          component={Paper}
+          sx={{
+            userSelect: "none",
+            overflow: "auto",
+            height: "100%",
+            maxHeight: "none",
+            border: "1.5px solid #9EADBF",
+          }}
+        >
+          <Table
+            stickyHeader
+            sx={{
+              "& .MuiTableCell-root": {
+                borderColor: "#C3CEDB",
+              },
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#A7B5C6",
+                borderWidth: "1.25px",
+              },
+              "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#71839A",
+              },
+            }}
+          >
             <TableHead>
               <TableRow>
                 <TableCell align="center"></TableCell>
@@ -3045,7 +3153,7 @@ const ImportOrderDetail = () => {
               >
                 <img 
                   key={scannedImages[currentImgIndex]}
-                  src={`${apiUrl}${scannedImages[currentImgIndex]}`} 
+                  src={resolveInventoryOrderAssetUrl(scannedImages[currentImgIndex])}
                   alt={`Trang hóa đơn ${currentImgIndex + 1}`} 
                   draggable={false}
                   style={{

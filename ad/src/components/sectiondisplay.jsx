@@ -32,8 +32,15 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  getStorefrontManagement,
+  getStorefrontProductTypes,
+  getStorefrontProductsByIds,
+  searchStorefrontProducts,
+  toggleStorefrontProductDisplay,
+  updateStorefrontSection,
+  uploadStorefrontSectionImage,
+} from "../api/storefrontManagementApi";
 
 const IOSSwitch = styled((props) => (
   <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
@@ -92,8 +99,7 @@ const SectionComponent = ({
   setManageData,
   typesList,
   products,
-  apiFetch,
-  apiUrl,
+  runStorefrontRequest,
   setActiveSection,
   setOpenAddDialog,
   setSearchTerm,
@@ -139,10 +145,12 @@ const SectionComponent = ({
       zh: nameTranslations.zh || finalName,
       en: nameTranslations.en || finalName,
     };
-    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
-      method: "PUT",
-      body: JSON.stringify({ name: finalName, nameTranslations: nextTranslations }),
-    });
+    const result = await runStorefrontRequest(
+      updateStorefrontSection(section, {
+        name: finalName,
+        nameTranslations: nextTranslations,
+      }),
+    );
 
     if (result?.success) {
       setNameTranslations(nextTranslations);
@@ -156,13 +164,12 @@ const SectionComponent = ({
       ...nameTranslations,
       vi: sectionData.name || nameTranslations.vi || name,
     };
-    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
-      method: "PUT",
-      body: JSON.stringify({
+    const result = await runStorefrontRequest(
+      updateStorefrontSection(section, {
         name: nextTranslations.vi,
         nameTranslations: nextTranslations,
       }),
-    });
+    );
     if (result?.success) {
       setManageData(result.data);
       toast.success("Cập nhật bản dịch tên mục thành công");
@@ -170,10 +177,9 @@ const SectionComponent = ({
   };
 
   const handleToggleDisplay = async (checked) => {
-    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
-      method: "PUT",
-      body: JSON.stringify({ display: checked }),
-    });
+    const result = await runStorefrontRequest(
+      updateStorefrontSection(section, { display: checked }),
+    );
     if (result?.success) {
       setManageData(result.data);
       toast.success("Cập nhật trạng thái hiển thị thành công");
@@ -183,22 +189,15 @@ const SectionComponent = ({
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("image", file);
-    
+
     const toastId = toast.loading("Đang tải ảnh lên...");
     try {
-      const uploadRes = await fetch(`${apiUrl}/manages/upload-section-image`, {
-        method: "POST",
-        credentials: "include",
-        body: formData
-      });
+      const uploadRes = await uploadStorefrontSectionImage(file);
       const uploadResult = await uploadRes.json();
       if (uploadResult.success) {
-        const saveResult = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
-          method: "PUT",
-          body: JSON.stringify({ image: uploadResult.imgUrl })
-        });
+        const saveResult = await runStorefrontRequest(
+          updateStorefrontSection(section, { image: uploadResult.imgUrl }),
+        );
         if (saveResult?.success) {
           setManageData(saveResult.data);
           toast.success("Cập nhật ảnh đại diện thành công", { id: toastId });
@@ -216,10 +215,9 @@ const SectionComponent = ({
 
   const handleDeleteImage = async () => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa ảnh đại diện này?")) return;
-    const saveResult = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
-      method: "PUT",
-      body: JSON.stringify({ image: "" })
-    });
+    const saveResult = await runStorefrontRequest(
+      updateStorefrontSection(section, { image: "" }),
+    );
     if (saveResult?.success) {
       setManageData(saveResult.data);
       toast.success("Đã xóa ảnh đại diện");
@@ -484,16 +482,9 @@ const SectionDisplay = () => {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const navigate = useNavigate();
 
-  const apiFetch = async (url, options = {}) => {
+  const runStorefrontRequest = async (request) => {
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
-        credentials: "include",
-      });
+      const response = await request;
 
       if (response.status === 401 || response.status === 403) {
         toast.error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -516,7 +507,9 @@ const SectionDisplay = () => {
   // Lấy dữ liệu manages
   const fetchManageData = async () => {
     setLoading(true);
-    const result = await apiFetch(`${apiUrl}/manages/`);
+    const result = await runStorefrontRequest(
+      getStorefrontManagement({ includeJsonHeader: true }),
+    );
     if (result?.success) {
       setManageData(result.data);
       await fetchProductsByIds(result.data);
@@ -526,7 +519,7 @@ const SectionDisplay = () => {
 
   // Lấy danh sách Loại sản phẩm
   const fetchTypes = async () => {
-    const result = await apiFetch(`${apiUrl}/products/types`);
+    const result = await runStorefrontRequest(getStorefrontProductTypes());
     if (result) {
       const normalized = Array.isArray(result) ? result : result.value || [];
       setTypesList(normalized);
@@ -555,10 +548,9 @@ const SectionDisplay = () => {
       return;
     }
 
-    const result = await apiFetch(`${apiUrl}/products/fetch-by-ids`, {
-      method: "POST",
-      body: JSON.stringify({ ids: allProductIds }),
-    });
+    const result = await runStorefrontRequest(
+      getStorefrontProductsByIds(allProductIds),
+    );
 
     if (result?.success) {
       setProducts(result.products || []);
@@ -567,8 +559,9 @@ const SectionDisplay = () => {
 
   // Lấy tất cả sản phẩm với tìm kiếm và phân trang
   const fetchAllProducts = async (search = "", pageNum = 1, limit = rowsPerPage) => {
-    const query = new URLSearchParams({ search, page: pageNum, limit }).toString();
-    const result = await apiFetch(`${apiUrl}/products/?${query}`);
+    const result = await runStorefrontRequest(
+      searchStorefrontProducts({ search, page: pageNum, limit }),
+    );
     if (result?.products) {
       setAvailableProducts(result.products);
     }
@@ -576,9 +569,9 @@ const SectionDisplay = () => {
 
   // Chuyển display thành true cho sản phẩm
   const toggleDisplayToTrue = async (productId) => {
-    const result = await apiFetch(`${apiUrl}/products/${productId}/toggle-display`, {
-      method: "PUT",
-    });
+    const result = await runStorefrontRequest(
+      toggleStorefrontProductDisplay(productId),
+    );
     return result?.product?.display ?? null;
   };
 
@@ -611,10 +604,11 @@ const SectionDisplay = () => {
     }
 
     const currentProductIds = manageData[section].productId || [];
-    const result = await apiFetch(`${apiUrl}/manages/update-section/${section}`, {
-      method: "PUT",
-      body: JSON.stringify({ productId: [...new Set([...currentProductIds, productId])] }),
-    });
+    const result = await runStorefrontRequest(
+      updateStorefrontSection(section, {
+        productId: [...new Set([...currentProductIds, productId])],
+      }),
+    );
 
     if (result?.success) {
       setManageData(result.data);
@@ -633,10 +627,11 @@ const SectionDisplay = () => {
 
     const currentProductIds = manageData[activeSection].productId || [];
     const updatedProductIds = currentProductIds.filter((id) => id !== selectedProductId);
-    const result = await apiFetch(`${apiUrl}/manages/update-section/${activeSection}`, {
-      method: "PUT",
-      body: JSON.stringify({ productId: updatedProductIds }),
-    });
+    const result = await runStorefrontRequest(
+      updateStorefrontSection(activeSection, {
+        productId: updatedProductIds,
+      }),
+    );
 
     if (result?.success) {
       setManageData(result.data);
@@ -706,8 +701,7 @@ const SectionDisplay = () => {
                 setManageData={setManageData}
                 typesList={typesList}
                 products={products}
-                apiFetch={apiFetch}
-                apiUrl={apiUrl}
+                runStorefrontRequest={runStorefrontRequest}
                 setActiveSection={setActiveSection}
                 setOpenAddDialog={setOpenAddDialog}
                 setSearchTerm={setSearchTerm}

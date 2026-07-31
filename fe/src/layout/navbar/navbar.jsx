@@ -2,11 +2,10 @@ import React, { useContext, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import logo from "../../assets/TTSlogo.jpg";
+import { apiFetch } from "../../api/httpClient";
 import { ShopContext } from "../../context/shopcontext";
 import { useLanguage } from "../../context/languagecontext.jsx";
 import "./navbar.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
 
 function Navbar() {
   const { language, setLanguage, t } = useLanguage();
@@ -22,9 +21,8 @@ function Navbar() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch(`${apiUrl}/users/profile`, {
+        const response = await apiFetch("/users/profile", {
           method: "GET",
-          credentials: "include",
         });
         if (response.ok) {
           const data = await response.json();
@@ -61,9 +59,8 @@ function Navbar() {
     if (isLoading) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/users/logout`, {
+      const response = await apiFetch("/users/logout", {
         method: "POST",
-        credentials: "include",
       });
       if (response.ok) {
         setIsLoggedIn(false);

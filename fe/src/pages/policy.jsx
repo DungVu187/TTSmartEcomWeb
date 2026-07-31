@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLanguage } from "../context/languagecontext.jsx";
+import { getStorefrontPolicies } from "../api/storefrontCatalogApi";
 import "./styles/policy.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END || "";
 
 const policyMeta = {
   purchase: { icon: "fa-bag-shopping", shortTitleKey: "policy_purchase_short" },
@@ -51,7 +50,7 @@ const Policy = () => {
   useEffect(() => {
     const fetchPolicies = async () => {
       try {
-        const response = await fetch(`${apiUrl}/manages/policies`);
+        const response = await getStorefrontPolicies();
         const result = await response.json();
         if (!response.ok || !result.success || !Array.isArray(result.data)) {
           throw new Error("policy_fetch_failed");

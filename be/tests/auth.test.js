@@ -2,6 +2,7 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../index');
 const { User, getCookieOptions } = require('../components/user');
+const { Station } = require('../models/station');
 
 beforeAll(async () => {
   // Kết nối tới Database test riêng biệt
@@ -17,7 +18,10 @@ afterAll(async () => {
 
 afterEach(async () => {
   // Xóa dữ liệu các bản ghi User test sau mỗi ca kiểm thử
-  await User.deleteMany({});
+  await Promise.all([
+    User.deleteMany({}),
+    Station.deleteMany({}),
+  ]);
 });
 
 describe('Authentication API Tests (Phase 3)', () => {
@@ -98,5 +102,30 @@ describe('Authentication API Tests (Phase 3)', () => {
 
     expect(response2.status).toBe(400);
     expect(response2.body.message).toBe('Thông tin đăng nhập không hợp lệ');
+  });
+
+  it('assigns a station when a valid inviteCode is supplied during login', async () => {
+    const station = await Station.create({
+      stationName: 'Login Invite Station',
+      stationCode: 'LOGIN-INVITE-01',
+    });
+    const user = await User.create({
+      phone: '0987654323',
+      password: 'password123',
+      role: 'customer',
+      station: [],
+    });
+
+    const response = await request(app)
+      .post('/users/login')
+      .send({
+        phone: user.phone,
+        password: 'password123',
+        inviteCode: station.stationCode,
+      });
+
+    expect(response.status).toBe(200);
+    const updatedUser = await User.findById(user._id).lean();
+    expect(updatedUser.station).toContain(station._id.toString());
   });
 });

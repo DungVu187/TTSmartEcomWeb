@@ -19,7 +19,7 @@ import IpOrderTemplate from './components/iporder/ipordertemplate';
 import OrderedProducts from './components/iporder/orderedproducts';
 import EpOrders from './components/eporder/eporders';
 import ExportOrderDetail from './components/eporder/eporderdetail';
-import ExportedProducts from './components/eporder/exportedpeoducts';
+import ExportedProducts from './components/eporder/exportedproducts';
 import Account from './components/account';
 import StationUser from './components/stationuser';
 import Station from './components/station';
@@ -65,6 +65,7 @@ const App = () => {
                       <Route path="/exportorder" element={<RoleGuard requiredPermission="eporder.view"><EpOrders /></RoleGuard>} />
                       <Route path="/exportorder/:id" element={<RoleGuard requiredPermission="eporder.view"><ExportOrderDetail /></RoleGuard>} />
                       <Route path="/importordertemplate/:index" element={<RoleGuard requiredPermission="iporder.view"><IpOrderTemplate /></RoleGuard>} />
+                      <Route path="/exportordertemplate/:index" element={<RoleGuard requiredPermission="eporder.view"><IpOrderTemplate /></RoleGuard>} />
                       <Route path="/stationuser" element={<RoleGuard requiredPermission="customer.view"><StationUser /></RoleGuard>} />
                       <Route path="/station" element={<RoleGuard requiredPermission="station.view"><Station /></RoleGuard>} />
                       <Route path="/station/:code" element={<RoleGuard requiredPermission="station.view"><StationDisplay /></RoleGuard>} />

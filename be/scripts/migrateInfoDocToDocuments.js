@@ -1,7 +1,7 @@
 // Chạy một lần từ thư mục gốc dự án: node be/scripts/migrateInfoDocToDocuments.js
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const mongoose = require('mongoose');
-const { Product } = require('../components/product');
+const { Product } = require('../models/product');
 const { resolveMongoUri } = require('../config/database');
 
 const LEGACY_DOCUMENTS = [

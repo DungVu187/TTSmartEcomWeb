@@ -14,9 +14,12 @@ import {
 import { DataGrid } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import {
+  createStation,
+  deleteStation,
+  getStationAdminList,
+} from "../api/stationAdministrationApi";
 import { usePermissions } from "../context/permissioncontext";
-
-const apiUrl = import.meta.env.VITE_API_URL;
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -46,11 +49,7 @@ const Station = () => {
   const fetchStations = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/stations/`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Lỗi khi gọi API");
-      const data = await res.json();
+      const data = await getStationAdminList();
       setStations(
         data.map((s) => ({
           id: s._id,
@@ -124,23 +123,11 @@ const Station = () => {
     }
 
     try {
-      const res = await fetch(`${apiUrl}/stations/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          stationCode: normalizedStationCode,
-          stationName: stationName.trim(),
-          location,
-        }),
+      await createStation({
+        stationCode: normalizedStationCode,
+        stationName: stationName.trim(),
+        location,
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Không thể tạo trạm");
-      }
 
       setOpenDialog(false);
       toast.success("Tạo trạm thành công");
@@ -155,14 +142,7 @@ const Station = () => {
     if (!id) return;
     if (!window.confirm(`Bạn có chắc chắn muốn xóa trạm ${name || ""}?`)) return;
     try {
-      const res = await fetch(`${apiUrl}/stations/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Không thể xóa trạm");
-      }
+      await deleteStation(id);
       toast.success("Xóa trạm thành công!");
       fetchStations();
     } catch (err) {
@@ -332,8 +312,12 @@ const Station = () => {
           disableRowSelectionOnClick
           onRowClick={(params) => navigate(`/station/${params.row.code}`)}
           sx={{
+            backgroundColor: "#FFFFFF",
             "& .MuiDataGrid-columnHeaders": {
               borderBottom: "1px solid #000",
+            },
+            "& .MuiDataGrid-virtualScroller": {
+              backgroundColor: "#FFFFFF",
             },
             "& .MuiDataGrid-cell": {
               alignItems: "center",
@@ -341,6 +325,10 @@ const Station = () => {
             },
             "& .MuiDataGrid-row": {
               cursor: "pointer",
+              backgroundColor: "#FFFFFF",
+            },
+            "& .MuiDataGrid-footerContainer": {
+              backgroundColor: "#FFFFFF",
             },
           }}
         />

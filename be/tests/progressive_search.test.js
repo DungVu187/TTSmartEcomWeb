@@ -1,8 +1,38 @@
+const productFacade = require('../components/product');
+const productSearch = require('../utils/productSearch');
+const { stripSearchStopwords } = productFacade;
 const {
-    stripSearchStopwords,
+    limitRegexInput,
+    escapeRegex,
+    generateFuzzyCodeRegex,
     buildTokenQuery,
     greedyNarrowTokens
-} = require('../components/product');
+} = productSearch;
+
+describe('product search facade', () => {
+    it('re-export helper công khai bằng cùng function reference', () => {
+        expect(productFacade.buildTokenQuery).toBe(buildTokenQuery);
+        expect(productFacade.greedyNarrowTokens).toBe(greedyNarrowTokens);
+    });
+});
+
+describe('product search primitives', () => {
+    it('giới hạn regex input ở 100 ký tự', () => {
+        expect(limitRegexInput(null)).toBe('');
+        expect(limitRegexInput('a'.repeat(101))).toBe('a'.repeat(100));
+    });
+
+    it('escape ký tự đặc biệt trước khi dựng regex', () => {
+        expect(escapeRegex('a.b[c]')).toBe('a\\.b\\[c\\]');
+    });
+
+    it('sinh regex mã fuzzy và bỏ input không có ký tự chữ số', () => {
+        const regex = generateFuzzyCodeRegex('TT-SM1');
+        expect(regex).toBeInstanceOf(RegExp);
+        expect('TT SM/1').toMatch(regex);
+        expect(generateFuzzyCodeRegex('---')).toBeNull();
+    });
+});
 
 describe('stripSearchStopwords', () => {
     it('bóc động từ ở đầu câu, giữ nguyên chuỗi thực thể', () => {

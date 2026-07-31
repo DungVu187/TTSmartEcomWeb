@@ -22,8 +22,16 @@ import {
 } from "@mui/material";
 import moment from "moment";
 import { useNavigate } from "react-router-dom";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import { getAccountPermissionCatalog } from "../api/accountApi";
+import { getAdminActivityLogs } from "../api/adminAuditApi";
+import {
+  ACTIVITY_ACTION_LABELS,
+  buildActivityPermissionLabels,
+  formatActivityTarget,
+  formatActivityValue,
+  getActivityActionLabel,
+  getActivityFieldLabel,
+} from "../utils/activityLogFormatting";
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -33,98 +41,6 @@ const removeVietnameseTones = (str) => {
     .replace(/đ/g, "d")
     .replace(/Đ/g, "D")
     .toLowerCase();
-};
-
-// Nhãn hiển thị tiếng Việt cho các action
-const ACTION_LABELS = {
-  create_product: "Tạo sản phẩm",
-  update_product: "Sửa sản phẩm",
-  delete_product: "Xóa sản phẩm",
-  update_variant: "Sửa biến thể",
-  update_earn: "Sửa % lợi nhuận",
-  update_import_price: "Sửa giá nhập",
-  toggle_display: "Ẩn/Hiện sản phẩm",
-  add_variant: "Thêm biến thể",
-  delete_variant: "Xóa biến thể",
-
-  // User management
-  create_user: "Tạo tài khoản",
-  update_user: "Sửa tài khoản",
-  delete_user: "Xóa tài khoản",
-  update_user_permissions: "Sửa quyền tài khoản",
-  assign_user_stations: "Phân trạm cho tài khoản",
-
-  // Station management
-  create_station: "Tạo trạm trộn",
-  update_station: "Sửa trạm trộn",
-  update_station_products: "Cập nhật sản phẩm trạm",
-  delete_station: "Xóa trạm trộn",
-
-  // Chips & attributes
-  add_chip_attr: "Thêm thuộc tính sản phẩm",
-  remove_chip_attr: "Xóa thuộc tính sản phẩm",
-  create_brand: "Thêm thương hiệu",
-  delete_brand: "Xóa thương hiệu",
-  create_type: "Thêm loại sản phẩm",
-  update_type: "Cập nhật loại sản phẩm",
-  delete_type: "Xóa loại sản phẩm",
-  create_section: "Thêm phân loại",
-  update_section: "Sửa phân loại",
-  delete_section: "Xóa phân loại",
-  create_section_value: "Thêm giá trị phân loại",
-  update_section_value: "Sửa giá trị phân loại",
-  delete_section_value: "Xóa giá trị phân loại",
-
-  // Homepage & config updates
-  update_settings: "Cập nhật cấu hình chung",
-  update_introduction: "Sửa trang giới thiệu",
-  update_policy: "Sửa trang chính sách",
-  update_homepage_section: "Sửa phần trang chủ",
-
-  // Zalo settings
-  update_zalo_settings: "Cập nhật cấu hình Zalo OA"
-};
-
-// Nhãn hiển thị tiếng Việt cho các tên trường
-const FIELD_LABELS = {
-  name: "Tên",
-  code: "Mã sản phẩm",
-  brand: "Thương hiệu",
-  type: "Loại",
-  section: "Phân loại",
-  value: "Giá trị",
-  warranty: "Bảo hành",
-  vat: "VAT",
-  solution: "Giải pháp",
-  description: "Mô tả",
-  features: "Tính năng",
-  operatingMethod: "Phương thức hoạt động",
-  advantages: "Ưu điểm",
-  specifications: "Thông số kỹ thuật",
-  display: "Hiển thị",
-  price: "Giá bán",
-  importPrice: "Giá nhập",
-  earn: "% Lợi nhuận",
-  note: "Ghi chú",
-  color: "Màu sắc",
-  shape: "Hình dạng",
-  buttonCount: "Số nút",
-  frame: "Khung",
-
-  // User fields
-  email: "Email",
-  phone: "Số điện thoại",
-  role: "Vai trò",
-  functions: "Nhóm chức năng",
-  permissions: "Quyền hạn",
-  station: "Danh sách trạm",
-
-  // Station fields
-  stationName: "Tên trạm",
-  stationCode: "Mã trạm",
-  allowPublicSignup: "Cho phép đăng ký",
-  location: "Địa điểm",
-  productId: "Danh sách sản phẩm"
 };
 
 // Màu sắc cho từng loại thao tác
@@ -149,31 +65,17 @@ const getActionColor = (action) => {
   return "default";
 };
 
-// Hàm lấy nhãn tiếng Việt cho field
-const getFieldLabel = (fieldName) => {
-  if (!fieldName) return fieldName;
-  // Nếu là variant field (e.g. variant[0].price)
-  const variantMatch = fieldName.match(/^variant\[(\d+)\]\.(.+)$/);
-  if (variantMatch) {
-    const idx = variantMatch[1];
-    const subField = variantMatch[2];
-    const label = FIELD_LABELS[subField] || subField;
-    return `Biến thể [${idx}] - ${label}`;
-  }
-  // Nếu là variant index (e.g. variant[0])
-  const variantIdxMatch = fieldName.match(/^variant\[(\d+)\]$/);
-  if (variantIdxMatch) {
-    return `Biến thể [${variantIdxMatch[1]}]`;
-  }
-  return FIELD_LABELS[fieldName] || fieldName;
-};
-
 const ActivityLog = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [actionLabels, setActionLabels] = useState(ACTIVITY_ACTION_LABELS);
+  const [permissionLabels, setPermissionLabels] = useState(
+    buildActivityPermissionLabels(),
+  );
+  const [references, setReferences] = useState({ products: {}, stations: {} });
 
   // bộ lọc
   const [userName, setUserName] = useState("");
@@ -195,8 +97,34 @@ const ActivityLog = () => {
 
   const uniqueProductNames = React.useMemo(() => {
     const names = logs.map((log) => log.productName).filter(Boolean);
-    return Array.from(new Set(names));
+    return Array.from(new Set(names)).map((value) => ({
+      value,
+      label: formatActivityTarget(value),
+    }));
   }, [logs]);
+
+  const selectedProductName = React.useMemo(
+    () => uniqueProductNames.find((option) => option.value === productName) || productName,
+    [productName, uniqueProductNames],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    getAccountPermissionCatalog()
+      .then((data) => {
+        if (active && data?.catalog) {
+          setPermissionLabels(buildActivityPermissionLabels(data.catalog));
+        }
+      })
+      .catch((error) => {
+        console.error("Không thể tải nhãn quyền hạn:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Debounce hiệu ứng gõ phím
   useEffect(() => {
@@ -216,7 +144,7 @@ const ActivityLog = () => {
   const fetchLogs = async (currentPage = page, currentUserName = debouncedUserName, currentProductName = debouncedProductName) => {
     try {
       setLoading(true);
-      const query = new URLSearchParams({
+      const res = await getAdminActivityLogs({
         page: currentPage,
         limit,
         ...(currentUserName && { userName: currentUserName }),
@@ -224,15 +152,13 @@ const ActivityLog = () => {
         ...(action && { action }),
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
-      }).toString();
-
-      const res = await fetch(`${apiUrl}/activity-logs?${query}`, {
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Lỗi khi tải dữ liệu lịch sử hoạt động");
       const data = await res.json();
       setLogs(data.logs || []);
       setTotalPages(data.totalPages || 1);
+      setActionLabels((current) => ({ ...current, ...(data.actionLabels || {}) }));
+      setReferences(data.references || { products: {}, stations: {} });
     } catch (err) {
       console.error(err);
     } finally {
@@ -295,26 +221,32 @@ const ActivityLog = () => {
           freeSolo
           size="small"
           options={uniqueProductNames}
-          value={productName}
-          onInputChange={(event, newInputValue) => {
+          value={selectedProductName}
+          getOptionLabel={(option) => (
+            typeof option === "string" ? formatActivityTarget(option) : option.label
+          )}
+          onInputChange={(event, newInputValue, reason) => {
+            if (reason !== "input") return;
             setProductName(newInputValue);
             setPage(1);
           }}
           onChange={(event, newValue) => {
-            setProductName(newValue || "");
+            setProductName(
+              typeof newValue === "string" ? newValue : newValue?.value || "",
+            );
             setPage(1);
           }}
           filterOptions={(options, state) => {
             const inputValue = removeVietnameseTones(state.inputValue);
             return options.filter((option) =>
-              removeVietnameseTones(option).includes(inputValue)
+              removeVietnameseTones(option.label).includes(inputValue)
             );
           }}
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Sản phẩm"
-              placeholder="Nhập tên sản phẩm..."
+              label="Đối tượng"
+              placeholder="Nhập tên đối tượng..."
               variant="outlined"
               sx={{ width: 200 }}
             />
@@ -356,7 +288,7 @@ const ActivityLog = () => {
           InputLabelProps={{ shrink: true }}
         >
           <option value="">Tất cả</option>
-          {Object.entries(ACTION_LABELS).map(([key, label]) => (
+          {Object.entries(actionLabels).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>
@@ -365,6 +297,20 @@ const ActivityLog = () => {
         <Button variant="outlined" color="secondary" onClick={handleResetFilters}>
           Xóa bộ lọc
         </Button>
+        <FormControl size="small" sx={{ minWidth: 104, ml: "auto" }}>
+          <Select
+            value={limit}
+            onChange={(e) => {
+              setLimit(e.target.value);
+              setPage(1);
+            }}
+            sx={{ height: 40, backgroundColor: "#FFFFFF" }}
+          >
+            <MenuItem value={20}>20 dòng</MenuItem>
+            <MenuItem value={50}>50 dòng</MenuItem>
+            <MenuItem value={100}>100 dòng</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       {loading ? (
@@ -375,22 +321,6 @@ const ActivityLog = () => {
         <Typography>Không có dữ liệu lịch sử hoạt động</Typography>
       ) : (
         <>
-          <Box display="flex" justifyContent="flex-end" mb={2}>
-            <FormControl size="small">
-              <Select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <MenuItem value={20}>20 dòng</MenuItem>
-                <MenuItem value={50}>50 dòng</MenuItem>
-                <MenuItem value={100}>100 dòng</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
           <TableContainer component={Paper} className="admin-list-table" sx={{ overflow: "auto" }}>
             <Table size="small" stickyHeader>
               <TableHead>
@@ -418,7 +348,7 @@ const ActivityLog = () => {
                     <TableCell align="center">{row.userName || ""}</TableCell>
                     <TableCell align="center">
                       <Chip
-                        label={ACTION_LABELS[row.action] || row.action}
+                        label={getActivityActionLabel(row.action, actionLabels)}
                         color={getActionColor(row.action)}
                         size="small"
                         variant="outlined"
@@ -436,10 +366,10 @@ const ActivityLog = () => {
                             navigate(`/product/${row.productId}`)
                           }
                         >
-                          {row.productName || ""}
+                          {formatActivityTarget(row.productName)}
                         </span>
                       ) : (
-                        row.productName || ""
+                        formatActivityTarget(row.productName)
                       )}
                     </TableCell>
                     <TableCell align="left">
@@ -453,16 +383,28 @@ const ActivityLog = () => {
                             "& li": { mb: 0.3 },
                           }}
                         >
-                          {row.details.map((d, idx) => (
-                            <li key={idx}>
+                          {row.details.map((detail, index) => {
+                            const oldValue = formatActivityValue(detail.oldValue, {
+                              fieldName: detail.field,
+                              permissionLabels,
+                              references,
+                            });
+                            const newValue = formatActivityValue(detail.newValue, {
+                              fieldName: detail.field,
+                              permissionLabels,
+                              references,
+                            });
+
+                            return (
+                            <li key={index}>
                               <Typography
                                 variant="body2"
                                 component="span"
                                 sx={{ fontWeight: 500 }}
                               >
-                                {getFieldLabel(d.field)}:
+                                {getActivityFieldLabel(detail.field)}:
                               </Typography>{" "}
-                              {d.oldValue ? (
+                              {oldValue ? (
                                 <Typography
                                   variant="body2"
                                   component="span"
@@ -472,11 +414,11 @@ const ActivityLog = () => {
                                     mr: 0.5,
                                   }}
                                 >
-                                  {d.oldValue}
+                                  {oldValue}
                                 </Typography>
                               ) : null}
-                              {d.oldValue && d.newValue ? " → " : ""}
-                              {d.newValue ? (
+                              {oldValue && newValue ? " → " : ""}
+                              {newValue ? (
                                 <Typography
                                   variant="body2"
                                   component="span"
@@ -485,11 +427,12 @@ const ActivityLog = () => {
                                     fontWeight: 600,
                                   }}
                                 >
-                                  {d.newValue}
+                                  {newValue}
                                 </Typography>
                               ) : null}
                             </li>
-                          ))}
+                            );
+                          })}
                         </Box>
                       ) : (
                         ""

@@ -23,12 +23,20 @@ import { ShopContext } from "../context/shopcontext";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import SafeProductImage from "./safeproductimage";
 import "./style/productdisplay.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
+import { getCustomerProfile } from "../api/customerAccountApi";
+import {
+  deleteStorefrontProductReview,
+  getStorefrontProduct,
+  getStorefrontProductReviews,
+  listStorefrontProducts,
+  resolveStorefrontAssetUrl,
+  saveStorefrontProductReview,
+} from "../api/storefrontCatalogApi";
 
 const withImageVersion = (url, version) => {
   if (!url) return "";
-  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
+  const resolvedUrl = resolveStorefrontAssetUrl(url);
+  return `${resolvedUrl}${resolvedUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(version || "1")}`;
 };
 
 const variantFilterLabelKeys = {
@@ -65,10 +73,7 @@ function ProductDisplay() {
 
   const fetchUserProfile = useCallback(async () => {
     try {
-      const response = await fetch(`${apiUrl}/users/profile`, {
-        method: "GET",
-        credentials: "include",
-      });
+      const response = await getCustomerProfile();
       if (response.ok) {
         const data = await response.json();
         setIsLoggedIn(true);
@@ -86,9 +91,7 @@ function ProductDisplay() {
 
   const fetchProduct = useCallback(async () => {
     try {
-      const response = await fetch(`${apiUrl}/products/${productId}`, {
-        credentials: "include",
-      });
+      const response = await getStorefrontProduct(productId);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setProduct(data);
@@ -106,9 +109,7 @@ function ProductDisplay() {
 
   const fetchReviews = useCallback(async () => {
     try {
-      const response = await fetch(`${apiUrl}/products/${productId}/review`, {
-        credentials: "include",
-      });
+      const response = await getStorefrontProductReviews(productId);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setReviews(data);
@@ -141,9 +142,10 @@ function ProductDisplay() {
     let active = true;
     const fetchRelatedProducts = async () => {
       try {
-        const query = new URLSearchParams({ type: product.type, display: "true", limit: "8" });
-        const response = await fetch(`${apiUrl}/products?${query.toString()}`, {
-          credentials: "include",
+        const response = await listStorefrontProducts({
+          type: product.type,
+          display: "true",
+          limit: "8",
         });
         const data = await response.json();
         if (active) {
@@ -246,15 +248,11 @@ function ProductDisplay() {
         return;
       }
 
-      const url = userReview
-        ? `${apiUrl}/products/${productId}/review/${userReview._id}`
-        : `${apiUrl}/products/${productId}/review/create`;
-      const response = await fetch(url, {
-        method: userReview ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newReview),
-        credentials: "include",
-      });
+      const response = await saveStorefrontProductReview(
+        productId,
+        userReview?._id,
+        newReview
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -289,11 +287,7 @@ function ProductDisplay() {
     if (isSubmitting || !userReview) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${apiUrl}/products/${productId}/review/${userReview._id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
+      const response = await deleteStorefrontProductReview(productId, userReview._id);
       if (!response.ok) {
         if (response.status === 401) {
           toast.error(t("session_expired"));

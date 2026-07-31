@@ -1,46 +1,10 @@
 const express = require('express');
-const mongoose = require("mongoose");
+const { ActivityLog } = require("../models/activitylog");
+const { Product } = require("../models/product");
+const { Station } = require("../models/station");
+const { authenticateAdmin, checkPermission } = require("../middlewares/auth");
 
-const authenticateAdmin = (req, res, next) => {
-    const userModule = require("./user");
-    return userModule.authenticateAdmin(req, res, next);
-};
-
-const checkActivityLogPermission = (req, res, next) => {
-    const userModule = require("./user");
-    return userModule.checkPermission("activitylog.view")(req, res, next);
-};
-
-// Định nghĩa schema
-const activityLogSchema = new mongoose.Schema({
-    userName: {
-        type: String,
-        required: true
-    },
-    action: {
-        type: String,
-        required: true
-    },
-    productId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product"
-    },
-    productName: {
-        type: String
-    },
-    details: [
-        {
-            field: { type: String },
-            oldValue: { type: String, default: "" },
-            newValue: { type: String, default: "" }
-        }
-    ]
-}, { timestamps: true });
-
-// Tự động xóa log hoạt động sau 90 ngày (90 ngày * 24 giờ * 3600 giây = 7776000 giây)
-activityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7776000 });
-
-const ActivityLog = mongoose.models.ActivityLog || mongoose.model("ActivityLog", activityLogSchema);
+const checkActivityLogPermission = checkPermission("activitylog.view");
 
 const router = express.Router();
 
@@ -90,7 +54,9 @@ const ACTION_LABELS = {
     update_settings: 'Cập nhật cấu hình chung',
     update_introduction: 'Sửa trang giới thiệu',
     update_policy: 'Sửa trang chính sách',
+    update_policies: 'Cập nhật trang chính sách',
     update_homepage_section: 'Sửa phần trang chủ',
+    update_home_categories: 'Cập nhật danh mục trang chủ',
     
     // Zalo settings
     update_zalo_settings: 'Cập nhật cấu hình Zalo OA',
@@ -102,9 +68,58 @@ const ACTION_LABELS = {
     delete_telegram_recipient: 'Xóa người/nhóm nhận Telegram',
 
     // Voice vocabulary (từ vựng tìm kiếm bằng giọng nói)
-    create_voice_vocab: 'Thêm từ vựng voice',
-    update_voice_vocab: 'Sửa từ vựng voice',
-    delete_voice_vocab: 'Xóa từ vựng voice'
+    create_voice_vocab: 'Thêm từ vựng tìm kiếm giọng nói',
+    update_voice_vocab: 'Sửa từ vựng tìm kiếm giọng nói',
+    delete_voice_vocab: 'Xóa từ vựng tìm kiếm giọng nói',
+
+    // Customer access
+    rotate_autologin_token: 'Xoay mã đăng nhập tự động'
+};
+
+const OBJECT_ID_PATTERN = /\b[0-9a-f]{24}\b/gi;
+
+const collectDetailIds = (logs, fieldName) => {
+    const ids = new Set();
+
+    logs.forEach((log) => {
+        (log.details || []).forEach((detail) => {
+            if (String(detail.field || "").toLowerCase() !== fieldName.toLowerCase()) return;
+
+            [detail.oldValue, detail.newValue].forEach((value) => {
+                const matches = String(value || "").match(OBJECT_ID_PATTERN) || [];
+                matches.forEach((id) => ids.add(id.toLowerCase()));
+            });
+        });
+    });
+
+    return Array.from(ids);
+};
+
+const buildReferenceLabels = async (logs) => {
+    const productIds = collectDetailIds(logs, "productId");
+    const stationIds = collectDetailIds(logs, "station");
+
+    const [products, stations] = await Promise.all([
+        productIds.length > 0
+            ? Product.find({ _id: { $in: productIds } }).select("_id code name").lean()
+            : [],
+        stationIds.length > 0
+            ? Station.find({ _id: { $in: stationIds } }).select("_id stationCode stationName").lean()
+            : []
+    ]);
+
+    return {
+        products: Object.fromEntries(products.map((product) => [
+            String(product._id),
+            product.code || product.name || String(product._id)
+        ])),
+        stations: Object.fromEntries(stations.map((station) => {
+            const code = String(station.stationCode || "").trim();
+            const name = String(station.stationName || "").trim();
+            const label = code && name ? `${code} - ${name}` : code || name || String(station._id);
+            return [String(station._id), label];
+        }))
+    };
 };
 
 // API lấy danh sách lịch sử hoạt động
@@ -148,9 +163,11 @@ router.get("/", authenticateAdmin, checkActivityLogPermission, async (req, res) 
             ActivityLog.find(filter)
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             ActivityLog.countDocuments(filter)
         ]);
+        const references = await buildReferenceLabels(logs);
 
         res.status(200).json({
             success: true,
@@ -159,7 +176,8 @@ router.get("/", authenticateAdmin, checkActivityLogPermission, async (req, res) 
             total,
             totalPages: Math.ceil(total / limit),
             logs,
-            actionLabels: ACTION_LABELS
+            actionLabels: ACTION_LABELS,
+            references
         });
     } catch (error) {
         console.error("Error fetching activity logs:", error);

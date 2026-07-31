@@ -31,8 +31,14 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import SendIcon from "@mui/icons-material/Send";
 import toast from "react-hot-toast";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  createTelegramRecipient,
+  deleteTelegramRecipient,
+  getTelegramSettings,
+  sendTelegramTestMessage,
+  updateTelegramRecipient,
+  updateTelegramSettings,
+} from "../api/messagingSettingsApi";
 
 const emptyRecipient = {
   label: "",
@@ -50,12 +56,8 @@ const TelegramSettings = () => {
   const [editingRecipient, setEditingRecipient] = useState(null);
   const [recipientForm, setRecipientForm] = useState(emptyRecipient);
 
-  const request = async (path, options = {}) => {
-    const response = await fetch(`${apiUrl}${path}`, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...options.headers },
-      ...options,
-    });
+  const runTelegramRequest = async (responsePromise) => {
+    const response = await responsePromise;
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || "Không thể thực hiện yêu cầu");
     return data;
@@ -64,7 +66,7 @@ const TelegramSettings = () => {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const data = await request("/telegram/settings");
+      const data = await runTelegramRequest(getTelegramSettings());
       setConfig(data.data);
     } catch (error) {
       console.error("Lỗi tải cấu hình Telegram:", error);
@@ -81,10 +83,7 @@ const TelegramSettings = () => {
   const updateEnabled = async (enabled) => {
     setSaving(true);
     try {
-      await request("/telegram/settings", {
-        method: "PUT",
-        body: JSON.stringify({ enabled }),
-      });
+      await runTelegramRequest(updateTelegramSettings(enabled));
       setConfig((current) => ({ ...current, enabled }));
       toast.success(enabled ? "Đã bật thông báo Telegram" : "Đã tắt thông báo Telegram");
     } catch (error) {
@@ -121,13 +120,11 @@ const TelegramSettings = () => {
 
     setSaving(true);
     try {
-      const path = editingRecipient
-        ? `/telegram/recipients/${editingRecipient._id}`
-        : "/telegram/recipients";
-      await request(path, {
-        method: editingRecipient ? "PUT" : "POST",
-        body: JSON.stringify(recipientForm),
-      });
+      await runTelegramRequest(
+        editingRecipient
+          ? updateTelegramRecipient(editingRecipient._id, recipientForm)
+          : createTelegramRecipient(recipientForm),
+      );
       setDialogOpen(false);
       await fetchSettings();
       toast.success(editingRecipient ? "Đã cập nhật người nhận" : "Đã thêm người nhận");
@@ -143,7 +140,7 @@ const TelegramSettings = () => {
     if (!window.confirm(`Xóa ${recipient.label || recipient.chatId}?`)) return;
 
     try {
-      await request(`/telegram/recipients/${recipient._id}`, { method: "DELETE" });
+      await runTelegramRequest(deleteTelegramRecipient(recipient._id));
       await fetchSettings();
       toast.success("Đã xóa người nhận");
     } catch (error) {
@@ -154,10 +151,9 @@ const TelegramSettings = () => {
 
   const sendTest = async (recipient) => {
     try {
-      const data = await request("/telegram/test", {
-        method: "POST",
-        body: JSON.stringify({ chatId: recipient.chatId }),
-      });
+      const data = await runTelegramRequest(
+        sendTelegramTestMessage(recipient.chatId),
+      );
       if (data.sent > 0) {
         toast.success("Đã gửi tin nhắn thử");
       } else {

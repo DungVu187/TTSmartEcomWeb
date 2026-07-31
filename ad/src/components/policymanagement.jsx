@@ -17,9 +17,12 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
 import toast from "react-hot-toast";
+import {
+  getStorefrontPolicies,
+  updateStorefrontPolicies,
+} from "../api/storefrontManagementApi";
 import "./style/policymanagement.css";
 
-const apiUrl = import.meta.env.VITE_API_URL || "";
 const languages = [
   { key: "vi", label: "Tiếng Việt" },
   { key: "zh", label: "中文简体" },
@@ -74,9 +77,7 @@ const PolicyManagement = () => {
   useEffect(() => {
     const fetchPolicies = async () => {
       try {
-        const response = await fetch(`${apiUrl}/manages/policies`, {
-          credentials: "include",
-        });
+        const response = await getStorefrontPolicies();
         const result = await response.json();
         if (!response.ok || !result.success) {
           throw new Error(result.message || "Không thể tải chính sách");
@@ -206,12 +207,7 @@ const PolicyManagement = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`${apiUrl}/manages/update-policies`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ policies: toPayload(policies) }),
-      });
+      const response = await updateStorefrontPolicies(toPayload(policies));
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Không thể lưu chính sách");

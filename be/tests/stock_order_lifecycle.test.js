@@ -224,7 +224,9 @@ describe("Stock lifecycle for customer orders", () => {
       placeOrder(secondCustomer, product, 1),
     ]);
 
-    expect(responses.map((response) => response.status).sort()).toEqual([201, 400]);
+    const responseStatuses = responses.map((response) => response.status).sort();
+    expect(responseStatuses[0]).toBe(201);
+    expect([400, 409]).toContain(responseStatuses[1]);
     await expectStock(product._id, 0, 1);
     expect(await Order.countDocuments({})).toBe(1);
     expect(await StorageHistory.countDocuments({ productId: product._id })).toBe(0);

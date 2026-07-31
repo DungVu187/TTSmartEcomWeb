@@ -1,22 +1,10 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const { authenticateAdminOnly } = require("./user");
-const { ActivityLog } = require("./activitylog");
+const { ZaloConfig } = require("../models/zalo");
+const { authenticateAdminOnly } = require("../middlewares/auth");
+const { ActivityLog } = require("../models/activitylog");
 require("dotenv").config();
 
 const router = express.Router();
-
-const zaloConfigSchema = new mongoose.Schema({
-  appId: { type: String, default: "" },
-  secretKey: { type: String, default: "" },
-  oaId: { type: String, default: "" },
-  recipientUserId: { type: String, default: "" },
-  accessToken: { type: String, default: "" },
-  refreshToken: { type: String, default: "" },
-  expiresAt: { type: Date, default: null },
-}, { timestamps: true });
-
-const ZaloConfig = mongoose.model("ZaloConfig", zaloConfigSchema);
 
 // GET /api/zalo/settings - Lấy cấu hình hiện tại (đã ẩn các trường nhạy cảm)
 router.get("/settings", authenticateAdminOnly, async (req, res) => {

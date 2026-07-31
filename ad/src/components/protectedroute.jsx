@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Box, CircularProgress } from '@mui/material';
+import { getAdminProfile } from '../api/adminAuthApi';
 import { getSafeCustomerReturnPath } from './adminroute.utils';
 
 const redirectCustomerToStorefront = (path) => window.location.replace(path);
@@ -19,11 +20,7 @@ const ProtectedRoute = ({
   useEffect(() => {
     const checkAuthAndRole = async () => {
       try {
-        const backendUrl = import.meta.env.VITE_API_URL || '';
-        const response = await fetch(`${backendUrl}/users/profile`, {
-          method: 'GET',
-          credentials: 'include',
-        });
+        const response = await getAdminProfile();
 
         if (response.ok) {
           const profile = await response.json();

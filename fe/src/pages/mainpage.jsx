@@ -1,15 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/languagecontext";
+import {
+  getStorefrontSectionDocument,
+  resolveStorefrontAssetUrl,
+} from "../api/storefrontCatalogApi";
 import "../components/style/stationdisplay.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END || "";
-
-const resolveImageUrl = (url) => {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
-  return `${apiUrl}${url}`;
-};
 
 const getSectionIcon = (sectionName) => {
   const name = String(sectionName || "").toLowerCase().trim();
@@ -35,7 +31,7 @@ const MainPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch(`${apiUrl}/chips/section-doc`)
+    getStorefrontSectionDocument()
       .then((res) => res.json())
       .then((data) => {
         const fullSections = data.Section || [];
@@ -91,7 +87,7 @@ const MainPage = () => {
 
                 {hasPhoto && (
                   <div className="station-detail-card-right-img">
-                    <img src={resolveImageUrl(section.imgUrl)} alt={section.name} />
+                    <img src={resolveStorefrontAssetUrl(section.imgUrl)} alt={section.name} />
                     <div className="station-detail-card-img-gradient" />
                   </div>
                 )}

@@ -1,110 +1,13 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const { authenticateAdmin, checkPermission } = require("./user");
-const { ActivityLog } = require("./activitylog");
-const { normalizeBrandKey } = require("./product");
-const { Type } = require("./producttype");
+const { Brand, Chip, Section } = require("../models/chip");
+const { authenticateAdmin, checkPermission } = require("../middlewares/auth");
+const { ActivityLog } = require("../models/activitylog");
+const { normalizeBrandKey } = require("../utils/brandNormalization");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 
-const chipSchema = new mongoose.Schema({
-  Color: {
-    type: [String],
-    require: true,
-  },
-  Shapes: {
-    type: [String],
-    require: true,
-  },
-  Frames: {
-    type: [String],
-    require: true,
-  },
-  ButtonCount: {
-    type: [String],
-    require: true,
-  },
-});
-
-const brandSchema = new mongoose.Schema({
-  Brand: {
-    type: String,
-    require: true,
-  },
-});
-
-const sectionSchema = new mongoose.Schema({
-  Section: [
-    {
-      name: {
-        type: String,
-        required: true,
-      },
-      value: {
-        type: [String],
-        default: [],
-      },
-      imgUrl: {
-        type: String
-      }
-    },
-  ],
-});
-
-const getUpdatedImgUrl = (originalUrl) => {
-  if (!originalUrl) return originalUrl;
-
-  const paths = ['/images/', '/station/', '/section-images/'];
-  for (const p of paths) {
-    const idx = originalUrl.indexOf(p);
-    if (idx !== -1) {
-      return originalUrl.substring(idx);
-    }
-  }
-  return originalUrl;
-};
-
-sectionSchema.post('init', function(doc) {
-  if (doc.Section && Array.isArray(doc.Section)) {
-    doc.Section.forEach(sec => {
-      if (sec.imgUrl) {
-        sec.imgUrl = getUpdatedImgUrl(sec.imgUrl);
-      }
-    });
-  }
-});
-
-sectionSchema.set('toJSON', {
-  transform: (doc, ret) => {
-    if (ret.Section && Array.isArray(ret.Section)) {
-      ret.Section.forEach(sec => {
-        if (sec.imgUrl) {
-          sec.imgUrl = getUpdatedImgUrl(sec.imgUrl);
-        }
-      });
-    }
-    return ret;
-  }
-});
-
-sectionSchema.set('toObject', {
-  transform: (doc, ret) => {
-    if (ret.Section && Array.isArray(ret.Section)) {
-      ret.Section.forEach(sec => {
-        if (sec.imgUrl) {
-          sec.imgUrl = getUpdatedImgUrl(sec.imgUrl);
-        }
-      });
-    }
-    return ret;
-  }
-});
-
-const Brand = mongoose.model("Brand", brandSchema);
-const Chip = mongoose.model("Chip", chipSchema);
-const Section = mongoose.model("Section", sectionSchema);
 const router = express.Router();
 
 router.post("/addValue", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
@@ -246,63 +149,6 @@ router.delete("/brands/:id", authenticateAdmin, checkPermission("product.create"
   } catch (err) {
     console.error("Error deleting brand:", err);
     res.status(500).json({ message: "Lỗi server khi xóa thương hiệu" });
-  }
-});
-
-// Routes cho Type
-router.get("/types", async (req, res) => {
-  try {
-    const types = await Type.find();
-    res.status(200).json(types);
-  } catch (err) {
-    console.error("Error fetching types:", err);
-    res.status(500).json({ message: "Lỗi server khi lấy danh sách loại sản phẩm" });
-  }
-});
-
-router.post("/types", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
-  const type = new Type({
-    Type: req.body.Type,
-  });
-
-  try {
-    const newType = await type.save();
-
-    // Ghi log hoạt động
-    try {
-      await new ActivityLog({
-        userName: req.user.name,
-        action: "create_type",
-        productName: newType.Type,
-        details: [{ field: "Type", oldValue: "", newValue: newType.Type }]
-      }).save();
-    } catch (logErr) { console.error("ActivityLog error in create_type:", logErr.message); }
-
-    res.status(201).json(newType);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-router.delete("/types/:id", authenticateAdmin, checkPermission("product.create"), async (req, res) => {
-  try {
-    const type = await Type.findByIdAndDelete(req.params.id);
-    if (!type) return res.status(404).json({ message: "Type not found" });
-
-    // Ghi log hoạt động
-    try {
-      await new ActivityLog({
-        userName: req.user.name,
-        action: "delete_type",
-        productName: type.Type,
-        details: [{ field: "Type", oldValue: type.Type, newValue: "" }]
-      }).save();
-    } catch (logErr) { console.error("ActivityLog error in delete_type:", logErr.message); }
-
-    res.status(200).json({ message: "Type deleted" });
-  } catch (err) {
-    console.error("Error deleting type:", err);
-    res.status(500).json({ message: "Lỗi server khi xóa loại sản phẩm" });
   }
 });
 

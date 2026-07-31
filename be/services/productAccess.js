@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const { Station } = require("../models/station");
+const { User } = require("../models/user");
 
 const PRIVILEGED_PRODUCT_ROLES = new Set(["superadmin", "admin", "staff"]);
 
@@ -18,6 +20,16 @@ const normalizeStationIds = (user) =>
         .filter(Boolean)
     )
   );
+
+const loadProductViewer = async (userId) => {
+  if (!userId) return null;
+
+  const user = await User.findById(userId).select("role station").lean();
+  if (!user) {
+    throw new ProductAccessError("Phiên đăng nhập không còn hợp lệ.", 401);
+  }
+  return user;
+};
 
 const getCustomerStationProductIds = async (user, { stationId } = {}) => {
   if (!user || user.role !== "customer") return null;
@@ -44,7 +56,6 @@ const getCustomerStationProductIds = async (user, { stationId } = {}) => {
     stationFilter = { _id: { $in: validStationIds } };
   }
 
-  const Station = mongoose.model("Station");
   const stations = await Station.find(stationFilter).select("productId").lean();
   const productIds = stations.flatMap((station) =>
     Array.isArray(station.productId) ? station.productId : []
@@ -84,4 +95,5 @@ module.exports = {
   buildProductVisibilityFilter,
   combineProductFilters,
   getCustomerStationProductIds,
+  loadProductViewer,
 };

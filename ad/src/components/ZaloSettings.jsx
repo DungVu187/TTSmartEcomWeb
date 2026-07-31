@@ -16,8 +16,11 @@ import SendIcon from "@mui/icons-material/Send";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import LinkIcon from "@mui/icons-material/Link";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  getZaloAuthUrl,
+  getZaloSettings,
+  saveZaloSettings,
+} from "../api/messagingSettingsApi";
 
 const ZaloSettings = () => {
   const [loading, setLoading] = useState(false);
@@ -39,13 +42,7 @@ const ZaloSettings = () => {
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/zalo/settings`, {
-        headers: {
-          "auth-token": authToken,
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      const response = await getZaloSettings(authToken);
 
       if (!response.ok) {
         throw new Error("Không thể tải cấu hình Zalo");
@@ -106,15 +103,7 @@ const ZaloSettings = () => {
     }
 
     try {
-      const response = await fetch(`${apiUrl}/zalo/settings`, {
-        method: "POST",
-        headers: {
-          "auth-token": authToken,
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
+      const response = await saveZaloSettings(authToken, payload);
 
       if (!response.ok) {
         throw new Error("Không thể cập nhật cấu hình Zalo");
@@ -142,13 +131,7 @@ const ZaloSettings = () => {
 
     setLinking(true);
     try {
-      const response = await fetch(`${apiUrl}/zalo/auth-url`, {
-        headers: {
-          "auth-token": authToken,
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      const response = await getZaloAuthUrl(authToken);
 
       if (!response.ok) {
         const errData = await response.json();

@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { getAdminProfile } from "../api/adminAuthApi";
 
 const PermissionContext = createContext(null);
 
@@ -16,11 +17,7 @@ export const PermissionProvider = ({ children }) => {
   const refreshProfile = useCallback(async () => {
     setIsLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_API_URL || "";
-      const res = await fetch(`${backendUrl}/users/profile`, {
-        method: "GET",
-        credentials: "include",
-      });
+      const res = await getAdminProfile();
       if (res.ok) {
         const data = await res.json();
         setProfile(data);

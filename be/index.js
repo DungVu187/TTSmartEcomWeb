@@ -9,10 +9,13 @@ const jwt = require('jsonwebtoken');
 const { resolveMongoUri } = require('./config/database');
 
 // Router imports
-const { router: userRoutes, User, authenticateAdmin } = require('./components/user');
+const { router: userRoutes } = require('./components/user');
+const { authenticateAdmin } = require('./middlewares/auth');
+const { User } = require('./models/user');
 const { router: productRoutes } = require('./components/product');
 const { router: orderRoutes } = require('./components/order');
 const { router: chipRoutes } = require('./components/chip');
+const { router: chipTypeRoutes } = require('./components/chiptypes');
 const { router: cartRoutes } = require('./components/cart');
 const { router: manageRoutes } = require('./components/manage');
 const { router: iporderRoutes } = require('./components/iporder');
@@ -140,6 +143,7 @@ app.use('/users', userRoutes);
 app.use('/products', productRoutes);
 app.use('/orders', orderRoutes); // <== chỉ route này có thể dùng io.emit()
 app.use('/chips', chipRoutes);
+app.use('/chips/types', chipTypeRoutes);
 app.use('/carts', cartRoutes);
 app.use('/manages', manageRoutes);
 app.use('/iporders', iporderRoutes);
@@ -205,8 +209,12 @@ app.use((req, res, next) => {
 
 // Error handler
 app.use((err, req, res, next) => {
+  if (err?.status === 400 && err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ message: 'Invalid JSON payload' });
+  }
+
   console.error('Server error:', err.message);
-  res.status(500).json({ message: 'Internal server error' });
+  return res.status(500).json({ message: 'Internal server error' });
 });
 
 const startServer = async () => {

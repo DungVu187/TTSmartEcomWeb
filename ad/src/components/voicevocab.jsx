@@ -21,8 +21,12 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import toast from "react-hot-toast";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  createVoiceVocabularyEntry,
+  deleteVoiceVocabularyEntry,
+  getVoiceVocabulary,
+  updateVoiceVocabularyEntry,
+} from "../api/voiceApi";
 
 // Metadata cho từng nhóm từ vựng: nhãn hiển thị + kiểu (simple = mảng chuỗi,
 // object = mảng bản ghi có nhiều trường). Dùng chung để render bảng + form.
@@ -99,10 +103,7 @@ const VoiceVocab = () => {
   const fetchVocab = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/voice-vocabs`, {
-        method: "GET",
-        credentials: "include",
-      });
+      const res = await getVoiceVocabulary();
       const json = await res.json();
       if (res.ok && json.success) {
         setData(json.data);
@@ -215,15 +216,12 @@ const VoiceVocab = () => {
 
   const handleSubmit = async () => {
     const group = activeGroup;
-    const method = dialogMode === "add" ? "POST" : "PUT";
     setSubmitting(true);
     try {
-      const res = await fetch(`${apiUrl}/voice-vocabs/${group.key}`, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(buildBody(group, dialogMode)),
-      });
+      const body = buildBody(group, dialogMode);
+      const res = await (dialogMode === "add"
+        ? createVoiceVocabularyEntry(group.key, body)
+        : updateVoiceVocabularyEntry(group.key, body));
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success(json.message || "Lưu thành công.");
@@ -261,12 +259,7 @@ const VoiceVocab = () => {
       body = { code: item.code };
     }
     try {
-      const res = await fetch(`${apiUrl}/voice-vocabs/${group.key}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
+      const res = await deleteVoiceVocabularyEntry(group.key, body);
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success(json.message || "Xóa thành công.");

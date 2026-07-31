@@ -1,51 +1,13 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const crypto = require("crypto");
 const router = express.Router();
-const { authenticateAdmin, checkPermission } = require('./user');
-const { ActivityLog } = require("./activitylog");
+const { authenticateAdmin, checkPermission } = require('../middlewares/auth');
+const { Station, findStationByInviteCode } = require("../models/station");
+const { ActivityLog } = require("../models/activitylog");
 require("dotenv").config();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
-
-const stationSchema = new mongoose.Schema({
-    stationName: {
-        type: String
-    },
-    imgUrl: {
-        type: String
-    },
-    stationCode: {
-        type: String,
-        trim: true,
-        required: true
-    },
-    allowPublicSignup: {
-        type: Boolean,
-        default: true
-    },
-    location: {
-        type: String
-    },
-    productId: [
-        { type: String }
-    ]
-}, {
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
-
-stationSchema.virtual("inviteCode").get(function () {
-    return this.stationCode || "";
-});
-
-const findStationByInviteCode = async (inviteCode) => {
-    const trimmed = String(inviteCode).trim();
-    return Station.findOne({ stationCode: trimmed });
-};
-
-const Station = mongoose.model("Station", stationSchema);
 
 const limitRegexInput = (value) => String(value || "").trim().slice(0, 100);
 const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -39,7 +39,23 @@ import {
   normalizeTypeName,
 } from "../utils/homecategoryicons";
 import { formatVariantPrice } from "../utils/productpricing";
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  bulkDeleteProducts,
+  createProduct,
+  createProductBrand,
+  createProductSection,
+  deleteProductBrand,
+  deleteProductSection,
+  deleteProductType,
+  getProductSections,
+  getProductSectionValues,
+  getProductTaxonomy,
+  getProducts,
+  saveProductType,
+  toggleProductDisplay,
+  updateProductSection,
+  uploadProductImage,
+} from "../api/productManagementApi";
 
 const createEmptyProduct = () => ({
   type: "",
@@ -67,6 +83,7 @@ const createEmptyProduct = () => ({
 });
 
 const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join(", ");
+const WARRANTY_OPTIONS = ["3 tháng", "6 tháng", "12 tháng", "Theo NSX"];
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -329,19 +346,7 @@ const Products = () => {
     if (!confirmDelete) return;
 
     try {
-      const response = await fetch(`${apiUrl}/products/bulk-delete`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ids: selectedProductIds }),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to bulk delete products");
-      }
+      await bulkDeleteProducts(selectedProductIds);
 
       toast.success("Xóa hàng loạt sản phẩm thành công");
       setSelectedProductIds([]);
@@ -360,15 +365,11 @@ const Products = () => {
 
   const fetchProducts = async (page = currentPage, limit = rowsPerPage) => {
     try {
-      const query = new URLSearchParams({
+      const data = await getProducts({
         page,
         limit,
-        ...normalizeFilters(filters),
-      }).toString();
-      const response = await fetch(`${apiUrl}/products?${query}`, {
-        credentials: "include",
+        filters: normalizeFilters(filters),
       });
-      const data = await response.json();
       setProducts(data.products || []);
       setTotalPages(Math.ceil(data.total / limit));
     } catch (error) {
@@ -379,15 +380,8 @@ const Products = () => {
 
   const fetchData = async () => {
     try {
-      const [brandsResponse, typesResponse, sectionResponse] =
-        await Promise.all([
-          fetch(`${apiUrl}/chips/brands`),
-          fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
-          fetch(`${apiUrl}/chips/section`),
-        ]);
-      const brandsData = await brandsResponse.json();
-      const typesData = await typesResponse.json();
-      const sectionData = await sectionResponse.json();
+      const { brands: brandsData, types: typesData, sections: sectionData } =
+        await getProductTaxonomy();
       setBrands(brandsData);
       setTypes(typesData);
       setSections(sectionData);
@@ -398,14 +392,7 @@ const Products = () => {
 
   const fetchSections = async () => {
     try {
-      const response = await fetch(`${apiUrl}/chips/section`);
-      if (!response.ok) {
-        throw new Error(`Lỗi: ${response.status} ${response.statusText}`);
-      }
-      const data = await response.json();
-      if (!Array.isArray(data)) {
-        throw new Error("Dữ liệu không hợp lệ");
-      }
+      const data = await getProductSections();
       setSections(data);
     } catch (error) {
       console.error("Error fetching section:", error);
@@ -414,11 +401,7 @@ const Products = () => {
 
   const fetchValues = async (sectionName) => {
     try {
-      const response = await fetch(`${apiUrl}/chips/${sectionName}/value`);
-      if (!response.ok) {
-        throw new Error("Không tìm thấy dữ liệu");
-      }
-      const data = await response.json();
+      const data = await getProductSectionValues(sectionName);
       setValues(data);
     } catch {
       toast.error("Mục này chưa có thiết bị");
@@ -429,25 +412,7 @@ const Products = () => {
   // Hàm xử lý thay đổi display
   const handleToggleDisplay = async (productId) => {
     try {
-      const response = await fetch(
-        `${apiUrl}/products/${productId}/toggle-display`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || "Không thể thay đổi trạng thái hiển thị"
-        );
-      }
-
-      const updatedProduct = await response.json();
+      const updatedProduct = await toggleProductDisplay(productId);
       toast.success(updatedProduct.message);
 
       setProducts((prevProducts) =>
@@ -619,21 +584,7 @@ const Products = () => {
   const uploadNewProductImage = async () => {
     if (!newProductImageFile) return "";
 
-    const formData = new FormData();
-    formData.append("product", newProductImageFile);
-
-    const response = await fetch(`${apiUrl}/products/upload/image`, {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || "Upload ảnh thất bại");
-    }
-
-    return data.imgUrl;
+    return uploadProductImage(newProductImageFile);
   };
 
   const buildProductPayload = (imgUrl = "") => {
@@ -665,16 +616,8 @@ const Products = () => {
       setIsUploadingProductImage(true);
       const imgUrl = await uploadNewProductImage();
       const productPayload = buildProductPayload(imgUrl);
-      const response = await fetch(`${apiUrl}/products/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(productPayload),
-      });
-      const result = await response.json();
-      if (response.status === 201) {
+      const { status, data: result } = await createProduct(productPayload);
+      if (status === 201) {
         toast.success("Thêm sản phẩm thành công");
         fetchProducts(currentPage);
         closeDialog();
@@ -691,18 +634,7 @@ const Products = () => {
 
   const handleCreateBrand = async () => {
     try {
-      const response = await fetch(`${apiUrl}/chips/brands`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ Brand: brandName }),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Unknown error occurred");
-      }
+      await createProductBrand(brandName);
       toast.success("Thêm hãng thành công");
       fetchData();
       closeBrandDialog();
@@ -731,22 +663,11 @@ const Products = () => {
 
     setIsSavingType(true);
     try {
-      const response = await fetch(
-        typeToUpdate
-          ? `${apiUrl}/products/types/${typeToUpdate._id}`
-          : `${apiUrl}/products/types`,
-        {
-        method: typeToUpdate ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ Type: typeName, icon: typeIcon }),
+      const result = await saveProductType({
+        typeId: typeToUpdate?._id,
+        typeName,
+        icon: typeIcon,
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || "Không thể lưu loại sản phẩm");
-      }
       const updatedText = result.updatedProducts
         ? ` và cập nhật ${result.updatedProducts} sản phẩm`
         : "";
@@ -779,20 +700,7 @@ const Products = () => {
         alert("Không tìm thấy hãng này để xóa.");
         return;
       }
-      const response = await fetch(
-        `${apiUrl}/chips/brands/${brandToDelete._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Failed to delete brand");
-      }
+      await deleteProductBrand(brandToDelete._id);
       setTypeName("");
       fetchData();
       toast.success("Xóa hãng thành công!");
@@ -821,20 +729,7 @@ const Products = () => {
       return;
     }
     try {
-      const response = await fetch(
-        `${apiUrl}/products/types/${typeToDelete._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        }
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || "Không thể xóa loại sản phẩm");
-      }
+      await deleteProductType(typeToDelete._id);
       await fetchData();
       toast.success("Xóa loại sản phẩm thành công!");
       closeTypeDialog();
@@ -850,17 +745,7 @@ const Products = () => {
       return;
     }
     try {
-      const response = await fetch(`${apiUrl}/chips/section`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ name: sectionName }),
-      });
-      if (!response.ok) {
-        throw new Error("Lỗi khi thêm mục!");
-      }
+      await createProductSection(sectionName);
       fetchSections();
       setSectionName("");
       toast.success("Thêm cụm thành công");
@@ -876,17 +761,7 @@ const Products = () => {
       return;
     }
     try {
-      const response = await fetch(`${apiUrl}/chips/section/${sectionName}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Xóa không thành công");
-      }
+      await deleteProductSection(sectionName);
       fetchSections();
       setSectionName("");
       handleCloseSectionDialog();
@@ -903,18 +778,7 @@ const Products = () => {
       return;
     }
     try {
-      const response = await fetch(`${apiUrl}/chips/section/${sectionName}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ name: newSectionName }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Cập nhật thất bại");
-      }
+      await updateProductSection(sectionName, newSectionName);
       toast.success("Cập nhật cụm thành công!");
       fetchSections();
       handleCloseSectionDialog();
@@ -1135,7 +999,7 @@ const Products = () => {
                 onClick={openBrandDialog}
                 sx={{ marginLeft: 2 }}
               >
-                Thêm hãng
+                Quản lý hãng
               </Button>
             )}
             {canCreate && (
@@ -1146,7 +1010,7 @@ const Products = () => {
                 onClick={openTypeDialog}
                 sx={{ marginLeft: 2 }}
               >
-                Thêm/sửa loại sản phẩm
+                Quản lý loại sản phẩm
               </Button>
             )}
             {canCreate && (
@@ -1156,16 +1020,6 @@ const Products = () => {
                 className="open-product-add-dialog"
                 sx={{ marginLeft: 2 }}
                 onClick={handleOpenSectionDialog}
-              >
-                Thêm cụm
-              </Button>
-            )}
-            {canCreate && (
-              <Button
-                variant="contained"
-                color="primary"
-                sx={{ marginLeft: 2 }}
-                onClick={() => navigate("/cluster")}
               >
                 Quản lý cụm thiết bị
               </Button>
@@ -1214,7 +1068,15 @@ const Products = () => {
                   label="Tìm kiếm nhanh..."
                   placeholder="Tìm theo tên, mã, hãng..."
                   variant="outlined"
-                  sx={{ width: 250, mr: 2, bgcolor: "white" }}
+                  sx={{
+                    width: 250,
+                    mr: 2,
+                    bgcolor: "white",
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#9EADBF",
+                      borderWidth: "1.5px",
+                    },
+                  }}
                 />
               )}
             />
@@ -1262,12 +1124,20 @@ const Products = () => {
             overflow: "auto",
             maxHeight: "calc(100vh - 280px)",
             scrollbarGutter: "stable",
+            border: "1.5px solid #9EADBF",
           }}
         >
           <Table
             stickyHeader
             size="small"
-            sx={{ minWidth: 1724, width: "max(100%, 1724px)", tableLayout: "fixed" }}
+            sx={{
+              minWidth: 1724,
+              width: "max(100%, 1724px)",
+              tableLayout: "fixed",
+              "& .MuiTableCell-root": {
+                borderColor: "#C3CEDB",
+              },
+            }}
           >
             <colgroup>
               <col style={{ width: 44 }} />
@@ -1283,7 +1153,7 @@ const Products = () => {
               <col style={{ width: 120 }} />
               <col style={{ width: 84 }} />
               <col style={{ width: 96 }} />
-              <col style={{ width: 104 }} />
+              <col style={{ width: 132 }} />
               <col style={{ width: 260 }} />
             </colgroup>
             <TableHead>
@@ -1407,7 +1277,7 @@ const Products = () => {
                     {product.variant?.[0]?.quantityInStorage ?? "Chưa nhập"}
                   </TableCell>
                   <TableCell align="center">{product.purchaseCount}</TableCell>
-                  <TableCell align="left" sx={{ verticalAlign: "top" }}>
+                  <TableCell align="center" sx={{ verticalAlign: "middle" }}>
                     <div style={cellStyle}>
                       {product.variant?.[0]?.note || ""}
                     </div>
@@ -1577,15 +1447,34 @@ const Products = () => {
                 />
               )}
             />
-            <TextField
-              label="Bảo hành"
-              name="warranty"
-              value={newProduct.warranty}
-              onChange={handleInputChange}
-              required
-              fullWidth
-              margin="normal"
-              size="small"
+            <Autocomplete
+              freeSolo
+              autoSelect
+              options={WARRANTY_OPTIONS}
+              value={newProduct.warranty || null}
+              inputValue={newProduct.warranty || ""}
+              onChange={(_, newValue) =>
+                setNewProduct((previousProduct) => ({
+                  ...previousProduct,
+                  warranty: newValue || "",
+                }))
+              }
+              onInputChange={(_, newInputValue) =>
+                setNewProduct((previousProduct) => ({
+                  ...previousProduct,
+                  warranty: newInputValue,
+                }))
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Bảo hành"
+                  required
+                  fullWidth
+                  margin="normal"
+                  size="small"
+                />
+              )}
             />
             <TextField
               className="product-create-description"
@@ -1645,6 +1534,12 @@ const Products = () => {
         page={currentPage - 1}
         onPageChange={handlePageChange}
         onRowsPerPageChange={handleRowsPerPageChange}
+        sx={{
+          mt: 1,
+          border: "1.5px solid #9EADBF",
+          borderRadius: "10px",
+          backgroundColor: "#FFFFFF",
+        }}
       />
       <Dialog
         open={isTypeDialogOpen}
@@ -1653,7 +1548,7 @@ const Products = () => {
         fullWidth
         maxWidth="md"
       >
-        <DialogTitle>Thêm/sửa loại sản phẩm</DialogTitle>
+        <DialogTitle>Quản lý loại sản phẩm</DialogTitle>
         <DialogContent>
           <Box component="form" onSubmit={(event) => event.preventDefault()}>
             <Autocomplete
@@ -1794,7 +1689,7 @@ const Products = () => {
       </Dialog>
 
       <Dialog open={isBrandDialogOpen} onClose={closeBrandDialog} disableScrollLock>
-        <DialogTitle>Thêm loại sản phẩm</DialogTitle>
+        <DialogTitle>Quản lý hãng</DialogTitle>
         <DialogContent>
           <form action="javascript:void(0);">
             <Autocomplete
@@ -1843,7 +1738,7 @@ const Products = () => {
       </Dialog>
 
       <Dialog open={openSectionDialog} onClose={handleCloseSectionDialog} disableScrollLock>
-        <DialogTitle>Quản lý cụm sản phẩm</DialogTitle>
+        <DialogTitle>Quản lý cụm thiết bị</DialogTitle>
         <DialogContent>
           <form action="javascript:void(0);">
             <Autocomplete
@@ -1895,6 +1790,13 @@ const Products = () => {
                 disabled={!sectionName}
               >
                 Xóa
+              </Button>
+              <Button
+                onClick={() => navigate("/cluster")}
+                variant="contained"
+                color="info"
+              >
+                Chi tiết cụm thiết bị
               </Button>
               <Button
                 onClick={handleCloseSectionDialog}

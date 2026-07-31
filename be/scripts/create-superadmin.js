@@ -17,7 +17,7 @@ async function seed() {
       await mongoose.connect(dbUri);
       console.log(`Kết nối thành công tới ${dbName}`);
       
-      const { User } = require('../components/user');
+      const { User } = require('../models/user');
 
       // 1. Kiểm tra superadmin khác
       const otherSuper = await User.findOne({ role: 'superadmin', phone: { $ne: phone } });

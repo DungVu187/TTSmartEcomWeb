@@ -73,7 +73,7 @@ describe("Products runtime", () => {
       </ThemeProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Thêm/sửa loại sản phẩm" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Quản lý loại sản phẩm" }));
     expect(screen.getByText("Đang hiển thị 82/82 biểu tượng")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tên loại sản phẩm"), {
       target: { value: "PLC" },

@@ -21,8 +21,10 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { ShopContext } from "../context/shopcontext";
 import { useLanguage } from "../context/languagecontext";
 import { isContactOnlyVariant } from "../utils/productpricing";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
+import {
+  getStorefrontSectionValues,
+  listStorefrontSectionValueProducts,
+} from "../api/storefrontCatalogApi";
 
 const ValueList = () => {
   const { t } = useLanguage();
@@ -40,20 +42,13 @@ const ValueList = () => {
 
     const fetchData = async () => {
       try {
-        const res = await fetch(`${apiUrl}/chips/${sectionName}/value`);
+        const res = await getStorefrontSectionValues(sectionName);
         const valueList = await res.json();
         setValues(valueList);
 
         const productResults = {};
         for (let value of valueList) {
-          const resProd = await fetch(
-            `${apiUrl}/products?section=${sectionName}&value=${encodeURIComponent(
-              value
-            )}`,
-            {
-              credentials: "include",
-            }
-          );
+          const resProd = await listStorefrontSectionValueProducts(sectionName, value);
           const data = await resProd.json();
           productResults[value] = data.products || [];
         }

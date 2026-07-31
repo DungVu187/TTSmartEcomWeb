@@ -12,13 +12,6 @@ import {
   TextField,
   Switch,
   FormControlLabel,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   IconButton,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -30,9 +23,29 @@ import "swiper/css/pagination";
 import "swiper/css/thumbs";
 import toast from "react-hot-toast";
 import HomeCategoryManager from "./homecategorymanager";
+import {
+  deleteStorefrontImage,
+  getStorefrontManagement,
+  updateStorefrontFooterContent,
+  updateStorefrontIntroduction,
+  updateStorefrontPartnerSettings,
+  uploadStorefrontImages,
+  uploadStorefrontSectionImage,
+} from "../api/storefrontManagementApi";
 import "./style/manage.css";
 
-const apiUrl = import.meta.env.VITE_API_URL;
+const DEFAULT_FOOTER_CONTENT = {
+  logo: "",
+  description: "TTSmart - Giải pháp tự động hóa, thiết bị đo lường và vật tư trạm trộn bê tông hàng đầu.",
+  address: "Số 28/29 Vũ Đức Thận, Việt Hưng, Long Biên, Hà Nội",
+  phone: "08.1315.8383",
+  email: "ttsmart.ltd@gmail.com",
+};
+
+const isImageAsset = (value) => typeof value === "string" && (
+  /^data:image\//i.test(value)
+  || /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i.test(value)
+);
 
 const IOSSwitch = styled((props) => (
   <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
@@ -213,6 +226,7 @@ const Manage = () => {
     overViewImg: [],
     partners: [],
     displayPartners: true,
+    footerContent: DEFAULT_FOOTER_CONTENT,
     topPurchaseUrl: "",
     highestRatingUrl: "",
     introduction: "",
@@ -231,11 +245,13 @@ const Manage = () => {
   const [bannerThumbsSwiper, setBannerThumbsSwiper] = useState(null);
   const [introductionInputs, setIntroductionInputs] = useState({ vi: "", zh: "", en: "" });
   const [introductionLanguage, setIntroductionLanguage] = useState("vi");
-  const [newPartnerName, setNewPartnerName] = useState("");
+  const [footerInputs, setFooterInputs] = useState(DEFAULT_FOOTER_CONTENT);
 
   const bannerInputRef = useRef(null);
   const topPurchaseInputRef = useRef(null);
   const highestRatingInputRef = useRef(null);
+  const partnersInputRef = useRef(null);
+  const footerLogoInputRef = useRef(null);
 
   useEffect(() => {
     fetchManageData();
@@ -243,9 +259,7 @@ const Manage = () => {
 
   const fetchManageData = async () => {
     try {
-      const response = await fetch(`${apiUrl}/manages/`, {
-        credentials: "include",
-      });
+      const response = await getStorefrontManagement();
       const result = await response.json();
       if (result.success) {
         setManageData(result.data);
@@ -253,6 +267,10 @@ const Manage = () => {
           vi: result.data.introductionTranslations?.vi || result.data.introduction || "",
           zh: result.data.introductionTranslations?.zh || result.data.introduction || "",
           en: result.data.introductionTranslations?.en || result.data.introduction || "",
+        });
+        setFooterInputs({
+          ...DEFAULT_FOOTER_CONTENT,
+          ...(result.data.footerContent || {}),
         });
       } else {
         toast.error(result.message || "Lỗi khi lấy dữ liệu");
@@ -263,72 +281,10 @@ const Manage = () => {
     }
   };
 
-  const handleAddPartner = async () => {
-    if (!newPartnerName.trim()) return;
-    setLoading(true);
-    try {
-      const updatedPartners = [...(manageData.partners || []), newPartnerName.trim()];
-      const response = await fetch(`${apiUrl}/manages/update-partners-text`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ partners: updatedPartners }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        setManageData((prev) => ({
-          ...prev,
-          partners: result.data.partners,
-        }));
-        setNewPartnerName("");
-        toast.success("Thêm đối tác thành công");
-      } else {
-        toast.error(result.message || "Không thể thêm đối tác");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi khi thêm đối tác");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeletePartner = async (partnerToDelete) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa đối tác "${partnerToDelete}" không?`)) return;
-    setLoading(true);
-    try {
-      const updatedPartners = (manageData.partners || []).filter((p) => p !== partnerToDelete);
-      const response = await fetch(`${apiUrl}/manages/update-partners-text`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ partners: updatedPartners }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        setManageData((prev) => ({
-          ...prev,
-          partners: result.data.partners,
-        }));
-        toast.success("Xóa đối tác thành công");
-      } else {
-        toast.error(result.message || "Không thể xóa đối tác");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi khi xóa đối tác");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleToggleDisplayPartners = async (checked) => {
     try {
-      const response = await fetch(`${apiUrl}/manages/update-partners-text`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ displayPartners: checked }),
+      const response = await updateStorefrontPartnerSettings({
+        displayPartners: checked,
       });
       const result = await response.json();
       if (result.success) {
@@ -349,27 +305,8 @@ const Manage = () => {
   const handleUpload = async (type, files) => {
     if (!files || files.length === 0) return;
     setLoading(true);
-    const formData = new FormData();
-    for (let file of files) {
-      formData.append("manage", file);
-    }
-    if (type === "topPurchase") {
-      formData.append("topPurchaseUrl", "true");
-    } else if (type === "highestRating") {
-      formData.append("highestRatingUrl", "true");
-    }
     try {
-      const endpoint =
-        type === "banner"
-          ? `${apiUrl}/manages/update-images`
-          : type === "partners"
-          ? `${apiUrl}/manages/update-partners`
-          : `${apiUrl}/manages/update`;
-      const response = await fetch(endpoint, {
-        method: type === "banner" || type === "partners" ? "POST" : "PUT",
-        credentials: "include",
-        body: formData,
-      });
+      const response = await uploadStorefrontImages(type, files);
       const result = await response.json();
       if (result.success) {
         if (type === "banner") {
@@ -438,14 +375,7 @@ const Manage = () => {
   const handleDeleteImage = async (imgUrl, type) => {
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/manages/delete-image`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ imgUrl }),
-      });
+      const response = await deleteStorefrontImage(imgUrl);
       const result = await response.json();
       if (result.success) {
         if (type === "banner") {
@@ -480,17 +410,10 @@ const Manage = () => {
   const handleUpdateIntroduction = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${apiUrl}/manages/update-introduction`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          introduction: introductionInputs.vi,
-          translations: introductionInputs,
-        }),
-      });
+      const response = await updateStorefrontIntroduction(
+        introductionInputs.vi,
+        introductionInputs,
+      );
       const result = await response.json();
       if (result.success) {
         setManageData((prev) => ({
@@ -509,6 +432,52 @@ const Manage = () => {
       setLoading(false);
     }
   };
+
+  const handleFooterLogoSelect = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setLoading(true);
+    try {
+      const response = await uploadStorefrontSectionImage(file);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || "Không thể tải logo lên");
+      }
+      setFooterInputs((current) => ({ ...current, logo: result.imgUrl }));
+      toast.success("Đã chọn logo footer");
+    } catch (error) {
+      console.error("Error uploading footer logo:", error);
+      toast.error(error.message || "Lỗi khi tải logo footer");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateFooter = async () => {
+    setLoading(true);
+    try {
+      const response = await updateStorefrontFooterContent(footerInputs);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || "Không thể cập nhật footer");
+      }
+      setManageData(result.data);
+      setFooterInputs({
+        ...DEFAULT_FOOTER_CONTENT,
+        ...(result.data.footerContent || {}),
+      });
+      toast.success("Cập nhật nội dung footer thành công");
+    } catch (error) {
+      console.error("Error updating footer:", error);
+      toast.error(error.message || "Lỗi khi cập nhật footer");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const partnerImages = (manageData.partners || []).filter(isImageAsset);
 
   return (
     <Box sx={{ padding: 3 }}>
@@ -542,9 +511,9 @@ const Manage = () => {
         onSaved={(updatedManage) => setManageData(updatedManage)}
       />
 
-      <Box sx={{ mb: 4, width: "900px" }}>
+      <Box sx={{ mb: 4, width: "min(100%, 900px)" }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-          <Typography variant="h6">Tên đối tác (Thương hiệu)</Typography>
+          <Typography variant="h6">Ảnh thương hiệu nổi bật</Typography>
           <FormControlLabel
             control={
               <IOSSwitch
@@ -567,59 +536,136 @@ const Manage = () => {
             sx={{ ml: 'auto' }}
           />
         </Box>
-        <Box display="flex" gap={2} mb={2}>
-          <TextField
-            label="Nhập tên đối tác / thương hiệu"
-            value={newPartnerName}
-            onChange={(e) => setNewPartnerName(e.target.value)}
-            variant="outlined"
-            size="small"
-            fullWidth
-            disabled={loading}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleAddPartner}
-            disabled={loading || !newPartnerName.trim()}
-            sx={{ minWidth: "150px" }}
-          >
-            Thêm đối tác
+        <Typography sx={{ color: "#64748b", mb: 2 }}>
+          Mỗi thương hiệu dùng một ảnh logo cố định trong một khung riêng ở cuối trang chủ.
+        </Typography>
+        <input
+          type="file"
+          multiple
+          ref={partnersInputRef}
+          onChange={handleFileSelect("partners")}
+          accept="image/*"
+          style={{ display: "none" }}
+        />
+        <Button
+          variant="contained"
+          onClick={triggerFileInput("partners")}
+          disabled={loading}
+          sx={{ mb: 2 }}
+        >
+          Chọn ảnh thương hiệu
+        </Button>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 2,
+          }}
+        >
+          {partnerImages.length > 0 ? partnerImages.map((partner, index) => (
+            <Box
+              key={`${partner}-${index}`}
+              sx={{
+                position: "relative",
+                minHeight: 120,
+                p: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid #dbe4ee",
+                borderRadius: 2,
+                backgroundColor: "#fff",
+              }}
+            >
+              <img
+                src={partner}
+                alt={`Thương hiệu ${index + 1}`}
+                style={{ width: "100%", height: 76, objectFit: "contain" }}
+              />
+              <IconButton
+                color="error"
+                onClick={() => handleImageClick(partner, "partners")}
+                disabled={loading}
+                size="small"
+                sx={{ position: "absolute", top: 4, right: 4, backgroundColor: "rgba(255,255,255,0.9)" }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )) : (
+            <Box sx={{ gridColumn: "1 / -1", p: 3, border: "1px dashed #cbd5e1", borderRadius: 2, color: "#64748b", textAlign: "center" }}>
+              Chưa có ảnh thương hiệu
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      <Box sx={{ mb: 4, width: "min(100%, 900px)", p: 3, border: "1px solid #dbe4ee", borderRadius: 3, backgroundColor: "#fff" }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>Nội dung footer</Typography>
+        <Typography sx={{ color: "#64748b", mb: 3 }}>
+          Chỉnh logo và các thông tin liên hệ ở cột đầu tiên của footer trang khách.
+        </Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "190px 1fr" }, gap: 3 }}>
+          <Box>
+            <Box sx={{ height: 120, p: 2, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #cbd5e1", borderRadius: 2, backgroundColor: "#f8fafc" }}>
+              {footerInputs.logo ? (
+                <img src={footerInputs.logo} alt="Logo footer" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ) : (
+                <Typography sx={{ color: "#94a3b8", textAlign: "center" }}>Chưa chọn logo riêng</Typography>
+              )}
+            </Box>
+            <input
+              type="file"
+              ref={footerLogoInputRef}
+              onChange={handleFooterLogoSelect}
+              accept="image/*"
+              style={{ display: "none" }}
+            />
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => footerLogoInputRef.current?.click()}
+              disabled={loading}
+              sx={{ mt: 1.5 }}
+            >
+              Chọn logo
+            </Button>
+          </Box>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+            <TextField
+              label="Mô tả"
+              value={footerInputs.description}
+              onChange={(event) => setFooterInputs((current) => ({ ...current, description: event.target.value }))}
+              multiline
+              minRows={3}
+              sx={{ gridColumn: "1 / -1" }}
+            />
+            <TextField
+              label="Địa chỉ"
+              value={footerInputs.address}
+              onChange={(event) => setFooterInputs((current) => ({ ...current, address: event.target.value }))}
+              multiline
+              minRows={2}
+              sx={{ gridColumn: "1 / -1" }}
+            />
+            <TextField
+              label="Số điện thoại"
+              value={footerInputs.phone}
+              onChange={(event) => setFooterInputs((current) => ({ ...current, phone: event.target.value }))}
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={footerInputs.email}
+              onChange={(event) => setFooterInputs((current) => ({ ...current, email: event.target.value }))}
+            />
+          </Box>
+        </Box>
+        <Box display="flex" justifyContent="flex-end" sx={{ mt: 3 }}>
+          <Button variant="contained" onClick={handleUpdateFooter} disabled={loading}>
+            Lưu nội dung footer
           </Button>
         </Box>
-        <TableContainer component={Paper} sx={{ maxWidth: "100%", maxHeight: "300px", overflowY: "auto" }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Tên đối tác / thương hiệu</TableCell>
-                <TableCell align="right" style={{ width: "80px" }}>Hành động</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(manageData.partners || []).length > 0 ? (
-                (manageData.partners || []).map((partner, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{partner}</TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        color="error"
-                        onClick={() => handleDeletePartner(partner)}
-                        disabled={loading}
-                        size="small"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={2} align="center">Chưa có đối tác</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
       </Box>
 
       <Box sx={{ mb: 4, width: "900px" }}>

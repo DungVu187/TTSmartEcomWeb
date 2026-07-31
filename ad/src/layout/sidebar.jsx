@@ -39,6 +39,8 @@ import toast from "react-hot-toast";
 import { useOrderContext } from "../context/ordercontext";
 import { usePermissions } from "../context/permissioncontext";
 import { io } from "socket.io-client";
+import { logoutAdmin } from "../api/adminAuthApi";
+import { getProcessingSalesOrderCount } from "../api/salesOrderManagementApi";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -83,9 +85,7 @@ const Sidebar = () => {
 
     const fetchCount = async () => {
       try {
-        const response = await fetch(`${apiUrl}/orders/processing-count`, {
-          credentials: "include",
-        });
+        const response = await getProcessingSalesOrderCount();
         const data = await response.json();
         if (data.success) {
           setProcessingCount(data.count);
@@ -120,9 +120,7 @@ const Sidebar = () => {
 
     const updateCount = async () => {
       try {
-        const response = await fetch(`${apiUrl}/orders/processing-count`, {
-          credentials: "include",
-        });
+        const response = await getProcessingSalesOrderCount();
         const data = await response.json();
         if (data.success) {
           setProcessingCount(data.count);
@@ -155,10 +153,7 @@ const Sidebar = () => {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch(`${apiUrl}/users/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const response = await logoutAdmin();
       if (response.ok) {
         document.cookie =
           "authToken=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";

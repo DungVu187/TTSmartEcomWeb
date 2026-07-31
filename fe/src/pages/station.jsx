@@ -3,14 +3,11 @@ import { useLanguage } from "../context/languagecontext.jsx";
 import { Link, useNavigate } from "react-router-dom";
 import "./styles/station.css";
 import concreteBannerBg from "../assets/concrete_station_banner_bg.png";
-
-const apiUrl = process.env.REACT_APP_BACK_END || "";
-
-const resolveImageUrl = (url) => {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
-  return `${apiUrl}${url}`;
-};
+import { getCustomerProfile, getCustomerStations } from "../api/customerAccountApi";
+import {
+  getStorefrontStationsByIds,
+  resolveStorefrontAssetUrl,
+} from "../api/storefrontCatalogApi";
 
 const Station = () => {
   const { t } = useLanguage();
@@ -29,9 +26,7 @@ const Station = () => {
   useEffect(() => {
     const checkAuthAndFetch = async () => {
       try {
-        const authRes = await fetch(`${apiUrl}/users/profile`, {
-          credentials: "include",
-        });
+        const authRes = await getCustomerProfile();
         if (!authRes.ok) {
           setIsLoggedIn(false);
           setLoading(false);
@@ -40,9 +35,7 @@ const Station = () => {
 
         setIsLoggedIn(true);
 
-        const res = await fetch(`${apiUrl}/users/my-stations`, {
-          credentials: "include",
-        });
+        const res = await getCustomerStations();
         if (!res.ok) throw new Error("failed_to_get_user_stations");
         const data = await res.json();
         const ids = data.stations || [];
@@ -53,14 +46,7 @@ const Station = () => {
           return;
         }
 
-        const stationRes = await fetch(`${apiUrl}/stations/by-ids`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ ids }),
-        });
+        const stationRes = await getStorefrontStationsByIds(ids);
 
         if (!stationRes.ok) throw new Error("failed_to_get_station_info");
         const stations = await stationRes.json();
@@ -279,7 +265,7 @@ const Station = () => {
                       <td>
                         <div className="station-table-img-container">
                           {station.imgUrl ? (
-                            <img src={resolveImageUrl(station.imgUrl)} alt="" />
+                            <img src={resolveStorefrontAssetUrl(station.imgUrl)} alt="" />
                           ) : (
                             <i className="fa-solid fa-industry" />
                           )}
@@ -330,7 +316,7 @@ const Station = () => {
                   >
                     <span className="station-mobile-card-image">
                       {station.imgUrl ? (
-                        <img src={resolveImageUrl(station.imgUrl)} alt="" />
+                        <img src={resolveStorefrontAssetUrl(station.imgUrl)} alt="" />
                       ) : (
                         <i className="fa-solid fa-industry" />
                       )}
@@ -356,7 +342,7 @@ const Station = () => {
                 >
                   <div className="station-grid-img-container">
                     {station.imgUrl ? (
-                      <img src={resolveImageUrl(station.imgUrl)} alt="" />
+                      <img src={resolveStorefrontAssetUrl(station.imgUrl)} alt="" />
                     ) : (
                       <i className="fa-solid fa-industry" />
                     )}

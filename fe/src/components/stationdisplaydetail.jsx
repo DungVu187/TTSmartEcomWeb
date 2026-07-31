@@ -4,15 +4,12 @@ import { CircularProgress, Alert } from '@mui/material';
 import { ShopContext } from '../context/shopcontext';
 import { useLanguage } from '../context/languagecontext.jsx';
 import { isContactOnlyVariant } from '../utils/productpricing';
+import {
+  getPublicStorefrontStation,
+  getStorefrontProductsByIds,
+  resolveStorefrontAssetUrl,
+} from '../api/storefrontCatalogApi';
 import "./style/stationdisplay.css";
-
-const apiUrl = process.env.REACT_APP_BACK_END || "";
-
-const resolveImageUrl = (url) => {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url;
-  return `${apiUrl}${url}`;
-};
 
 const StationDisplayDetail = () => {
   const { t } = useLanguage();
@@ -39,7 +36,7 @@ const StationDisplayDetail = () => {
     const fetchProducts = async () => {
       try {
         // Lấy toàn bộ sản phẩm của trạm
-        const resStation = await fetch(`${apiUrl}/stations/public/${code}`);
+        const resStation = await getPublicStorefrontStation(code);
         if (!resStation.ok) throw new Error("station_not_found");
         const station = await resStation.json();
         setStationName(station.stationName || "");
@@ -50,12 +47,7 @@ const StationDisplayDetail = () => {
           return;
         }
 
-        const resProducts = await fetch(`${apiUrl}/products/fetch-by-ids`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: productIds }),
-          credentials: 'include',
-        });
+        const resProducts = await getStorefrontProductsByIds(productIds);
 
         const data = await resProducts.json();
         const allProducts = data.products || [];
@@ -208,7 +200,7 @@ const StationDisplayDetail = () => {
                           <td style={{ textAlign: "center" }}>
                             <div className="station-detail-table-img" style={{ margin: "auto" }}>
                               {product.variant?.[0]?.imgUrl ? (
-                                <img src={resolveImageUrl(product.variant[0].imgUrl)} alt={product.name} />
+                                <img src={resolveStorefrontAssetUrl(product.variant[0].imgUrl)} alt={product.name} />
                               ) : (
                                 <i className="fa-solid fa-microchip" />
                               )}

@@ -17,8 +17,15 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import "./styles/product.css";
 import Item from "../components/item";
 import { useLanguage } from "../context/languagecontext.jsx";
-
-const apiUrl = process.env.REACT_APP_BACK_END;
+import { getCustomerProfile } from "../api/customerAccountApi";
+import {
+  getStorefrontBrands,
+  getStorefrontProductTypes,
+  getStorefrontSections,
+  getStorefrontSectionValues,
+  getStorefrontStationsByIds,
+  listStorefrontProducts,
+} from "../api/storefrontCatalogApi";
 const ALL_FILTER_VALUE = "__all__";
 const filterSelectMenuProps = {
   disableScrollLock: true,
@@ -94,15 +101,7 @@ function Product() {
         stationId: activeStationId === ALL_FILTER_VALUE ? "" : activeStationId,
       };
 
-      const query = new URLSearchParams(updatedFilters).toString();
-
-      const response = await fetch(`${apiUrl}/products?${query}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      const response = await listStorefrontProducts(updatedFilters);
 
       const data = await response.json();
       setProducts(data.products || []);
@@ -119,22 +118,13 @@ function Product() {
   useEffect(() => {
     const checkAuthAndLoadStations = async () => {
       try {
-        const response = await fetch(`${apiUrl}/users/profile`, {
-          method: "GET",
-          credentials: "include",
-        });
+        const response = await getCustomerProfile();
         if (response.ok) {
           const userData = await response.json();
           setIsLoggedIn(true);
           const codes = userData.station || []; // these are station IDs!
           if (codes.length > 0) {
-            const stationsRes = await fetch(`${apiUrl}/stations/by-ids`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ ids: codes }),
-            });
+            const stationsRes = await getStorefrontStationsByIds(codes);
             if (stationsRes.ok) {
               const stationsData = await stationsRes.json();
               setUserStations(stationsData);
@@ -191,7 +181,7 @@ function Product() {
 
   const fetchValues = async (sectionName) => {
     try {
-      const response = await fetch(`${apiUrl}/chips/${sectionName}/value`);
+      const response = await getStorefrontSectionValues(sectionName);
       const data = await response.json();
       setValues(data);
     } catch (error) {
@@ -270,9 +260,9 @@ function Product() {
       try {
         const [brandsResponse, typesResponse, sectionsResponse] =
           await Promise.all([
-            fetch(`${apiUrl}/chips/brands`),
-            fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
-            fetch(`${apiUrl}/chips/section`),
+            getStorefrontBrands(),
+            getStorefrontProductTypes({ cache: "no-store" }),
+            getStorefrontSections(),
           ]);
         const brandsData = await brandsResponse.json();
         const typesData = await typesResponse.json();

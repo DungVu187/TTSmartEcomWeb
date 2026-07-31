@@ -1,46 +1,16 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const {
+    Drink,
+    DrinkToppings,
+    DrinkBill,
+    DrinkOweList
+} = require("../models/drink");
 
-const { authenticateAdmin, checkPermission } = require("./user"); // bạn có thể dùng nếu cần phân quyền
-
-const drinkSchema = new mongoose.Schema({
-    drinkName: String,
-    drinkPrice: Number,
-    drinkImg: String,
-    toppings: [String]
-});
-
-const drinkToppingSchema = new mongoose.Schema({
-    toppingNames: String,
-    toppingPrice: Number
-});
-
-const drinkBillSchema = new mongoose.Schema({
-    detail: [{
-        staff: String,
-        drinkImg: String,
-        drink: String,
-        toppings: String,
-        drinkPrice: Number,
-        status: Boolean
-    }],
-    billTotal: Number,
-    billStatus: Boolean
-}, { timestamps: true });
-
-const drinkOweList = new mongoose.Schema({
-    staffID: String,
-    bank: Number
-});
-
-const Drink = mongoose.model("Drink", drinkSchema);
-const DrinkToppings = mongoose.model("DrinkToppings", drinkToppingSchema);
-const DrinkBill = mongoose.model("DrinkBill", drinkBillSchema);
-const DrinkOweList = mongoose.model("DrinkOwelist", drinkOweList);
+const { authenticateAdmin, checkPermission } = require("../middlewares/auth"); // bạn có thể dùng nếu cần phân quyền
 
 const drinkStorage = multer.diskStorage({
     destination: "./upload/drinks",

@@ -26,10 +26,14 @@ import PersonIcon from "@mui/icons-material/Person";
 import DisplaySettingsIcon from "@mui/icons-material/DisplaySettings";
 import TocIcon from "@mui/icons-material/Toc";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
+import {
+  deleteAccountUser,
+  getAccountPermissionCatalog,
+  getAccountUsers,
+  saveAccountUser,
+} from "../api/accountApi";
 import { usePermissions } from "../context/permissioncontext";
 import "./style/account.css";
-
-const apiUrl = import.meta.env.VITE_API_URL;
 
 const PERMISSION_COLUMNS = [
   { key: "view", label: "Xem" },
@@ -124,33 +128,20 @@ const Account = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [usersRes, catalogRes] = await Promise.all([
-        fetch(`${apiUrl}/users/all-users`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        }),
-        fetch(`${apiUrl}/users/permission-catalog`, {
-          method: "GET",
-          credentials: "include",
-        }),
+      const [usersData, catalogData] = await Promise.all([
+        getAccountUsers(),
+        getAccountPermissionCatalog(),
       ]);
 
-      if (!usersRes.ok) {
-        const errData = await usersRes.json();
-        throw new Error(errData.message || `Lỗi ${usersRes.status}: Lấy danh sách người dùng thất bại`);
-      }
-      const usersData = await usersRes.json();
       const roleOrder = { superadmin: 1, admin: 2, staff: 3 };
       const adminStaffUsers = usersData
         .filter((u) => (u.role === "superadmin" || u.role === "admin" || u.role === "staff") && canViewRole(currentRole, u.role))
         .sort((a, b) => (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99));
       setUsers(adminStaffUsers);
 
-      if (catalogRes.ok) {
-        const catData = await catalogRes.json();
-        setCatalog(catData.catalog || []);
-        setAdminFixed(catData.adminFixed || []);
+      if (catalogData) {
+        setCatalog(catalogData.catalog || []);
+        setAdminFixed(catalogData.adminFixed || []);
         setCatalogError("");
       } else {
         setCatalogError("Không thể tải danh mục quyền.");
@@ -257,11 +248,6 @@ const Account = () => {
         throw new Error("Vui lòng chọn vai trò");
       }
 
-      const url = selectedUser
-        ? `${apiUrl}/users/${selectedUser._id}/permissions`
-        : `${apiUrl}/users/admin-create`;
-      const method = selectedUser ? "PUT" : "POST";
-
       const grantableKeys = grantableModules.flatMap((m) => m.actions.map((a) => a.key));
       const cleanPermissions = permissions.filter((p) => grantableKeys.includes(p));
 
@@ -276,17 +262,10 @@ const Account = () => {
         body.password = password;
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
+      const data = await saveAccountUser({
+        userId: selectedUser?._id,
+        user: body,
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Lỗi ${response.status}: Thao tác thất bại`);
-      }
-      const data = await response.json();
       if (selectedUser) {
         setUsers((prev) => prev.map((user) => (user._id === selectedUser._id ? data.user : user)));
         if (currentUser && selectedUser._id === currentUser._id) {
@@ -310,14 +289,7 @@ const Account = () => {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`${apiUrl}/users/${user._id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Lỗi ${response.status}: Xóa tài khoản thất bại`);
-      }
+      await deleteAccountUser(user._id);
       setUsers((prev) => prev.filter((item) => item._id !== user._id));
     } catch (err) {
       setError(err.message);

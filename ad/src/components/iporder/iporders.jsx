@@ -30,8 +30,15 @@ import TuneIcon from "@mui/icons-material/Tune";
 import moment from "moment";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import {
+  completeImportOrder,
+  createImportOrder,
+  createInventoryOrderTemplate,
+  deleteInventoryOrderTemplate,
+  getInventoryOrderTemplates,
+  getInventoryProductsByIds,
+  listImportOrders,
+} from "../../api/inventoryOrderAdministrationApi";
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -53,6 +60,7 @@ const IpOrders = () => {
   const [productDetails, setProductDetails] = useState({});
   const [orderTemplates, setOrderTemplates] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
+  const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(null);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [filterOrderName, setFilterOrderName] = useState("");
   const [filterUserName, setFilterUserName] = useState("");
@@ -96,21 +104,13 @@ const IpOrders = () => {
     try {
       setLoading(true);
       setError(null);
-      const queryParams = new URLSearchParams({
+      const response = await listImportOrders({
         page,
         orderName,
         userName,
         status: filterStatus === "all" ? "" : filterStatus,
         startDate: filterStartDate,
         endDate: filterEndDate,
-      }).toString();
-
-      const response = await fetch(`${apiUrl}/iporders/orders?${queryParams}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -137,13 +137,7 @@ const IpOrders = () => {
 
   const fetchOrderTemplates = async () => {
     try {
-      const response = await fetch(`${apiUrl}/users/order-templates`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      const response = await getInventoryOrderTemplates();
 
       if (response.status === 401 || response.status === 403) {
         setError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -162,14 +156,7 @@ const IpOrders = () => {
 
   const fetchProductDetails = async (productIds) => {
     try {
-      const response = await fetch(`${apiUrl}/products/fetch-by-ids`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ ids: productIds }),
-      });
+      const response = await getInventoryProductsByIds(productIds);
 
       if (response.status === 401 || response.status === 403) {
         setError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -214,13 +201,9 @@ const IpOrders = () => {
 
   const handleCreateNewOrder = async () => {
     try {
-      const response = await fetch(`${apiUrl}/iporders/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ userName: "admin", productList: [] }),
+      const response = await createImportOrder({
+        userName: "admin",
+        productList: [],
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -261,15 +244,10 @@ const IpOrders = () => {
         };
       });
 
-      const response = await fetch(`${apiUrl}/iporders/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          productList,
-        }),
+      const response = await createImportOrder({
+        orderName: template.displayName || "",
+        note: template.note || "",
+        productList,
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -293,16 +271,10 @@ const IpOrders = () => {
 
   const handleCreateNewTemplate = async () => {
     try {
-      const response = await fetch(`${apiUrl}/users/order-templates`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          displayName: "Mẫu_1",
-          products: [],
-        }),
+      const response = await createInventoryOrderTemplate({
+        displayName: "Mẫu_1",
+        note: "",
+        products: [],
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -321,16 +293,44 @@ const IpOrders = () => {
   };
 
   const handleSelectTemplate = (index) => {
-    navigate(`/importordertemplate/${index}`);
+    setSelectedTemplateIndex(index);
+  };
+
+  const handleEditSelectedTemplate = () => {
+    if (selectedTemplateIndex === null) return;
+    navigate(`/importordertemplate/${selectedTemplateIndex}`);
     handleCloseDialog();
   };
 
+  const handleDeleteSelectedTemplate = async () => {
+    if (selectedTemplateIndex === null) return;
+
+    const selectedTemplate = orderTemplates[selectedTemplateIndex];
+    if (!window.confirm(`Bạn có chắc muốn xóa mẫu "${selectedTemplate?.displayName || "Mẫu không tên"}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await deleteInventoryOrderTemplate(selectedTemplateIndex);
+      if (!response.ok) throw new Error("Lỗi khi xóa mẫu hóa đơn");
+
+      toast.success("Xóa mẫu hóa đơn thành công");
+      setSelectedTemplateIndex(null);
+      await fetchOrderTemplates();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   const handleOpenDialog = () => {
+    setSelectedTemplateIndex(null);
+    fetchOrderTemplates();
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setSelectedTemplateIndex(null);
   };
 
   const handleOpenCreateDialog = () => {
@@ -357,15 +357,7 @@ const IpOrders = () => {
     }
 
     try {
-      const res = await fetch(
-        `${apiUrl}/iporders/orders/${order._id}/setStatusAndQuantity`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ status: true }),
-        }
-      );
+      const res = await completeImportOrder(order._id);
 
       if (!res.ok) throw new Error("Lỗi khi cập nhật đơn hàng");
       await res.json();
@@ -701,33 +693,68 @@ const IpOrders = () => {
       </div>
 
       {/* Dialog danh sách mẫu hóa đơn (chỉnh sửa mẫu) */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        disableScrollLock
+        fullWidth
+        maxWidth="xs"
+      >
         <DialogTitle>Danh sách mẫu hóa đơn</DialogTitle>
-        <DialogContent>
-          {orderTemplates.length > 0 ? (
-            orderTemplates.map((template, index) => (
-              <Button
-                key={template._id || index}
-                variant="outlined"
-                fullWidth
-                sx={{ mb: 1 }}
-                onClick={() => handleSelectTemplate(index)}
-              >
-                {template.displayName || "Mẫu không tên"}
-              </Button>
-            ))
-          ) : (
-            <Typography>Chưa có mẫu hóa đơn nào</Typography>
-          )}
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{ px: 3, py: 2 }}>
+            {orderTemplates.length > 0 ? (
+              orderTemplates.map((template, index) => (
+                <Button
+                  key={template._id || index}
+                  variant={selectedTemplateIndex === index ? "contained" : "outlined"}
+                  fullWidth
+                  sx={{ mb: index === orderTemplates.length - 1 ? 0 : 1 }}
+                  onClick={() => handleSelectTemplate(index)}
+                >
+                  <Box sx={{ width: "100%", textAlign: "left" }}>
+                    <Typography component="div" fontWeight={700}>
+                      {template.displayName || "Mẫu không tên"}
+                    </Typography>
+                    {template.note && (
+                      <Typography component="div" variant="caption" sx={{ opacity: 0.8 }}>
+                        {template.note}
+                      </Typography>
+                    )}
+                  </Box>
+                </Button>
+              ))
+            ) : (
+              <Typography>Chưa có mẫu hóa đơn nào</Typography>
+            )}
+          </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ gap: 1, px: 3, pb: 2 }}>
+          <Button
+            variant="contained"
+            color="success"
+            fullWidth
+            onClick={handleCreateNewTemplate}
+          >
+            Thêm mới
+          </Button>
           <Button
             variant="contained"
             color="primary"
             fullWidth
-            onClick={handleCreateNewTemplate}
+            disabled={selectedTemplateIndex === null}
+            onClick={handleEditSelectedTemplate}
           >
-            Thêm mẫu mới
+            Sửa
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            fullWidth
+            disabled={selectedTemplateIndex === null}
+            onClick={handleDeleteSelectedTemplate}
+          >
+            Xóa
           </Button>
         </DialogActions>
       </Dialog>

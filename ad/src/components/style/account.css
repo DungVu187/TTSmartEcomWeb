@@ -246,6 +246,22 @@
   cursor: default;
 }
 
+/* Account list surface */
+.account-list-table {
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+.account-list-table .MuiDataGrid-root,
+.account-list-table .MuiDataGrid-main,
+.account-list-table .MuiDataGrid-columnHeaders,
+.account-list-table .MuiDataGrid-virtualScroller,
+.account-list-table .MuiDataGrid-virtualScrollerContent,
+.account-list-table .MuiDataGrid-footerContainer,
+.account-list-table .MuiDataGrid-row {
+  background-color: #ffffff !important;
+}
+
 /* Permission matrix */
 .acc-permission-table-wrap {
   width: 100%;

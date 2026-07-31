@@ -22,32 +22,36 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import toast from 'react-hot-toast';
-import { useNavigate, useParams } from 'react-router-dom';
-
-const apiUrl = import.meta.env.VITE_API_URL;
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+  createInventoryOrderTemplate,
+  getInventoryOrderTemplates,
+  getInventoryProductsByIds,
+  searchInventoryOrderTemplateProducts,
+  updateInventoryOrderTemplateDisplayName,
+  updateInventoryOrderTemplateProducts,
+} from '../../api/inventoryOrderAdministrationApi';
 
 const IpOrderTemplate = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [displayName, setDisplayName] = useState('');
+  const [note, setNote] = useState('');
   const [products, setProducts] = useState([]);
   const [productDetails, setProductDetails] = useState({});
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [searchProducts, setSearchProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const location = useLocation();
   const navigate = useNavigate();
   const { index } = useParams();
+  const returnPath = location.pathname.includes('/exportordertemplate/')
+    ? '/exportorder'
+    : '/importorder';
 
   const fetchProductDetails = async (productIds) => {
     try {
-      const response = await fetch(`${apiUrl}/products/fetch-by-ids`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ ids: productIds }),
-      });
+      const response = await getInventoryProductsByIds(productIds);
       if (!response.ok) throw new Error('Failed to fetch product details');
       const result = await response.json();
       return result.products.reduce((acc, product) => {
@@ -64,17 +68,13 @@ const IpOrderTemplate = () => {
   const fetchTemplate = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiUrl}/users/order-templates`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
+      const response = await getInventoryOrderTemplates();
       if (!response.ok) throw new Error('Failed to fetch order templates');
       const data = await response.json();
       const template = data.orderTemplates[Number(index)];
       if (template) {
         setDisplayName(template.displayName || '');
+        setNote(template.note || '');
         setProducts(template.products || []);
         if (template.products.length > 0) {
           const productIds = template.products.map(p => p.productId);
@@ -92,10 +92,7 @@ const IpOrderTemplate = () => {
 
   const fetchAllProducts = async () => {
     try {
-      const response = await fetch(`${apiUrl}/products/?search=${searchTerm}`, {
-        headers: {'Content-Type': 'application/json'},
-        credentials: 'include',
-      });
+      const response = await searchInventoryOrderTemplateProducts(searchTerm);
       const result = await response.json();
       setSearchProducts(result.products);
     } catch (error) {
@@ -140,7 +137,7 @@ const IpOrderTemplate = () => {
     toast.success('Xóa sản phẩm thành công');
   };
 
-  const handleSaveTemplate = async () => {
+  const handleSaveTemplate = async (navigateAfterSave = true) => {
     if (!displayName.trim()) {
       toast.error('Vui lòng nhập tên mẫu hóa đơn');
       return;
@@ -149,32 +146,26 @@ const IpOrderTemplate = () => {
     try {
       const body = {
         displayName: displayName.trim(),
+        note: note.trim(),
         products: products.map(p => ({ productId: p.productId, quantity: p.quantity })),
       };
       let response;
       if (index !== undefined) {
-        response = await fetch(`${apiUrl}/users/order-template/${index}/products`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        });
+        response = await updateInventoryOrderTemplateProducts(index, body);
+        if (!response.ok) throw new Error('Failed to save order template');
+
+        response = await updateInventoryOrderTemplateDisplayName(
+          index,
+          body.displayName,
+          body.note
+        );
       } else {
-        response = await fetch(`${apiUrl}/users/order-templates`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        });
+        response = await createInventoryOrderTemplate(body);
       }
 
       if (!response.ok) throw new Error('Failed to save order template');
       toast.success('Lưu mẫu hóa đơn thành công');
-      navigate('/importorder');
+      if (navigateAfterSave) navigate(returnPath);
     } catch (err) {
       toast.error(err.message);
     }
@@ -192,42 +183,23 @@ const IpOrderTemplate = () => {
     }
 
     try {
-      const response = await fetch(`${apiUrl}/users/order-template/${index}/display-name`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ displayName: displayName.trim() }),
-      });
+      const response = await updateInventoryOrderTemplateDisplayName(
+        index,
+        displayName.trim(),
+        note.trim()
+      );
 
       if (!response.ok) throw new Error('Failed to update display name');
-      toast.success('Cập nhật tên mẫu hóa đơn thành công');
+      toast.success('Cập nhật thông tin mẫu hóa đơn thành công');
     } catch (err) {
       toast.error(err.message);
     }
   };
 
-  const handleDeleteTemplate = async () => {
-    if (index === undefined) {
-      toast.error('Không có mẫu để xóa');
-      return;
-    }
-
-    if (!window.confirm('Bạn có chắc muốn xóa mẫu hóa đơn này?')) return;
-
-    try {
-      const response = await fetch(`${apiUrl}/users/order-template/${index}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete order template');
-      toast.success('Xóa mẫu hóa đơn thành công');
-      navigate('/importorder');
-    } catch (err) {
-      toast.error(err.message);
-    }
+  const handleEnterKey = (event, action) => {
+    if (event.key !== 'Enter' || event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    action();
   };
 
   useEffect(() => {
@@ -240,34 +212,32 @@ const IpOrderTemplate = () => {
 
   return (
     <Box p={2}>
-      <Box display="flex" justifyContent="space-between" mb={2}>
+      <Box display="flex" mb={2}>
         <Typography variant="h5">Chỉnh sửa mẫu hóa đơn</Typography>
-        <Box display="flex" gap={2}>
-          {index !== undefined && (
-            <Button
-              variant="contained"
-              color="error"
-              onClick={handleDeleteTemplate}
-            >
-              Xóa mẫu
-            </Button>
-          )}
-          <Button variant="contained" color="success" onClick={handleSaveTemplate}>
-            Lưu mẫu
-          </Button>
-        </Box>
       </Box>
 
-      <Box display="flex" alignItems="center" gap={2} mb={2}>
+      <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
         <TextField
           label="Tên mẫu hóa đơn"
           fullWidth
           variant="outlined"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
+          onKeyDown={(event) => handleEnterKey(event, handleSaveDisplayName)}
           placeholder="Nhập tên mẫu hóa đơn"
           size='small'
           sx={{ width: '300px'}}
+        />
+        <TextField
+          label="Ghi chú"
+          fullWidth
+          variant="outlined"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(event) => handleEnterKey(event, handleSaveDisplayName)}
+          placeholder="Nhập ghi chú cho mẫu hóa đơn"
+          size="small"
+          sx={{ width: '300px' }}
         />
         <Button
           variant="contained"
@@ -275,7 +245,10 @@ const IpOrderTemplate = () => {
           onClick={handleSaveDisplayName}
           disabled={index === undefined}
         >
-          Lưu tên
+          Lưu thông tin
+        </Button>
+        <Button variant="contained" color="success" onClick={() => handleSaveTemplate()}>
+          Lưu mẫu
         </Button>
       </Box>
 
@@ -323,6 +296,9 @@ const IpOrderTemplate = () => {
                       type="number"
                       value={product.quantity}
                       onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                      onKeyDown={(event) =>
+                        handleEnterKey(event, () => handleSaveTemplate(false))
+                      }
                       inputProps={{ min: 1 }}
                     />
                   </TableCell>
@@ -353,6 +329,7 @@ const IpOrderTemplate = () => {
               label="Tìm kiếm sản phẩm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(event) => handleEnterKey(event, fetchAllProducts)}
               variant="outlined"
               size="small"
               fullWidth

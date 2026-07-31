@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
@@ -25,12 +24,26 @@ import {
   PRODUCT_IMAGE_ACCEPT,
   PRODUCT_IMAGE_UPLOAD_SETTINGS,
 } from "../settings/imageUpload";
-import ProductTechDocs from "./producttechdocs";
+import ProductTechDocs, { MAX_PRODUCT_DOCUMENTS } from "./producttechdocs";
 import { formatVariantPrice } from "../utils/productpricing";
+import {
+  addProductQuantity,
+  deleteProduct,
+  deleteProductVariantImage,
+  getProductDetail,
+  getProductDisplaySectionValues,
+  getProductDisplayTaxonomy,
+  toggleProductDisplay,
+  updateProduct,
+  updateProductEarn,
+  updateProductImportPrice,
+  updateProductVat,
+  uploadProductDetailImage,
+} from "../api/productManagementApi";
 import "./style/productdisplay.css";
-const apiUrl = import.meta.env.VITE_API_URL;
 
 const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join(", ");
+const WARRANTY_OPTIONS = ["3 tháng", "6 tháng", "12 tháng", "Theo NSX"];
 
 const hasValue = (value) => {
   const normalized = String(value ?? "")
@@ -102,12 +115,8 @@ const ProductDisplay = () => {
 
   const fetchProduct = async () => {
     try {
-      const endpoint = canEdit
-        ? `${apiUrl}/products/${productId}/admin-detail`
-        : `${apiUrl}/products/${productId}`;
-      const response = await fetch(endpoint, { credentials: "include" });
-      if (response.ok) {
-        const data = await response.json();
+      const data = await getProductDetail(productId, { admin: canEdit });
+      if (data) {
         setProduct(data);
         setOriginalProduct(data);
         setNoteInput(data.variant?.[0]?.note || "");
@@ -151,16 +160,7 @@ const ProductDisplay = () => {
 
     if (product?.variant?.[0]?.imgUrl) {
       try {
-        const response = await fetch(
-          `${apiUrl}/products/${productId}/0/image`,
-          {
-            method: "DELETE",
-            credentials: 'include',
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Failed to delete old image");
-        }
+        await deleteProductVariantImage(productId, 0);
       } catch (err) {
         console.error("Error deleting old image:", err);
         toast.error("Failed to delete old image");
@@ -168,16 +168,8 @@ const ProductDisplay = () => {
       }
     }
 
-    const formData = new FormData();
-    formData.append("product", file);
     try {
-      const response = await fetch(`${apiUrl}/products/upload/image`, {
-        method: "POST",
-        credentials: 'include',
-        body: formData,
-      });
-
-      const data = await response.json();
+      const data = await uploadProductDetailImage(file);
       if (data.success) {
         const updatedProduct = {
           ...product,
@@ -202,6 +194,12 @@ const ProductDisplay = () => {
   const handleProductUpdate = async (updatedProduct = product) => {
     if (!updatedProduct) {
       toast.error("Không có dữ liệu sản phẩm để cập nhật");
+      return;
+    }
+
+    const documents = Array.isArray(updatedProduct.documents) ? updatedProduct.documents : [];
+    if (documents.length > MAX_PRODUCT_DOCUMENTS) {
+      toast.error(`Chỉ được thêm tối đa ${MAX_PRODUCT_DOCUMENTS} tài liệu kỹ thuật`);
       return;
     }
 
@@ -235,7 +233,7 @@ const ProductDisplay = () => {
         operatingMethod: updatedProduct.operatingMethod || "",
         advantages: updatedProduct.advantages || "",
         specifications: updatedProduct.specifications || "",
-        documents: Array.isArray(updatedProduct.documents) ? updatedProduct.documents : [],
+        documents,
         infoDoc: {
           manual: updatedProduct.infoDoc?.manual || "",
           dataSheet: updatedProduct.infoDoc?.dataSheet || "",
@@ -259,19 +257,7 @@ const ProductDisplay = () => {
         ],
       };
 
-      const response = await fetch(`${apiUrl}/products/${productId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify(productData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update product");
-      }
+      await updateProduct(productId, productData);
 
       toast.success("Cập nhật sản phẩm thành công");
       fetchProduct();
@@ -284,17 +270,7 @@ const ProductDisplay = () => {
   const handleDeleteProduct = async () => {
     if (window.confirm("Bạn có chắc muốn xóa sản phẩm này")) {
       try {
-        const response = await fetch(`${apiUrl}/products/${productId}`, {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: 'include',
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to delete product");
-        }
+        await deleteProduct(productId);
         toast.success("Xóa sản phẩm thành công");
         setTimeout(() => {
           window.location.href = "/admin/product";
@@ -313,19 +289,7 @@ const ProductDisplay = () => {
     }
 
     try {
-      const response = await fetch(`${apiUrl}/products/${productId}/0`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify({ quantity: quantityInput, orderId: '', orderName: '' }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update quantity");
-      }
+      await addProductQuantity(productId, 0, quantityInput);
 
       toast.success("Cập nhật số lượng thành công");
       setQuantityInput("");
@@ -361,19 +325,7 @@ const ProductDisplay = () => {
     if (!product) return;
 
     try {
-      const response = await fetch(`${apiUrl}/products/${productId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ vat: product.vat || "" }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update VAT");
-      }
+      await updateProductVat(productId, product.vat || "");
 
       toast.success("Cập nhật VAT thành công");
       fetchProduct();
@@ -390,22 +342,7 @@ const ProductDisplay = () => {
     }
 
     try {
-      const response = await fetch(
-        `${apiUrl}/products/${productId}/0/update-earn`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: 'include',
-          body: JSON.stringify({ earn: Number(earnInput) }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update earn");
-      }
+      await updateProductEarn(productId, 0, Number(earnInput));
 
       toast.success("Cập nhật % lợi nhuận thành công");
       fetchProduct();
@@ -423,22 +360,7 @@ const ProductDisplay = () => {
     }
 
     try {
-      const response = await fetch(
-        `${apiUrl}/products/${productId}/0/update-import-price`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: 'include',
-          body: JSON.stringify({ importPrice }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update import price");
-      }
+      await updateProductImportPrice(productId, 0, importPrice);
 
       toast.success("Cập nhật giá nhập thành công");
       fetchProduct();
@@ -448,28 +370,27 @@ const ProductDisplay = () => {
     }
   };
 
+  const handleEnterUpdate = (event, updateAction) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    updateAction();
+  };
+
+  const handleWarrantyEnter = (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent?.isComposing) return;
+
+    const input = event.target;
+    window.setTimeout(() => {
+      const updatedProduct = { ...product, warranty: input.value };
+      setProduct(updatedProduct);
+      handleProductUpdate(updatedProduct);
+    }, 0);
+  };
+
   // Hàm xử lý thay đổi display
   const handleToggleDisplay = async () => {
     try {
-      const response = await fetch(
-        `${apiUrl}/products/${productId}/toggle-display`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: 'include',
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || "Không thể thay đổi trạng thái hiển thị"
-        );
-      }
-
-      const updatedData = await response.json();
+      const updatedData = await toggleProductDisplay(productId);
       setProduct({ ...product, display: updatedData.product.display });
       toast.success(updatedData.message);
     } catch (error) {
@@ -481,16 +402,10 @@ const ProductDisplay = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [brandsRes, typesRes, sectionsRes] = await Promise.all([
-          fetch(`${apiUrl}/chips/brands`),
-          fetch(`${apiUrl}/products/types`, { cache: "no-store" }),
-          fetch(`${apiUrl}/chips/section`),
-        ]);
-
-        if (brandsRes.ok)
-          setBrands((await brandsRes.json()).map((b) => b.Brand));
-        if (typesRes.ok) setTypes((await typesRes.json()).map((t) => t.Type));
-        if (sectionsRes.ok) setSections(await sectionsRes.json());
+        const { brands, types, sections } = await getProductDisplayTaxonomy();
+        if (brands) setBrands(brands.map((brand) => brand.Brand));
+        if (types) setTypes(types.map((type) => type.Type));
+        if (sections) setSections(sections);
       } catch (err) {
         console.error("Error fetching initial data:", err);
       }
@@ -502,12 +417,8 @@ const ProductDisplay = () => {
     const fetchSectionValues = async () => {
       if (product?.section) {
         try {
-          const response = await fetch(
-            `${apiUrl}/chips/${product.section}/value`
-          );
-          if (response.ok) {
-            setValues(await response.json());
-          }
+          const data = await getProductDisplaySectionValues(product.section);
+          if (data) setValues(data);
         } catch (error) {
           console.error("Error fetching section values:", error);
           setValues([]);
@@ -691,6 +602,7 @@ const ProductDisplay = () => {
                   ],
                 })
               }
+              onKeyDown={(event) => handleEnterUpdate(event, handleUpdateImportPrice)}
               disabled={!canEdit}
               fullWidth
               size="small"
@@ -717,6 +629,7 @@ const ProductDisplay = () => {
               type="number"
               value={earnInput}
               onChange={(e) => setEarnInput(e.target.value)}
+              onKeyDown={(event) => handleEnterUpdate(event, handleUpdateEarn)}
               label="% Lợi nhuận"
               size="small"
               disabled={!canEdit}
@@ -742,6 +655,7 @@ const ProductDisplay = () => {
               size="small"
               value={product.vat || ""}
               onChange={(e) => setProduct({ ...product, vat: e.target.value })}
+              onKeyDown={(event) => handleEnterUpdate(event, handleUpdateVat)}
               disabled={!canEdit}
               sx={{ flex: 1 }}
             />
@@ -763,9 +677,9 @@ const ProductDisplay = () => {
             sx={metricRowSx}
           >
             <TextField
-              multiline
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
+              onKeyDown={(event) => handleEnterUpdate(event, handleSaveNote)}
               label="Ghi chú"
               size="small"
               disabled={!canEdit}
@@ -857,38 +771,44 @@ const ProductDisplay = () => {
 
           <Paper component="section" className="product-description-card">
             <Typography variant="h6">Thông tin mô tả</Typography>
-            <TextField
-              className="product-description-field"
-              label="Mô tả"
-              fullWidth
-              margin="normal"
-              multiline
-              minRows={7}
-              value={product.description || ""}
-              onChange={(e) =>
-                setProduct({ ...product, description: e.target.value })
-              }
-              disabled={!canEdit}
-            />
+            <Box className="product-description-content">
+              <TextField
+                className="product-description-field"
+                label="Mô tả"
+                fullWidth
+                multiline
+                InputLabelProps={{ shrink: true }}
+                value={product.description || ""}
+                onChange={(e) =>
+                  setProduct({ ...product, description: e.target.value })
+                }
+                onKeyDown={(event) =>
+                  handleEnterUpdate(event, () => handleProductUpdate())
+                }
+                disabled={!canEdit}
+              />
 
-            <TextField
-              className="product-specifications-field"
-              label="Thông số kỹ thuật"
-              fullWidth
-              margin="normal"
-              multiline
-              minRows={7}
-              value={product.specifications || ""}
-              onChange={(e) =>
-                setProduct({ ...product, specifications: e.target.value })
-              }
-              disabled={!canEdit}
-            />
-            <ProductTechDocs
-              value={product.documents}
-              onChange={(documents) => setProduct({ ...product, documents })}
-              disabled={!canEdit}
-            />
+              <TextField
+                className="product-specifications-field"
+                label="Thông số kỹ thuật"
+                fullWidth
+                multiline
+                InputLabelProps={{ shrink: true }}
+                value={product.specifications || ""}
+                onChange={(e) =>
+                  setProduct({ ...product, specifications: e.target.value })
+                }
+                onKeyDown={(event) =>
+                  handleEnterUpdate(event, () => handleProductUpdate())
+                }
+                disabled={!canEdit}
+              />
+              <ProductTechDocs
+                value={product.documents}
+                onChange={(documents) => setProduct({ ...product, documents })}
+                disabled={!canEdit}
+              />
+            </Box>
           </Paper>
           </Box>
 
@@ -979,6 +899,7 @@ const ProductDisplay = () => {
             size="small"
             value={product.name || ""}
             onChange={(e) => setProduct({ ...product, name: e.target.value })}
+            onKeyDown={(event) => handleEnterUpdate(event, () => handleProductUpdate())}
             disabled={!canEdit}
           />
           <TextField
@@ -989,19 +910,38 @@ const ProductDisplay = () => {
             size="small"
             value={product.code || ""}
             onChange={(e) => setProduct({ ...product, code: e.target.value })}
+            onKeyDown={(event) => handleEnterUpdate(event, () => handleProductUpdate())}
             disabled={!canEdit}
           />
-          <TextField
+          <Autocomplete
+            freeSolo
             className="product-info-warranty"
-            label="Bảo hành"
-            fullWidth
-            margin="normal"
-            size="small"
-            value={product.warranty || ""}
-            onChange={(e) =>
-              setProduct({ ...product, warranty: e.target.value })
+            options={WARRANTY_OPTIONS}
+            value={product.warranty || null}
+            inputValue={product.warranty || ""}
+            onChange={(_, newValue) =>
+              setProduct((currentProduct) => ({
+                ...currentProduct,
+                warranty: newValue || "",
+              }))
+            }
+            onInputChange={(_, newInputValue) =>
+              setProduct((currentProduct) => ({
+                ...currentProduct,
+                warranty: newInputValue,
+              }))
             }
             disabled={!canEdit}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Bảo hành"
+                fullWidth
+                margin="normal"
+                size="small"
+                onKeyDown={handleWarrantyEnter}
+              />
+            )}
           />
           </Paper>
           <Dialog open={openQRDialog} onClose={handleCloseQRDialog} disableScrollLock>

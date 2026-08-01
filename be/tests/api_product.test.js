@@ -78,6 +78,46 @@ const createStaffAgent = async ({ phone, permissions = [], functions = ['product
 };
 
 describe('Products API Tests (Phase 4)', () => {
+  it('returns import prices only from the permission-protected inventory batch endpoint', async () => {
+    const product = await createProductDoc({
+      code: 'INVENTORY-PRICE-DETAIL',
+      variant: [{
+        price: '125000',
+        importPrice: '100000',
+        earn: 25,
+        color: 'Gray',
+        quantityForSale: 10,
+        quantityInStorage: 10
+      }]
+    });
+    const allowedAgent = await createStaffAgent({
+      phone: '0987654301',
+      permissions: ['iporder.view']
+    });
+    const blockedAgent = await createStaffAgent({
+      phone: '0987654302',
+      permissions: ['product.view']
+    });
+
+    const allowed = await allowedAgent
+      .post('/products/fetch-inventory-by-ids')
+      .send({ ids: [product._id.toString()] });
+
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.products).toHaveLength(1);
+    expect(allowed.body.products[0].variant[0]).toMatchObject({
+      importPrice: '100000',
+      price: '125000',
+      earn: 25
+    });
+
+    const blocked = await blockedAgent
+      .post('/products/fetch-inventory-by-ids')
+      .send({ ids: [product._id.toString()] });
+
+    expect(blocked.status).toBe(403);
+  });
+
   it('Test Case 7: GET /products phân trang và bộ lọc hoạt động chính xác', async () => {
     // 1. Thêm một vài sản phẩm mẫu trực tiếp vào DB test
     const productsToInsert = [];

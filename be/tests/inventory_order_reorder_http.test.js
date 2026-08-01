@@ -79,7 +79,7 @@ describe('Inventory order reorder routes', () => {
           productId: otherProductId,
           price: '250',
           unit: 'cai',
-          quantity: 3,
+          quantity: 0,
           quantityRe: 0,
           stockAppliedQuantity: 0,
           status: false,
@@ -109,7 +109,7 @@ describe('Inventory order reorder routes', () => {
       expect.arrayContaining(originalIds.slice(0, 2))
     );
     expect(reordered.body.productList.map((line) => line.stockAppliedQuantity)).toEqual([0, 1, 1]);
-    expect(reordered.body.total).toBe('1150');
+    expect(reordered.body.total).toBe('400');
     expect(reordered.body.status).toBe(true);
 
     const editedPayload = reordered.body.productList.map((line) => ({ ...line }));

@@ -345,6 +345,7 @@ const Orders = () => {
           Quản lý đơn hàng bán
         </Typography>
         <Box
+          className="sales-order-filters"
           display="flex"
           columnGap={2}
           rowGap={4}

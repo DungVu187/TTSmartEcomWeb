@@ -252,6 +252,14 @@ table {
   padding: 5px 8px !important;
 }
 
+.sticky-header > .inventory-order-desktop-filters {
+  row-gap: 16px !important;
+}
+
+.sticky-header > .sales-order-filters {
+  row-gap: 16px !important;
+}
+
 .admin-list-page .MuiOutlinedInput-notchedOutline,
 .inventory-order-list-page .MuiOutlinedInput-notchedOutline,
 .admin-list-controls .MuiOutlinedInput-notchedOutline {

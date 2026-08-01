@@ -120,8 +120,11 @@ const IpOrderTemplate = () => {
   };
 
   const handleProductChange = (productIndex, field, value) => {
+    const nextValue = field === 'quantity'
+      ? (value === '' ? '' : Number(value))
+      : value;
     const updatedProducts = products.map((product, i) =>
-      i === productIndex ? { ...product, [field]: field === 'quantity' ? Number(value) || 1 : value } : product
+      i === productIndex ? { ...product, [field]: nextValue } : product
     );
     setProducts(updatedProducts);
 
@@ -130,6 +133,15 @@ const IpOrderTemplate = () => {
         setProductDetails(prev => ({ ...prev, ...details }));
       });
     }
+  };
+
+  const handleQuantityBlur = (productIndex, value) => {
+    const quantity = Number(value);
+    handleProductChange(
+      productIndex,
+      'quantity',
+      Number.isInteger(quantity) && quantity >= 1 ? quantity : 1
+    );
   };
 
   const handleRemoveProduct = (productIndex) => {
@@ -147,7 +159,12 @@ const IpOrderTemplate = () => {
       const body = {
         displayName: displayName.trim(),
         note: note.trim(),
-        products: products.map(p => ({ productId: p.productId, quantity: p.quantity })),
+        products: products.map(p => ({
+          productId: p.productId,
+          quantity: Number.isInteger(Number(p.quantity)) && Number(p.quantity) >= 1
+            ? Number(p.quantity)
+            : 1,
+        })),
       };
       let response;
       if (index !== undefined) {
@@ -296,10 +313,11 @@ const IpOrderTemplate = () => {
                       type="number"
                       value={product.quantity}
                       onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                      onBlur={(e) => handleQuantityBlur(index, e.target.value)}
                       onKeyDown={(event) =>
                         handleEnterKey(event, () => handleSaveTemplate(false))
                       }
-                      inputProps={{ min: 1 }}
+                      inputProps={{ min: 1, step: 1 }}
                     />
                   </TableCell>
                   <TableCell>

@@ -357,7 +357,7 @@ const EpOrders = () => {
             alignItems: "center",
             flexWrap: "wrap",
             gap: 2,
-            mb: "12px !important",
+            mb: "8px !important",
           }}
         >
           <Typography variant="h5" sx={{ whiteSpace: "nowrap", mb: "0 !important" }}>
@@ -377,6 +377,7 @@ const EpOrders = () => {
 
         {/* 1. Bộ lọc cho Desktop */}
         <Box
+          className="inventory-order-desktop-filters"
           sx={{
             display: { xs: "none", sm: "flex" },
             columnGap: 1.5,

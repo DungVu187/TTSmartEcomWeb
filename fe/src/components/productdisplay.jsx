@@ -15,9 +15,6 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import SmartphoneIcon from "@mui/icons-material/Smartphone";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import VerifiedIcon from "@mui/icons-material/Verified";
-import BeenhereIcon from "@mui/icons-material/Beenhere";
-import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { useLanguage } from "../context/languagecontext.jsx";
 import { ShopContext } from "../context/shopcontext";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
@@ -45,6 +42,8 @@ const variantFilterLabelKeys = {
   frame: "frame_label",
   buttonCount: "button_count",
 };
+
+const SHOW_EXTENDED_PRODUCT_DESCRIPTION = false;
 
 function ProductDisplay() {
   const { t } = useLanguage();
@@ -89,7 +88,13 @@ function ProductDisplay() {
     }
   }, []);
 
-  const fetchProduct = useCallback(async () => {
+  const fetchProduct = useCallback(async (resetView = false) => {
+    if (resetView) {
+      setLoading(true);
+      setProduct(null);
+      setSelectedVariant(null);
+    }
+
     try {
       const response = await getStorefrontProduct(productId);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -126,7 +131,7 @@ function ProductDisplay() {
 
   useEffect(() => {
     fetchUserProfile();
-    fetchProduct();
+    fetchProduct(true);
   }, [fetchUserProfile, fetchProduct]);
 
   useEffect(() => {
@@ -317,6 +322,11 @@ function ProductDisplay() {
       product.infoDoc.catalog?.trim() || product.infoDoc.others?.trim())
   );
   const hasInfoDoc = technicalDocuments.length > 0 || hasLegacyInfoDoc;
+  const hasVisibleProductDescription = Boolean(
+    product.description ||
+    (SHOW_EXTENDED_PRODUCT_DESCRIPTION &&
+      (product.features || product.operatingMethod || product.advantages))
+  );
   const detailTabs = [
     { key: "description", label: t("product_description") },
     ...(hasSpecifications ? [{ key: "specifications", label: t("specifications") }] : []),
@@ -353,12 +363,13 @@ function ProductDisplay() {
           <div className="product-gallery-card">
             <div className="product-gallery-layout">
               <div className="product-gallery-main">
-                <SafeProductImage src={productImage} alt={product.name} className="product-main-canvas" />
-                <div className="product-gallery-benefits">
-                  <span><i className="fa-solid fa-expand" /> {t("real_image_100")}</span>
-                  <span><i className="fa-solid fa-shield-halved" /> {t("official_warranty")}</span>
-                  <span><i className="fa-solid fa-rotate" /> {t("return_by_policy")}</span>
-                </div>
+                <SafeProductImage
+                  src={productImage}
+                  alt={product.name}
+                  className="product-main-canvas"
+                  loading="eager"
+                  fetchPriority="high"
+                />
               </div>
             </div>
           </div>
@@ -416,8 +427,8 @@ function ProductDisplay() {
             </div>
 
             {isContactOnly ? (
-              <Button className="product-contact-stock-button" variant="contained" href="tel:0913158383" startIcon={<SmartphoneIcon />}>
-                0913 158 383
+              <Button className="product-contact-stock-button" variant="contained" href="tel:0813158383" startIcon={<SmartphoneIcon />}>
+                0813 158 383
               </Button>
             ) : (
               <div className="product-primary-actions">
@@ -440,14 +451,6 @@ function ProductDisplay() {
               <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><img src="/icons8-zalo.svg" alt="" /> {t("contact_zalo")}</a>
               <a href="mailto:ttsmart.ltd@gmail.com"><MailOutlineIcon /> {t("send_email")}</a>
               <Link to="/policy"><HelpOutlineIcon /> {t("faqs")}</Link>
-            </div>
-            <div className="product-service-card">
-              <h2>{t("ttsmart_commitment")}</h2>
-              <span><VerifiedIcon /> {t("genuine_100")}</span>
-              <span><BeenhereIcon /> {t("genuine_warranty_label")}</span>
-              <span><UndoOutlinedIcon /> {t("return_3_days")}</span>
-              <span><i className="fa-solid fa-truck-fast" /> {t("nationwide_delivery")}</span>
-              <span><i className="fa-solid fa-headset" /> {t("technical_support_247")}</span>
             </div>
           </aside>
         </section>
@@ -482,10 +485,10 @@ function ProductDisplay() {
             {currentTab === "description" && (
               <div className="product-description-content">
                 {product.description && <section><h2>{t("product_description")}</h2><p>{product.description}</p></section>}
-                {product.features && <section><h2>{t("features")}</h2><p>{product.features}</p></section>}
-                {product.operatingMethod && <section><h2>{t("operating_method")}</h2><p>{product.operatingMethod}</p></section>}
-                {product.advantages && <section><h2>{t("advantages")}</h2><p>{product.advantages}</p></section>}
-                {!product.description && !product.features && !product.operatingMethod && !product.advantages && <p>{t("product_info_updating")}</p>}
+                {SHOW_EXTENDED_PRODUCT_DESCRIPTION && product.features && <section><h2>{t("features")}</h2><p>{product.features}</p></section>}
+                {SHOW_EXTENDED_PRODUCT_DESCRIPTION && product.operatingMethod && <section><h2>{t("operating_method")}</h2><p>{product.operatingMethod}</p></section>}
+                {SHOW_EXTENDED_PRODUCT_DESCRIPTION && product.advantages && <section><h2>{t("advantages")}</h2><p>{product.advantages}</p></section>}
+                {!hasVisibleProductDescription && <p>{t("product_info_updating")}</p>}
               </div>
             )}
 
@@ -554,7 +557,7 @@ function ProductDisplay() {
           <span>{t("call")}</span>
         </a>
         {isContactOnly ? (
-          <a className="product-mobile-contact-button" href="tel:0913158383">
+          <a className="product-mobile-contact-button" href="tel:0813158383">
             {t("contact_for_quote")}
           </a>
         ) : (

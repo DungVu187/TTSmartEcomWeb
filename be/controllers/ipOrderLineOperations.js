@@ -76,7 +76,7 @@ async function reorderIpOrderLines(req, res) {
         typeof item.price === 'string' &&
         typeof item.unit === 'string' &&
         Number.isInteger(item.quantity) &&
-        item.quantity > 0 &&
+        item.quantity >= 0 &&
         typeof item.quantityRe === 'number' &&
         Number.isFinite(item.quantityRe) &&
         item.quantityRe >= 0 &&

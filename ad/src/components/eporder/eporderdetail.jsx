@@ -2524,13 +2524,17 @@ const ExportOrderDetail = () => {
               <ListItemIcon><CloudUploadIcon color="info" fontSize="small" /></ListItemIcon>
               <ListItemText>Xuất Excel</ListItemText>
             </MenuItem>
-            <MenuItem component="label" onClick={() => setExcelMenuAnchor(null)}>
+            <MenuItem component="label">
               <ListItemIcon><CloudDownloadIcon color="warning" fontSize="small" /></ListItemIcon>
               <ListItemText>Nhập Excel</ListItemText>
               <VisuallyHiddenInput
                 type="file"
                 accept=".xlsx, .xls"
-                onChange={handleFileUpload}
+                onChange={(event) => {
+                  setExcelMenuAnchor(null);
+                  handleFileUpload(event);
+                  event.target.value = "";
+                }}
               />
             </MenuItem>
           </Menu>

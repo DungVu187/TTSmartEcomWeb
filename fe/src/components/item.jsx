@@ -28,7 +28,7 @@ function Item({ product }) {
   const imageVersion = encodeURIComponent(product.updatedAt || product._id || "1");
   const imageUrl = primaryVariant.imgUrl
     ? `${primaryVariant.imgUrl}${primaryVariant.imgUrl.includes("?") ? "&" : "?"}v=${imageVersion}`
-    : "placeholder.jpg";
+    : "";
 
   const handleClick = () => navigate(`/product/${product._id}`);
 

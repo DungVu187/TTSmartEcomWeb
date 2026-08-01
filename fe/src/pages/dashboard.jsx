@@ -360,7 +360,6 @@ function Dashboard() {
                           >
                             <i className="fa-solid fa-cart-shopping" />
                           </button>
-                          <button type="button" aria-label={t("add_to_favorites")}><i className="fa-regular fa-heart" /></button>
                         </div>
                       </article>
                     </SwiperSlide>
@@ -449,7 +448,6 @@ function Dashboard() {
                           >
                             <i className="fa-solid fa-cart-shopping" />
                           </button>
-                          <button type="button" aria-label={t("add_to_favorites")}><i className="fa-regular fa-heart" /></button>
                         </div>
                       </article>
                     </SwiperSlide>

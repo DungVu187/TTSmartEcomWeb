@@ -219,7 +219,7 @@ export const deleteInventoryOrderTemplate = (index) =>
   apiFetch(`/users/order-template/${index}`, { method: "DELETE" });
 
 export const getInventoryProductsByIds = (ids) =>
-  jsonRequest("/products/fetch-by-ids", {
+  jsonRequest("/products/fetch-inventory-by-ids", {
     method: "POST",
     json: { ids },
   });

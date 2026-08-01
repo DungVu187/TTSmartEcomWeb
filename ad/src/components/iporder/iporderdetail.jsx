@@ -195,10 +195,14 @@ const SortableTableRow = ({
       >
         ☰
       </TableCell>
-      <TableCell align="center">
+      <TableCell align="center" sx={{ overflowWrap: "break-word" }}>
         <Typography
           variant="body2"
-          sx={{ cursor: "pointer", color: "primary.main" }}
+          sx={{
+            cursor: "pointer",
+            color: "primary.main",
+            overflowWrap: "break-word",
+          }}
           onClick={() => navigate(`/product/${product.productId}`)}
         >
           {product.name || "N/A"}
@@ -335,6 +339,8 @@ const SortableTableRow = ({
           disabled={!canEdit}
           size="small"
           multiline
+          fullWidth
+          sx={{ minWidth: 0 }}
         />
       </TableCell>
       <TableCell align="center">
@@ -1449,7 +1455,7 @@ const ImportOrderDetail = () => {
   const handleAddProduct = async (product) => {
     const productDetailsData = await fetchProductDetails([product._id]);
     const selectedProduct = productDetailsData[0] || {};
-    const importPrice = selectedProduct.variant?.[0]?.importPrice || "0";
+    const importPrice = selectedProduct.variant?.[0]?.importPrice ?? "";
 
     const newProduct = {
       productId: product._id,
@@ -1483,6 +1489,15 @@ const ImportOrderDetail = () => {
     value,
     save = false
   ) => {
+    if (
+      !Number.isInteger(productIndex) ||
+      productIndex < 0 ||
+      productIndex >= tempProductList.length ||
+      !tempProductList[productIndex]?.productId
+    ) {
+      return;
+    }
+
     // Cập nhật tạm thời
     const updatedTempList = [...tempProductList];
     updatedTempList[productIndex] = {
@@ -1875,7 +1890,17 @@ const ImportOrderDetail = () => {
         over.id
     );
 
-    const reorderedList = [...tempProductList];
+    const reorderedList = tempProductList.filter(
+      (item) => item && item.productId
+    );
+    if (
+      oldIndex < 0 ||
+      newIndex < 0 ||
+      oldIndex >= reorderedList.length ||
+      newIndex >= reorderedList.length
+    ) {
+      return;
+    }
     const [movedItem] = reorderedList.splice(oldIndex, 1);
     reorderedList.splice(newIndex, 0, movedItem);
 
@@ -2485,13 +2510,17 @@ const ImportOrderDetail = () => {
               <ListItemIcon><CloudUploadIcon color="info" fontSize="small" /></ListItemIcon>
               <ListItemText>Xuất Excel</ListItemText>
             </MenuItem>
-            <MenuItem component="label" onClick={() => setExcelMenuAnchor(null)}>
+            <MenuItem component="label">
               <ListItemIcon><CloudDownloadIcon color="warning" fontSize="small" /></ListItemIcon>
               <ListItemText>Nhập Excel</ListItemText>
               <VisuallyHiddenInput
                 type="file"
                 accept=".xlsx, .xls"
-                onChange={handleFileUpload}
+                onChange={(event) => {
+                  setExcelMenuAnchor(null);
+                  handleFileUpload(event);
+                  event.target.value = "";
+                }}
               />
             </MenuItem>
           </Menu>
@@ -2589,8 +2618,15 @@ const ImportOrderDetail = () => {
           <Table
             stickyHeader
             sx={{
+              width: "100%",
+              minWidth: 1300,
+              tableLayout: "fixed",
               "& .MuiTableCell-root": {
                 borderColor: "#C3CEDB",
+              },
+              "& .MuiTableCell-head": {
+                fontWeight: 700,
+                whiteSpace: "nowrap",
               },
               "& .MuiOutlinedInput-notchedOutline": {
                 borderColor: "#A7B5C6",
@@ -2603,19 +2639,19 @@ const ImportOrderDetail = () => {
           >
             <TableHead>
               <TableRow>
-                <TableCell align="center"></TableCell>
-                <TableCell align="center">Tên</TableCell>
-                <TableCell align="center">Hình ảnh</TableCell>
-                <TableCell align="center">Mã</TableCell>
-                <TableCell align="center">Hãng</TableCell>
-                <TableCell align="center">Giá nhập</TableCell>
-                <TableCell align="center">Đơn vị</TableCell>
-                <TableCell align="center">Số lượng nhập</TableCell>
-                <TableCell align="center">Đã nhận</TableCell>
-                <TableCell align="center">Nhập số lượng nhận</TableCell>
-                <TableCell align="center">Ghi chú</TableCell>
-                <TableCell align="center">Trạng thái</TableCell>
-                <TableCell align="center"></TableCell>
+                <TableCell align="center" sx={{ width: 40 }}></TableCell>
+                <TableCell align="center" sx={{ width: 180 }}>Tên</TableCell>
+                <TableCell align="center" sx={{ width: 70 }}>Hình ảnh</TableCell>
+                <TableCell align="center" sx={{ width: 100 }}>Mã</TableCell>
+                <TableCell align="center" sx={{ width: 100 }}>Hãng</TableCell>
+                <TableCell align="center" sx={{ width: 115 }}>Giá nhập</TableCell>
+                <TableCell align="center" sx={{ width: 85 }}>Đơn vị</TableCell>
+                <TableCell align="center" sx={{ width: 125 }}>Số lượng nhập</TableCell>
+                <TableCell align="center" sx={{ width: 85 }}>Đã nhận</TableCell>
+                <TableCell align="center" sx={{ width: 150 }}>Nhập số lượng nhận</TableCell>
+                <TableCell align="center" sx={{ width: 190 }}>Ghi chú</TableCell>
+                <TableCell align="center" sx={{ width: 90 }}>Trạng thái</TableCell>
+                <TableCell align="center" sx={{ width: 55 }}></TableCell>
               </TableRow>
             </TableHead>
             <SortableContext

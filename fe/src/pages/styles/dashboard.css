@@ -151,7 +151,7 @@
 .home-product-card { min-width: 0; padding: 14px; display: flex; flex-direction: column; transition: box-shadow .22s ease, border-color .22s ease; }
 .home-product-card:hover { border-color: #cddbec; box-shadow: 0 10px 24px rgba(16,42,67,.11); }
 .home-product-image { height: 168px; padding: 6px 6px 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-bottom: 1px solid #edf1f5; }
-.home-product-canvas { width: 100%; height: 100%; display: block; transform: none !important; filter: none !important; }
+.home-product-canvas { width: 100%; height: 100%; display: block; object-fit: contain; transform: none !important; filter: none !important; }
 .home-product-brand { margin-top: 8px; color: #64748b; font-size: 11px; font-weight: 700; }
 .home-product-name { min-height: 41px; margin-top: 5px; color: #172b4d; text-decoration: none; font-size: 13.5px; font-weight: 650; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .home-product-rating { margin-top: 6px; color: #f6b700; font-size: 12px; }
@@ -161,9 +161,7 @@
 .home-product-stock.is-in-stock { color: #2e9b45; }
 .home-product-stock.is-contact { color: #f58220; }
 .home-product-actions { margin-top: 12px; display: flex; gap: 8px; }
-.home-product-actions button { height: 34px; border: 1px solid #b9d5f6; border-radius: 6px; background: #fff; color: #1473e6; cursor: pointer; }
-.home-product-actions button:first-child { flex: 1; }
-.home-product-actions button:last-child { width: 36px; }
+.home-product-actions button { height: 34px; flex: 1; border: 1px solid #b9d5f6; border-radius: 6px; background: #fff; color: #1473e6; cursor: pointer; }
 .home-product-actions button:hover { background: #edf5ff; }
 .home-product-actions button:disabled { color: #94a3b8; border-color: #dbe3ec; background: #f8fafc; cursor: not-allowed; }
 .home-loading-row { min-height: 230px; display: grid; place-items: center; color: #64748b; background: #fff; border: 1px solid #e5eaf0; border-radius: 10px; }

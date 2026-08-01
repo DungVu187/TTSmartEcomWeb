@@ -171,7 +171,7 @@ const ValueList = () => {
                                {isSmallScreen ? <PhoneIcon /> : (
                                 <>
                                   <PhoneIcon sx={{ fontSize: 16 }} />
-                                  {t("contact_phone", "Liên hệ: 0913 158 383")}
+                                  {t("contact_phone", "Liên hệ: 0813 158 383")}
                                 </>
                               )}
                             </Button>

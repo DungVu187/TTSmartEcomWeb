@@ -92,6 +92,65 @@ async function fetchProductsByIds(req, res) {
     }
 }
 
+async function fetchInventoryProductsByIds(req, res) {
+    try {
+        const { ids } = validateFetchByIdsPayload(req.body);
+
+        if (ids.length === 0) {
+            return res.json({
+                success: 1,
+                total: 0,
+                products: [],
+            });
+        }
+
+        const validIds = ids
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            .map((id) => new mongoose.Types.ObjectId(id));
+
+        if (validIds.length === 0) {
+            return res.status(400).json({
+                success: 0,
+                message: 'Không có id nào hợp lệ trong mảng',
+            });
+        }
+
+        const products = await Product.find(
+            { _id: { $in: validIds } },
+            { name: 1, code: 1, brand: 1, variant: 1 }
+        );
+
+        const inventoryProducts = products.map((product) => ({
+            _id: product._id.toString(),
+            name: product.name,
+            code: product.code,
+            brand: product.brand,
+            variant: (product.variant || []).map((variant) => ({
+                imgUrl: variant.imgUrl || '',
+                importPrice: variant.importPrice ?? '',
+                price: variant.price ?? '',
+                earn: variant.earn ?? 0,
+            })),
+        }));
+
+        return res.json({
+            success: 1,
+            total: inventoryProducts.length,
+            products: inventoryProducts,
+        });
+    } catch (error) {
+        if (isValidationError(error)) {
+            return res.status(400).json({
+                success: 0,
+                message: error.message,
+            });
+        }
+
+        console.error('Fetch inventory products by IDs error:', error);
+        return res.status(500).json({ message: 'Lỗi server' });
+    }
+}
+
 async function fetchProductsByCodes(req, res) {
     try {
         const { codes } = validateByCodesPayload(req.body);
@@ -166,6 +225,7 @@ async function bulkDeleteProducts(req, res) {
 
 module.exports = {
     fetchProductsByIds,
+    fetchInventoryProductsByIds,
     fetchProductsByCodes,
     bulkDeleteProducts,
 };

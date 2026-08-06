@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatVariantPrice, isContactOnlyVariant } from "./productpricing";
+import {
+  calculateSalePrice,
+  formatVariantPrice,
+  isContactOnlyVariant,
+} from "./productpricing";
 
 describe("product pricing", () => {
   it.each([
@@ -15,5 +19,14 @@ describe("product pricing", () => {
     const variant = { price: "5480000", earn: 25, quantityForSale: 18 };
     expect(isContactOnlyVariant(variant)).toBe(false);
     expect(formatVariantPrice(variant)).toBe("5.480.000 VND");
+  });
+
+  it.each([
+    ["100000", 25, "125000"],
+    ["100001", 25, "126000"],
+    ["100000", 0, "100000"],
+    ["", 25, ""],
+  ])("calculates and rounds the sale price", (importPrice, earn, expectedPrice) => {
+    expect(calculateSalePrice(importPrice, earn)).toBe(expectedPrice);
   });
 });

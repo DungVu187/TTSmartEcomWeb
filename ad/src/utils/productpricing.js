@@ -8,6 +8,22 @@ const parseProductNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const parseOptionalProductNumber = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const normalized = String(value).replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+export const calculateSalePrice = (importPrice, earn, fallbackPrice = "") => {
+  const importPriceNumber = parseOptionalProductNumber(importPrice);
+  if (importPriceNumber === null) return fallbackPrice || "";
+
+  const earnNumber = Number(earn) || 0;
+  const rawPrice = importPriceNumber * (1 + earnNumber / 100);
+  return String(Math.ceil(rawPrice / 1000) * 1000);
+};
+
 export const isContactOnlyVariant = (variant) => {
   if (!variant) return true;
 

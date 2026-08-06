@@ -45,6 +45,53 @@ describe("Products runtime", () => {
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
   });
 
+  it("creates pricing fields with blank earn using the 25 percent default", async () => {
+    globalThis.fetch = vi.fn(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("/products?")) {
+        return { ok: true, json: async () => ({ products: [], total: 0 }) };
+      }
+      if (requestUrl.endsWith("/products/create") && options.method === "POST") {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ message: "Product created successfully" }),
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Products />
+      </ThemeProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm sản phẩm" }));
+    expect(screen.getByText("* là bắt buộc")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Thiết bị/)).toBeRequired();
+    fireEvent.change(screen.getByLabelText("Giá nhập"), {
+      target: { value: "100000" },
+    });
+
+    expect(screen.getByLabelText("% Lợi nhuận (Mặc định 25%)")).toHaveValue(null);
+    fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
+
+    await waitFor(() => {
+      const createCall = globalThis.fetch.mock.calls.find(([url]) =>
+        String(url).endsWith("/products/create"),
+      );
+      expect(createCall).toBeDefined();
+      const payload = JSON.parse(createCall[1].body);
+      expect(payload.variant[0]).toMatchObject({
+        importPrice: "100000",
+        earn: "",
+        price: "125000",
+      });
+    });
+  });
+
   it("switches an existing name to update mode and submits the selected icon", async () => {
     globalThis.fetch = vi.fn(async (url, options = {}) => {
       const requestUrl = String(url);

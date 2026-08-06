@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { NumericFormat } from "react-number-format";
 import {
   TextField,
   Autocomplete,
@@ -38,7 +39,7 @@ import {
   getCategoryIcon,
   normalizeTypeName,
 } from "../utils/homecategoryicons";
-import { formatVariantPrice } from "../utils/productpricing";
+import { calculateSalePrice, formatVariantPrice } from "../utils/productpricing";
 import {
   bulkDeleteProducts,
   createProduct,
@@ -65,7 +66,8 @@ const createEmptyProduct = () => ({
   brand: "",
   section: "",
   value: "",
-  price: "",
+  importPrice: "",
+  earn: "",
   infoDoc: {
     manual: "",
     dataSheet: "",
@@ -84,6 +86,7 @@ const createEmptyProduct = () => ({
 
 const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join(", ");
 const WARRANTY_OPTIONS = ["3 tháng", "6 tháng", "12 tháng", "Theo NSX"];
+const DEFAULT_PRODUCT_EARN = 25;
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -588,15 +591,16 @@ const Products = () => {
   };
 
   const buildProductPayload = (imgUrl = "") => {
-    if (!imgUrl) return { ...newProduct };
+    const { importPrice, earn, ...productData } = newProduct;
+    const effectiveEarn = earn === "" ? DEFAULT_PRODUCT_EARN : Number(earn);
 
     return {
-      ...newProduct,
+      ...productData,
       variant: [
         {
-          price: newProduct.price || "",
-          importPrice: "",
-          earn: 25,
+          price: calculateSalePrice(importPrice, effectiveEarn),
+          importPrice,
+          earn,
           imgUrl,
           color: "",
           shape: "",
@@ -612,6 +616,14 @@ const Products = () => {
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    if (newProduct.earn !== "") {
+      const earn = Number(newProduct.earn);
+      if (!Number.isFinite(earn) || earn < 0) {
+        toast.error("Vui lòng nhập % lợi nhuận hợp lệ");
+        return;
+      }
+    }
+
     try {
       setIsUploadingProductImage(true);
       const imgUrl = await uploadNewProductImage();
@@ -1300,6 +1312,9 @@ const Products = () => {
       >
         <DialogTitle>Thêm sản phẩm mới</DialogTitle>
         <DialogContent>
+          <Typography sx={{ color: "error.main", fontSize: "0.875rem", mt: 0.5 }}>
+            * là bắt buộc
+          </Typography>
           <form onSubmit={handleAddProduct} className="product-create-form">
             <div className="product-image-picker">
               <Button
@@ -1381,6 +1396,34 @@ const Products = () => {
               margin="normal"
               size="small"
             />
+            <NumericFormat
+              label="Giá nhập"
+              value={newProduct.importPrice}
+              customInput={TextField}
+              thousandSeparator="."
+              decimalSeparator=","
+              allowNegative={false}
+              onValueChange={({ value }) =>
+                setNewProduct((previousProduct) => ({
+                  ...previousProduct,
+                  importPrice: value,
+                }))
+              }
+              fullWidth
+              margin="normal"
+              size="small"
+            />
+            <TextField
+              label="% Lợi nhuận (Mặc định 25%)"
+              name="earn"
+              type="number"
+              value={newProduct.earn}
+              onChange={handleInputChange}
+              inputProps={{ min: 0, step: "any" }}
+              fullWidth
+              margin="normal"
+              size="small"
+            />
             <Autocomplete
               value={newProduct.brand}
               onChange={(event, newValue) => {
@@ -1438,10 +1481,11 @@ const Products = () => {
               disabled={!newProduct.section}
               renderInput={(params) => (
                 <TextField
-                  {...params}
-                  label="Thiết bị"
-                  name="values"
-                  fullWidth
+                   {...params}
+                   label="Thiết bị"
+                   name="values"
+                   required
+                   fullWidth
                   margin="normal"
                   size="small"
                 />

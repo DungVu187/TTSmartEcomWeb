@@ -25,7 +25,7 @@ import {
   PRODUCT_IMAGE_UPLOAD_SETTINGS,
 } from "../settings/imageUpload";
 import ProductTechDocs, { MAX_PRODUCT_DOCUMENTS } from "./producttechdocs";
-import { formatVariantPrice } from "../utils/productpricing";
+import { calculateSalePrice, formatVariantPrice } from "../utils/productpricing";
 import {
   addProductQuantity,
   deleteProduct,
@@ -61,22 +61,6 @@ const isProductAdjusted = (productData) => {
   return ["type", "brand", "section"].every((field) =>
     hasValue(productData?.[field])
   );
-};
-
-const parseLocalizedNumber = (value) => {
-  if (value === null || value === undefined || value === "") return null;
-  const normalized = String(value).replace(/\./g, "").replace(",", ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const calculateSalePrice = (importPrice, earn, fallbackPrice) => {
-  const importPriceNum = parseLocalizedNumber(importPrice);
-  if (importPriceNum === null) return fallbackPrice || "";
-
-  const earnNum = Number(earn) || 0;
-  const rawPrice = importPriceNum * (1 + earnNum / 100);
-  return String(Math.ceil(rawPrice / 1000) * 1000);
 };
 
 const metricRowSx = {

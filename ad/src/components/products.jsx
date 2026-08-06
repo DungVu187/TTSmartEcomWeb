@@ -88,6 +88,15 @@ const productImageExtensionsText = PRODUCT_IMAGE_UPLOAD_SETTINGS.extensions.join
 const WARRANTY_OPTIONS = ["3 tháng", "6 tháng", "12 tháng", "Theo NSX"];
 const DEFAULT_PRODUCT_EARN = 25;
 
+const getRequiredValidationProps = (message) => ({
+  onInvalid: (event) => {
+    if (event.target.validity?.valueMissing) {
+      event.target.setCustomValidity(message);
+    }
+  },
+  onInput: (event) => event.target.setCustomValidity(""),
+});
+
 const removeVietnameseTones = (str) => {
   if (!str) return "";
   return str
@@ -1358,6 +1367,7 @@ const Products = () => {
               renderInput={(params) => (
                 <TextField
                   {...params}
+                  {...getRequiredValidationProps("Vui lòng chọn hoặc nhập loại sản phẩm.")}
                   label="Loại"
                   name="type"
                   required
@@ -1369,6 +1379,7 @@ const Products = () => {
               freeSolo
             />
             <TextField
+              {...getRequiredValidationProps("Vui lòng nhập tên sản phẩm.")}
               label="Tên"
               name="name"
               value={newProduct.name}
@@ -1379,19 +1390,23 @@ const Products = () => {
               size="small"
             />
             <TextField
+              {...getRequiredValidationProps("Vui lòng nhập mã sản phẩm.")}
               label="Mã sản phẩm"
               name="code"
               value={newProduct.code}
               onChange={handleInputChange}
+              required
               fullWidth
               margin="normal"
               size="small"
             />
             <TextField
+              {...getRequiredValidationProps("Vui lòng nhập VAT.")}
               label="VAT"
               name="vat"
               value={newProduct.vat}
               onChange={handleInputChange}
+              required
               fullWidth
               margin="normal"
               size="small"
@@ -1436,6 +1451,7 @@ const Products = () => {
               renderInput={(params) => (
                 <TextField
                   {...params}
+                  {...getRequiredValidationProps("Vui lòng chọn hoặc nhập hãng sản phẩm.")}
                   label="Hãng"
                   name="brand"
                   required
@@ -1458,6 +1474,7 @@ const Products = () => {
               renderInput={(params) => (
                 <TextField
                   {...params}
+                  {...getRequiredValidationProps("Vui lòng chọn hoặc nhập cụm thiết bị.")}
                   label="Cụm"
                   name="section"
                   required
@@ -1481,11 +1498,12 @@ const Products = () => {
               disabled={!newProduct.section}
               renderInput={(params) => (
                 <TextField
-                   {...params}
-                   label="Thiết bị"
-                   name="values"
-                   required
-                   fullWidth
+                  {...params}
+                  {...getRequiredValidationProps("Vui lòng chọn thiết bị.")}
+                  label="Thiết bị"
+                  name="values"
+                  required
+                  fullWidth
                   margin="normal"
                   size="small"
                 />
@@ -1512,6 +1530,7 @@ const Products = () => {
               renderInput={(params) => (
                 <TextField
                   {...params}
+                  {...getRequiredValidationProps("Vui lòng chọn hoặc nhập thời hạn bảo hành.")}
                   label="Bảo hành"
                   required
                   fullWidth

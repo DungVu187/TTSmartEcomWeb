@@ -30,6 +30,7 @@ const checkHistoryPermission = (req, res, next) => {
 router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
     try {
         let { page = 1, limit = 20, startDate, endDate, orderName, userName, noteType, direction } = req.query;
+        const exportAll = req.query.exportAll === "true";
 
         page = Math.max(1, parseInt(page));
         limit = [20, 50, 100].includes(parseInt(limit)) ? parseInt(limit) : 20;
@@ -114,20 +115,22 @@ router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
             filter.quantity = { $lt: 0 };
         }
 
+        const historyQuery = StorageHistory.find(filter).sort({ createdAt: -1 });
+        if (!exportAll) {
+            historyQuery.skip(skip).limit(limit);
+        }
+
         const [history, total] = await Promise.all([
-            StorageHistory.find(filter)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit),
+            historyQuery,
             StorageHistory.countDocuments(filter)
         ]);
 
         res.status(200).json({
             success: true,
             page,
-            limit,
+            limit: exportAll ? total : limit,
             total,
-            totalPages: Math.ceil(total / limit),
+            totalPages: exportAll ? (total > 0 ? 1 : 0) : Math.ceil(total / limit),
             history
         });
     } catch (error) {

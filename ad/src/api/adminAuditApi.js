@@ -8,6 +8,9 @@ const withQuery = (path, queryParams) => {
 export const getStorageHistory = (queryParams) =>
   withQuery("/histories", queryParams);
 
+export const getStorageHistoryExport = (queryParams) =>
+  withQuery("/histories", { ...queryParams, exportAll: true });
+
 export const getStorageHistoryFilterOptions = () =>
   apiFetch("/histories/filter-options");
 

@@ -12,6 +12,7 @@ vi.mock("./httpClient", () => ({
 import {
   getAdminActivityLogs,
   getStorageHistory,
+  getStorageHistoryExport,
   getStorageHistoryFilterOptions,
 } from "./adminAuditApi";
 
@@ -40,6 +41,18 @@ describe("adminAuditApi", () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
       "/histories/filter-options",
+    );
+  });
+
+  it("requests all filtered storage history rows for Excel export", async () => {
+    await getStorageHistoryExport({
+      direction: "import",
+      startDate: "2026-08-01",
+      userName: "Admin",
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/histories?direction=import&startDate=2026-08-01&userName=Admin&exportAll=true",
     );
   });
 

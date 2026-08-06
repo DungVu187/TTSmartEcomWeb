@@ -45,6 +45,31 @@ describe("Products runtime", () => {
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
   });
 
+  it("shows Vietnamese messages for required product fields", async () => {
+    render(
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Products />
+      </ThemeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thêm sản phẩm" }));
+
+    const requiredFields = [
+      ["name", "Vui lòng nhập tên sản phẩm."],
+      ["code", "Vui lòng nhập mã sản phẩm."],
+      ["vat", "Vui lòng nhập VAT."],
+    ];
+
+    requiredFields.forEach(([name, message]) => {
+      const input = document.querySelector(`input[name="${name}"]`);
+      fireEvent.invalid(input);
+      expect(input.validationMessage).toBe(message);
+      fireEvent.input(input, { target: { value: "Giá trị hợp lệ" } });
+      expect(input.validationMessage).toBe("");
+    });
+  });
+
   it("creates pricing fields with blank earn using the 25 percent default", async () => {
     globalThis.fetch = vi.fn(async (url, options = {}) => {
       const requestUrl = String(url);
@@ -74,7 +99,6 @@ describe("Products runtime", () => {
     fireEvent.change(screen.getByLabelText("Giá nhập"), {
       target: { value: "100000" },
     });
-
     expect(screen.getByLabelText("% Lợi nhuận (Mặc định 25%)")).toHaveValue(null);
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
 

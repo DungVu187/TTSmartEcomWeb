@@ -188,6 +188,43 @@ describe('Product voice HTTP integration', () => {
         expect(fetchSpy).not.toHaveBeenCalled();
     });
 
+    it('returns the history Excel intent from a text Voice command', async () => {
+        const fetchSpy = jest.spyOn(global, 'fetch');
+
+        const response = await voiceAgent
+            .post('/products/voice-query-text')
+            .send({ text: 'xuất excel lịch sử nhập đơn hôm nay' });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            success: 1,
+            transcript: 'xuất excel lịch sử nhập đơn hôm nay',
+            intent: 'export_history',
+            historyExport: { direction: 'import', datePreset: 'today' },
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns a specific history date range from a text Voice command', async () => {
+        const response = await voiceAgent
+            .post('/products/voice-query-text')
+            .send({
+                text: 'xuất excel lịch sử xuất kho từ ngày 01/08/2026 tới ngày 05/08/2026'
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            success: 1,
+            intent: 'export_history',
+            historyExport: {
+                direction: 'export',
+                datePreset: 'custom',
+                startDate: '2026-08-01',
+                endDate: '2026-08-05',
+            },
+        });
+    });
+
     it('keeps the text-query validation error contract', async () => {
         const response = await voiceAgent
             .post('/products/voice-query-text')

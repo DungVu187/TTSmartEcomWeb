@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -15,6 +15,9 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import SmartphoneIcon from "@mui/icons-material/Smartphone";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import VerifiedIcon from "@mui/icons-material/Verified";
+import BeenhereIcon from "@mui/icons-material/Beenhere";
+import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
 import { useLanguage } from "../context/languagecontext.jsx";
 import { ShopContext } from "../context/shopcontext";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
@@ -43,8 +46,6 @@ const variantFilterLabelKeys = {
   buttonCount: "button_count",
 };
 
-const SHOW_EXTENDED_PRODUCT_DESCRIPTION = false;
-
 function ProductDisplay() {
   const { t } = useLanguage();
   const { productId } = useParams();
@@ -63,6 +64,7 @@ function ProductDisplay() {
   const [qty, setQty] = useState(1);
   const [selectedTab, setSelectedTab] = useState(0);
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const productRequestIdRef = useRef(0);
   const [filters, setFilters] = useState({
     color: "",
     shape: "",
@@ -88,27 +90,35 @@ function ProductDisplay() {
     }
   }, []);
 
-  const fetchProduct = useCallback(async (resetView = false) => {
+  const fetchProduct = useCallback(async ({ resetView = true } = {}) => {
+    const requestId = productRequestIdRef.current + 1;
+    productRequestIdRef.current = requestId;
     if (resetView) {
       setLoading(true);
       setProduct(null);
       setSelectedVariant(null);
+      setSelectedVariantIndex(0);
+      setRelatedProducts([]);
+      setReviews([]);
+      setSelectedTab(0);
     }
 
     try {
       const response = await getStorefrontProduct(productId);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
+      if (requestId !== productRequestIdRef.current) return;
       setProduct(data);
       setSelectedVariant(data.variant?.[0] || null);
       setSelectedVariantIndex(0);
       setQty(1);
       setFilters({ color: "", shape: "", frame: "", buttonCount: "" });
     } catch (error) {
+      if (requestId !== productRequestIdRef.current) return;
       console.error("Error fetching product:", error);
       toast.error(t("failed_to_load_product"));
     } finally {
-      setLoading(false);
+      if (requestId === productRequestIdRef.current) setLoading(false);
     }
   }, [productId, t]);
 
@@ -131,8 +141,14 @@ function ProductDisplay() {
 
   useEffect(() => {
     fetchUserProfile();
-    fetchProduct(true);
-  }, [fetchUserProfile, fetchProduct]);
+  }, [fetchUserProfile]);
+
+  useEffect(() => {
+    fetchProduct();
+    return () => {
+      productRequestIdRef.current += 1;
+    };
+  }, [fetchProduct]);
 
   useEffect(() => {
     fetchReviews();
@@ -279,7 +295,7 @@ function ProductDisplay() {
         toast.success(t("review_submitted"));
       }
       setUserReview(review);
-      fetchProduct();
+      fetchProduct({ resetView: false });
     } catch (error) {
       console.error("Error submitting review:", error);
       toast.error(t("failed_to_submit_review"));
@@ -322,11 +338,6 @@ function ProductDisplay() {
       product.infoDoc.catalog?.trim() || product.infoDoc.others?.trim())
   );
   const hasInfoDoc = technicalDocuments.length > 0 || hasLegacyInfoDoc;
-  const hasVisibleProductDescription = Boolean(
-    product.description ||
-    (SHOW_EXTENDED_PRODUCT_DESCRIPTION &&
-      (product.features || product.operatingMethod || product.advantages))
-  );
   const detailTabs = [
     { key: "description", label: t("product_description") },
     ...(hasSpecifications ? [{ key: "specifications", label: t("specifications") }] : []),
@@ -363,13 +374,12 @@ function ProductDisplay() {
           <div className="product-gallery-card">
             <div className="product-gallery-layout">
               <div className="product-gallery-main">
-                <SafeProductImage
-                  src={productImage}
-                  alt={product.name}
-                  className="product-main-canvas"
-                  loading="eager"
-                  fetchPriority="high"
-                />
+                <SafeProductImage src={productImage} alt={product.name} className="product-main-canvas" />
+                <div className="product-gallery-benefits">
+                  <span><i className="fa-solid fa-expand" /> {t("real_image_100")}</span>
+                  <span><i className="fa-solid fa-shield-halved" /> {t("official_warranty")}</span>
+                  <span><i className="fa-solid fa-rotate" /> {t("return_by_policy")}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -427,8 +437,8 @@ function ProductDisplay() {
             </div>
 
             {isContactOnly ? (
-              <Button className="product-contact-stock-button" variant="contained" href="tel:0813158383" startIcon={<SmartphoneIcon />}>
-                0813 158 383
+              <Button className="product-contact-stock-button" variant="contained" href="tel:0913158383" startIcon={<SmartphoneIcon />}>
+                0913 158 383
               </Button>
             ) : (
               <div className="product-primary-actions">
@@ -451,6 +461,14 @@ function ProductDisplay() {
               <a href="https://zalo.me/0813158383" target="_blank" rel="noreferrer"><img src="/icons8-zalo.svg" alt="" /> {t("contact_zalo")}</a>
               <a href="mailto:ttsmart.ltd@gmail.com"><MailOutlineIcon /> {t("send_email")}</a>
               <Link to="/policy"><HelpOutlineIcon /> {t("faqs")}</Link>
+            </div>
+            <div className="product-service-card">
+              <h2>{t("ttsmart_commitment")}</h2>
+              <span><VerifiedIcon /> {t("genuine_100")}</span>
+              <span><BeenhereIcon /> {t("genuine_warranty_label")}</span>
+              <span><UndoOutlinedIcon /> {t("return_3_days")}</span>
+              <span><i className="fa-solid fa-truck-fast" /> {t("nationwide_delivery")}</span>
+              <span><i className="fa-solid fa-headset" /> {t("technical_support_247")}</span>
             </div>
           </aside>
         </section>
@@ -485,10 +503,10 @@ function ProductDisplay() {
             {currentTab === "description" && (
               <div className="product-description-content">
                 {product.description && <section><h2>{t("product_description")}</h2><p>{product.description}</p></section>}
-                {SHOW_EXTENDED_PRODUCT_DESCRIPTION && product.features && <section><h2>{t("features")}</h2><p>{product.features}</p></section>}
-                {SHOW_EXTENDED_PRODUCT_DESCRIPTION && product.operatingMethod && <section><h2>{t("operating_method")}</h2><p>{product.operatingMethod}</p></section>}
-                {SHOW_EXTENDED_PRODUCT_DESCRIPTION && product.advantages && <section><h2>{t("advantages")}</h2><p>{product.advantages}</p></section>}
-                {!hasVisibleProductDescription && <p>{t("product_info_updating")}</p>}
+                {product.features && <section><h2>{t("features")}</h2><p>{product.features}</p></section>}
+                {product.operatingMethod && <section><h2>{t("operating_method")}</h2><p>{product.operatingMethod}</p></section>}
+                {product.advantages && <section><h2>{t("advantages")}</h2><p>{product.advantages}</p></section>}
+                {!product.description && !product.features && !product.operatingMethod && !product.advantages && <p>{t("product_info_updating")}</p>}
               </div>
             )}
 
@@ -557,7 +575,7 @@ function ProductDisplay() {
           <span>{t("call")}</span>
         </a>
         {isContactOnly ? (
-          <a className="product-mobile-contact-button" href="tel:0813158383">
+          <a className="product-mobile-contact-button" href="tel:0913158383">
             {t("contact_for_quote")}
           </a>
         ) : (

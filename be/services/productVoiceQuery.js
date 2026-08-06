@@ -30,7 +30,8 @@ let VOICE_BRAND_ALIASES = voiceVocabDefaults.brandAliases.map(([b, a]) => [b, a.
 let VOICE_TYPE_ALIASES = voiceVocabDefaults.typeAliases.map(([t, k, a]) => [t, k, a.slice()]);
 let VOICE_CODE_MAP = voiceVocabDefaults.codeMap.map(c => ({ ...c, patterns: (c.patterns || []).slice() }));
 let VOICE_INTENT_ALIASES = voiceVocabDefaults.intentAliases.map(([id, label, a]) => [id, label, (a || []).slice()]);
-const VALID_INTENTS = ['search_product', 'add_to_cart', 'update_item', 'delete_item'];
+const VALID_INTENTS = ['search_product', 'add_to_cart', 'update_item', 'delete_item', 'export_history'];
+const HISTORY_DATE_PRESETS = new Set(['all', 'today', 'yesterday', 'this_week', 'this_month', 'custom']);
 
 // Nạp lại toàn bộ từ vựng voice lúc runtime (Giai đoạn 2 gọi khi admin sửa qua DB).
 // Chỉ ghi đè nhóm nào được truyền vào; nhóm thiếu giữ nguyên giá trị hiện tại.
@@ -146,6 +147,10 @@ function findVoiceType(text) {
 function detectVoiceIntent(text) {
     const normalized = normalizeVoiceText(text);
 
+    if (detectHistoryExportCommand(normalized)) {
+        return 'export_history';
+    }
+
     for (const [intentId, , aliases] of VOICE_INTENT_ALIASES) {
         if (!VALID_INTENTS.includes(intentId)) continue;
         if ((aliases || []).some(alias => phraseRegex(alias).test(normalized))) {
@@ -154,6 +159,115 @@ function detectVoiceIntent(text) {
     }
 
     return 'search_product';
+}
+
+function detectHistoryDatePreset(normalizedText) {
+    if (/\bhom\s+nay\b/.test(normalizedText)) return 'today';
+    if (/\bhom\s+qua\b/.test(normalizedText)) return 'yesterday';
+    if (/\btuan\s+nay\b/.test(normalizedText)) return 'this_week';
+    if (/\bthang\s+nay\b/.test(normalizedText)) return 'this_month';
+    return 'all';
+}
+
+function parseHistoryDatePart(value) {
+    const match = String(value || '').match(
+        /(?:ngay\s+)?(\d{1,2})\s+(?:thang\s+)?(\d{1,2})(?:\s+(?:nam\s+)?(\d{2,4}))?/
+    );
+    if (!match) return null;
+
+    return {
+        day: Number(match[1]),
+        month: Number(match[2]),
+        year: match[3] ? Number(match[3]) : null,
+    };
+}
+
+function toHistoryIsoDate({ day, month, year }) {
+    const normalizedYear = year < 100 ? 2000 + year : year;
+    const date = new Date(Date.UTC(normalizedYear, month - 1, day));
+    if (
+        date.getUTCFullYear() !== normalizedYear
+        || date.getUTCMonth() !== month - 1
+        || date.getUTCDate() !== day
+    ) {
+        return null;
+    }
+
+    return `${String(normalizedYear).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function detectHistoryDateRange(normalizedText) {
+    const rangeMatch = normalizedText.match(
+        /\btu(?:\s+ngay)?\s+(.+?)\s+(?:den|toi)\s+(?:ngay\s+)?(.+)$/
+    );
+    if (!rangeMatch) return null;
+
+    const startParts = parseHistoryDatePart(rangeMatch[1]);
+    const endParts = parseHistoryDatePart(rangeMatch[2]);
+    if (!startParts || !endParts) {
+        return { startDate: null, endDate: null };
+    }
+
+    const sharedYear = startParts.year || endParts.year || new Date().getFullYear();
+    const startDate = toHistoryIsoDate({ ...startParts, year: startParts.year || sharedYear });
+    const endDate = toHistoryIsoDate({ ...endParts, year: endParts.year || sharedYear });
+    if (!startDate || !endDate || startDate > endDate) {
+        return { startDate: null, endDate: null };
+    }
+
+    return { startDate, endDate };
+}
+
+function normalizeHistoryExportPayload(value = {}) {
+    const direction = value?.direction === 'export'
+        ? 'export'
+        : value?.direction === 'import'
+            ? 'import'
+            : null;
+    const datePreset = HISTORY_DATE_PRESETS.has(value?.datePreset)
+        ? value.datePreset
+        : 'all';
+    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(value?.startDate || '')
+        ? value.startDate
+        : null;
+    const endDate = /^\d{4}-\d{2}-\d{2}$/.test(value?.endDate || '')
+        ? value.endDate
+        : null;
+
+    return {
+        direction,
+        datePreset,
+        ...(datePreset === 'custom' ? { startDate, endDate } : {}),
+    };
+}
+
+function detectHistoryExportCommand(text) {
+    const normalized = normalizeVoiceText(text);
+    const requestsExcel = /\b(?:xuat|tai|download)\s+(?:file\s+)?excel\b/.test(normalized);
+    if (!requestsExcel) return null;
+
+    const historyMatch = normalized.match(/\blich\s+(?:su|xu)\b([\s\S]*)$/);
+    const targetText = historyMatch
+        ? historyMatch[1]
+        : normalized.replace(/^.*?\bexcel\b/, '').trim();
+    const mentionsHistoryTarget = Boolean(historyMatch)
+        || /\b(?:nhap|xuat)\s+(?:don|kho)\b/.test(targetText)
+        || /\b(?:don|kho)\s+(?:nhap|xuat)\b/.test(targetText);
+    if (!mentionsHistoryTarget) return null;
+
+    let direction = null;
+    if (/\bnhap(?:\s+(?:don|kho))?\b|\b(?:don|kho)\s+nhap\b/.test(targetText)) {
+        direction = 'import';
+    } else if (/\bxuat(?:\s+(?:don|kho))?\b|\b(?:don|kho)\s+xuat\b/.test(targetText)) {
+        direction = 'export';
+    }
+
+    const dateRange = detectHistoryDateRange(normalized);
+    return {
+        direction,
+        datePreset: dateRange ? 'custom' : detectHistoryDatePreset(normalized),
+        ...(dateRange ? dateRange : {}),
+    };
 }
 
 function cleanVoiceKeyword(keyword, brand) {
@@ -199,15 +313,27 @@ function normalizeVoiceQueryResult(raw = {}) {
         keyword = typeInfo.keyword;
     }
 
+    const detectedHistoryExport = detectHistoryExportCommand(transcript);
+    const historyExport = detectedHistoryExport
+        || (raw.intent === 'export_history'
+            ? normalizeHistoryExportPayload(raw.historyExport)
+            : null);
+    const intent = historyExport
+        ? 'export_history'
+        : VALID_INTENTS.includes(raw.intent)
+            ? raw.intent
+            : detectVoiceIntent(transcript);
+
     return {
         transcript,
         keyword: cleanVoiceKeyword(keyword, brand || rawBrand),
-        intent: VALID_INTENTS.includes(raw.intent) ? raw.intent : detectVoiceIntent(transcript),
+        intent,
         filters: {
             brand,
             type,
             code
-        }
+        },
+        ...(historyExport ? { historyExport } : {}),
     };
 }
 
@@ -228,6 +354,8 @@ BẢNG ÁNH XẠ CÁCH ĐỌC LÓNG (tự động cập nhật khi admin thêm t
 
 Quy tắc phân tách và xử lý từ khóa:
 - Intent chỉ được là một trong các giá trị: ${VALID_INTENTS.map(i => `"${i}"`).join(', ')}. Nếu người dùng chỉ hỏi/xem/tra cứu sản phẩm thì dùng "search_product". Nếu câu là lệnh thêm vào giỏ thì dùng "add_to_cart"; lệnh sửa/cập nhật thì dùng "update_item"; lệnh xóa/bỏ/hủy thì dùng "delete_item". Dù intent là thêm/sửa/xóa, vẫn phải trích xuất keyword và filters như bình thường; không tự thực hiện thao tác giỏ hàng hay đơn hàng.
+- Nếu người dùng yêu cầu xuất/tải Excel lịch sử nhập kho hoặc xuất kho thì dùng intent "export_history". Điền historyExport.direction là "import" cho lịch sử nhập và "export" cho lịch sử xuất. Nhận diện mốc thời gian thành historyExport.datePreset: "today" cho hôm nay, "yesterday" cho hôm qua, "this_week" cho tuần này, "this_month" cho tháng này, không nhắc thời gian thì "all".
+- Nếu người dùng nói khoảng ngày cụ thể theo dạng "từ ngày ... đến/tới ngày ..." thì dùng historyExport.datePreset là "custom", đồng thời trả startDate và endDate theo định dạng YYYY-MM-DD.
 - Khớp đúng Thương hiệu (filters.brand): Nếu người dùng nhắc tới tên thương hiệu, bạn PHẢI ánh xạ chính xác về một trong những thương hiệu khả dụng ở trên (Ví dụ: "siemens" -> "Siemens", "mit su bi shi" -> "Mitsubishi", "ôm ron" -> "Omron", "vê chi" -> "VEICHI", "en tơ nét" -> "Autonics"). Nếu câu nói không chứa tên thương hiệu, "filters.brand" bắt buộc phải là null (Tuyệt đối KHÔNG tự ý gán bừa thương hiệu mặc định).
 - Khớp đúng Loại sản phẩm (filters.type): Ánh xạ từ khóa về một trong các loại sản phẩm khả dụng ở danh sách trên.
   + Nếu nhắc đến: "át", "át tô mát", "áp tô mát", "aptomat", "cầu dao tự động" -> filters.type: "Aptomat", keyword: "Aptomat".
@@ -288,11 +416,26 @@ Ví dụ cụ thể:
 12. Người dùng nói: "xóa fx3u"
 -> transcript: "xóa fx3u", keyword: "FX3U", intent: "delete_item", filters: { brand: "Mitsubishi", type: "PLC", code: "FX3U" }
 
+13. Người dùng nói: "xuất excel lịch sử nhập đơn hôm nay"
+-> transcript: "xuất excel lịch sử nhập đơn hôm nay", keyword: "", intent: "export_history", historyExport: { direction: "import", datePreset: "today" }, filters: { brand: null, type: null, code: null }
+
+14. Người dùng nói: "xuất file excel lịch sử xuất kho tháng này"
+-> transcript: "xuất file excel lịch sử xuất kho tháng này", keyword: "", intent: "export_history", historyExport: { direction: "export", datePreset: "this_month" }, filters: { brand: null, type: null, code: null }
+
+15. Người dùng nói: "xuất excel lịch sử nhập kho từ ngày 01/08/2026 đến ngày 05/08/2026"
+-> transcript: "xuất excel lịch sử nhập kho từ ngày 01/08/2026 đến ngày 05/08/2026", keyword: "", intent: "export_history", historyExport: { direction: "import", datePreset: "custom", startDate: "2026-08-01", endDate: "2026-08-05" }, filters: { brand: null, type: null, code: null }
+
 Định dạng phản hồi BẮT BUỘC là một đối tượng JSON trực tiếp (không nằm trong thẻ markdown và không có văn bản giải thích đi kèm):
 {
   "transcript": "...",
   "keyword": "...",
-  "intent": "search_product | add_to_cart | update_item | delete_item",
+  "intent": "search_product | add_to_cart | update_item | delete_item | export_history",
+  "historyExport": {
+    "direction": "import | export | null",
+    "datePreset": "all | today | yesterday | this_week | this_month | custom",
+    "startDate": "YYYY-MM-DD | null",
+    "endDate": "YYYY-MM-DD | null"
+  },
   "filters": {
     "brand": null,
     "type": null,
@@ -304,6 +447,7 @@ Ví dụ cụ thể:
 
 module.exports = {
     applyVoiceVocab,
+    detectHistoryExportCommand,
     stripSearchStopwords,
     normalizeVoiceQueryResult,
     buildVoiceSystemPrompt,

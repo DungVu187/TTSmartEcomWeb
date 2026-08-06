@@ -205,6 +205,34 @@ describe('StorageHistory API', () => {
     expect(res.body.history).toHaveLength(4);
   });
 
+  it('returns every filtered row when exporting history', async () => {
+    const agent = await createAdminAgent();
+    await seedHistory();
+    const product = await Product.findOne({ name: 'History Product' });
+
+    await StorageHistory.insertMany(
+      Array.from({ length: 25 }, (_, index) => ({
+        productId: product._id,
+        productName: product.name,
+        quantity: -1,
+        userName: 'Export Admin',
+        orderId: `EP-BULK-${index + 1}`,
+        orderName: `Don xuat ${index + 1}`,
+      }))
+    );
+
+    const res = await agent.get(
+      '/histories?direction=export&page=1&limit=20&exportAll=true'
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(27);
+    expect(res.body.limit).toBe(27);
+    expect(res.body.totalPages).toBe(1);
+    expect(res.body.history).toHaveLength(27);
+    expect(res.body.history.every((item) => item.quantity < 0)).toBe(true);
+  });
+
   it('returns filter suggestions from all storage history records', async () => {
     const agent = await createAdminAgent();
     await seedHistory();

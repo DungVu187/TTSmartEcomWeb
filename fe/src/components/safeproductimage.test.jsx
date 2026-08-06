@@ -1,92 +1,188 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import SafeProductImage from "./safeproductimage";
-import { getStoredTranslation } from "../context/languagecontext.jsx";
 
 describe("SafeProductImage", () => {
-  it("renders a native image with the requested source, label, and class", () => {
-    const { container } = render(
-      <SafeProductImage
-        src="/product.webp"
-        alt="Product"
-        className="product-image"
-      />
+  let resizeCallback;
+  let pendingFrames;
+  let originalImage;
+  let originalResizeObserver;
+  let originalRequestAnimationFrame;
+  let originalCancelAnimationFrame;
+  let originalGetContext;
+  let clientWidthDescriptor;
+  let clientHeightDescriptor;
+
+  const observe = jest.fn();
+  const disconnect = jest.fn();
+  const context = {
+    setTransform: jest.fn(),
+    fillRect: jest.fn(),
+    drawImage: jest.fn(),
+    getImageData: jest.fn(() => ({ data: new Uint8ClampedArray(4) })),
+    putImageData: jest.fn(),
+  };
+
+  beforeEach(() => {
+    pendingFrames = [];
+    resizeCallback = null;
+    observe.mockClear();
+    disconnect.mockClear();
+    Object.values(context).forEach((mock) => mock?.mockClear?.());
+
+    originalImage = window.Image;
+    originalResizeObserver = window.ResizeObserver;
+    originalRequestAnimationFrame = window.requestAnimationFrame;
+    originalCancelAnimationFrame = window.cancelAnimationFrame;
+    originalGetContext = HTMLCanvasElement.prototype.getContext;
+    clientWidthDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLCanvasElement.prototype,
+      "clientWidth"
+    );
+    clientHeightDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLCanvasElement.prototype,
+      "clientHeight"
     );
 
-    const image = screen.getByRole("img", { name: "Product" });
-    expect(image.tagName).toBe("IMG");
-    expect(image).toHaveAttribute("src", "/product.webp");
-    expect(image).toHaveAttribute("alt", "Product");
-    expect(image).toHaveClass("product-image");
-    expect(container.querySelector("canvas")).not.toBeInTheDocument();
+    class ImageMock {
+      constructor() {
+        this.naturalWidth = 640;
+        this.naturalHeight = 480;
+        this.onload = null;
+      }
+
+      set src(value) {
+        this.currentSrc = value;
+        if (value) this.onload?.();
+      }
+
+      get src() {
+        return this.currentSrc || "";
+      }
+    }
+
+    class ResizeObserverMock {
+      constructor(callback) {
+        resizeCallback = callback;
+      }
+
+      observe(target) {
+        observe(target);
+      }
+
+      disconnect() {
+        disconnect();
+      }
+    }
+
+    window.Image = ImageMock;
+    window.ResizeObserver = ResizeObserverMock;
+    global.Image = ImageMock;
+    global.ResizeObserver = ResizeObserverMock;
+    window.requestAnimationFrame = jest.fn((callback) => {
+      pendingFrames.push(callback);
+      return pendingFrames.length;
+    });
+    window.cancelAnimationFrame = jest.fn();
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => context);
+    Object.defineProperty(HTMLCanvasElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 320,
+    });
+    Object.defineProperty(HTMLCanvasElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 180,
+    });
   });
 
-  it("uses lazy loading and async decoding by default", () => {
-    render(<SafeProductImage src="/product.webp" alt="Product" />);
+  afterEach(() => {
+    window.Image = originalImage;
+    window.ResizeObserver = originalResizeObserver;
+    global.Image = originalImage;
+    global.ResizeObserver = originalResizeObserver;
+    window.requestAnimationFrame = originalRequestAnimationFrame;
+    window.cancelAnimationFrame = originalCancelAnimationFrame;
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
 
-    const image = screen.getByRole("img", { name: "Product" });
-    expect(image).toHaveAttribute("loading", "lazy");
-    expect(image).toHaveAttribute("decoding", "async");
+    if (clientWidthDescriptor) {
+      Object.defineProperty(
+        HTMLCanvasElement.prototype,
+        "clientWidth",
+        clientWidthDescriptor
+      );
+    } else {
+      delete HTMLCanvasElement.prototype.clientWidth;
+    }
+
+    if (clientHeightDescriptor) {
+      Object.defineProperty(
+        HTMLCanvasElement.prototype,
+        "clientHeight",
+        clientHeightDescriptor
+      );
+    } else {
+      delete HTMLCanvasElement.prototype.clientHeight;
+    }
   });
 
-  it("allows eager loading and high fetch priority", () => {
-    render(
-      <SafeProductImage
-        src="/main-product.webp"
-        alt="Main product"
-        loading="eager"
-        fetchPriority="high"
-      />
+  it("observes the stable parent and draws outside the resize callback", () => {
+    const { unmount } = render(
+      <div className="image-frame" data-testid="image-frame">
+        <SafeProductImage src="/product.webp" alt="Product" />
+      </div>
     );
+    const canvas = screen.getByRole("img", { name: "Product" });
+    const imageFrame = screen.getByTestId("image-frame");
 
-    const image = screen.getByRole("img", { name: "Main product" });
-    expect(image).toHaveAttribute("loading", "eager");
-    expect(image).toHaveAttribute("fetchpriority", "high");
+    expect(observe).toHaveBeenCalledWith(imageFrame);
+    expect(observe).not.toHaveBeenCalledWith(canvas);
+    expect(context.drawImage).not.toHaveBeenCalled();
+
+    act(() => {
+      pendingFrames.shift()();
+    });
+
+    expect(canvas.width).toBe(320);
+    expect(canvas.height).toBe(180);
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      resizeCallback([]);
+    });
+
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
+    expect(pendingFrames).toHaveLength(1);
+
+    act(() => {
+      pendingFrames.shift()();
+    });
+
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
+    unmount();
+    expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
-  it("does not render an image with an empty source", () => {
-    const { container } = render(
-      <SafeProductImage src="" alt="Product without image" className="product-image" />
-    );
-
-    const placeholder = screen.getByRole("img", { name: "Product without image" });
-    expect(placeholder.tagName).toBe("SPAN");
-    expect(placeholder).toHaveClass("product-image");
-    expect(container.querySelector("img")).not.toBeInTheDocument();
-  });
-
-  it("uses the stored product-image translation for a missing alt", () => {
-    render(<SafeProductImage />);
-
-    expect(
-      screen.getByRole("img", {
-        name: getStoredTranslation("product_image_alt"),
-      })
-    ).toBeInTheDocument();
-  });
-
-  it("replaces an image with an accessible placeholder after a load error", () => {
-    const { container } = render(
-      <SafeProductImage src="/missing.webp" alt="Missing product" />
-    );
-
-    fireEvent.error(screen.getByRole("img", { name: "Missing product" }));
-
-    const placeholder = screen.getByRole("img", { name: "Missing product" });
-    expect(placeholder.tagName).toBe("SPAN");
-    expect(container.querySelector("img")).not.toBeInTheDocument();
-  });
-
-  it("resets the error state when the source changes", () => {
+  it("clears the previous canvas pixels when the next product has no image", () => {
     const { rerender } = render(
-      <SafeProductImage src="/missing.webp" alt="Product" />
+      <div className="image-frame">
+        <SafeProductImage src="/product.webp" alt="Product" />
+      </div>
     );
-    fireEvent.error(screen.getByRole("img", { name: "Product" }));
 
-    rerender(<SafeProductImage src="/replacement.webp" alt="Product" />);
+    act(() => {
+      pendingFrames.shift()();
+    });
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
 
-    const replacement = screen.getByRole("img", { name: "Product" });
-    expect(replacement.tagName).toBe("IMG");
-    expect(replacement).toHaveAttribute("src", "/replacement.webp");
+    context.fillRect.mockClear();
+    context.drawImage.mockClear();
+    rerender(
+      <div className="image-frame">
+        <SafeProductImage src="" alt="Product without image" />
+      </div>
+    );
+
+    expect(context.fillRect).toHaveBeenCalledTimes(1);
+    expect(context.drawImage).not.toHaveBeenCalled();
   });
 });

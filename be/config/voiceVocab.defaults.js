@@ -99,7 +99,8 @@ const intentAliases = [
     ['search_product', 'Tìm kiếm', ['tim', 'kiem', 'tra', 'tra cuu', 'xem', 'coi', 'luc', 'tim kiem', 'search']],
     ['add_to_cart', 'Thêm', ['them', 'bo sung', 'cho them', 'them vao', 'add', 'cho vao', 'nap them']],
     ['update_item', 'Sửa', ['sua', 'cap nhat', 'chinh', 'chinh sua', 'doi', 'thay doi', 'edit', 'update']],
-    ['delete_item', 'Xóa', ['xoa', 'bo', 'loai bo', 'huy', 'xoa bo', 'delete', 'remove']]
+    ['delete_item', 'Xóa', ['xoa', 'bo', 'loai bo', 'huy', 'xoa bo', 'delete', 'remove']],
+    ['export_history', 'Xuất Excel lịch sử', ['xuat excel lich su', 'xuat file excel lich su', 'tai excel lich su']]
 ];
 
 module.exports = {

@@ -11,6 +11,9 @@ import {
   queryProductsByVoice,
   queryProductsByVoiceText,
 } from "../api/voiceApi";
+import { usePermissions } from "../context/permissioncontext";
+
+const VOICE_HISTORY_EXPORT_KEY = "voiceHistoryExport";
 
 const VoiceSearchFAB = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -24,6 +27,57 @@ const VoiceSearchFAB = () => {
   const isStartingRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { can } = usePermissions();
+
+  const handleHistoryExportCommand = (data) => {
+    const historyExport = data.historyExport || {};
+    const direction = historyExport.direction;
+    if (!['import', 'export'].includes(direction)) {
+      throw new Error("Vui lòng nói rõ lịch sử nhập hoặc lịch sử xuất cần xuất Excel.");
+    }
+
+    const requiredPermission = direction === 'export'
+      ? 'history_export.view'
+      : 'history_import.view';
+    if (!can(requiredPermission)) {
+      throw new Error(`Bạn không có quyền xem lịch sử ${direction === 'export' ? 'xuất' : 'nhập'} kho.`);
+    }
+
+    const datePreset = historyExport.datePreset || 'all';
+    if (
+      datePreset === 'custom'
+      && (!historyExport.startDate || !historyExport.endDate)
+    ) {
+      throw new Error("Không nhận diện được khoảng ngày. Vui lòng nói rõ ngày bắt đầu và ngày kết thúc.");
+    }
+
+    const command = {
+      direction,
+      datePreset,
+      ...(datePreset === 'custom' && {
+        startDate: historyExport.startDate,
+        endDate: historyExport.endDate,
+      }),
+      requestedAt: Date.now(),
+    };
+    sessionStorage.setItem(VOICE_HISTORY_EXPORT_KEY, JSON.stringify(command));
+
+    const directionLabel = direction === 'export' ? 'xuất' : 'nhập';
+    toast.success(`Đang xuất Excel lịch sử ${directionLabel} kho...`, {
+      id: "voice-status",
+      duration: 3000,
+    });
+
+    setTextMode(false);
+    setTextValue("");
+
+    const targetPath = `/history/${direction}`;
+    if (location.pathname === targetPath) {
+      window.dispatchEvent(new Event("voiceHistoryExport"));
+    } else {
+      navigate(targetPath);
+    }
+  };
 
   const toggleRecording = () => {
     const now = Date.now();
@@ -131,6 +185,11 @@ const VoiceSearchFAB = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        if (data.intent === 'export_history') {
+          handleHistoryExportCommand(data);
+          return;
+        }
+
         const keyword = data.keyword || "";
         const filters = data.filters || {};
         
@@ -203,6 +262,11 @@ const VoiceSearchFAB = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        if (data.intent === 'export_history') {
+          handleHistoryExportCommand(data);
+          return;
+        }
+
         const keyword = data.keyword || "";
         const filters = data.filters || {};
 

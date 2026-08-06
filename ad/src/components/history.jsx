@@ -20,9 +20,13 @@ import {
   Autocomplete,
 } from "@mui/material";
 import moment from "moment";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
   getStorageHistory,
+  getStorageHistoryExport,
   getStorageHistoryFilterOptions,
 } from "../api/adminAuditApi";
 
@@ -46,6 +50,43 @@ const exportNoteTypeOptions = [
   { value: "order_bulk_complete", label: "Trong đơn - hoàn thành cả đơn" },
   { value: "ban_online", label: "Đơn hàng bán online" },
 ];
+
+const VOICE_HISTORY_EXPORT_KEY = "voiceHistoryExport";
+
+export const getVoiceHistoryDateRange = (
+  datePreset,
+  referenceDate = moment(),
+  customRange = {},
+) => {
+  const current = moment(referenceDate);
+  if (datePreset === "custom") {
+    return {
+      startDate: customRange.startDate || "",
+      endDate: customRange.endDate || "",
+    };
+  }
+  if (datePreset === "today") {
+    const date = current.format("YYYY-MM-DD");
+    return { startDate: date, endDate: date };
+  }
+  if (datePreset === "yesterday") {
+    const date = current.subtract(1, "day").format("YYYY-MM-DD");
+    return { startDate: date, endDate: date };
+  }
+  if (datePreset === "this_week") {
+    return {
+      startDate: current.clone().startOf("isoWeek").format("YYYY-MM-DD"),
+      endDate: current.clone().endOf("isoWeek").format("YYYY-MM-DD"),
+    };
+  }
+  if (datePreset === "this_month") {
+    return {
+      startDate: current.clone().startOf("month").format("YYYY-MM-DD"),
+      endDate: current.clone().endOf("month").format("YYYY-MM-DD"),
+    };
+  }
+  return { startDate: "", endDate: "" };
+};
 
 const removeVietnameseTones = (str) => {
   if (!str) return "";
@@ -98,6 +139,7 @@ const History = ({ direction = "import" }) => {
     : importNoteTypeOptions;
   const [histories, setHistories] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -190,6 +232,169 @@ const History = ({ direction = "import" }) => {
     setNoteType("");
     setPage(1);
   };
+
+  const handleExportExcel = async (filterOverrides = {}) => {
+    try {
+      setExporting(true);
+      const hasOverride = (key) => Object.prototype.hasOwnProperty.call(filterOverrides, key);
+      const exportUserName = hasOverride("userName")
+        ? filterOverrides.userName
+        : debouncedUserName;
+      const exportOrderName = hasOverride("orderName")
+        ? filterOverrides.orderName
+        : debouncedOrderName;
+      const exportStartDate = hasOverride("startDate")
+        ? filterOverrides.startDate
+        : startDate;
+      const exportEndDate = hasOverride("endDate")
+        ? filterOverrides.endDate
+        : endDate;
+      const exportNoteType = hasOverride("noteType")
+        ? filterOverrides.noteType
+        : noteType;
+      const res = await getStorageHistoryExport({
+        direction: historyDirection,
+        ...(exportUserName && { userName: exportUserName }),
+        ...(exportOrderName && { orderName: exportOrderName }),
+        ...(exportStartDate && { startDate: exportStartDate }),
+        ...(exportEndDate && { endDate: exportEndDate }),
+        ...(exportNoteType && { noteType: exportNoteType }),
+      });
+      if (!res.ok) throw new Error("Không thể tải dữ liệu để xuất Excel");
+
+      const data = await res.json();
+      const exportRows = Array.isArray(data.history) ? data.history : [];
+      if (exportRows.length === 0) {
+        toast.error("Không có dữ liệu lịch sử để xuất Excel");
+        return;
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "TTSmartEcom";
+      workbook.created = new Date();
+
+      const directionLabel = historyDirection === "export" ? "xuất" : "nhập";
+      const worksheet = workbook.addWorksheet(`Lịch sử ${directionLabel} kho`);
+      worksheet.views = [{ state: "frozen", ySplit: 1 }];
+      worksheet.columns = [
+        { header: "Người dùng", key: "userName", width: 24 },
+        { header: "Sản phẩm", key: "productName", width: 36 },
+        { header: "Đơn hàng", key: "orderName", width: 32 },
+        { header: "Số lượng", key: "quantity", width: 14 },
+        { header: "Ghi chú", key: "note", width: 42 },
+        { header: "Thời gian", key: "createdAt", width: 22 },
+      ];
+
+      worksheet.addRows(exportRows.map((row) => ({
+        userName: row.userName || "",
+        productName: row.productName || "",
+        orderName: row.orderName
+          || (row.orderId ? `Đơn hàng (#${String(row.orderId).slice(-6)})` : ""),
+        quantity: Number(row.quantity) || 0,
+        note: getHistoryLabel(row),
+        createdAt: moment(row.createdAt).format("DD/MM/YYYY HH:mm"),
+      })));
+
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 24;
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.alignment = { vertical: "middle", horizontal: "center" };
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF1F4E78" },
+        };
+      });
+
+      worksheet.autoFilter = "A1:F1";
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell, columnNumber) => {
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFD9E2F3" } },
+            left: { style: "thin", color: { argb: "FFD9E2F3" } },
+            bottom: { style: "thin", color: { argb: "FFD9E2F3" } },
+            right: { style: "thin", color: { argb: "FFD9E2F3" } },
+          };
+          if (rowNumber > 1) {
+            cell.alignment = {
+              vertical: "middle",
+              horizontal: columnNumber === 4 ? "center" : "left",
+              wrapText: true,
+            };
+          }
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const fileName = `lich-su-${directionLabel}-kho_${moment().format("YYYY-MM-DD_HH-mm")}.xlsx`;
+      saveAs(
+        new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        fileName,
+      );
+      toast.success(`Đã xuất ${exportRows.length} dòng lịch sử ${directionLabel} kho`);
+    } catch (error) {
+      console.error("Lỗi khi xuất lịch sử Excel:", error);
+      toast.error(error.message || "Không thể xuất file Excel");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  useEffect(() => {
+    const executeVoiceHistoryExport = () => {
+      const serializedCommand = sessionStorage.getItem(VOICE_HISTORY_EXPORT_KEY);
+      if (!serializedCommand) return;
+
+      try {
+        const command = JSON.parse(serializedCommand);
+        if (command.direction !== historyDirection) return;
+
+        sessionStorage.removeItem(VOICE_HISTORY_EXPORT_KEY);
+        if (command.requestedAt && Date.now() - Number(command.requestedAt) > 60000) {
+          return;
+        }
+
+        const dateRange = getVoiceHistoryDateRange(
+          command.datePreset,
+          moment(),
+          { startDate: command.startDate, endDate: command.endDate },
+        );
+        if (command.datePreset === "custom" && (!dateRange.startDate || !dateRange.endDate)) {
+          toast.error("Không nhận diện được khoảng ngày để xuất Excel");
+          return;
+        }
+        setUserName("");
+        setDebouncedUserName("");
+        setOrderName("");
+        setDebouncedOrderName("");
+        setStartDate(dateRange.startDate);
+        setEndDate(dateRange.endDate);
+        setNoteType("");
+        setPage(1);
+
+        void handleExportExcel({
+          userName: "",
+          orderName: "",
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          noteType: "",
+        });
+      } catch (error) {
+        sessionStorage.removeItem(VOICE_HISTORY_EXPORT_KEY);
+        console.error("Lỗi khi thực hiện lệnh Voice xuất Excel:", error);
+        toast.error("Không thể thực hiện lệnh Voice xuất Excel lịch sử");
+      }
+    };
+
+    executeVoiceHistoryExport();
+    window.addEventListener("voiceHistoryExport", executeVoiceHistoryExport);
+    return () => window.removeEventListener("voiceHistoryExport", executeVoiceHistoryExport);
+    // Chỉ đăng ký lại khi đổi giữa trang lịch sử nhập và xuất.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyDirection]);
 
   return (
     <Box p={2} className="admin-list-page history-list-page">
@@ -309,6 +514,13 @@ const History = ({ direction = "import" }) => {
         </TextField>
         <Button variant="outlined" color="secondary" onClick={handleResetFilters}>
           Xóa bộ lọc
+        </Button>
+        <Button
+          variant="contained"
+          onClick={() => handleExportExcel()}
+          disabled={loading || exporting || histories.length === 0}
+        >
+          {exporting ? "Đang xuất Excel..." : "Xuất Excel"}
         </Button>
         {!loading && histories.length > 0 && (
           <FormControl size="small" sx={{ minWidth: 104, ml: { sm: "auto" } }}>

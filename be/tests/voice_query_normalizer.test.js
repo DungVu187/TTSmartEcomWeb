@@ -64,4 +64,61 @@ describe('voice query normalizer', () => {
       filters: { brand: null, type: null, code: 'GPC1202' }
     });
   });
+
+  it('recognizes voice commands that export filtered storage history', () => {
+    expect(normalizeVoiceQueryResult({
+      transcript: 'xuất excel lịch sử nhập đơn hôm nay',
+      keyword: '',
+      filters: {}
+    })).toMatchObject({
+      intent: 'export_history',
+      historyExport: { direction: 'import', datePreset: 'today' }
+    });
+
+    expect(normalizeVoiceQueryResult({
+      transcript: 'xuất excel lịch xử nhập đơn hôm nay',
+      keyword: '',
+      filters: {}
+    })).toMatchObject({
+      intent: 'export_history',
+      historyExport: { direction: 'import', datePreset: 'today' }
+    });
+
+    expect(normalizeVoiceQueryResult({
+      transcript: 'xuất file excel lịch sử xuất kho tháng này',
+      keyword: '',
+      filters: {}
+    })).toMatchObject({
+      intent: 'export_history',
+      historyExport: { direction: 'export', datePreset: 'this_month' }
+    });
+
+    expect(normalizeVoiceQueryResult({
+      transcript: 'xuất excel lịch sử nhập kho từ ngày 01/08/2026 đến ngày 05/08/2026',
+      keyword: '',
+      filters: {}
+    })).toMatchObject({
+      intent: 'export_history',
+      historyExport: {
+        direction: 'import',
+        datePreset: 'custom',
+        startDate: '2026-08-01',
+        endDate: '2026-08-05'
+      }
+    });
+
+    expect(normalizeVoiceQueryResult({
+      transcript: 'xuất excel lịch sử xuất kho từ ngày 1 tháng 7 năm 2026 tới ngày 31 tháng 7 năm 2026',
+      keyword: '',
+      filters: {}
+    })).toMatchObject({
+      intent: 'export_history',
+      historyExport: {
+        direction: 'export',
+        datePreset: 'custom',
+        startDate: '2026-07-01',
+        endDate: '2026-07-31'
+      }
+    });
+  });
 });

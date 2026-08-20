@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { CircularProgress, Alert } from '@mui/material';
-import { ShopContext } from '../context/shopcontext';
-import { useLanguage } from '../context/languagecontext.jsx';
+import { ShopContext } from '../context/shop.js';
+import { useLanguage } from '../context/language.js';
 import { isContactOnlyVariant } from '../utils/productpricing';
 import {
   getPublicStorefrontStation,

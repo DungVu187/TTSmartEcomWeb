@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   IconButton,
@@ -17,7 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { apiFetch, getAuthFailure } from "../api/httpClient";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
 import "./styles/changepassword.css";
 

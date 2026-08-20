@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Box,
@@ -31,7 +31,7 @@ import {
   setDefaultCustomerAddress,
   updateCustomerProfile,
 } from "../api/customerAccountApi";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
 import "./styles/profile.css";
 

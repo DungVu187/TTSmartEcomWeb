@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Button,
@@ -17,10 +17,13 @@ import {
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import moment from "moment";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import AccountLayout from "../layout/accountlayout/accountlayout.jsx";
 import SafeProductImage from "../components/safeproductimage.jsx";
-import { getStorefrontProduct } from "../api/storefrontCatalogApi";
+import {
+  getStorefrontProduct,
+  resolveStorefrontAssetUrl,
+} from "../api/storefrontCatalogApi";
 import { cancelCustomerOrder, getCustomerOrders } from "../api/customerOrderApi";
 import "./styles/myorder.css";
 
@@ -53,7 +56,7 @@ const enrichOrdersWithProducts = async (rawOrders, unavailableProductName) => {
         ...item,
         productName: product?.name || unavailableProductName,
         productBrand: product?.brand || "",
-        productImage: variant.imgUrl || product?.imgUrl || "",
+        productImage: resolveStorefrontAssetUrl(variant.imgUrl || product?.imgUrl || ""),
         productPrice: variant.price,
         productColor: variant.color,
         productShape: variant.shape,
@@ -164,7 +167,7 @@ const MyOrder = () => {
       if (!navigator.clipboard) throw new Error();
       await navigator.clipboard.writeText(getOrderCode(order));
       toast.success(t("copied", "Đã sao chép mã đơn"));
-    } catch (copyError) {
+    } catch {
       toast.error(t("copy_failed", "Không thể sao chép mã đơn"));
     }
   };

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import "./styles/login.css";
 import { toast } from "react-hot-toast";
 import {
@@ -7,7 +7,7 @@ import {
   requestCustomerPasswordReset,
   resetCustomerPassword,
 } from "../api/customerAccountApi";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 
 function LogIn() {
   const { t } = useLanguage();
@@ -88,7 +88,7 @@ function LogIn() {
       } else {
         toast.error(t("register_failed"));
       }
-    } catch (error) {
+    } catch {
       toast.error(t("error_occurred"));
     }
   };
@@ -137,7 +137,7 @@ function LogIn() {
       } else {
         toast.error(t("invalid_credentials", "Số điện thoại/Email hoặc mật khẩu không đúng"));
       }
-    } catch (error) {
+    } catch {
       toast.error(t("error_occurred"));
     }
   };
@@ -159,7 +159,7 @@ function LogIn() {
       } else {
         toast.error(t("otp_send_failed"));
       }
-    } catch (error) {
+    } catch {
       toast.error(t("error_occurred"));
     } finally {
       setLoading(false);
@@ -196,7 +196,7 @@ function LogIn() {
       } else {
         toast.error(t("reset_password_failed"));
       }
-    } catch (error) {
+    } catch {
       toast.error(t("error_occurred"));
     } finally {
       setLoading(false);

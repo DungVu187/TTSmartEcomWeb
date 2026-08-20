@@ -1,8 +1,8 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { autoLoginCustomer } from "../api/customerAccountApi";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 
 const AutoLog = () => {
   const { code } = useParams();

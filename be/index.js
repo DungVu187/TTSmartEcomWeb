@@ -138,6 +138,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// Accept the customer frontend's stable /api prefix when Express serves Vite
+// directly. Keep the existing unprefixed endpoints for backwards compatibility.
+app.use((req, res, next) => {
+  const hasApiPrefix = req.path === '/api' || req.path.startsWith('/api/');
+
+  if (hasApiPrefix) {
+    req.isApiPrefixedRequest = true;
+    const strippedUrl = req.url.slice('/api'.length);
+    req.url = strippedUrl.startsWith('?') ? `/${strippedUrl}` : strippedUrl || '/';
+  }
+
+  next();
+});
+
 // Routes
 app.use('/users', userRoutes);
 app.use('/products', productRoutes);
@@ -169,8 +183,16 @@ if (!fs.existsSync(uploadDocumentsDir)) {
 app.use('/images', express.static(path.join(__dirname, 'upload', 'images')));
 app.use('/documents', express.static(uploadDocumentsDir));
 app.use('/section-images', express.static(path.join(__dirname, 'upload', 'sections')));
-app.use('/station', express.static(path.join(__dirname, 'upload', 'stations')));
+app.use('/station', express.static(path.join(__dirname, 'upload', 'stations'), { redirect: false }));
 app.use('/invoice-images', authenticateAdmin, express.static(uploadInvoicesDir));
+
+// A prefixed API request must never fall through to an HTML SPA response.
+app.use((req, res, next) => {
+  if (req.isApiPrefixedRequest) {
+    return res.status(404).json({ message: 'Route not found' });
+  }
+  next();
+});
 
 // Serve admin dashboard static files
 const adminDistPath = path.join(__dirname, '../ad/dist');
@@ -181,25 +203,29 @@ app.get('/admin/*', (req, res) => {
   res.sendFile(path.join(adminDistPath, 'index.html'));
 });
 
-// Serve customer frontend static files
-const feBuildPath = path.join(__dirname, '../fe/build');
-app.use(express.static(feBuildPath));
+// Serve the Vite customer frontend production build.
+const feDistPath = path.join(__dirname, '../fe/dist');
+app.use(express.static(feDistPath));
 
 // Fallback for React Router on customer website (exclude API endpoints)
 app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
-    '/histories', '/images', '/documents', '/section-images', '/zalo', '/telegram', '/voice-vocabs'
+    '/histories', '/activity-logs', '/images', '/documents',
+    '/section-images', '/invoice-images', '/zalo', '/telegram', '/voice-vocabs'
   ];
-  const isApi = apiPaths.some(path => req.path.startsWith(path));
+  const isApi = apiPaths.some((apiPath) =>
+    req.path === apiPath || req.path.startsWith(`${apiPath}/`)
+  );
+  const isViteAsset = req.path === '/assets' || req.path.startsWith('/assets/');
   const isStaticFile = /\.(jpg|jpeg|png|gif|webp|pdf|svg|css|js|ico|map)$/i.test(req.path);
 
-  if (isApi || isStaticFile) {
+  if (isApi || isViteAsset || isStaticFile) {
     return next();
   }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.sendFile(path.join(feBuildPath, 'index.html'));
+  res.sendFile(path.join(feDistPath, 'index.html'));
 });
 
 // 404 handler

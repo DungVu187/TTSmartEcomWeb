@@ -1,13 +1,15 @@
-import React, { useContext } from "react";
+import { vi } from "vitest";
+import { useContext } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import toast from "react-hot-toast";
-import ShopContextProvider, { ShopContext } from "./shopcontext";
+import ShopContextProvider from "./shopcontext";
+import { ShopContext } from "./shop.js";
 import { LanguageProvider } from "./languagecontext.jsx";
 
-jest.mock("react-hot-toast", () => {
+vi.mock("react-hot-toast", () => {
   const toastMock = {
-    error: jest.fn(),
-    success: jest.fn(),
+    error: vi.fn(),
+    success: vi.fn(),
   };
 
   return {
@@ -20,7 +22,7 @@ jest.mock("react-hot-toast", () => {
 const responseOf = ({ ok = true, status = 200, data = {} } = {}) => ({
   ok,
   status,
-  json: jest.fn().mockResolvedValue(data),
+  json: vi.fn().mockResolvedValue(data),
 });
 
 const CartConsumer = () => {
@@ -68,15 +70,15 @@ const renderCartContext = () => render(
 describe("ShopContextProvider", () => {
   beforeEach(() => {
     localStorage.setItem("language", "vi");
-    process.env.REACT_APP_BACK_END = "http://backend.test";
-    global.fetch = jest.fn();
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    import.meta.env.VITE_BACK_END = "http://backend.test";
+    global.fetch = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => {});
     toast.error.mockClear();
     toast.success.mockClear();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("loads the current cart with the httpOnly cookie on mount", async () => {

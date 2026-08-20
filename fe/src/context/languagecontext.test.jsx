@@ -1,6 +1,6 @@
-import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { LanguageProvider, useLanguage } from "./languagecontext.jsx";
+import { LanguageProvider } from "./languagecontext.jsx";
+import { useLanguage } from "./language.js";
 
 const LanguageConsumer = () => {
   const { language, setLanguage, t } = useLanguage();

@@ -1,6 +1,6 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShopContext } from "../context/shopcontext";
+import { ShopContext } from "../context/shop.js";
 import {
   Box,
   Button,
@@ -23,7 +23,7 @@ import {
 import { Delete, Add, Remove } from "@mui/icons-material";
 import "./styles/cart.css";
 import { toast } from "react-hot-toast";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import { getCustomerProfile } from "../api/customerAccountApi";
 import { createCustomerOrder } from "../api/customerOrderApi";
@@ -185,7 +185,7 @@ function Cart() {
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const productPromises = cartItems.map((item) => {
         const productId = item.productId;
@@ -205,7 +205,7 @@ function Cart() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cartItems, t]);
 
   useEffect(() => {
     if (cartItems.length > 0) {
@@ -214,7 +214,7 @@ function Cart() {
       setProducts([]);
       setLoading(false);
     }
-  }, [cartItems]);
+  }, [cartItems, fetchProducts]);
 
   if (loading) {
     return (
@@ -282,7 +282,7 @@ function Cart() {
               <Box sx={{ width: 40 }} />
             </ListItem>
 
-            {cartItems.map((item, index) => {
+            {cartItems.map((item) => {
               const product = products.find((p) => p._id === item.productId);
               if (!product) {
                 return (
@@ -339,7 +339,7 @@ function Cart() {
                     />
                     <ListItemAvatar sx={{ minWidth: { xs: 48, sm: 56 }, ml: 1 }}>
                       <Avatar
-                        src={variant?.imgUrl ? resolveStorefrontAssetUrl(variant.imgUrl) : "placeholder.jpg"}
+                        src={resolveStorefrontAssetUrl(variant?.imgUrl)}
                         alt={product.name}
                         sx={{ width: { xs: 48, sm: 56 }, height: { xs: 48, sm: 56 } }}
                       />

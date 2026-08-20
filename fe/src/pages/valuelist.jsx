@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Typography,
@@ -18,12 +18,13 @@ import {
 import PhoneIcon from "@mui/icons-material/Phone";
 import InfoIcon from "@mui/icons-material/Info";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import { ShopContext } from "../context/shopcontext";
-import { useLanguage } from "../context/languagecontext";
+import { ShopContext } from "../context/shop.js";
+import { useLanguage } from "../context/language.js";
 import { isContactOnlyVariant } from "../utils/productpricing";
 import {
   getStorefrontSectionValues,
   listStorefrontSectionValueProducts,
+  resolveStorefrontAssetUrl,
 } from "../api/storefrontCatalogApi";
 
 const ValueList = () => {
@@ -120,7 +121,7 @@ const ValueList = () => {
                         <TableCell>
                           <Avatar
                             variant="rounded"
-                            src={product.variant[0]?.imgUrl}
+                            src={resolveStorefrontAssetUrl(product.variant[0]?.imgUrl)}
                             alt={product.name}
                             sx={{
                               width: 56,

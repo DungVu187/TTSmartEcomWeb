@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLanguage } from "../context/languagecontext";
+import { useLanguage } from "../context/language.js";
 import {
   getStorefrontSectionDocument,
   resolveStorefrontAssetUrl,

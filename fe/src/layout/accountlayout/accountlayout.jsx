@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   AccountCircleOutlined,
@@ -12,7 +12,7 @@ import {
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import { apiFetch } from "../../api/httpClient";
-import { useLanguage } from "../../context/languagecontext.jsx";
+import { useLanguage } from "../../context/language.js";
 import "./accountlayout.css";
 
 const AccountLayout = ({ title, description, children }) => {

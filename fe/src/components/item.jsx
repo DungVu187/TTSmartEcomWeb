@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import { useContext, useState } from "react";
 import {
   Box,
   Button,
@@ -11,10 +11,11 @@ import {
 import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { useNavigate } from "react-router-dom";
-import { ShopContext } from "../context/shopcontext";
+import { ShopContext } from "../context/shop.js";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import SafeProductImage from "./safeproductimage";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
+import { resolveStorefrontAssetUrl } from "../api/storefrontCatalogApi";
 
 function Item({ product }) {
   const { t } = useLanguage();
@@ -27,7 +28,7 @@ function Item({ product }) {
   const isContactOnly = isContactOnlyVariant(primaryVariant);
   const imageVersion = encodeURIComponent(product.updatedAt || product._id || "1");
   const imageUrl = primaryVariant.imgUrl
-    ? `${primaryVariant.imgUrl}${primaryVariant.imgUrl.includes("?") ? "&" : "?"}v=${imageVersion}`
+    ? `${resolveStorefrontAssetUrl(primaryVariant.imgUrl)}${primaryVariant.imgUrl.includes("?") ? "&" : "?"}v=${imageVersion}`
     : "";
 
   const handleClick = () => navigate(`/product/${product._id}`);

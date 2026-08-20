@@ -1,13 +1,14 @@
+import { vi } from "vitest";
 import { apiFetch } from "./httpClient";
 import * as customerOrderApi from "./customerOrderApi";
 
-jest.mock("./httpClient", () => ({
-  apiFetch: jest.fn(),
+vi.mock("./httpClient", () => ({
+  apiFetch: vi.fn(),
 }));
 
 describe("customerOrderApi", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     apiFetch.mockResolvedValue({ ok: true, status: 200 });
   });
 

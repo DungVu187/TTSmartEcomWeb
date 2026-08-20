@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useEffect, useState, useMemo } from "react";
+import { useLanguage } from "../context/language.js";
 import { Link, useNavigate } from "react-router-dom";
 import "./styles/station.css";
 import concreteBannerBg from "../assets/concrete_station_banner_bg.png";

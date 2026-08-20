@@ -1,16 +1,16 @@
-import React from "react";
+import { vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-hot-toast";
 import LogIn from "./login";
 
-jest.mock("react-hot-toast", () => ({
+vi.mock("react-hot-toast", () => ({
   toast: {
-    error: jest.fn(),
-    success: jest.fn(),
+    error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
-jest.mock("../context/languagecontext.jsx", () => ({
+vi.mock("../context/language.js", () => ({
   useLanguage: () => ({
     t: (key, fallback) => {
       const translations = {
@@ -27,7 +27,7 @@ jest.mock("../context/languagecontext.jsx", () => ({
 
 const responseOf = ({ ok = true, data = {} } = {}) => ({
   ok,
-  json: jest.fn().mockResolvedValue(data),
+  json: vi.fn().mockResolvedValue(data),
 });
 
 const submitLogin = () => {
@@ -58,8 +58,8 @@ const fillRegistration = ({
 
 describe("customer login and registration", () => {
   beforeEach(() => {
-    process.env.REACT_APP_BACK_END = "http://backend.test";
-    global.fetch = jest.fn();
+    import.meta.env.VITE_BACK_END = "http://backend.test";
+    global.fetch = vi.fn();
     window.history.pushState({}, "", "/login");
     sessionStorage.clear();
     toast.error.mockClear();

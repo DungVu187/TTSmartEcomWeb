@@ -1,6 +1,5 @@
-import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { useLanguage } from "../../context/languagecontext.jsx";
+import { useLanguage } from "../../context/language.js";
 import "./mobilebottomnav.css";
 
 const getNavClass = ({ isActive }) => `mobile-bottom-nav-item${isActive ? " is-active" : ""}`;

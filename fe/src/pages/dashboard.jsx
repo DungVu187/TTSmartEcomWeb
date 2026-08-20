@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination, Navigation } from "swiper/modules";
@@ -6,12 +6,12 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import "./styles/dashboard.css";
-import { ShopContext } from "../context/shopcontext";
+import { ShopContext } from "../context/shop.js";
 import HomeCategoryIcon from "../components/homecategoryicon";
 import SafeProductImage from "../components/safeproductimage";
 import { getCategoryIcon, normalizeTypeName } from "../utils/homecategoryicons";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import { getLocalizedText } from "../utils/localizedcontent";
 import {
   getStorefrontContent,

@@ -1,9 +1,8 @@
-import React, { createContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { apiFetch, getAuthFailure } from "../api/httpClient";
-import { useLanguage } from "./languagecontext.jsx";
-
-export const ShopContext = createContext(null);
+import { useLanguage } from "./language.js";
+import { ShopContext } from "./shop.js";
 
 const ShopContextProvider = ({ children }) => {
   const { t } = useLanguage();
@@ -79,7 +78,7 @@ const ShopContextProvider = ({ children }) => {
         quantity: sanitizedQuantity,
       });
       toast.success(t("add_cart_success"));
-    } catch (error) {
+    } catch {
       // Lỗi đã được xử lý trong sendRequest
     }
   };
@@ -91,7 +90,7 @@ const ShopContextProvider = ({ children }) => {
         productId,
         variantIndex,
       });
-    } catch (error) {
+    } catch {
       // Lỗi đã được xử lý trong sendRequest
     }
   };
@@ -104,7 +103,7 @@ const ShopContextProvider = ({ children }) => {
         variantIndex,
         quantity,
       });
-    } catch (error) {
+    } catch {
       // Lỗi đã được xử lý trong sendRequest
     }
   };
@@ -118,7 +117,7 @@ const ShopContextProvider = ({ children }) => {
         status,
       });
       toast.success(t("cart_status_updated"));
-    } catch (error) {
+    } catch {
       // Lỗi đã được xử lý trong sendRequest
     }
   };
@@ -128,7 +127,7 @@ const ShopContextProvider = ({ children }) => {
     try {
       await sendRequest("/carts/clearCart", "POST");
       toast.success(t("cart_cleared"));
-    } catch (error) {
+    } catch {
       // Lỗi đã được xử lý trong sendRequest
     }
   };

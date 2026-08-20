@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { CircularProgress, Alert } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import {
   getPublicStorefrontStation,
   getStorefrontProductsByIds,

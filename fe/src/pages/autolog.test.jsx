@@ -1,27 +1,27 @@
-import React from "react";
+import { vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-hot-toast";
 import AutoLog from "./autolog";
 import { LanguageProvider } from "../context/languagecontext.jsx";
 
 let mockCode = "secure-token";
-const mockNavigate = jest.fn();
+const mockNavigate = vi.fn();
 
-jest.mock("react-router-dom", () => ({
+vi.mock("react-router-dom", () => ({
   useParams: () => ({ code: mockCode }),
   useNavigate: () => mockNavigate,
 }), { virtual: true });
 
-jest.mock("react-hot-toast", () => ({
+vi.mock("react-hot-toast", () => ({
   toast: {
-    error: jest.fn(),
-    success: jest.fn(),
+    error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
 const responseOf = ({ ok = true, data = {} } = {}) => ({
   ok,
-  json: jest.fn().mockResolvedValue(data),
+  json: vi.fn().mockResolvedValue(data),
 });
 
 const renderAutoLog = () => render(
@@ -58,19 +58,19 @@ describe("customer automatic login", () => {
   });
 
   beforeEach(() => {
-    process.env.REACT_APP_BACK_END = "http://backend.test";
-    global.fetch = jest.fn();
+    import.meta.env.VITE_BACK_END = "http://backend.test";
+    global.fetch = vi.fn();
     mockCode = "secure-token";
     assignedHref = "";
     window.location.search = "";
     toast.error.mockClear();
     toast.success.mockClear();
     mockNavigate.mockClear();
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test("posts the one-time token using cookie credentials", async () => {

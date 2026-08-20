@@ -1,4 +1,4 @@
-import React from "react";
+import { vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import SafeProductImage from "./safeproductimage";
 
@@ -13,14 +13,14 @@ describe("SafeProductImage", () => {
   let clientWidthDescriptor;
   let clientHeightDescriptor;
 
-  const observe = jest.fn();
-  const disconnect = jest.fn();
+  const observe = vi.fn();
+  const disconnect = vi.fn();
   const context = {
-    setTransform: jest.fn(),
-    fillRect: jest.fn(),
-    drawImage: jest.fn(),
-    getImageData: jest.fn(() => ({ data: new Uint8ClampedArray(4) })),
-    putImageData: jest.fn(),
+    setTransform: vi.fn(),
+    fillRect: vi.fn(),
+    drawImage: vi.fn(),
+    getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
+    putImageData: vi.fn(),
   };
 
   beforeEach(() => {
@@ -79,12 +79,12 @@ describe("SafeProductImage", () => {
     window.ResizeObserver = ResizeObserverMock;
     global.Image = ImageMock;
     global.ResizeObserver = ResizeObserverMock;
-    window.requestAnimationFrame = jest.fn((callback) => {
+    window.requestAnimationFrame = vi.fn((callback) => {
       pendingFrames.push(callback);
       return pendingFrames.length;
     });
-    window.cancelAnimationFrame = jest.fn();
-    HTMLCanvasElement.prototype.getContext = jest.fn(() => context);
+    window.cancelAnimationFrame = vi.fn();
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => context);
     Object.defineProperty(HTMLCanvasElement.prototype, "clientWidth", {
       configurable: true,
       get: () => 320,

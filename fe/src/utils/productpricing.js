@@ -1,4 +1,4 @@
-import { getStoredLocale, getStoredTranslation } from "../context/languagecontext.jsx";
+import { getStoredLocale, getStoredTranslation } from "../context/language.js";
 
 const parseProductNumber = (value) => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;

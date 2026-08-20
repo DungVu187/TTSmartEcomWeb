@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -18,8 +18,8 @@ import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import BeenhereIcon from "@mui/icons-material/Beenhere";
 import UndoOutlinedIcon from "@mui/icons-material/UndoOutlined";
-import { useLanguage } from "../context/languagecontext.jsx";
-import { ShopContext } from "../context/shopcontext";
+import { useLanguage } from "../context/language.js";
+import { ShopContext } from "../context/shop.js";
 import { formatVariantPrice, isContactOnlyVariant } from "../utils/productpricing";
 import SafeProductImage from "./safeproductimage";
 import "./style/productdisplay.css";
@@ -522,7 +522,7 @@ function ProductDisplay() {
                   technicalDocuments.map((document, index) => (
                     <a
                       key={document._id || `${document.url}-${index}`}
-                      href={document.url}
+                      href={resolveStorefrontAssetUrl(document.url)}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -532,10 +532,10 @@ function ProductDisplay() {
                   ))
                 ) : (
                   <>
-                    {product.infoDoc.manual?.trim() && <a href={product.infoDoc.manual} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("manual_label")}</a>}
-                    {product.infoDoc.dataSheet?.trim() && <a href={product.infoDoc.dataSheet} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("datasheet_label")}</a>}
-                    {product.infoDoc.catalog?.trim() && <a href={product.infoDoc.catalog} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("catalog_label")}</a>}
-                    {product.infoDoc.others?.trim() && <a href={product.infoDoc.others} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("other_documents")}</a>}
+                    {product.infoDoc.manual?.trim() && <a href={resolveStorefrontAssetUrl(product.infoDoc.manual)} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("manual_label")}</a>}
+                    {product.infoDoc.dataSheet?.trim() && <a href={resolveStorefrontAssetUrl(product.infoDoc.dataSheet)} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("datasheet_label")}</a>}
+                    {product.infoDoc.catalog?.trim() && <a href={resolveStorefrontAssetUrl(product.infoDoc.catalog)} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("catalog_label")}</a>}
+                    {product.infoDoc.others?.trim() && <a href={resolveStorefrontAssetUrl(product.infoDoc.others)} target="_blank" rel="noreferrer"><i className="fa-regular fa-file-lines" /> {t("other_documents")}</a>}
                   </>
                 )}
               </div>

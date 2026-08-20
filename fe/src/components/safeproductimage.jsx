@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import { getStoredTranslation } from "../context/languagecontext.jsx";
+import { useEffect, useRef } from "react";
+import { getStoredTranslation } from "../context/language.js";
 
 function SafeProductImage({ src, alt, className = "" }) {
   const canvasRef = useRef(null);
@@ -55,7 +55,7 @@ function SafeProductImage({ src, alt, className = "" }) {
       try {
         const pixels = context.getImageData(0, 0, width, height);
         context.putImageData(pixels, 0, 0);
-      } catch (_error) {
+      } catch {
         // The image is still drawn even if a future cross-origin URL prevents readback.
       }
     };

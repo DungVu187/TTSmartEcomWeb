@@ -1,20 +1,6 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { translations } from "../i18n/translations.js";
-
-const LanguageContext = createContext(null);
-
-export const getStoredTranslation = (key, fallback = null) => {
-  const savedLanguage = localStorage.getItem("language");
-  const language = savedLanguage && translations[savedLanguage] ? savedLanguage : "vi";
-  return translations[language]?.[key] ?? (fallback !== null ? fallback : key);
-};
-
-export const getStoredLocale = () => {
-  const savedLanguage = localStorage.getItem("language");
-  if (savedLanguage === "zh") return "zh-CN";
-  if (savedLanguage === "en") return "en-US";
-  return "vi-VN";
-};
+import { LanguageContext } from "./language.js";
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguageState] = useState(() => {
@@ -52,12 +38,4 @@ export const LanguageProvider = ({ children }) => {
       {children}
     </LanguageContext.Provider>
   );
-};
-
-export const useLanguage = () => {
-  const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
-  }
-  return context;
 };

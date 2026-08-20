@@ -1,5 +1,5 @@
 const getApiBaseUrl = () =>
-  (process.env.REACT_APP_BACK_END || "").replace(/\/+$/, "");
+  (import.meta.env.VITE_BACK_END || "").replace(/\/+$/, "");
 
 export const resolveApiUrl = (path) => {
   if (typeof path !== "string" || path.length === 0) {

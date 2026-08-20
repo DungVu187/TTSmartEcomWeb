@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   TextField,
   Button,
@@ -16,7 +16,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import "./styles/product.css";
 import Item from "../components/item";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import { getCustomerProfile } from "../api/customerAccountApi";
 import {
   getStorefrontBrands,
@@ -27,6 +27,7 @@ import {
   listStorefrontProducts,
 } from "../api/storefrontCatalogApi";
 const ALL_FILTER_VALUE = "__all__";
+const PRODUCT_PAGE_LIMIT = 12;
 const filterSelectMenuProps = {
   disableScrollLock: true,
   PaperProps: {
@@ -67,52 +68,16 @@ function Product() {
   const [filters, setFilters] = useState(initialFilters);
   const [openDialog, setOpenDialog] = useState(false);
 
-  const limit = 12;
-
   const [brands, setBrands] = useState([]);
   const [types, setTypes] = useState([]);
   const [sections, setSections] = useState([]);
   const [values, setValues] = useState([]);
+  const [initialSection] = useState(() => queryParams.get("section"));
 
   // States mới cho việc lọc theo trạm trộn
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userStations, setUserStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || ALL_FILTER_VALUE);
-
-  const fetchProducts = async (currStationId = null, overrides = null) => {
-    setIsLoadingProducts(true);
-    try {
-      // Ưu tiên filter/page truyền vào (đọc trực tiếp từ URL) để tránh đọc phải
-      // state cũ khi setFilters chưa kịp flush trong cùng một lượt effect.
-      const f = overrides?.filters || filters;
-      const activePage = overrides?.page ?? page;
-      const activeStationId = currStationId !== null ? currStationId : selectedStation;
-      const updatedFilters = {
-        page: activePage,
-        limit,
-        search: f.search,
-        brand: f.brand === ALL_FILTER_VALUE ? "" : f.brand,
-        type: f.type === ALL_FILTER_VALUE ? "" : f.type,
-        section: f.section === ALL_FILTER_VALUE ? "" : f.section,
-        value: f.value === ALL_FILTER_VALUE ? "" : f.value,
-        sortBy: f.sortBy || "purchaseCount",
-        sortOrder: f.sortOrder || "desc",
-        display: "true",
-        stationId: activeStationId === ALL_FILTER_VALUE ? "" : activeStationId,
-      };
-
-      const response = await listStorefrontProducts(updatedFilters);
-
-      const data = await response.json();
-      setProducts(data.products || []);
-      setTotalProducts(data.total || 0);
-      setTotalPages(Math.ceil((data.total || 0) / limit));
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setIsLoadingProducts(false);
-    }
-  };
 
   // Check đăng nhập và load danh sách trạm
   useEffect(() => {
@@ -142,26 +107,52 @@ function Product() {
   }, []);
 
   useEffect(() => {
+    const currentQueryParams = new URLSearchParams(location.search);
     const updatedFilters = {
-      search: queryParams.get("search") || "",
-      brand: queryParams.get("brand") || ALL_FILTER_VALUE,
-      type: queryParams.get("type") || ALL_FILTER_VALUE,
-      section: queryParams.get("section") || ALL_FILTER_VALUE,
-      value: queryParams.get("value") || ALL_FILTER_VALUE,
-      sortBy: queryParams.get("sortBy") || "purchaseCount",
-      sortOrder: queryParams.get("sortOrder") || "desc",
+      search: currentQueryParams.get("search") || "",
+      brand: currentQueryParams.get("brand") || ALL_FILTER_VALUE,
+      type: currentQueryParams.get("type") || ALL_FILTER_VALUE,
+      section: currentQueryParams.get("section") || ALL_FILTER_VALUE,
+      value: currentQueryParams.get("value") || ALL_FILTER_VALUE,
+      sortBy: currentQueryParams.get("sortBy") || "purchaseCount",
+      sortOrder: currentQueryParams.get("sortOrder") || "desc",
     };
     setFilters(updatedFilters);
-    const pageParam = queryParams.get("page");
+    const pageParam = currentQueryParams.get("page");
     const parsedPage = pageParam && !isNaN(parseInt(pageParam)) ? parseInt(pageParam) : 1;
     setPage(parsedPage);
 
-    const stationIdParam = queryParams.get("stationId") || ALL_FILTER_VALUE;
+    const stationIdParam = currentQueryParams.get("stationId") || ALL_FILTER_VALUE;
     setSelectedStation(stationIdParam);
 
-    // Truyền thẳng filter/page vừa parse từ URL để không đọc phải state cũ
-    // (setFilters/setPage chưa flush trong cùng lượt chạy effect này).
-    fetchProducts(stationIdParam, { filters: updatedFilters, page: parsedPage });
+    const fetchProductsFromUrl = async () => {
+      setIsLoadingProducts(true);
+      try {
+        const response = await listStorefrontProducts({
+          page: parsedPage,
+          limit: PRODUCT_PAGE_LIMIT,
+          search: updatedFilters.search,
+          brand: updatedFilters.brand === ALL_FILTER_VALUE ? "" : updatedFilters.brand,
+          type: updatedFilters.type === ALL_FILTER_VALUE ? "" : updatedFilters.type,
+          section: updatedFilters.section === ALL_FILTER_VALUE ? "" : updatedFilters.section,
+          value: updatedFilters.value === ALL_FILTER_VALUE ? "" : updatedFilters.value,
+          sortBy: updatedFilters.sortBy,
+          sortOrder: updatedFilters.sortOrder,
+          display: "true",
+          stationId: stationIdParam === ALL_FILTER_VALUE ? "" : stationIdParam,
+        });
+        const data = await response.json();
+        setProducts(data.products || []);
+        setTotalProducts(data.total || 0);
+        setTotalPages(Math.ceil((data.total || 0) / PRODUCT_PAGE_LIMIT));
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    fetchProductsFromUrl();
   }, [location.search]);
 
   const handleFilterChange = (e) => {
@@ -179,7 +170,7 @@ function Product() {
     }
   };
 
-  const fetchValues = async (sectionName) => {
+  const fetchValues = useCallback(async (sectionName) => {
     try {
       const response = await getStorefrontSectionValues(sectionName);
       const data = await response.json();
@@ -188,7 +179,7 @@ function Product() {
       console.error("Error fetching values:", error);
       setValues([]);
     }
-  };
+  }, []);
 
   const handleStationChange = (e) => {
     const stationId = e.target.value;
@@ -271,16 +262,15 @@ function Product() {
         setTypes(typesData);
         setSections(sectionsData);
 
-        const initialSection = queryParams.get("section");
         if (initialSection && initialSection !== ALL_FILTER_VALUE) {
-          fetchValues(initialSection);
+          await fetchValues(initialSection);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
     fetchData();
-  }, []);
+  }, [fetchValues, initialSection]);
 
   const isValueDisabled = filters.section === ALL_FILTER_VALUE;
 
@@ -445,8 +435,8 @@ function Product() {
     </form>
   );
 
-  const firstProductIndex = totalProducts === 0 ? 0 : (page - 1) * limit + 1;
-  const lastProductIndex = Math.min(page * limit, totalProducts);
+  const firstProductIndex = totalProducts === 0 ? 0 : (page - 1) * PRODUCT_PAGE_LIMIT + 1;
+  const lastProductIndex = Math.min(page * PRODUCT_PAGE_LIMIT, totalProducts);
 
   return (
     <main className="product-catalog-page">

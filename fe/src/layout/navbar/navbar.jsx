@@ -1,10 +1,10 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import logo from "../../assets/TTSlogo.jpg";
 import { apiFetch } from "../../api/httpClient";
-import { ShopContext } from "../../context/shopcontext";
-import { useLanguage } from "../../context/languagecontext.jsx";
+import { ShopContext } from "../../context/shop.js";
+import { useLanguage } from "../../context/language.js";
 import "./navbar.css";
 
 function Navbar() {
@@ -70,7 +70,7 @@ function Navbar() {
       } else {
         toast.error(t("logout_failed"));
       }
-    } catch (error) {
+    } catch {
       toast.error(t("generic_error_retry"));
     } finally {
       setIsLoading(false);

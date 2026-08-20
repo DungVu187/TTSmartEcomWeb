@@ -1,9 +1,10 @@
+import { vi } from "vitest";
 import { apiFetch, resolveApiUrl } from "./httpClient";
 import * as customerAccountApi from "./customerAccountApi";
 
-jest.mock("./httpClient", () => ({
-  apiFetch: jest.fn(),
-  resolveApiUrl: jest.fn(),
+vi.mock("./httpClient", () => ({
+  apiFetch: vi.fn(),
+  resolveApiUrl: vi.fn(),
 }));
 
 const expectedExportNames = [
@@ -25,10 +26,10 @@ describe("customerAccountApi", () => {
   const response = { ok: true, status: 200 };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     apiFetch.mockResolvedValue(response);
     resolveApiUrl.mockImplementation((path) => "https://api.test" + path);
-    global.fetch = jest.fn().mockResolvedValue(response);
+    global.fetch = vi.fn().mockResolvedValue(response);
   });
 
   afterAll(() => {

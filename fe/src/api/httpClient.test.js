@@ -1,16 +1,17 @@
+import { vi } from "vitest";
 import { apiFetch, getAuthFailure, resolveApiUrl } from "./httpClient";
 
 describe("httpClient", () => {
-  const originalApiUrl = process.env.REACT_APP_BACK_END;
+  const originalApiUrl = import.meta.env.VITE_BACK_END;
 
   beforeEach(() => {
-    process.env.REACT_APP_BACK_END = "https://api.example.com/root/";
-    global.fetch = jest.fn();
+    import.meta.env.VITE_BACK_END = "https://api.example.com/root/";
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
-    process.env.REACT_APP_BACK_END = originalApiUrl;
-    jest.restoreAllMocks();
+    import.meta.env.VITE_BACK_END = originalApiUrl;
+    vi.restoreAllMocks();
   });
 
   test("joins relative paths and falls back to same-origin paths", () => {
@@ -21,7 +22,7 @@ describe("httpClient", () => {
       "https://api.example.com/root/users/logout"
     );
 
-    process.env.REACT_APP_BACK_END = "";
+    import.meta.env.VITE_BACK_END = "";
     expect(resolveApiUrl("users/profile")).toBe("/users/profile");
   });
 

@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Typography } from "@mui/material";
-import { useLanguage } from "../context/languagecontext.jsx";
+import { useLanguage } from "../context/language.js";
 import { getLocalizedText } from "../utils/localizedcontent";
 import { getStorefrontContent } from "../api/storefrontCatalogApi";
 

@@ -118,6 +118,7 @@ async function setIpOrderStatusAndQuantity(req, res) {
             orderName: order.orderName,
             note: "Nhập kho (đơn nhập hoàn thành)",
             source: "order_bulk_complete",
+            transactionDate: order.transactionDate || order.createdAt || new Date(),
           });
         }
         productItem.quantityRe = productItem.quantity;
@@ -208,6 +209,7 @@ async function setIpOrderLineStatusAndQuantity(req, res) {
         orderName: order.orderName,
         note: "Nhập kho (đơn nhập hoàn thành)",
         source: "order_line_complete",
+        transactionDate: order.transactionDate || order.createdAt || new Date(),
       }]);
     }
     res.json(updatedOrder);

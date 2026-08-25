@@ -117,6 +117,70 @@ describe("Import and export stock accounting", () => {
     expect(histories[0]).toMatchObject({ quantity: 3, source: "order_line_complete" });
   });
 
+  it("deletes an imported line by reverting its applied stock and recording the reversal", async () => {
+    const agent = await createAdminAgent();
+    const product = await createProduct({ quantityInStorage: 10, quantityForSale: 10 });
+    const order = await createIpOrder({
+      orderName: "Delete imported line",
+      productList: [{
+        productId: product._id.toString(),
+        price: "100000",
+        unit: "cái",
+        quantity: 3,
+        quantityRe: 0,
+        status: false,
+      }],
+    });
+
+    const completed = await agent
+      .put(`/iporders/orders/${order._id}/products/0/setStatusAndQuantity`)
+      .send({ status: true });
+    expect(completed.status).toBe(200);
+    await expectStock(product._id, 13, 13);
+
+    const deleted = await agent.delete(`/iporders/orders/${order._id}/products/0`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.productList).toHaveLength(0);
+    expect(deleted.body.status).toBe(false);
+    await expectStock(product._id, 10, 10);
+
+    const histories = await StorageHistory.find({ productId: product._id }).sort({ createdAt: 1 });
+    expect(histories.map((history) => history.quantity)).toEqual([3, -3]);
+    expect(histories[1]).toMatchObject({ source: "order_line_manual" });
+  });
+
+  it("deletes an exported line by returning its applied stock and recording the reversal", async () => {
+    const agent = await createAdminAgent();
+    const product = await createProduct({ quantityInStorage: 10, quantityForSale: 10 });
+    const order = await createEpOrder({
+      orderName: "Delete exported line",
+      productList: [{
+        productId: product._id.toString(),
+        price: "100000",
+        unit: "cái",
+        quantity: 3,
+        quantityEx: 0,
+        status: false,
+      }],
+    });
+
+    const completed = await agent
+      .put(`/eporders/orders/${order._id}/products/0/setStatusAndQuantity`)
+      .send({ status: true });
+    expect(completed.status).toBe(200);
+    await expectStock(product._id, 7, 7);
+
+    const deleted = await agent.delete(`/eporders/orders/${order._id}/products/0`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.productList).toHaveLength(0);
+    expect(deleted.body.status).toBe(false);
+    await expectStock(product._id, 10, 10);
+
+    const histories = await StorageHistory.find({ productId: product._id }).sort({ createdAt: 1 });
+    expect(histories.map((history) => history.quantity)).toEqual([-3, 3]);
+    expect(histories[1]).toMatchObject({ source: "order_line_manual" });
+  });
+
   it("applies a concurrently submitted import line only once", async () => {
     const agent = await createAdminAgent();
     const product = await createProduct({ quantityInStorage: 5, quantityForSale: 5 });

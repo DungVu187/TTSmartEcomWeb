@@ -37,9 +37,11 @@ function buildInventoryOrderListOptions({
 
     if (byCompletedDate === 'true') {
       query.$or = [
-        { completedAt: dateFilter },
-        { completedAt: { $exists: false }, createdAt: dateFilter },
-        { completedAt: null, createdAt: dateFilter },
+        { transactionDate: dateFilter },
+        { transactionDate: { $exists: false }, completedAt: dateFilter },
+        { transactionDate: null, completedAt: dateFilter },
+        { transactionDate: { $exists: false }, completedAt: { $exists: false }, createdAt: dateFilter },
+        { transactionDate: null, completedAt: null, createdAt: dateFilter },
       ];
     } else {
       query.createdAt = dateFilter;
@@ -51,7 +53,7 @@ function buildInventoryOrderListOptions({
     page,
     query,
     skip,
-    sortField: byCompletedDate === 'true' ? 'completedAt' : 'createdAt',
+    sortField: byCompletedDate === 'true' ? 'transactionDate' : 'createdAt',
   };
 }
 

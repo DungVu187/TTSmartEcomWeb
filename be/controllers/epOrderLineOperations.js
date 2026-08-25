@@ -1,4 +1,11 @@
 const { EpOrder } = require('../models/eporder');
+const { Product } = require('../models/product');
+const { StorageHistory } = require('../models/storagehistory');
+const {
+  applyStockAdjustments,
+  isVersionConflict,
+  rollbackOrThrow,
+} = require('../services/inventory');
 const {
   resolveUpdatedExportPricing,
   saveExportOrder,
@@ -34,15 +41,49 @@ async function deleteEpOrderLine(req, res) {
     if (!Number.isInteger(index) || index < 0 || index >= order.productList.length) {
       return res.status(400).json({ message: 'Invalid product index' });
     }
-    if (
-      toQuantity(order.productList[index].quantityEx) > 0 ||
-      getStockAppliedQuantity(order.productList[index]) > 0
-    ) {
-      return res.status(400).json({
-        message: 'Không thể xóa sản phẩm đã phát sinh xuất kho. Hãy hoàn số lượng xuất về 0 trước.',
-      });
+    const productItem = order.productList[index];
+    const appliedQuantity = getStockAppliedQuantity(productItem);
+    let appliedAdjustments = [];
+    let historyEntry = null;
+
+    if (appliedQuantity > 0) {
+      const product = await Product.findById(productItem.productId)
+        .select('name variant._id variant.quantityForSale variant.quantityInStorage');
+      if (!product) {
+        throw createRouteError(404, `Product ${productItem.productId} not found`);
+      }
+      const variant = product.variant[0];
+      if (!variant) {
+        throw createRouteError(400, 'Sản phẩm không có biến thể');
+      }
+
+      appliedAdjustments = await applyStockAdjustments([{
+        productId: product._id,
+        variantIndex: 0,
+        expectedVariantId: variant._id,
+        quantityInStorageDelta: appliedQuantity,
+        quantityForSaleDelta: appliedQuantity,
+      }]);
+      historyEntry = {
+        productId: product._id,
+        productName: product.name,
+        quantity: appliedQuantity,
+        userName: req.user?.name,
+        orderId: order._id.toString(),
+        orderName: order.orderName,
+        note: 'Hoàn kho khi xóa sản phẩm khỏi đơn xuất',
+        source: 'order_line_manual',
+        transactionDate: order.transactionDate || new Date(),
+      };
     }
     order.productList.splice(index, 1);
+
+    const allRemainingLinesCompleted = order.productList.length > 0 &&
+      order.productList.every((item) => item.status);
+    order.status = allRemainingLinesCompleted;
+    order.completedAt = allRemainingLinesCompleted
+      ? order.completedAt || new Date()
+      : null;
 
     order.total = order.productList
       .reduce((sum, item) => {
@@ -53,10 +94,24 @@ async function deleteEpOrderLine(req, res) {
       }, 0)
       .toString();
 
-    const updatedOrder = await saveExportOrder(order);
+    let updatedOrder;
+    try {
+      updatedOrder = await saveExportOrder(order);
+    } catch (error) {
+      await rollbackOrThrow(appliedAdjustments, error);
+    }
+
+    if (historyEntry) {
+      try {
+        await new StorageHistory(historyEntry).save();
+      } catch (error) {
+        console.error('StorageHistory error (eporder line deletion):', error.message);
+      }
+    }
     res.json(updatedOrder);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(error?.statusCode || (isVersionConflict(error) ? 409 : 400))
+      .json({ message: error.message });
   }
 }
 

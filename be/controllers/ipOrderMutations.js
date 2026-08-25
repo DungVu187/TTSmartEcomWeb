@@ -7,6 +7,7 @@ const {
   isVersionConflict,
   rollbackOrThrow,
 } = require("../services/inventory");
+const { parseInventoryOrderTransactionDate } = require("../utils/inventoryOrderTransactionDate");
 
 const toQuantity = (value) => Number(value) || 0;
 
@@ -74,7 +75,18 @@ const getAppliedQuantity = (productItem) => {
   return applied;
 };
 
-const adjustImportStock = async ({ productId, delta, req, order, note, isAIScan, source }) => {
+const adjustImportStock = async ({
+  productId,
+  delta,
+  req,
+  order,
+  note,
+  isAIScan,
+  source,
+  quantityBefore,
+  quantityAfter,
+  isQuantityAdjustment = false,
+}) => {
   if (!delta) return { appliedAdjustments: [], historyData: null };
 
   const product = await Product.findById(productId)
@@ -105,9 +117,13 @@ const adjustImportStock = async ({ productId, delta, req, order, note, isAIScan,
       userName: req.user?.name,
       orderId: order._id.toString(),
       orderName: order.orderName,
-      note,
+      note: isQuantityAdjustment
+        ? `Sửa số lượng nhập: ${quantityBefore} → ${quantityAfter}`
+        : note,
       isAIScan: !!isAIScan,
-      source,
+      source: isQuantityAdjustment ? "import_quantity_adjustment" : source,
+      transactionDate: order.transactionDate || order.createdAt || new Date(),
+      ...(isQuantityAdjustment ? { quantityBefore, quantityAfter } : {}),
     },
   };
 };
@@ -147,7 +163,7 @@ const getRouteErrorMessage = (error, fallback) => {
 async function createIpOrder(req, res) {
   try {
     const userName = req.user.name;
-    const { productList, orderName, note } = req.body;
+    const { productList, orderName, note, transactionDate } = req.body;
     if (productList !== undefined && !Array.isArray(productList)) {
       throw createRouteError(400, "productList phải là một mảng.");
     }
@@ -167,6 +183,7 @@ async function createIpOrder(req, res) {
     const newOrder = new IpOrder({
       orderName: orderName || "",
       note: typeof note === "string" ? note : "",
+      transactionDate: parseInventoryOrderTransactionDate(transactionDate),
       userName,
       productList: sanitizedProductList,
     });
@@ -303,6 +320,9 @@ async function updateIpOrderLine(req, res) {
         note: stockDelta > 0 ? "Nhập kho (cập nhật đơn nhập)" : "Điều chỉnh giảm nhập kho",
         isAIScan,
         source: isAIScan ? undefined : "order_line_manual",
+        isQuantityAdjustment: rawUpdate.quantityAdjustment === true,
+        quantityBefore: currentProgress,
+        quantityAfter: targetProgress,
       });
     }
 

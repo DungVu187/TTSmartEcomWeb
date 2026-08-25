@@ -38,17 +38,18 @@ router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
         const skip = (page - 1) * limit;
 
         const filter = {};
+        let transactionDateFilter;
         if (startDate || endDate) {
-            filter.createdAt = {};
+            transactionDateFilter = {};
             if (startDate) {
                 const start = new Date(startDate);
                 start.setUTCHours(0 - 7, 0, 0, 0);
-                filter.createdAt.$gte = start;
+                transactionDateFilter.$gte = start;
             }
             if (endDate) {
                 const end = new Date(endDate);
                 end.setUTCHours(23 - 7, 59, 59, 999);
-                filter.createdAt.$lte = end;
+                transactionDateFilter.$lte = end;
             }
         }
 
@@ -96,6 +97,8 @@ router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
                 filter.source = 'order_line_complete';
             } else if (noteType === 'order_bulk_complete') {
                 filter.source = 'order_bulk_complete';
+            } else if (noteType === 'import_quantity_adjustment') {
+                filter.source = 'import_quantity_adjustment';
             } else if (noteType === 'product_manual') {
                 filter.source = 'product_manual';
             } else if (noteType === 'ban_online') {
@@ -110,12 +113,29 @@ router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
         }
 
         if (direction === "import") {
-            filter.quantity = { $gt: 0 };
+            filter.$and = filter.$and || [];
+            filter.$and.push({
+                $or: [
+                    { quantity: { $gt: 0 } },
+                    { source: "import_quantity_adjustment" },
+                ],
+            });
         } else if (direction === "export") {
             filter.quantity = { $lt: 0 };
         }
 
-        const historyQuery = StorageHistory.find(filter).sort({ createdAt: -1 });
+        if (transactionDateFilter) {
+            filter.$and = filter.$and || [];
+            filter.$and.push({
+                $or: [
+                    { transactionDate: transactionDateFilter },
+                    { transactionDate: { $exists: false }, createdAt: transactionDateFilter },
+                    { transactionDate: null, createdAt: transactionDateFilter },
+                ],
+            });
+        }
+
+        const historyQuery = StorageHistory.find(filter).sort({ transactionDate: -1, createdAt: -1 });
         if (!exportAll) {
             historyQuery.skip(skip).limit(limit);
         }

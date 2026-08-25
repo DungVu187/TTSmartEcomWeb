@@ -21,14 +21,14 @@ describe('inventory order read queries', () => {
       limit: 20,
       page: '2',
       skip: 20,
-      sortField: 'completedAt',
+      sortField: 'transactionDate',
     });
     expect(options.query.status).toBe(true);
     expect(options.query.orderName.$regex).toBe('PO\\.\\*');
     expect(options.query.userName.$regex).toBe('Staff \\(A\\)');
-    expect(options.query.$or).toHaveLength(3);
-    expect(options.query.$or[0].completedAt.$gte.toISOString()).toBe('2026-06-30T17:00:00.000Z');
-    expect(options.query.$or[0].completedAt.$lte.toISOString()).toBe('2026-07-01T16:59:59.999Z');
+    expect(options.query.$or).toHaveLength(5);
+    expect(options.query.$or[0].transactionDate.$gte.toISOString()).toBe('2026-06-30T17:00:00.000Z');
+    expect(options.query.$or[0].transactionDate.$lte.toISOString()).toBe('2026-07-01T16:59:59.999Z');
   });
 
   it('preserves list query chaining and pagination envelope', async () => {

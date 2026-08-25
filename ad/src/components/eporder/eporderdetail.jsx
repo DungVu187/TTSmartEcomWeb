@@ -82,10 +82,10 @@ import {
   setExportOrderStatus,
   updateExportOrderLine,
   updateExportOrderMetadata,
-  updateExportOrderName,
   updateInventoryOrderHistoryName,
   uploadExportOrderImage,
 } from "../../api/inventoryOrderAdministrationApi";
+import { toDateTimeLocalValue } from "../../utils/dateTime";
 
 const removeTonesLocal = (value) => String(value || "")
   .normalize("NFD")
@@ -152,7 +152,10 @@ const SortableTableRow = ({
   navigate,
   receiveInput,
   setReceiveInput,
+  exportedTotalInput,
+  setExportedTotalInput,
   handleExportQuantity,
+  handleExportedTotalChange,
   handleDeleteProduct,
   handleProductStatusChange,
   canEdit,
@@ -236,7 +239,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status || !canEdit}
+          disabled={!canEdit}
           suffix="%"
           sx={{ width: "66px" }}
         />
@@ -260,10 +263,6 @@ const SortableTableRow = ({
           onChange={(e) =>
             handleTempUpdateProduct(index, "unit", e.target.value, false)
           }
-          onBlur={(e) => {
-            const value = e.target.value || "";
-            handleTempUpdateProduct(index, "unit", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = e.target.value || "";
@@ -271,7 +270,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status || !canEdit}
+          disabled={!canEdit}
           sx={{ width: "58px" }}
         />
       </TableCell>
@@ -285,10 +284,6 @@ const SortableTableRow = ({
             const { value } = values;
             handleTempUpdateProduct(index, "quantity", value, false);
           }}
-          onBlur={() => {
-            const value = tempProductList[index]?.quantity || "";
-            handleTempUpdateProduct(index, "quantity", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = tempProductList[index]?.quantity || "";
@@ -296,11 +291,39 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status || !canEdit}
+          disabled={!canEdit}
           sx={{ width: "64px" }}
         />
       </TableCell>
-      <TableCell align="center">{product.quantityEx || 0}</TableCell>
+      <TableCell align="center">
+        <NumericFormat
+          value={exportedTotalInput[index] ?? product.quantityEx ?? 0}
+          customInput={TextField}
+          thousandSeparator="."
+          decimalSeparator=","
+          allowNegative={false}
+          onValueChange={(values) => {
+            setExportedTotalInput((prev) => ({ ...prev, [index]: values.value }));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleExportedTotalChange(
+                index,
+                exportedTotalInput[index] ?? product.quantityEx ?? 0,
+              );
+              setExportedTotalInput((prev) => {
+                const next = { ...prev };
+                delete next[index];
+                return next;
+              });
+            }
+          }}
+          disabled={!canEdit}
+          size="small"
+          sx={{ width: "54px" }}
+        />
+      </TableCell>
       <TableCell align="center">
         <NumericFormat
           customInput={TextField}
@@ -318,7 +341,7 @@ const SortableTableRow = ({
             }
           }}
           size="small"
-          disabled={product.status || !canEdit}
+          disabled={!canEdit}
           sx={{
             width: "62px",
             "& .MuiOutlinedInput-root": {
@@ -334,10 +357,6 @@ const SortableTableRow = ({
           onChange={(e) =>
             handleTempUpdateProduct(index, "note", e.target.value, false)
           }
-          onBlur={(e) => {
-            const value = e.target.value || "";
-            handleTempUpdateProduct(index, "note", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               const value = e.target.value || "";
@@ -346,7 +365,7 @@ const SortableTableRow = ({
           }}
           size="small"
           multiline
-          disabled={product.status || !canEdit}
+          disabled={!canEdit}
           fullWidth
         />
       </TableCell>
@@ -362,7 +381,6 @@ const SortableTableRow = ({
         {canEdit && (
           <IconButton
             onClick={() => handleDeleteProduct(index)}
-            disabled={product.quantityEx > 0}
             color="error"
           >
             <DeleteIcon />
@@ -395,6 +413,7 @@ const ExportOrderDetail = () => {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveInput, setReceiveInput] = useState({});
+  const [exportedTotalInput, setExportedTotalInput] = useState({});
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
   const [excelMenuAnchor, setExcelMenuAnchor] = useState(null);
@@ -1607,6 +1626,47 @@ const ExportOrderDetail = () => {
     }
   };
 
+  const handleExportedTotalChange = async (productIndex, value) => {
+    if (!order?.productList?.[productIndex]) return;
+
+    const nextQuantityEx = Number(value);
+    const currentProduct = order.productList[productIndex];
+    const quantity = Number(currentProduct.quantity);
+    if (!Number.isInteger(nextQuantityEx) || nextQuantityEx < 0 || nextQuantityEx > quantity) {
+      toast.error("Số đã xuất phải từ 0 đến số lượng xuất");
+      return;
+    }
+    if (nextQuantityEx === Number(currentProduct.quantityEx || 0)) return;
+
+    const updatedOrder = await handleApiResponse(
+      updateExportOrderLine(id, productIndex, {
+        ...currentProduct,
+        quantityEx: nextQuantityEx,
+        quantityAdjustment: true,
+      })
+    );
+
+    if (!updatedOrder) return;
+
+    const allCompleted = updatedOrder.productList.every((item) => item.status);
+    if (allCompleted && !updatedOrder.status) {
+      const statusUpdate = await handleApiResponse(setExportOrderStatus(id, true));
+      if (statusUpdate) updatedOrder.status = true;
+    } else if (!allCompleted && updatedOrder.status) {
+      const statusUpdate = await handleApiResponse(setExportOrderStatus(id, false));
+      if (statusUpdate) updatedOrder.status = false;
+    }
+
+    setOrder(updatedOrder);
+    setTempProductList(updatedOrder.productList);
+    setExportedTotalInput((prev) => {
+      const next = { ...prev };
+      delete next[productIndex];
+      return next;
+    });
+    toast.success("Đã cập nhật số lượng đã xuất");
+  };
+
   // Hàm xóa sản phẩm
   const handleDeleteProduct = async (productIndex) => {
     if (
@@ -1618,10 +1678,13 @@ const ExportOrderDetail = () => {
       return;
     }
 
-    if (order.productList[productIndex].quantityEx > 0) {
-      toast.error("Không thể xóa sản phẩm đã xuất hàng");
-      return;
-    }
+    const product = order.productList[productIndex];
+    const hasExportedQuantity = Number(product.quantityEx || 0) > 0 ||
+      Number(product.stockAppliedQuantity || 0) > 0;
+    const confirmationMessage = hasExportedQuantity
+      ? "Sản phẩm này đã được xuất kho. Xóa dòng sẽ hoàn lại số lượng đã xuất vào kho. Bạn có chắc muốn tiếp tục?"
+      : "Bạn có chắc muốn xóa sản phẩm này khỏi đơn xuất?";
+    if (!window.confirm(confirmationMessage)) return;
 
     const updatedOrder = await handleApiResponse(
       deleteExportOrderLine(id, productIndex)
@@ -1638,7 +1701,8 @@ const ExportOrderDetail = () => {
         (item) => item && item.productId
       );
 
-      const allCompleted = validProductList.every((p) => p.status);
+      const allCompleted = validProductList.length > 0 &&
+        validProductList.every((p) => p.status);
       if (allCompleted && !updatedOrder.status) {
         const statusUpdate = await handleApiResponse(
           setExportOrderStatus(id, true)
@@ -1680,9 +1744,13 @@ const ExportOrderDetail = () => {
   };
 
   // Hàm cập nhật tên đơn hàng
-  const handleUpdateOrderName = async (newOrderName, newNote) => {
+  const saveOrderMetadata = async (newOrderName, newNote) => {
     const updatedOrder = await handleApiResponse(
-      updateExportOrderName(id, { orderName: newOrderName, note: newNote })
+      updateExportOrderMetadata(id, {
+        orderName: newOrderName,
+        note: newNote,
+        transactionDate: order?.transactionDate || order?.createdAt,
+      })
     );
 
     if (updatedOrder) {
@@ -1696,6 +1764,124 @@ const ExportOrderDetail = () => {
   };
 
   // Hàm sao chép đơn hàng
+  const handleUpdateOrderName = async (newOrderName, newNote) => {
+    if (!order) return;
+
+    let updatedOrder = order;
+    const stopSaving = () => {
+      setOrder(updatedOrder);
+      setTempProductList(updatedOrder.productList);
+    };
+
+    for (let index = 0; index < tempProductList.length; index += 1) {
+      const currentProduct = updatedOrder.productList[index];
+      const tempProduct = tempProductList[index];
+      if (!currentProduct || !tempProduct) continue;
+
+      const changes = {};
+      for (const field of ["unit", "note", "vat"]) {
+        if (String(tempProduct[field] ?? "") !== String(currentProduct[field] ?? "")) {
+          changes[field] = tempProduct[field] ?? "";
+        }
+      }
+      if (Number(tempProduct.quantity) !== Number(currentProduct.quantity)) {
+        changes.quantity = Number(tempProduct.quantity);
+      }
+      if (Number(tempProduct.profitPercent) !== Number(currentProduct.profitPercent)) {
+        changes.profitPercent = Number(tempProduct.profitPercent);
+      }
+      if (Object.keys(changes).length === 0) continue;
+
+      const savedOrder = await handleApiResponse(
+        updateExportOrderLine(id, index, changes)
+      );
+      if (!savedOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = savedOrder;
+    }
+
+    for (const [rawIndex, rawQuantity] of Object.entries(exportedTotalInput)) {
+      const index = Number(rawIndex);
+      const currentProduct = updatedOrder.productList[index];
+      const quantityEx = Number(rawQuantity);
+      if (
+        !currentProduct ||
+        !Number.isInteger(quantityEx) ||
+        quantityEx < 0 ||
+        quantityEx > Number(currentProduct.quantity)
+      ) {
+        toast.error("Số đã xuất phải từ 0 đến số lượng xuất");
+        stopSaving();
+        return;
+      }
+      if (quantityEx === Number(currentProduct.quantityEx || 0)) continue;
+
+      const savedOrder = await handleApiResponse(
+        updateExportOrderLine(id, index, {
+          ...currentProduct,
+          quantityEx,
+          quantityAdjustment: true,
+        })
+      );
+      if (!savedOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = savedOrder;
+    }
+
+    for (const [rawIndex, rawQuantity] of Object.entries(receiveInput)) {
+      if (rawQuantity === "") continue;
+      const index = Number(rawIndex);
+      const currentProduct = updatedOrder.productList[index];
+      const exported = parseInt(rawQuantity);
+      const quantityEx = Number(currentProduct?.quantityEx || 0) + exported;
+      if (
+        !currentProduct ||
+        !Number.isInteger(exported) ||
+        exported <= 0 ||
+        quantityEx > Number(currentProduct.quantity)
+      ) {
+        toast.error("Số lượng xuất không được vượt quá số lượng đặt");
+        stopSaving();
+        return;
+      }
+
+      const savedOrder = await handleApiResponse(
+        updateExportOrderLine(id, index, {
+          ...currentProduct,
+          quantityEx,
+        })
+      );
+      if (!savedOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = savedOrder;
+    }
+
+    const allCompleted = updatedOrder.productList.length > 0 &&
+      updatedOrder.productList.every((item) => item.status);
+    if (allCompleted !== updatedOrder.status) {
+      const statusOrder = await handleApiResponse(
+        setExportOrderStatus(id, allCompleted)
+      );
+      if (!statusOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = statusOrder;
+    }
+
+    setOrder(updatedOrder);
+    setTempProductList(updatedOrder.productList);
+    setReceiveInput({});
+    setExportedTotalInput({});
+    await saveOrderMetadata(newOrderName, newNote);
+  };
+
   const handleCopyOrder = async () => {
     if (!order) {
       toast.error("Không có đơn hàng để sao chép");
@@ -2240,7 +2426,7 @@ const ExportOrderDetail = () => {
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
-            lg: "minmax(680px, 760px) minmax(0, 1fr)",
+            lg: "minmax(900px, 980px) minmax(0, 1fr)",
           },
           columnGap: 2,
           rowGap: 1,
@@ -2258,7 +2444,7 @@ const ExportOrderDetail = () => {
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
-                sm: "minmax(220px, 1fr) minmax(180px, 0.8fr) auto auto",
+                sm: "minmax(220px, 1fr) minmax(180px, 0.8fr) minmax(200px, 0.9fr) auto auto",
               },
               gap: 1,
               alignItems: "center",
@@ -2298,6 +2484,20 @@ const ExportOrderDetail = () => {
                   handleUpdateOrderName(order?.orderName || "", order?.note || "");
                 }
               }}
+            />
+            <TextField
+              label="Ngày xuất thực tế"
+              type="datetime-local"
+              value={toDateTimeLocalValue(order?.transactionDate || order?.createdAt)}
+              onChange={(e) => setOrder((prev) => ({
+                ...prev,
+                transactionDate: e.target.value ? new Date(e.target.value).toISOString() : "",
+              }))}
+              size="small"
+              fullWidth
+              sx={orderMetadataFieldSx}
+              disabled={!canEdit}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
             {canEdit && (
               <Button
@@ -2700,7 +2900,10 @@ const ExportOrderDetail = () => {
                       navigate={navigate}
                       receiveInput={receiveInput}
                       setReceiveInput={setReceiveInput}
+                      exportedTotalInput={exportedTotalInput}
+                      setExportedTotalInput={setExportedTotalInput}
                       handleExportQuantity={handleExportQuantity}
+                      handleExportedTotalChange={handleExportedTotalChange}
                       handleDeleteProduct={handleDeleteProduct}
                       handleProductStatusChange={handleProductStatusChange}
                       canEdit={canEdit}

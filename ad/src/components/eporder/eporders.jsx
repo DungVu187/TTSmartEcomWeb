@@ -770,7 +770,7 @@ const EpOrders = () => {
             className="inventory-order-list-table"
             sx={{ overflow: "auto" }}
           >
-            <Table stickyHeader style={{ minWidth: "1000px", tableLayout: "fixed" }}>
+            <Table stickyHeader style={{ minWidth: "1140px", tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow>
                   <TableCell align="center" style={{ width: "50px" }}></TableCell>
@@ -780,7 +780,8 @@ const EpOrders = () => {
                   <TableCell align="center" style={{ width: "13%" }}>Tổng giá</TableCell>
                   <TableCell align="center" style={{ width: "10%" }}>Trạng thái</TableCell>
                   <TableCell align="center" style={{ width: "13%" }}>Ngày tạo</TableCell>
-                  <TableCell align="center" style={{ width: "14%" }}>Ngày xuất</TableCell>
+                  <TableCell align="center" style={{ width: "14%" }}>Xuất thực tế</TableCell>
+                  <TableCell align="center" style={{ width: "14%" }}>Xác nhận</TableCell>
                   <TableCell align="center" style={{ width: "100px" }}></TableCell>
                 </TableRow>
               </TableHead>
@@ -839,6 +840,9 @@ const EpOrders = () => {
                           {moment(order.createdAt).format("DD/MM/YYYY HH:mm")}
                         </TableCell>
                         <TableCell align="center">
+                          {moment(order.transactionDate || order.createdAt).format("DD/MM/YYYY HH:mm")}
+                        </TableCell>
+                        <TableCell align="center">
                           {order.completedAt 
                             ? moment(order.completedAt).format("DD/MM/YYYY HH:mm") 
                             : (order.status === true ? moment(order.createdAt).format("DD/MM/YYYY HH:mm") : "")}
@@ -859,7 +863,7 @@ const EpOrders = () => {
                           <TableCell
                             className="collapsible-cell"
                             style={{ paddingBottom: 0, paddingTop: 0, borderBottom: "none" }}
-                            colSpan={9}
+                          colSpan={10}
                           >
                             <Collapse
                               in={expandedRows[order._id]}

@@ -41,9 +41,16 @@ const storageHistorySchema = new mongoose.Schema({
             "product_manual",
             "online_sale",
             "online_sale_revert",
+            "import_quantity_adjustment",
         ],
         default: undefined,
-    }
+    },
+    transactionDate: {
+        type: Date,
+        default: Date.now,
+    },
+    quantityBefore: { type: Number },
+    quantityAfter: { type: Number },
 }, { timestamps: true });
 
 const StorageHistory = mongoose.models.StorageHistory || mongoose.model("StorageHistory", storageHistorySchema);

@@ -137,6 +137,7 @@ async function setEpOrderStatusAndQuantity(req, res) {
             orderName: order.orderName,
             note: "Xuất kho (đơn xuất hoàn thành)",
             source: "order_bulk_complete",
+            transactionDate: order.transactionDate || order.createdAt || new Date(),
           });
         }
 
@@ -235,6 +236,7 @@ async function setEpOrderLineStatusAndQuantity(req, res) {
         orderName: order.orderName,
         note: "Xuất kho (đơn xuất hoàn thành)",
         source: "order_line_complete",
+        transactionDate: order.transactionDate || order.createdAt || new Date(),
       }]);
     }
     res.json(updatedOrder);

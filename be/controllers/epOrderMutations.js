@@ -7,6 +7,7 @@ const {
   isVersionConflict,
   rollbackOrThrow,
 } = require("../services/inventory");
+const { parseInventoryOrderTransactionDate } = require("../utils/inventoryOrderTransactionDate");
 const {
   resolveNewExportPricing,
   resolveUpdatedExportPricing,
@@ -55,6 +56,7 @@ const adjustExportStock = async ({ productId, delta, req, order, note, isAIScan,
       note,
       isAIScan: !!isAIScan,
       source,
+      transactionDate: order.transactionDate || order.createdAt || new Date(),
     },
   };
 };
@@ -167,7 +169,7 @@ const getRouteErrorMessage = (error, fallback) => {
 async function createEpOrder(req, res) {
   try {
     const userName = req.user.name;
-    const { productList, orderName, note } = req.body;
+    const { productList, orderName, note, transactionDate } = req.body;
     if (productList !== undefined && !Array.isArray(productList)) {
       throw createRouteError(400, "productList phải là một mảng");
     }
@@ -187,6 +189,7 @@ async function createEpOrder(req, res) {
     const newOrder = new EpOrder({
       orderName: orderName || "",
       note: typeof note === "string" ? note : "",
+      transactionDate: parseInventoryOrderTransactionDate(transactionDate),
       userName,
       productList: normalizedProductList,
     });

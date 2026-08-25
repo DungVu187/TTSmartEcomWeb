@@ -37,6 +37,7 @@ const importNoteTypeOptions = [
   { value: "nhap_ai", label: "Nhập đơn quét AI" },
   { value: "order_line_manual", label: "Trong đơn - gõ tay" },
   { value: "order_line_complete", label: "Trong đơn - tích hoàn thành SP" },
+  { value: "import_quantity_adjustment", label: "Sửa số lượng nhập" },
   { value: "order_bulk_complete", label: "Trong đơn - hoàn thành cả đơn" },
 ];
 
@@ -99,7 +100,7 @@ const removeVietnameseTones = (str) => {
 };
 
 const getHistoryLabel = (row) => {
-  const isImport = row.quantity > 0;
+  const isImport = row.quantity > 0 || row.source === "import_quantity_adjustment";
 
   // Quét AI luôn ưu tiên nhãn quét AI, không dán kèm nhãn khác dù có source gì.
   if (row.isAIScan) {
@@ -107,6 +108,8 @@ const getHistoryLabel = (row) => {
   }
 
   switch (row.source) {
+    case "import_quantity_adjustment":
+      return "Sửa số lượng nhập";
     case "order_line_manual":
       return isImport ? "Nhập kho (gõ tay trong đơn)" : "Xuất kho (gõ tay trong đơn)";
     case "order_line_complete":
@@ -131,6 +134,14 @@ const getHistoryLabel = (row) => {
         : "Xuất kho thủ công";
   }
 };
+
+const formatHistoryQuantity = (row) => (
+  row.source === "import_quantity_adjustment" &&
+  row.quantityBefore !== undefined &&
+  row.quantityAfter !== undefined
+    ? `${row.quantityBefore} → ${row.quantityAfter}`
+    : row.quantity
+);
 
 const History = ({ direction = "import" }) => {
   const historyDirection = direction === "export" ? "export" : "import";
@@ -282,7 +293,7 @@ const History = ({ direction = "import" }) => {
         { header: "Đơn hàng", key: "orderName", width: 32 },
         { header: "Số lượng", key: "quantity", width: 14 },
         { header: "Ghi chú", key: "note", width: 42 },
-        { header: "Thời gian", key: "createdAt", width: 22 },
+        { header: "Thời gian thực tế", key: "transactionDate", width: 22 },
       ];
 
       worksheet.addRows(exportRows.map((row) => ({
@@ -290,9 +301,9 @@ const History = ({ direction = "import" }) => {
         productName: row.productName || "",
         orderName: row.orderName
           || (row.orderId ? `Đơn hàng (#${String(row.orderId).slice(-6)})` : ""),
-        quantity: Number(row.quantity) || 0,
+        quantity: formatHistoryQuantity(row),
         note: getHistoryLabel(row),
-        createdAt: moment(row.createdAt).format("DD/MM/YYYY HH:mm"),
+        transactionDate: moment(row.transactionDate || row.createdAt).format("DD/MM/YYYY HH:mm"),
       })));
 
       const headerRow = worksheet.getRow(1);
@@ -567,7 +578,7 @@ const History = ({ direction = "import" }) => {
                     <b>Ghi chú</b>
                   </TableCell>
                   <TableCell align="center">
-                    <b>Thời gian</b>
+                    <b>Thời gian thực tế</b>
                   </TableCell>
                 </TableRow>
               </TableHead>
@@ -590,7 +601,7 @@ const History = ({ direction = "import" }) => {
                               textDecoration: "underline",
                             }}
                             onClick={() => {
-                              if (row.quantity > 0) {
+                              if (row.quantity > 0 || row.source === "import_quantity_adjustment") {
                                 navigate(`/importorder/${row.orderId}`);
                               } else if (row.quantity < 0) {
                                 navigate(`/exportorder/${row.orderId}`);
@@ -604,12 +615,12 @@ const History = ({ direction = "import" }) => {
                         ""
                       )}
                     </TableCell>
-                    <TableCell align="center">{row.quantity}</TableCell>
+                    <TableCell align="center">{formatHistoryQuantity(row)}</TableCell>
                     <TableCell align="center">
                       {getHistoryLabel(row)}
                     </TableCell>
                     <TableCell align="center">
-                      {moment(row.createdAt).format("DD/MM/YYYY HH:mm")}
+                      {moment(row.transactionDate || row.createdAt).format("DD/MM/YYYY HH:mm")}
                     </TableCell>
                   </TableRow>
                 ))}

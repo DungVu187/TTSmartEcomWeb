@@ -31,6 +31,7 @@ const epOrderSchema = new mongoose.Schema(
     ],
     images: [{ type: String }],
     total: { type: String, default: "0" },
+    transactionDate: { type: Date, default: Date.now },
     status: { type: Boolean, default: 0 },
     completedAt: { type: Date, default: null },
   },

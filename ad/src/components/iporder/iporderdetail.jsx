@@ -83,9 +83,9 @@ import {
   updateInventoryOrderHistoryName,
   updateImportOrderLine,
   updateImportOrderMetadata,
-  updateImportOrderName,
   uploadImportOrderImage,
 } from "../../api/inventoryOrderAdministrationApi";
+import { toDateTimeLocalValue } from "../../utils/dateTime";
 
 const removeTonesLocal = (value) => String(value || "")
   .normalize("NFD")
@@ -152,7 +152,10 @@ const SortableTableRow = ({
   navigate,
   receiveInput,
   setReceiveInput,
+  receivedTotalInput,
+  setReceivedTotalInput,
   handleReceiveQuantity,
+  handleReceivedTotalChange,
   handleDeleteProduct,
   handleProductStatusChange,
   canEdit,
@@ -231,10 +234,6 @@ const SortableTableRow = ({
             const { value } = values;
             handleTempUpdateProduct(index, "price", value, false);
           }}
-          onBlur={() => {
-            const value = tempProductList[index]?.price || "";
-            handleTempUpdateProduct(index, "price", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = tempProductList[index]?.price || "";
@@ -252,10 +251,6 @@ const SortableTableRow = ({
           onChange={(e) =>
             handleTempUpdateProduct(index, "unit", e.target.value, false)
           }
-          onBlur={(e) => {
-            const value = e.target.value || "";
-            handleTempUpdateProduct(index, "unit", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = e.target.value || "";
@@ -277,10 +272,6 @@ const SortableTableRow = ({
             const { value } = values;
             handleTempUpdateProduct(index, "quantity", value, false);
           }}
-          onBlur={() => {
-            const value = tempProductList[index]?.quantity ?? "";
-            handleTempUpdateProduct(index, "quantity", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter") {
               const value = tempProductList[index]?.quantity ?? "";
@@ -292,7 +283,35 @@ const SortableTableRow = ({
           sx={{ width: "100px" }}
         />
       </TableCell>
-      <TableCell align="center">{product.quantityRe || 0}</TableCell>
+      <TableCell align="center">
+        <NumericFormat
+          value={receivedTotalInput[index] ?? product.quantityRe ?? 0}
+          customInput={TextField}
+          thousandSeparator="."
+          decimalSeparator=","
+          allowNegative={false}
+          onValueChange={(values) => {
+            setReceivedTotalInput((prev) => ({ ...prev, [index]: values.value }));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleReceivedTotalChange(
+                index,
+                receivedTotalInput[index] ?? product.quantityRe ?? 0,
+              );
+              setReceivedTotalInput((prev) => {
+                const next = { ...prev };
+                delete next[index];
+                return next;
+              });
+            }
+          }}
+          disabled={!canEdit}
+          size="small"
+          sx={{ width: "72px" }}
+        />
+      </TableCell>
       <TableCell align="center">
         <NumericFormat
           customInput={TextField}
@@ -326,10 +345,6 @@ const SortableTableRow = ({
           onChange={(e) =>
             handleTempUpdateProduct(index, "note", e.target.value, false)
           }
-          onBlur={(e) => {
-            const value = e.target.value || "";
-            handleTempUpdateProduct(index, "note", value, true);
-          }}
           onKeyPress={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               const value = e.target.value || "";
@@ -355,7 +370,6 @@ const SortableTableRow = ({
         {canEdit && (
           <IconButton
             onClick={() => handleDeleteProduct(index)}
-            disabled={product.quantityRe > 0}
             color="error"
           >
             <DeleteIcon />
@@ -388,6 +402,7 @@ const ImportOrderDetail = () => {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [receiveInput, setReceiveInput] = useState({});
+  const [receivedTotalInput, setReceivedTotalInput] = useState({});
   const [isProcessingExcel, setIsProcessingExcel] = useState(false);
   const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
   const [excelMenuAnchor, setExcelMenuAnchor] = useState(null);
@@ -1589,6 +1604,48 @@ const ImportOrderDetail = () => {
     }
   };
 
+  const handleReceivedTotalChange = async (productIndex, value) => {
+    if (!order?.productList?.[productIndex]) return;
+
+    const nextQuantityRe = Number(value);
+    const currentProduct = order.productList[productIndex];
+    const quantity = Number(currentProduct.quantity);
+    if (!Number.isInteger(nextQuantityRe) || nextQuantityRe < 0 || nextQuantityRe > quantity) {
+      toast.error("Số đã nhận phải từ 0 đến số lượng nhập");
+      return;
+    }
+    if (nextQuantityRe === Number(currentProduct.quantityRe || 0)) return;
+
+    const updatedOrder = await readApiResponse(
+      updateImportOrderLine(id, productIndex, {
+        ...currentProduct,
+        quantityRe: nextQuantityRe,
+        quantityAdjustment: true,
+      })
+    );
+
+    if (!updatedOrder) return;
+
+    const allCompleted = updatedOrder.productList.length > 0 &&
+      updatedOrder.productList.every((item) => item.status);
+    if (allCompleted && !updatedOrder.status) {
+      const statusUpdate = await readApiResponse(setImportOrderStatus(id, true));
+      if (statusUpdate) updatedOrder.status = true;
+    } else if (!allCompleted && updatedOrder.status) {
+      const statusUpdate = await readApiResponse(setImportOrderStatus(id, false));
+      if (statusUpdate) updatedOrder.status = false;
+    }
+
+    setOrder(updatedOrder);
+    setTempProductList(updatedOrder.productList);
+    setReceivedTotalInput((prev) => {
+      const next = { ...prev };
+      delete next[productIndex];
+      return next;
+    });
+    toast.success("Đã cập nhật số lượng đã nhận");
+  };
+
   // Hàm xóa sản phẩm
   const handleDeleteProduct = async (productIndex) => {
     if (
@@ -1600,10 +1657,13 @@ const ImportOrderDetail = () => {
       return;
     }
 
-    if (order.productList[productIndex].quantityRe > 0) {
-      toast.error("Không thể xóa sản phẩm đã nhập hàng");
-      return;
-    }
+    const product = order.productList[productIndex];
+    const hasImportedQuantity = Number(product.quantityRe || 0) > 0 ||
+      Number(product.stockAppliedQuantity || 0) > 0;
+    const confirmationMessage = hasImportedQuantity
+      ? "Sản phẩm này đã được nhập kho. Xóa dòng sẽ hoàn tác số lượng đã nhập khỏi kho. Bạn có chắc muốn tiếp tục?"
+      : "Bạn có chắc muốn xóa sản phẩm này khỏi đơn nhập?";
+    if (!window.confirm(confirmationMessage)) return;
 
     const updatedOrder = await readApiResponse(
       deleteImportOrderLine(id, productIndex)
@@ -1633,11 +1693,12 @@ const ImportOrderDetail = () => {
   };
 
   // Hàm cập nhật tên đơn hàng
-  const handleUpdateOrderName = async (newOrderName, newNote) => {
+  const saveOrderMetadata = async (newOrderName, newNote) => {
     const updatedOrder = await readApiResponse(
-      updateImportOrderName(id, {
+      updateImportOrderMetadata(id, {
         orderName: newOrderName,
         note: newNote,
+        transactionDate: order?.transactionDate || order?.createdAt,
       })
     );
 
@@ -1652,6 +1713,121 @@ const ImportOrderDetail = () => {
   };
 
   // Hàm sao chép đơn hàng
+  const handleUpdateOrderName = async (newOrderName, newNote) => {
+    if (!order) return;
+
+    let updatedOrder = order;
+    const stopSaving = () => {
+      setOrder(updatedOrder);
+      setTempProductList(updatedOrder.productList);
+    };
+
+    for (let index = 0; index < tempProductList.length; index += 1) {
+      const currentProduct = updatedOrder.productList[index];
+      const tempProduct = tempProductList[index];
+      if (!currentProduct || !tempProduct) continue;
+
+      const changes = {};
+      for (const field of ["price", "unit", "note", "vat"]) {
+        if (String(tempProduct[field] ?? "") !== String(currentProduct[field] ?? "")) {
+          changes[field] = tempProduct[field] ?? "";
+        }
+      }
+      if (Number(tempProduct.quantity) !== Number(currentProduct.quantity)) {
+        changes.quantity = Number(tempProduct.quantity);
+      }
+      if (Object.keys(changes).length === 0) continue;
+
+      const savedOrder = await readApiResponse(
+        updateImportOrderLine(id, index, changes)
+      );
+      if (!savedOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = savedOrder;
+    }
+
+    for (const [rawIndex, rawQuantity] of Object.entries(receivedTotalInput)) {
+      const index = Number(rawIndex);
+      const currentProduct = updatedOrder.productList[index];
+      const quantityRe = Number(rawQuantity);
+      if (
+        !currentProduct ||
+        !Number.isInteger(quantityRe) ||
+        quantityRe < 0 ||
+        quantityRe > Number(currentProduct.quantity)
+      ) {
+        toast.error("Số đã nhận phải từ 0 đến số lượng nhập");
+        stopSaving();
+        return;
+      }
+      if (quantityRe === Number(currentProduct.quantityRe || 0)) continue;
+
+      const savedOrder = await readApiResponse(
+        updateImportOrderLine(id, index, {
+          ...currentProduct,
+          quantityRe,
+          quantityAdjustment: true,
+        })
+      );
+      if (!savedOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = savedOrder;
+    }
+
+    for (const [rawIndex, rawQuantity] of Object.entries(receiveInput)) {
+      if (rawQuantity === "") continue;
+      const index = Number(rawIndex);
+      const currentProduct = updatedOrder.productList[index];
+      const received = parseInt(rawQuantity);
+      const quantityRe = Number(currentProduct?.quantityRe || 0) + received;
+      if (
+        !currentProduct ||
+        !Number.isInteger(received) ||
+        quantityRe < 0 ||
+        quantityRe > Number(currentProduct.quantity)
+      ) {
+        toast.error("Số lượng nhận không được vượt quá số lượng đặt");
+        stopSaving();
+        return;
+      }
+      if (received === 0) continue;
+
+      const savedOrder = await readApiResponse(
+        updateImportOrderLine(id, index, {
+          ...currentProduct,
+          quantityRe,
+        })
+      );
+      if (!savedOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = savedOrder;
+    }
+
+    const allCompleted = updatedOrder.productList.every((item) => item.status);
+    if (allCompleted !== updatedOrder.status) {
+      const statusOrder = await readApiResponse(
+        setImportOrderStatus(id, allCompleted)
+      );
+      if (!statusOrder) {
+        stopSaving();
+        return;
+      }
+      updatedOrder = statusOrder;
+    }
+
+    setOrder(updatedOrder);
+    setTempProductList(updatedOrder.productList);
+    setReceiveInput({});
+    setReceivedTotalInput({});
+    await saveOrderMetadata(newOrderName, newNote);
+  };
+
   const handleCopyOrder = async () => {
     if (!order) {
       toast.error("Không có đơn hàng để sao chép");
@@ -2230,7 +2406,7 @@ const ImportOrderDetail = () => {
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
-            lg: "minmax(680px, 760px) minmax(0, 1fr)",
+            lg: "minmax(900px, 980px) minmax(0, 1fr)",
           },
           columnGap: 2,
           rowGap: 1,
@@ -2248,7 +2424,7 @@ const ImportOrderDetail = () => {
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
-                sm: "minmax(220px, 1fr) minmax(180px, 0.8fr) auto auto",
+                sm: "minmax(220px, 1fr) minmax(180px, 0.8fr) minmax(200px, 0.9fr) auto auto",
               },
               gap: 1,
               alignItems: "center",
@@ -2284,6 +2460,20 @@ const ImportOrderDetail = () => {
                   handleUpdateOrderName(order?.orderName || "", order?.note || "");
                 }
               }}
+            />
+            <TextField
+              label="Ngày nhập thực tế"
+              type="datetime-local"
+              value={toDateTimeLocalValue(order?.transactionDate || order?.createdAt)}
+              onChange={(e) => setOrder((prev) => ({
+                ...prev,
+                transactionDate: e.target.value ? new Date(e.target.value).toISOString() : "",
+              }))}
+              size="small"
+              fullWidth
+              sx={orderMetadataFieldSx}
+              disabled={!canEdit}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
             {canEdit && (
               <Button
@@ -2674,7 +2864,10 @@ const ImportOrderDetail = () => {
                       navigate={navigate}
                       receiveInput={receiveInput}
                       setReceiveInput={setReceiveInput}
+                      receivedTotalInput={receivedTotalInput}
+                      setReceivedTotalInput={setReceivedTotalInput}
                       handleReceiveQuantity={handleReceiveQuantity}
+                      handleReceivedTotalChange={handleReceivedTotalChange}
                       handleDeleteProduct={handleDeleteProduct}
                       handleProductStatusChange={handleProductStatusChange}
                       canEdit={canEdit}

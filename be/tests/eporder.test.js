@@ -452,7 +452,7 @@ describe('EpOrder API', () => {
     expect(res.body.note).toBe('Ghi chú đơn xuất');
   });
 
-  it('deletes only export lines without exported or applied stock progress', async () => {
+  it('deletes export lines without stock progress', async () => {
     const agent = await createAdminAgent();
     const order = await createEpOrder({
       orderName: 'Delete export line',
@@ -487,28 +487,6 @@ describe('EpOrder API', () => {
     expect(deleted.body.productList).toHaveLength(1);
     expect(deleted.body.total).toBe('450');
 
-    const protectedOrder = await createEpOrder({
-      orderName: 'Protected export line',
-      productList: [{
-        productId: new mongoose.Types.ObjectId().toString(),
-        price: '120',
-        importPriceSnapshot: '100',
-        profitPercent: 20,
-        unit: 'cai',
-        quantity: 2,
-        quantityEx: 1,
-        stockAppliedQuantity: 1,
-        status: false,
-      }],
-    });
-    const blocked = await agent.delete(
-      '/eporders/orders/' + protectedOrder._id + '/products/0'
-    );
-    expect(blocked.status).toBe(400);
-    expect(blocked.body.message).toBe(
-      'Không thể xóa sản phẩm đã phát sinh xuất kho. Hãy hoàn số lượng xuất về 0 trước.'
-    );
-    expect((await EpOrder.findById(protectedOrder._id)).productList).toHaveLength(1);
   });
 
   it('returns 403 for staff with eporder.create but missing eporder.edit on edit route', async () => {

@@ -18,6 +18,11 @@ describe('tire order slot configuration', () => {
       'rear_right_aft_outer',
     ]));
     expect(TIRE_LAYOUTS[10]).not.toContain('front_second_left');
+    expect(TIRE_LAYOUTS[10]).toEqual([
+      'front_left', 'front_right',
+      'rear_left_forward_outer', 'rear_left_forward_inner', 'rear_right_forward_inner', 'rear_right_forward_outer',
+      'rear_left_aft_outer', 'rear_left_aft_inner', 'rear_right_aft_inner', 'rear_right_aft_outer',
+    ]);
   });
 
   test('defaults legacy values to 10 wheels and resolves supported layouts', () => {

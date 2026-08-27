@@ -33,11 +33,21 @@ const date = (value, field = 'Ngày thực hiện') => {
   if (Number.isNaN(result.getTime())) throw new TireOrderError(`${field} không hợp lệ.`);
   return result;
 };
+const nullableDate = (value, field) => (value === null || value === '' ? null : date(value, field));
+const validateStoppedAt = (stoppedAt, performedAt) => {
+  if (stoppedAt && performedAt && stoppedAt > performedAt) {
+    throw new TireOrderError('Thời điểm ngưng hoạt động không được sau ngày thay lốp.', 400, 'INVALID_TIRE_STOPPED_AT');
+  }
+};
 const serialize = (order) => {
   const value = order.toObject ? order.toObject() : order;
   return { ...value, version: value.__v };
 };
+const ensureNotDeleted = (order) => {
+  if (order.isDeleted) throw new TireOrderError('Đơn lốp đã bị xóa.', 404, 'ORDER_DELETED');
+};
 const ensureEditable = (order) => {
+  ensureNotDeleted(order);
   if (order.status !== 'processing' || order.inventory?.phase !== 'idle') throw new TireOrderError('Đơn đã hoàn thành hoặc đang xử lý tồn kho. Hãy hủy hoàn thành trước khi sửa.', 409, 'ORDER_NOT_EDITABLE');
 };
 const findVehicleEntry = (order, vehicleEntryId) => {
@@ -76,7 +86,7 @@ const snapshotProductVariant = (product, variantIndex, variantId) => {
 async function listTireOrders(query = {}) {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit, 10) || 20));
-  const filter = {};
+  const filter = { isDeleted: { $ne: true } };
   const search = text(query.search, 'Từ khóa', 100) || '';
   const creator = text(query.creator, 'Người tạo', 100) || '';
   if (search) filter.orderName = { $regex: escapeRegex(search), $options: 'i' };
@@ -110,6 +120,7 @@ async function getTireOrder(orderId) {
   objectId(orderId, 'Mã đơn');
   const order = await TireOrder.findById(orderId);
   if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404, 'ORDER_NOT_FOUND');
+  ensureNotDeleted(order);
   const result = serialize(order);
   const assignments = result.vehicles.flatMap((vehicle) => vehicle.assignments || []);
   const missingPrice = assignments.filter((assignment) => !assignment.exportPriceSnapshot);
@@ -125,6 +136,7 @@ async function getTireOrder(orderId) {
 }
 async function updateTireOrder(orderId, body) {
   const order = await TireOrder.findById(objectId(orderId, 'Mã đơn')); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404, 'ORDER_NOT_FOUND');
+  ensureNotDeleted(order);
   const expectedVersion = version(body.expectedVersion);
   if (order.status === 'completed' && body.transactionDate !== undefined) throw new TireOrderError('Không thể sửa ngày thực hiện khi đơn đã hoàn thành.', 409, 'COMPLETED_METADATA_LOCKED');
   if (body.orderName !== undefined) order.orderName = text(body.orderName, 'Tên đơn', Infinity, true);
@@ -154,22 +166,36 @@ async function addAssignments(orderId, entryId, body) {
   if (!Array.isArray(body.slotIds)) throw new TireOrderError('Danh sách vị trí không hợp lệ.'); const slots = body.slotIds.map((slot) => String(slot)); const quantity = Number(body.quantity); if (!Number.isInteger(quantity) || quantity < 1 || quantity !== slots.length || new Set(slots).size !== slots.length) throw new TireOrderError('Số lượng phải khớp số vị trí đã chọn.');
   const allowedSlots = slotsForWheelCount(entry.wheelCount); if (slots.some((slot) => !allowedSlots.includes(slot))) throw new TireOrderError(`Vị trí lốp không thuộc sơ đồ ${entry.wheelCount} bánh.`); if (slots.some((slot) => entry.assignments.some((item) => item.slotId === slot))) throw new TireOrderError('Có vị trí đã được gán lốp.', 409, 'SLOT_OCCUPIED'); if (entry.assignments.length + slots.length > allowedSlots.length) throw new TireOrderError(`Xe ${entry.wheelCount} bánh chỉ có tối đa ${allowedSlots.length} lốp.`);
   const base = snapshotProductVariant(product, body.variantIndex, body.variantId); const performedAt = date(body.performedAt, 'Ngày thay'); const note = text(body.note, 'Ghi chú', 2000) || '';
-  slots.forEach((slotId) => entry.assignments.push({ ...base, slotId, performedAt, note })); await saveExpected(order, body.expectedVersion); return serialize(order);
+  const stoppedAtBySlot = body.previousTireStoppedAtBySlot;
+  if (stoppedAtBySlot !== undefined && (!stoppedAtBySlot || typeof stoppedAtBySlot !== 'object' || Array.isArray(stoppedAtBySlot))) throw new TireOrderError('Thời điểm ngưng hoạt động theo vị trí không hợp lệ.');
+  slots.forEach((slotId) => {
+    const previousTireStoppedAt = nullableDate(stoppedAtBySlot?.[slotId], 'Thời điểm ngưng hoạt động');
+    validateStoppedAt(previousTireStoppedAt, performedAt);
+    entry.assignments.push({ ...base, slotId, performedAt, previousTireStoppedAt, note });
+  });
+  await saveExpected(order, body.expectedVersion); return serialize(order);
 }
 async function updateAssignment(orderId, entryId, assignmentId, body) {
   const order = await TireOrder.findById(objectId(orderId, 'Mã đơn')); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); ensureEditable(order); const entry = findVehicleEntry(order, objectId(entryId, 'Mã xe trong đơn')); const assignment = findAssignment(entry, objectId(assignmentId, 'Mã lốp trong đơn'));
   const hasProductChange = body.productId !== undefined || body.variantIndex !== undefined || body.variantId !== undefined;
   if (hasProductChange) { if (body.productId === undefined || body.variantIndex === undefined || body.variantId === undefined) throw new TireOrderError('Khi đổi lốp phải chọn đủ sản phẩm và phiên bản.'); await requireTireType(); const product = await Product.findById(objectId(body.productId, 'Mã sản phẩm')); if (!product) throw new TireOrderError('Không tìm thấy sản phẩm.', 404); if (product.type !== TIRE_PRODUCT_TYPE) throw new TireOrderError('Chỉ được chọn sản phẩm loại Lốp xe.'); Object.assign(assignment, snapshotProductVariant(product, body.variantIndex, body.variantId)); }
-  if (body.performedAt !== undefined) assignment.performedAt = date(body.performedAt, 'Ngày thay'); if (body.note !== undefined) assignment.note = text(body.note, 'Ghi chú', 2000) || ''; await saveExpected(order, body.expectedVersion); return serialize(order);
+  const performedAt = body.performedAt !== undefined ? date(body.performedAt, 'Ngày thay') : assignment.performedAt;
+  const previousTireStoppedAt = body.previousTireStoppedAt !== undefined ? nullableDate(body.previousTireStoppedAt, 'Thời điểm ngưng hoạt động') : assignment.previousTireStoppedAt;
+  validateStoppedAt(previousTireStoppedAt, performedAt);
+  if (body.performedAt !== undefined) assignment.performedAt = performedAt;
+  if (body.previousTireStoppedAt !== undefined) assignment.previousTireStoppedAt = previousTireStoppedAt;
+  if (body.note !== undefined) assignment.note = text(body.note, 'Ghi chú', 2000) || '';
+  await saveExpected(order, body.expectedVersion); return serialize(order);
 }
 async function moveAssignment(orderId, entryId, assignmentId, body) {
-  const order = await TireOrder.findById(objectId(orderId, 'Mã đơn')); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); ensureEditable(order); const entry = findVehicleEntry(order, objectId(entryId, 'Mã xe trong đơn')); const assignment = findAssignment(entry, objectId(assignmentId, 'Mã lốp trong đơn')); const slotId = String(body.slotId || ''); if (!slotsForWheelCount(entry.wheelCount).includes(slotId)) throw new TireOrderError(`Vị trí lốp không thuộc sơ đồ ${entry.wheelCount} bánh.`); if (entry.assignments.some((item) => String(item._id) !== String(assignment._id) && item.slotId === slotId)) throw new TireOrderError('Vị trí đã được gán lốp.', 409, 'SLOT_OCCUPIED'); assignment.slotId = slotId; await saveExpected(order, body.expectedVersion); return serialize(order);
+  const order = await TireOrder.findById(objectId(orderId, 'Mã đơn')); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); ensureEditable(order); const entry = findVehicleEntry(order, objectId(entryId, 'Mã xe trong đơn')); const assignment = findAssignment(entry, objectId(assignmentId, 'Mã lốp trong đơn')); const slotId = String(body.slotId || ''); if (!slotsForWheelCount(entry.wheelCount).includes(slotId)) throw new TireOrderError(`Vị trí lốp không thuộc sơ đồ ${entry.wheelCount} bánh.`); if (entry.assignments.some((item) => String(item._id) !== String(assignment._id) && item.slotId === slotId)) throw new TireOrderError('Vị trí đã được gán lốp.', 409, 'SLOT_OCCUPIED'); if (assignment.slotId !== slotId) { assignment.slotId = slotId; assignment.previousTireStoppedAt = null; } await saveExpected(order, body.expectedVersion); return serialize(order);
 }
 async function replaceAssignmentSlot(orderId, entryId, assignmentId, body) {
   if (body.confirm !== true) throw new TireOrderError('Cần xác nhận thay thế lốp ở vị trí đã chọn.', 400, 'REPLACEMENT_NOT_CONFIRMED');
   const order = await TireOrder.findById(objectId(orderId, 'Mã đơn')); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); ensureEditable(order);
   const entry = findVehicleEntry(order, objectId(entryId, 'Mã xe trong đơn')); const assignment = findAssignment(entry, objectId(assignmentId, 'Mã lốp trong đơn')); const replacement = findAssignment(entry, objectId(body.replacedAssignmentId, 'Mã lốp cần thay thế'));
   const slotId = String(body.slotId || ''); if (!slotsForWheelCount(entry.wheelCount).includes(slotId) || replacement.slotId !== slotId) throw new TireOrderError('Vị trí thay thế không hợp lệ.');
+  assignment.previousTireStoppedAt = replacement.previousTireStoppedAt || null;
   entry.assignments.pull(replacement._id); assignment.slotId = slotId; await saveExpected(order, body.expectedVersion); return serialize(order);
 }
 async function deleteAssignment(orderId, entryId, assignmentId, body) { const order = await TireOrder.findById(objectId(orderId, 'Mã đơn')); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); ensureEditable(order); const entry = findVehicleEntry(order, objectId(entryId, 'Mã xe trong đơn')); findAssignment(entry, objectId(assignmentId, 'Mã lốp trong đơn')); entry.assignments.pull(assignmentId); await saveExpected(order, body.expectedVersion); return serialize(order); }
@@ -179,4 +205,4 @@ async function listProductOptions(query = {}) {
   return { items: items.map((product) => ({ _id: product._id, code: product.code || '', name: product.name, brand: product.brand || '', value: product.value || '', specifications: product.specifications || '', variants: (product.variant || []).map((variant, index) => ({ index, _id: variant._id, color: variant.color || '', shape: variant.shape || '', buttonCount: variant.buttonCount || '', frame: variant.frame || '', note: variant.note || '', quantityForSale: Number(variant.quantityForSale || 0), quantityInStorage: Number(variant.quantityInStorage || 0) })) })), pagination: { currentPage: page, totalPages: Math.ceil(totalItems / limit), totalItems } };
 }
 
-module.exports = { TireOrderError, listTireOrders, createTireOrder, getTireOrder, updateTireOrder, addOrderVehicle, updateOrderVehicle, removeOrderVehicle, addAssignments, updateAssignment, moveAssignment, replaceAssignmentSlot, deleteAssignment, listProductOptions, serialize, objectId, version };
+module.exports = { TireOrderError, listTireOrders, createTireOrder, getTireOrder, updateTireOrder, addOrderVehicle, updateOrderVehicle, removeOrderVehicle, addAssignments, updateAssignment, moveAssignment, replaceAssignmentSlot, deleteAssignment, listProductOptions, serialize, objectId, version, ensureNotDeleted };

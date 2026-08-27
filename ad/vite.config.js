@@ -51,7 +51,15 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      '/tire-lifecycles': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       '/histories': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      '/activity-logs': {
         target: 'http://localhost:5000',
         changeOrigin: true,
       },

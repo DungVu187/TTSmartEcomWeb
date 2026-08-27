@@ -1,6 +1,6 @@
 const REAR_TIRE_SLOTS = [
-  'rear_left_forward_outer', 'rear_left_forward_inner', 'rear_left_aft_outer', 'rear_left_aft_inner',
-  'rear_right_forward_inner', 'rear_right_forward_outer', 'rear_right_aft_inner', 'rear_right_aft_outer',
+  'rear_left_forward_outer', 'rear_left_forward_inner', 'rear_right_forward_inner', 'rear_right_forward_outer',
+  'rear_left_aft_outer', 'rear_left_aft_inner', 'rear_right_aft_inner', 'rear_right_aft_outer',
 ];
 
 export const TIRE_LAYOUTS = {

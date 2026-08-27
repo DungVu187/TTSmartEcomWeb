@@ -74,6 +74,7 @@ const ACTION_LABELS = {
 
     // Customer access
     rotate_autologin_token: 'Xoay mã đăng nhập tự động'
+    ,create_vehicle: 'Tạo xe mới'
     ,create_tire_order: 'Tạo đơn lốp'
     ,update_tire_order: 'Cập nhật đơn lốp'
     ,add_tire_order_vehicle: 'Thêm xe vào đơn lốp'

@@ -45,6 +45,7 @@ export const ACTIVITY_ACTION_LABELS = {
   create_voice_vocab: "Thêm từ vựng tìm kiếm giọng nói",
   update_voice_vocab: "Sửa từ vựng tìm kiếm giọng nói",
   delete_voice_vocab: "Xóa từ vựng tìm kiếm giọng nói",
+  create_vehicle: "Tạo xe mới",
 };
 
 const VOICE_GROUP_LABELS = {
@@ -58,6 +59,8 @@ const VOICE_GROUP_LABELS = {
 };
 
 const FIELD_LABELS = {
+  licensePlate: "Biển số xe",
+  wheelCount: "Số bánh",
   name: "Tên",
   code: "Mã sản phẩm",
   brand: "Thương hiệu",
@@ -136,6 +139,7 @@ const DEFAULT_PERMISSION_LABELS = {
   "tireorder.create": "Quản lý phụ tùng xe - Thêm",
   "tireorder.edit": "Quản lý phụ tùng xe - Sửa",
   "tireorder.delete": "Quản lý phụ tùng xe - Xóa",
+  "tirelifecycle.view": "Quản lý lịch sử lốp - Xem",
   "station.view": "Trạm - Xem",
   "station.create": "Trạm - Thêm",
   "station.edit": "Trạm - Sửa",

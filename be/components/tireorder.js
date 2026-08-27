@@ -15,6 +15,7 @@ router.get('/:id/history', [authenticateAdmin, checkPermission('tireorder.view')
 router.post('/:id/vehicles', [authenticateAdmin, checkPermission('tireorder.edit')], controller.addVehicle);
 router.patch('/:id/vehicles/:vehicleEntryId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.updateVehicle);
 router.delete('/:id/vehicles/:vehicleEntryId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.removeVehicle);
+router.get('/:id/vehicles/:vehicleEntryId/active-tires', [authenticateAdmin, checkPermission('tireorder.edit')], controller.activeVehicleTires);
 router.post('/:id/vehicles/:vehicleEntryId/assignments', [authenticateAdmin, checkPermission('tireorder.edit')], controller.addAssignments);
 router.patch('/:id/vehicles/:vehicleEntryId/assignments/:assignmentId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.updateAssignment);
 router.patch('/:id/vehicles/:vehicleEntryId/assignments/:assignmentId/slot', [authenticateAdmin, checkPermission('tireorder.edit')], controller.moveAssignment);

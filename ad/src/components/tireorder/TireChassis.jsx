@@ -92,13 +92,13 @@ const TireChassis = ({ assignments = [], wheelCount = 10, selectedSlotIds = [], 
       })}
     </svg>
     <Box className="tire-chassis-body" aria-hidden="true" />
-    {tireSlots.map((slotId) => {
+    {tireSlots.map((slotId, slotIndex) => {
       const assignment = assignmentsBySlot.get(slotId);
       const occupied = Boolean(assignment);
       const active = selected.has(slotId) || Boolean(highlightedAssignmentId && highlightedAssignmentId === assignment?._id);
       return <Tooltip key={slotId} title={assignment?.productCodeSnapshot || (occupied ? 'Đã gán lốp' : 'Vị trí trống')}>
         <span className={`tire-slot-wrap tire-slot-${slotId}`}>
-          <button type="button" className={`tire-slot ${occupied ? 'assigned' : ''} ${active ? 'selected' : ''}`} disabled={selectable && occupied && !allowOccupiedClick} onClick={(event) => { event.stopPropagation(); onSlotClick?.(slotId, assignment); }} aria-label={occupied ? 'Vị trí đã gán lốp' : 'Vị trí lốp trống'} />
+          <button type="button" className={`tire-slot ${occupied ? 'assigned' : ''} ${active ? 'selected' : ''}`} disabled={selectable && occupied && !allowOccupiedClick} onClick={(event) => { event.stopPropagation(); onSlotClick?.(slotId, assignment); }} aria-label={`Vị trí ${slotIndex + 1}, ${occupied ? 'đã gán lốp' : 'đang trống'}`}>{slotIndex + 1}</button>
         </span>
       </Tooltip>;
     })}

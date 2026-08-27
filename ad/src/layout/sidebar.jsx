@@ -32,6 +32,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import CabinIcon from "@mui/icons-material/Cabin";
 import TocIcon from '@mui/icons-material/Toc';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import ShoppingCartCheckoutIcon from "@mui/icons-material/ShoppingCartCheckout";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import PolicyOutlinedIcon from "@mui/icons-material/PolicyOutlined";
@@ -246,10 +247,13 @@ const Sidebar = () => {
         { text: "Sản phẩm xuất", path: "/exportedproducts", icon: <SoldIcon /> },
       ],
     },
-    can("tireorder.view") && {
-      text: "Quản lý phụ tùng xe",
-      path: "/tire-orders",
+    (can("tireorder.view") || can("tirelifecycle.view")) && {
+      text: "Quản lý phụ tùng",
       icon: <ShoppingCartCheckoutIcon />,
+      subItems: [
+        can("tireorder.view") && { text: "Đơn xuất", path: "/tire-orders", icon: <OrderListIcon /> },
+        can("tirelifecycle.view") && { text: "Lịch sử thay thế", path: "/tire-lifecycles", icon: <HistoryToggleOffIcon /> },
+      ].filter(Boolean),
     },
     stationSubItems.length > 0 && {
       text: "Khách - Trạm",

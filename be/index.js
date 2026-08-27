@@ -28,6 +28,7 @@ const { router: telegramRoutes } = require('./components/telegram');
 const { router: voiceVocabRoutes, initVoiceVocab } = require('./components/voicevocab');
 const { router: vehicleRoutes } = require('./components/vehicle');
 const { router: tireOrderRoutes } = require('./components/tireorder');
+const { router: tireLifecycleRoutes } = require('./components/tirelifecycle');
 
 // Tạo app + http server + socket.io
 const app = express();
@@ -172,6 +173,7 @@ app.use('/telegram', telegramRoutes);
   app.use('/voice-vocabs', voiceVocabRoutes);
   app.use('/vehicles', vehicleRoutes);
   app.use('/tire-orders', tireOrderRoutes);
+  app.use('/tire-lifecycles', tireLifecycleRoutes);
 
 // Static files
 const fs = require('fs');
@@ -218,7 +220,7 @@ app.get('*', (req, res, next) => {
     '/manages', '/iporders', '/eporders', '/stations',
     '/histories', '/activity-logs', '/images', '/documents',
     '/section-images', '/invoice-images', '/zalo', '/telegram', '/voice-vocabs',
-    '/vehicles', '/tire-orders'
+    '/vehicles', '/tire-orders', '/tire-lifecycles'
   ];
   const isApi = apiPaths.some((apiPath) =>
     req.path === apiPath || req.path.startsWith(`${apiPath}/`)

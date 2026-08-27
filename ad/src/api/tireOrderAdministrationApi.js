@@ -18,6 +18,7 @@ export const listTireProductOptions = (params) => request(`/tire-orders/product-
 export const addTireOrderVehicle = (id, body) => request(`/tire-orders/${id}/vehicles`, { method: 'POST', json: body });
 export const updateTireOrderVehicle = (id, vehicleEntryId, body) => request(`/tire-orders/${id}/vehicles/${vehicleEntryId}`, { method: 'PATCH', json: body });
 export const removeTireOrderVehicle = (id, vehicleEntryId, body) => request(`/tire-orders/${id}/vehicles/${vehicleEntryId}`, { method: 'DELETE', json: body });
+export const getActiveVehicleTires = (id, vehicleEntryId) => request(`/tire-orders/${id}/vehicles/${vehicleEntryId}/active-tires`);
 export const addTireAssignments = (id, vehicleEntryId, body) => request(`/tire-orders/${id}/vehicles/${vehicleEntryId}/assignments`, { method: 'POST', json: body });
 export const updateTireAssignment = (id, vehicleEntryId, assignmentId, body) => request(`/tire-orders/${id}/vehicles/${vehicleEntryId}/assignments/${assignmentId}`, { method: 'PATCH', json: body });
 export const moveTireAssignment = (id, vehicleEntryId, assignmentId, body) => request(`/tire-orders/${id}/vehicles/${vehicleEntryId}/assignments/${assignmentId}/slot`, { method: 'PATCH', json: body });
@@ -27,4 +28,7 @@ export const listVehicles = (params) => request(`/vehicles?${query(params)}`);
 export const createVehicle = (body) => request('/vehicles', { method: 'POST', json: body });
 export const updateVehicle = (id, body) => request(`/vehicles/${id}`, { method: 'PATCH', json: body });
 export const updateVehicleStatus = (id, body) => request(`/vehicles/${id}/status`, { method: 'PATCH', json: body });
+export const deleteVehicle = (id, body) => request(`/vehicles/${id}`, { method: 'DELETE', json: body });
 export const getTireOrderHistory = (id, vehicleEntryId) => request(`/tire-orders/${id}/history?${query({ vehicleEntryId })}`);
+export const listTireLifecycles = (params) => request(`/tire-lifecycles?${query(params)}`);
+export const getTireLifecycleDetail = (id) => request(`/tire-lifecycles/${id}`);

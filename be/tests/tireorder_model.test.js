@@ -18,6 +18,18 @@ describe('TireOrder model invariants', () => {
     expect(document.totalTires).toBe(2);
     expect(document.totalExportPrice).toBe(2500000);
     expect(document.stockAppliedTireCount).toBe(0);
+    expect(document.isDeleted).toBe(false);
+  });
+
+  test('keeps complete order data when marked as soft deleted', async () => {
+    const document = order([vehicle(id(), [assignment('front_left')])]);
+    document.isDeleted = true;
+    document.deletedAt = new Date('2026-08-27T06:00:00.000Z');
+    document.deletedBy = id();
+    document.deletedByName = 'Super Admin';
+    await document.validate();
+    expect(document).toMatchObject({ isDeleted: true, orderName: 'Đơn lốp thử', deletedByName: 'Super Admin' });
+    expect(document.vehicles[0].assignments).toHaveLength(1);
   });
 
   test('rejects a duplicate vehicle within one order', async () => {

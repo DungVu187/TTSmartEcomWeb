@@ -1,7 +1,7 @@
 const REAR_TIRE_SLOT_IDS = Object.freeze([
   'rear_left_forward_outer', 'rear_left_forward_inner',
-  'rear_left_aft_outer', 'rear_left_aft_inner',
   'rear_right_forward_inner', 'rear_right_forward_outer',
+  'rear_left_aft_outer', 'rear_left_aft_inner',
   'rear_right_aft_inner', 'rear_right_aft_outer',
 ]);
 

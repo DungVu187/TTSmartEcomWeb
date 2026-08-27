@@ -23,6 +23,7 @@ const assignmentSchema = new mongoose.Schema({
   },
   slotId: { type: String, required: true, enum: TIRE_SLOT_IDS },
   performedAt: { type: Date, default: null },
+  previousTireStoppedAt: { type: Date, default: null },
   note: { type: String, default: '', maxlength: 2000 },
   stockAppliedQuantity: { type: Number, default: 0, enum: [0, 1] },
 }, { _id: true });
@@ -53,6 +54,10 @@ const tireOrderSchema = new mongoose.Schema({
   transactionDate: { type: Date, default: Date.now },
   status: { type: String, enum: ['processing', 'completed'], default: 'processing', index: true },
   completedAt: { type: Date, default: null },
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  deletedByName: { type: String, default: '' },
   note: { type: String, default: '', maxlength: 4000 },
   vehicles: { type: [orderVehicleSchema], default: [] },
   totalVehicles: { type: Number, default: 0, min: 0 },
@@ -87,6 +92,7 @@ tireOrderSchema.pre('validate', function deriveAndValidate(next) {
 
 tireOrderSchema.index({ createdAt: -1 });
 tireOrderSchema.index({ status: 1, createdAt: -1 });
+tireOrderSchema.index({ isDeleted: 1, createdAt: -1 });
 tireOrderSchema.index({ 'vehicles.assignments.productId': 1 });
 
 const TireOrder = mongoose.models.TireOrder || mongoose.model('TireOrder', tireOrderSchema);

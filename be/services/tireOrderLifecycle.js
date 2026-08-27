@@ -6,12 +6,14 @@ const { StorageHistory } = require('../models/storagehistory');
 const { ActivityLog } = require('../models/activitylog');
 const { TIRE_PRODUCT_TYPE } = require('../config/tireSlots');
 const { applyStockAdjustments, rollbackOrThrow } = require('./inventory');
-const { TireOrderError, objectId, version, serialize } = require('./tireOrderService');
+const { TireOrderError, objectId, version, serialize, ensureNotDeleted } = require('./tireOrderService');
+const { buildLifecycleRecords } = require('./tireLifecycleService');
 
 const loadOrder = async (id, expectedVersion) => {
   objectId(id, 'Mã đơn');
   const order = await TireOrder.findById(id);
   if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404, 'ORDER_NOT_FOUND');
+  ensureNotDeleted(order);
   if (order.__v !== version(expectedVersion)) throw new TireOrderError('Dữ liệu đã thay đổi, vui lòng tải lại.', 409, 'VERSION_CONFLICT');
   return order;
 };
@@ -47,6 +49,22 @@ const validateProducts = async (breakdown) => {
     if (!product.variant[item.variantIndex] || String(product.variant[item.variantIndex]._id) !== String(item.variantId)) throw new TireOrderError('Phiên bản sản phẩm đã thay đổi, vui lòng cập nhật đơn.', 409, 'VARIANT_CHANGED');
   }
 };
+const validatePreviousTireStopTimes = async (order) => {
+  const replacements = order.vehicles.flatMap((vehicle) => vehicle.assignments
+    .filter((assignment) => assignment.previousTireStoppedAt)
+    .map((assignment) => ({ vehicle, assignment })));
+  if (!replacements.length) return;
+  const records = await buildLifecycleRecords();
+  for (const { vehicle, assignment } of replacements) {
+    const stoppedAt = new Date(assignment.previousTireStoppedAt);
+    const performedAt = new Date(assignment.performedAt || order.transactionDate || Date.now());
+    if (stoppedAt > performedAt) throw new TireOrderError('Thời điểm ngưng hoạt động không được sau ngày thay lốp.', 400, 'INVALID_TIRE_STOPPED_AT');
+    const previous = records
+      .filter((record) => record.vehicleId === String(vehicle.vehicleId) && record.slotId === assignment.slotId && record.startedAt <= performedAt)
+      .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime())[0];
+    if (previous && stoppedAt < previous.startedAt) throw new TireOrderError('Thời điểm ngưng hoạt động không được trước ngày lắp lốp cũ.', 400, 'INVALID_TIRE_STOPPED_AT');
+  }
+};
 const createHistories = async ({ order, entries, userName, source, operationId, transactionDate }) => {
   const docs = entries.map((item) => ({ productId: item.productId, productName: item.productName || '', quantity: item.quantity, userName, orderId: String(order._id), orderName: order.orderName, note: source === 'tire_order_complete' ? 'Xuất lốp cho xe' : 'Hoàn kho đơn lốp', source, transactionDate, variantId: item.variantId, variantIndex: item.variantIndex, vehicleId: item.vehicleId, vehicleEntryId: item.vehicleEntryId, vehiclePlate: item.vehiclePlateSnapshot, orderType: 'tire_order', inventoryOperationId: operationId }));
   await StorageHistory.insertMany(docs, { ordered: true });
@@ -55,7 +73,7 @@ const cleanupHistories = (operationId) => StorageHistory.deleteMany({ inventoryO
 const release = async (order, phase = 'idle') => { order.inventory.phase = phase; order.inventory.operationId = null; order.inventory.startedAt = null; await save(order); };
 
 async function completeTireOrder(orderId, body, user) {
-  const order = await loadOrder(orderId, body.expectedVersion); assertCompleteable(order); const breakdown = buildBreakdown(order); await validateProducts(breakdown);
+  const order = await loadOrder(orderId, body.expectedVersion); assertCompleteable(order); const breakdown = buildBreakdown(order); await validateProducts(breakdown); await validatePreviousTireStopTimes(order);
   const operationId = randomUUID(); order.inventory.phase = 'applying'; order.inventory.operationId = operationId; order.inventory.startedAt = new Date(); await save(order);
   let applied = [];
   try {
@@ -75,7 +93,7 @@ async function completeTireOrder(orderId, body, user) {
     throw error;
   }
 }
-async function revertOrDelete(orderId, body, user, deleting = false) {
+async function revertTireOrder(orderId, body, user) {
   const order = await loadOrder(orderId, body.expectedVersion);
   if (order.status !== 'completed' || order.inventory?.phase !== 'applied') throw new TireOrderError('Đơn chưa hoàn thành hoặc đã được hoàn kho.', 409, 'ORDER_NOT_COMPLETED');
   const breakdown = (order.inventory.adjustments || []).map((entry) => {
@@ -90,16 +108,11 @@ async function revertOrDelete(orderId, body, user, deleting = false) {
   if (!breakdown.length) throw new TireOrderError('Không tìm thấy thông tin tồn kho đã áp dụng.', 409, 'MISSING_STOCK_LEDGER');
   const previousCompletedAt = order.completedAt;
   const previousAppliedAt = order.inventory.appliedAt;
-  const operationId = randomUUID(); order.inventory.phase = deleting ? 'deleting' : 'reverting'; order.inventory.operationId = operationId; order.inventory.startedAt = new Date(); await save(order);
+  const operationId = randomUUID(); order.inventory.phase = 'reverting'; order.inventory.operationId = operationId; order.inventory.startedAt = new Date(); await save(order);
   let applied = [];
   try {
     applied = await applyStockAdjustments(aggregateStock(breakdown, 1));
-    await createHistories({ order, entries: breakdown, userName: user.name, source: deleting ? 'tire_order_delete_revert' : 'tire_order_revert', operationId, transactionDate: new Date() });
-    if (deleting) {
-      const deleted = await TireOrder.deleteOne({ _id: order._id, __v: order.__v, 'inventory.phase': 'deleting', 'inventory.operationId': operationId });
-      if (deleted.deletedCount !== 1) throw new TireOrderError('Dữ liệu đã thay đổi, không thể xóa đơn.', 409, 'VERSION_CONFLICT');
-      return null;
-    }
+    await createHistories({ order, entries: breakdown, userName: user.name, source: 'tire_order_revert', operationId, transactionDate: new Date() });
     order.vehicles.forEach((vehicle) => vehicle.assignments.forEach((assignment) => { assignment.stockAppliedQuantity = 0; })); order.status = 'processing'; order.completedAt = null; order.inventory = { phase: 'idle', operationId: null, startedAt: null, appliedAt: null, adjustments: [] }; await save(order); return serialize(order);
   } catch (error) {
     await cleanupHistories(operationId).catch(() => {});
@@ -118,19 +131,21 @@ async function revertOrDelete(orderId, body, user, deleting = false) {
 }
 async function deleteTireOrder(orderId, body, user) {
   const order = await loadOrder(orderId, body.expectedVersion);
-  if (order.status === 'completed') return revertOrDelete(orderId, body, user, true);
-  if (order.inventory?.phase !== 'idle') throw new TireOrderError('Đơn đang xử lý tồn kho.', 409, 'INVENTORY_OPERATION_IN_PROGRESS');
-  const deleted = await TireOrder.deleteOne({ _id: order._id, __v: order.__v, status: 'processing', 'inventory.phase': 'idle' });
-  if (deleted.deletedCount !== 1) throw new TireOrderError('Dữ liệu đã thay đổi, vui lòng tải lại.', 409, 'VERSION_CONFLICT');
-  return null;
+  if (!['idle', 'applied'].includes(order.inventory?.phase)) throw new TireOrderError('Đơn đang xử lý tồn kho.', 409, 'INVENTORY_OPERATION_IN_PROGRESS');
+  order.isDeleted = true;
+  order.deletedAt = new Date();
+  order.deletedBy = user._id;
+  order.deletedByName = user.name || '';
+  await save(order);
+  return serialize(order);
 }
 async function listTireOrderHistory(orderId, vehicleEntryId) {
   objectId(orderId, 'Mã đơn'); objectId(vehicleEntryId, 'Mã xe trong đơn');
-  const order = await TireOrder.findById(orderId).select('vehicles._id'); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); if (!order.vehicles.id(vehicleEntryId)) throw new TireOrderError('Không tìm thấy xe trong đơn.', 404);
+  const order = await TireOrder.findById(orderId).select('isDeleted vehicles._id'); if (!order) throw new TireOrderError('Không tìm thấy đơn lốp.', 404); ensureNotDeleted(order); if (!order.vehicles.id(vehicleEntryId)) throw new TireOrderError('Không tìm thấy xe trong đơn.', 404);
   const [stockMovements, activities] = await Promise.all([
     StorageHistory.find({ orderId: String(orderId), vehicleEntryId, source: { $in: ['tire_order_complete', 'tire_order_revert', 'tire_order_delete_revert'] } }).sort({ transactionDate: -1, createdAt: -1 }).lean(),
     ActivityLog.find({ entityType: 'tire_order', entityId: orderId, $or: [{ entitySubId: vehicleEntryId }, { entitySubId: null }, { entitySubId: { $exists: false } }] }).sort({ createdAt: -1 }).lean(),
   ]);
   return { stockMovements, activities };
 }
-module.exports = { completeTireOrder, revertTireOrder: (id, body, user) => revertOrDelete(id, body, user, false), deleteTireOrder, listTireOrderHistory };
+module.exports = { completeTireOrder, revertTireOrder, deleteTireOrder, listTireOrderHistory };

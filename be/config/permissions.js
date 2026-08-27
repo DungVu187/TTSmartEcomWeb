@@ -66,6 +66,15 @@ const PERMISSION_CATALOG = [
     ],
   },
   {
+    key: "tirelifecycle",
+    label: "Quản lý lịch sử lốp",
+    group: "orders",
+    scope: "grantable",
+    actions: [
+      { key: "tirelifecycle.view", label: "Xem" },
+    ],
+  },
+  {
     key: "station",
     label: "Trạm",
     group: "stations",

@@ -15,7 +15,8 @@ const vehicleSchema = new mongoose.Schema({
 vehicleSchema.pre('validate', function normalizeVehiclePlate(next) {
   if (this.licensePlate !== undefined) {
     this.licensePlate = String(this.licensePlate).trim().toUpperCase().replace(/\s+/g, ' ');
-    this.licensePlateKey = normalizePlateKey(this.licensePlate);
+    const plateKey = normalizePlateKey(this.licensePlate);
+    this.licensePlateKey = this.isActive === false ? `${plateKey}__INACTIVE__${this._id}` : plateKey;
   }
   next();
 });

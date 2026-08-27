@@ -33,6 +33,7 @@ import VoiceSearchFAB from './components/VoiceSearchFAB';
 import { PermissionProvider } from './context/permissioncontext';
 import TireOrders from './components/tireorder/tireorders';
 import TireOrderDetail from './components/tireorder/tireorderdetail';
+import TireLifecycles from './components/tireorder/tirelifecycles';
 
 const App = () => {
   return (
@@ -68,6 +69,7 @@ const App = () => {
                       <Route path="/exportorder/:id" element={<RoleGuard requiredPermission="eporder.view"><ExportOrderDetail /></RoleGuard>} />
                       <Route path="/tire-orders" element={<RoleGuard requiredPermission="tireorder.view"><TireOrders /></RoleGuard>} />
                       <Route path="/tire-orders/:id" element={<RoleGuard requiredPermission="tireorder.view"><TireOrderDetail /></RoleGuard>} />
+                      <Route path="/tire-lifecycles" element={<RoleGuard requiredPermission="tirelifecycle.view"><TireLifecycles /></RoleGuard>} />
                       <Route path="/importordertemplate/:index" element={<RoleGuard requiredPermission="iporder.view"><IpOrderTemplate /></RoleGuard>} />
                       <Route path="/exportordertemplate/:index" element={<RoleGuard requiredPermission="eporder.view"><IpOrderTemplate /></RoleGuard>} />
                       <Route path="/stationuser" element={<RoleGuard requiredPermission="customer.view"><StationUser /></RoleGuard>} />

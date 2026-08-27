@@ -60,7 +60,7 @@ describe('GET /users/permission-catalog', () => {
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.catalog)).toBe(true);
     expect(res.body.catalog.length).toBeGreaterThan(0);
-    expect(countActions(res.body.catalog)).toBe(42);
+    expect(countActions(res.body.catalog)).toBe(43);
     expect(res.body.adminFixed).toEqual([
       'account.manage',
       'zalo.manage',
@@ -83,6 +83,10 @@ describe('GET /users/permission-catalog', () => {
         { key: 'tireorder.edit', label: 'Sửa' },
         { key: 'tireorder.delete', label: 'Xóa' },
       ],
+    });
+    expect(res.body.catalog.find((moduleItem) => moduleItem.key === 'tirelifecycle')).toMatchObject({
+      scope: 'grantable',
+      actions: [{ key: 'tirelifecycle.view', label: 'Xem' }],
     });
     expect(res.body.catalog.find((moduleItem) => moduleItem.key === 'activitylog')).toMatchObject({
       scope: 'grantable',

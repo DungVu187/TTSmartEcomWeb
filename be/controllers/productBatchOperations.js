@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Product } = require('../models/product');
+const { hasProductReference } = require('../services/tireOrderProductReferences');
 const { ActivityLog } = require('../models/activitylog');
 const {
     ProductAccessError,
@@ -191,6 +192,11 @@ async function fetchProductsByCodes(req, res) {
 async function bulkDeleteProducts(req, res) {
     try {
         const { ids } = validateBulkDeletePayload(req.body);
+        for (const id of ids) {
+            if (await hasProductReference(id)) {
+                return res.status(409).json({ message: 'Có sản phẩm đang được sử dụng trong đơn lốp và không thể xóa.' });
+            }
+        }
         const productsToDelete = await Product.find({ _id: { $in: ids } });
         const deleteResult = await Product.deleteMany({ _id: { $in: ids } });
 

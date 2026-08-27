@@ -146,6 +146,36 @@ const theme = createTheme({
     MuiDialogActions: {
       styleOverrides: { root: { padding: "12px 20px", borderTop: `1px solid ${colors.border}`, backgroundColor: "#FFFFFF" } },
     },
+    MuiAutocomplete: {
+      styleOverrides: {
+        paper: {
+          border: "1px solid #B8C7D6",
+          borderRadius: 8,
+          boxShadow: "0 10px 28px rgba(16, 42, 67, 0.18)",
+          backgroundColor: "#FFFFFF",
+        },
+        listbox: { padding: "4px 0" },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          border: "1px solid #B8C7D6",
+          borderRadius: 8,
+          boxShadow: "0 10px 28px rgba(16, 42, 67, 0.18)",
+          backgroundColor: "#FFFFFF",
+        },
+      },
+    },
+    MuiPopover: {
+      styleOverrides: {
+        paper: {
+          border: "1px solid #B8C7D6",
+          boxShadow: "0 10px 28px rgba(16, 42, 67, 0.18)",
+          backgroundColor: "#FFFFFF",
+        },
+      },
+    },
     MuiChip: { styleOverrides: { root: { borderRadius: 6, fontWeight: 600 }, sizeSmall: { height: 26 } } },
     MuiCheckbox: { styleOverrides: { root: { padding: 6 } } },
     MuiSwitch: {

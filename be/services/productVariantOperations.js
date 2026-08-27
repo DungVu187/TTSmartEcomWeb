@@ -1,6 +1,7 @@
 const { Product } = require('../models/product');
 const { ActivityLog } = require('../models/activitylog');
 const { pickVariantMetadata } = require('../utils/productUpdatePolicy');
+const { hasVariantReference } = require('./tireOrderProductReferences');
 
 const VARIANT_ACTIVITY_FIELDS = [
     'price',
@@ -156,6 +157,13 @@ async function deleteVariant({ productId, variantIndex, userName }) {
     }
 
     const deletedVariant = product.variant[index];
+    if (await hasVariantReference(product._id, deletedVariant._id)) {
+        throw new ProductVariantOperationError(
+            'Phiên bản đang được sử dụng trong đơn lốp và không thể xóa.',
+            409,
+            'VARIANT_REFERENCED_BY_TIRE_ORDER',
+        );
+    }
     if (
         Number(deletedVariant.quantityForSale || 0) !== 0 ||
         Number(deletedVariant.quantityInStorage || 0) !== 0

@@ -31,6 +31,8 @@ import TelegramSettings from './components/TelegramSettings';
 import VoiceVocab from './components/voicevocab';
 import VoiceSearchFAB from './components/VoiceSearchFAB';
 import { PermissionProvider } from './context/permissioncontext';
+import TireOrders from './components/tireorder/tireorders';
+import TireOrderDetail from './components/tireorder/tireorderdetail';
 
 const App = () => {
   return (
@@ -64,6 +66,8 @@ const App = () => {
                       <Route path="/exportedproducts" element={<RoleGuard requiredPermission="eporder.view"><ExportedProducts /></RoleGuard>} />
                       <Route path="/exportorder" element={<RoleGuard requiredPermission="eporder.view"><EpOrders /></RoleGuard>} />
                       <Route path="/exportorder/:id" element={<RoleGuard requiredPermission="eporder.view"><ExportOrderDetail /></RoleGuard>} />
+                      <Route path="/tire-orders" element={<RoleGuard requiredPermission="tireorder.view"><TireOrders /></RoleGuard>} />
+                      <Route path="/tire-orders/:id" element={<RoleGuard requiredPermission="tireorder.view"><TireOrderDetail /></RoleGuard>} />
                       <Route path="/importordertemplate/:index" element={<RoleGuard requiredPermission="iporder.view"><IpOrderTemplate /></RoleGuard>} />
                       <Route path="/exportordertemplate/:index" element={<RoleGuard requiredPermission="eporder.view"><IpOrderTemplate /></RoleGuard>} />
                       <Route path="/stationuser" element={<RoleGuard requiredPermission="customer.view"><StationUser /></RoleGuard>} />

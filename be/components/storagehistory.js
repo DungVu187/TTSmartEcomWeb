@@ -99,6 +99,8 @@ router.get("/", authenticateAdmin, checkHistoryPermission, async (req, res) => {
                 filter.source = 'order_bulk_complete';
             } else if (noteType === 'import_quantity_adjustment') {
                 filter.source = 'import_quantity_adjustment';
+            } else if (['tire_order_complete', 'tire_order_revert', 'tire_order_delete_revert'].includes(noteType)) {
+                filter.source = noteType;
             } else if (noteType === 'product_manual') {
                 filter.source = 'product_manual';
             } else if (noteType === 'ban_online') {

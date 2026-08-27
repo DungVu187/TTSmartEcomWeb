@@ -54,6 +54,18 @@ const PERMISSION_CATALOG = [
     ],
   },
   {
+    key: "tireorder",
+    label: "Quản lý phụ tùng xe",
+    group: "orders",
+    scope: "grantable",
+    actions: [
+      { key: "tireorder.view", label: "Xem" },
+      { key: "tireorder.create", label: "Thêm" },
+      { key: "tireorder.edit", label: "Sửa" },
+      { key: "tireorder.delete", label: "Xóa" },
+    ],
+  },
+  {
     key: "station",
     label: "Trạm",
     group: "stations",

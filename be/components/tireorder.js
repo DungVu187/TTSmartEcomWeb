@@ -1,0 +1,23 @@
+const express = require('express');
+const { authenticateAdmin, checkPermission, checkAnyPermission } = require('../middlewares/auth');
+const controller = require('../controllers/tireOrderController');
+const router = express.Router();
+
+router.get('/product-options', [authenticateAdmin, checkAnyPermission(['tireorder.view', 'tireorder.create', 'tireorder.edit'])], controller.productOptions);
+router.get('/', [authenticateAdmin, checkPermission('tireorder.view')], controller.listOrders);
+router.post('/', [authenticateAdmin, checkPermission('tireorder.create')], controller.createOrder);
+router.get('/:id', [authenticateAdmin, checkPermission('tireorder.view')], controller.getOrder);
+router.patch('/:id', [authenticateAdmin, checkPermission('tireorder.edit')], controller.updateOrder);
+router.post('/:id/complete', [authenticateAdmin, checkPermission('tireorder.edit')], controller.completeOrder);
+router.post('/:id/revert', [authenticateAdmin, checkPermission('tireorder.edit')], controller.revertOrder);
+router.delete('/:id', [authenticateAdmin, checkPermission('tireorder.delete')], controller.deleteOrder);
+router.get('/:id/history', [authenticateAdmin, checkPermission('tireorder.view')], controller.orderHistory);
+router.post('/:id/vehicles', [authenticateAdmin, checkPermission('tireorder.edit')], controller.addVehicle);
+router.patch('/:id/vehicles/:vehicleEntryId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.updateVehicle);
+router.delete('/:id/vehicles/:vehicleEntryId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.removeVehicle);
+router.post('/:id/vehicles/:vehicleEntryId/assignments', [authenticateAdmin, checkPermission('tireorder.edit')], controller.addAssignments);
+router.patch('/:id/vehicles/:vehicleEntryId/assignments/:assignmentId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.updateAssignment);
+router.patch('/:id/vehicles/:vehicleEntryId/assignments/:assignmentId/slot', [authenticateAdmin, checkPermission('tireorder.edit')], controller.moveAssignment);
+router.post('/:id/vehicles/:vehicleEntryId/assignments/:assignmentId/replace-slot', [authenticateAdmin, checkPermission('tireorder.edit')], controller.replaceAssignmentSlot);
+router.delete('/:id/vehicles/:vehicleEntryId/assignments/:assignmentId', [authenticateAdmin, checkPermission('tireorder.edit')], controller.deleteAssignment);
+module.exports = { router };

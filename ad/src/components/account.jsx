@@ -51,6 +51,7 @@ const MODULE_ICONS = {
   order: <ShoppingCartIcon fontSize="small" />,
   iporder: <AddShoppingCartIcon fontSize="small" />,
   eporder: <ShoppingCartCheckoutIcon fontSize="small" />,
+  tireorder: <ShoppingCartCheckoutIcon fontSize="small" />,
   station: <CabinIcon fontSize="small" />,
   customer: <PersonIcon fontSize="small" />,
   storefront: <DisplaySettingsIcon fontSize="small" />,

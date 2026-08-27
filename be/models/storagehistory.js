@@ -42,6 +42,9 @@ const storageHistorySchema = new mongoose.Schema({
             "online_sale",
             "online_sale_revert",
             "import_quantity_adjustment",
+            "tire_order_complete",
+            "tire_order_revert",
+            "tire_order_delete_revert",
         ],
         default: undefined,
     },
@@ -51,7 +54,16 @@ const storageHistorySchema = new mongoose.Schema({
     },
     quantityBefore: { type: Number },
     quantityAfter: { type: Number },
+    variantId: { type: mongoose.Schema.Types.ObjectId },
+    variantIndex: { type: Number, min: 0 },
+    vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+    vehicleEntryId: { type: mongoose.Schema.Types.ObjectId },
+    vehiclePlate: { type: String, default: '' },
+    orderType: { type: String, default: '' },
+    inventoryOperationId: { type: String, default: '' },
 }, { timestamps: true });
+
+storageHistorySchema.index({ inventoryOperationId: 1, source: 1, vehicleEntryId: 1, productId: 1, variantId: 1 });
 
 const StorageHistory = mongoose.models.StorageHistory || mongoose.model("StorageHistory", storageHistorySchema);
 

@@ -43,6 +43,14 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      '/vehicles': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      '/tire-orders': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       '/histories': {
         target: 'http://localhost:5000',
         changeOrigin: true,

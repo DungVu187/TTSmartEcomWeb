@@ -26,6 +26,8 @@ const { router: activityLogRoutes } = require('./components/activitylog');
 const { router: zaloRoutes } = require('./components/zalo');
 const { router: telegramRoutes } = require('./components/telegram');
 const { router: voiceVocabRoutes, initVoiceVocab } = require('./components/voicevocab');
+const { router: vehicleRoutes } = require('./components/vehicle');
+const { router: tireOrderRoutes } = require('./components/tireorder');
 
 // Tạo app + http server + socket.io
 const app = express();
@@ -167,7 +169,9 @@ app.use('/histories', historyRoutes);
 app.use('/activity-logs', activityLogRoutes);
 app.use('/zalo', zaloRoutes);
 app.use('/telegram', telegramRoutes);
-app.use('/voice-vocabs', voiceVocabRoutes);
+  app.use('/voice-vocabs', voiceVocabRoutes);
+  app.use('/vehicles', vehicleRoutes);
+  app.use('/tire-orders', tireOrderRoutes);
 
 // Static files
 const fs = require('fs');
@@ -213,7 +217,8 @@ app.get('*', (req, res, next) => {
     '/users', '/products', '/orders', '/chips', '/carts',
     '/manages', '/iporders', '/eporders', '/stations',
     '/histories', '/activity-logs', '/images', '/documents',
-    '/section-images', '/invoice-images', '/zalo', '/telegram', '/voice-vocabs'
+    '/section-images', '/invoice-images', '/zalo', '/telegram', '/voice-vocabs',
+    '/vehicles', '/tire-orders'
   ];
   const isApi = apiPaths.some((apiPath) =>
     req.path === apiPath || req.path.startsWith(`${apiPath}/`)

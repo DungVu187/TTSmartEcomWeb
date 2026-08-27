@@ -39,6 +39,8 @@ const importNoteTypeOptions = [
   { value: "order_line_complete", label: "Trong đơn - tích hoàn thành SP" },
   { value: "import_quantity_adjustment", label: "Sửa số lượng nhập" },
   { value: "order_bulk_complete", label: "Trong đơn - hoàn thành cả đơn" },
+  { value: "tire_order_revert", label: "Hoàn kho đơn lốp" },
+  { value: "tire_order_delete_revert", label: "Hoàn kho khi xóa đơn lốp" },
 ];
 
 const exportNoteTypeOptions = [
@@ -50,6 +52,7 @@ const exportNoteTypeOptions = [
   { value: "order_line_complete", label: "Trong đơn - tích hoàn thành SP" },
   { value: "order_bulk_complete", label: "Trong đơn - hoàn thành cả đơn" },
   { value: "ban_online", label: "Đơn hàng bán online" },
+  { value: "tire_order_complete", label: "Xuất lốp cho xe" },
 ];
 
 const VOICE_HISTORY_EXPORT_KEY = "voiceHistoryExport";
@@ -108,6 +111,12 @@ const getHistoryLabel = (row) => {
   }
 
   switch (row.source) {
+    case "tire_order_complete":
+      return "Xuất lốp cho xe";
+    case "tire_order_revert":
+      return "Hoàn kho đơn lốp";
+    case "tire_order_delete_revert":
+      return "Hoàn kho khi xóa đơn lốp";
     case "import_quantity_adjustment":
       return "Sửa số lượng nhập";
     case "order_line_manual":
@@ -601,7 +610,9 @@ const History = ({ direction = "import" }) => {
                               textDecoration: "underline",
                             }}
                             onClick={() => {
-                              if (row.quantity > 0 || row.source === "import_quantity_adjustment") {
+                              if (String(row.source || '').startsWith('tire_order_') && row.source !== 'tire_order_delete_revert') {
+                                navigate(`/tire-orders/${row.orderId}`);
+                              } else if (row.quantity > 0 || row.source === "import_quantity_adjustment") {
                                 navigate(`/importorder/${row.orderId}`);
                               } else if (row.quantity < 0) {
                                 navigate(`/exportorder/${row.orderId}`);

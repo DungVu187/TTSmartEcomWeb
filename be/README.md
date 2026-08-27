@@ -37,4 +37,4 @@ Khi cần loại bỏ các tài khoản tự đăng ký "mồ côi" (không đư
 # Chạy script dọn dẹp từ thư mục be
 $env:NODE_PATH="node_modules"; node C:\Users\TTSmart\.gemini\antigravity-ide\brain\30af9d70-58f4-4a66-ad3b-3de7d19fb298\scratch\cleanup-users.js
 ```
-*Lưu ý: Bạn có thể sao chép tệp `cleanup-users.js` vào thư mục `be/scratch/` hoặc một thư mục nội bộ khác để quản lý lâu dài.*
+*Lưu ý: Bạn có thể sao chép tệp `cleanup-users.js` vào thư mục `be/scratch/` hoặc một thư mục khác để quản lý lâu dài.*

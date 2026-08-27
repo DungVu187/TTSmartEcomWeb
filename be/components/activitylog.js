@@ -74,6 +74,16 @@ const ACTION_LABELS = {
 
     // Customer access
     rotate_autologin_token: 'Xoay mã đăng nhập tự động'
+    ,create_tire_order: 'Tạo đơn lốp'
+    ,update_tire_order: 'Cập nhật đơn lốp'
+    ,add_tire_order_vehicle: 'Thêm xe vào đơn lốp'
+    ,remove_tire_order_vehicle: 'Xóa xe khỏi đơn lốp'
+    ,add_tire_assignment: 'Thêm lốp vào xe'
+    ,update_tire_assignment: 'Cập nhật lốp trong đơn'
+    ,move_tire_assignment: 'Đổi vị trí lốp'
+    ,delete_tire_assignment: 'Xóa lốp khỏi đơn'
+    ,complete_tire_order: 'Hoàn thành đơn lốp'
+    ,revert_tire_order: 'Hủy hoàn thành đơn lốp'
 };
 
 const OBJECT_ID_PATTERN = /\b[0-9a-f]{24}\b/gi;

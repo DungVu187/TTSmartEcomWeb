@@ -4,6 +4,7 @@ const {
     ProductAdminActionValidationError,
     validatePurchaseAdjustment,
 } = require('../validators/productAdminActions');
+const { hasProductReference } = require('../services/tireOrderProductReferences');
 
 async function backfillProductDisplay(req, res) {
     try {
@@ -65,6 +66,9 @@ async function adjustProductPurchaseCount(req, res) {
 
 async function deleteProduct(req, res) {
     try {
+        if (await hasProductReference(req.params._id)) {
+            return res.status(409).json({ message: 'Sản phẩm đang được sử dụng trong đơn lốp và không thể xóa.' });
+        }
         const product = await Product.findByIdAndDelete(req.params._id);
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });

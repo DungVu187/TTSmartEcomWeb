@@ -246,6 +246,11 @@ const Sidebar = () => {
         { text: "Sản phẩm xuất", path: "/exportedproducts", icon: <SoldIcon /> },
       ],
     },
+    can("tireorder.view") && {
+      text: "Quản lý phụ tùng xe",
+      path: "/tire-orders",
+      icon: <ShoppingCartCheckoutIcon />,
+    },
     stationSubItems.length > 0 && {
       text: "Khách - Trạm",
       icon: <ManageIcon />,

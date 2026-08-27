@@ -112,7 +112,7 @@ router.get('/:_id', authenticateOptionalProductViewer, getProductDetail);
 // API lấy thông tin nhiều sản phẩm qua mảng id
 router.post('/fetch-by-ids', authenticateOptionalProductViewer, fetchProductsByIds);
 
-// API nội bộ lấy dữ liệu sản phẩm phục vụ nghiệp vụ nhập/xuất kho, bao gồm giá nhập.
+// API lấy dữ liệu sản phẩm phục vụ nghiệp vụ nhập/xuất kho, bao gồm giá nhập.
 router.post(
     '/fetch-inventory-by-ids',
     [

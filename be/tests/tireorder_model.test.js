@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const { TireOrder } = require('../models/tireorder');
 
 const id = () => new mongoose.Types.ObjectId();
-const assignment = (slotId) => ({
-  productId: id(), variantIndex: 0, variantId: id(), productNameSnapshot: 'Lốp thử', exportPriceSnapshot: '1.250.000', slotId,
+const assignment = (slotId, serialNumber = '') => ({
+  productId: id(), variantIndex: 0, variantId: id(), productNameSnapshot: 'Lốp thử', exportPriceSnapshot: '1.250.000', serialNumber, slotId,
 });
 const vehicle = (vehicleId = id(), assignments = [], wheelCount) => ({
   vehicleId, licensePlateSnapshot: '51A-123.45', assignments, ...(wheelCount ? { wheelCount } : {}),
@@ -63,5 +63,15 @@ describe('TireOrder model invariants', () => {
       'rear_right_forward_inner', 'rear_right_forward_outer', 'rear_right_aft_inner', 'rear_right_aft_outer',
     ];
     await expect(order([vehicle(id(), [...slots.map(assignment), assignment('front_left')], 12)]).validate()).rejects.toThrow('Xe 12 bánh chỉ có tối đa 12 lốp');
+  });
+
+  test('stores tire serials on assignments and rejects normalized duplicates', async () => {
+    const document = order([vehicle(id(), [assignment('front_left', '  Seri-001  ')])]);
+    await document.validate();
+    expect(document.vehicles[0].assignments[0].serialNumber).toBe('Seri-001');
+    await expect(order([vehicle(id(), [
+      assignment('front_left', 'SERI-001'),
+      assignment('front_right', 'seri-001'),
+    ])]).validate()).rejects.toThrow('Không được trùng seri lốp');
   });
 });

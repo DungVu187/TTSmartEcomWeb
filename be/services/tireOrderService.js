@@ -5,6 +5,7 @@ const { Product } = require('../models/product');
 const { Type } = require('../models/producttype');
 const { TIRE_PRODUCT_TYPE, normalizeWheelCount, slotsForWheelCount } = require('../config/tireSlots');
 const { escapeRegex, limitRegexInput } = require('../utils/productSearch');
+const { assertProjectedOrderSerialsAvailable, normalizeTireSerial } = require('./tireSerialService');
 
 class TireOrderError extends Error {
   constructor(message, statusCode = 400, code = 'TIRE_ORDER_ERROR') { super(message); this.statusCode = statusCode; this.code = code; }
@@ -81,6 +82,19 @@ const snapshotProductVariant = (product, variantIndex, variantId) => {
     brandSnapshot: product.brand || '', exportPriceSnapshot: variant.price || '', productValueSnapshot: product.value || '', productSpecificationsSnapshot: product.specifications || '',
     variantSnapshot: { color: variant.color || '', shape: variant.shape || '', buttonCount: variant.buttonCount || '', frame: variant.frame || '', note: variant.note || '' },
   };
+};
+const serialNumber = (value) => {
+  if (value === undefined) throw new TireOrderError('Seri lốp là bắt buộc.');
+  return text(value, 'Seri lốp', 100, true);
+};
+const assertUniqueOrderSerials = (order) => {
+  const seen = new Set();
+  for (const vehicle of order.vehicles) for (const assignment of vehicle.assignments) {
+    const normalized = normalizeTireSerial(assignment.serialNumber);
+    if (!normalized) continue;
+    if (seen.has(normalized)) throw new TireOrderError(`Seri lốp "${assignment.serialNumber}" bị trùng trong cùng đơn.`, 409, 'DUPLICATE_TIRE_SERIAL');
+    seen.add(normalized);
+  }
 };
 
 async function listTireOrders(query = {}) {
@@ -166,13 +180,18 @@ async function addAssignments(orderId, entryId, body) {
   if (!Array.isArray(body.slotIds)) throw new TireOrderError('Danh sách vị trí không hợp lệ.'); const slots = body.slotIds.map((slot) => String(slot)); const quantity = Number(body.quantity); if (!Number.isInteger(quantity) || quantity < 1 || quantity !== slots.length || new Set(slots).size !== slots.length) throw new TireOrderError('Số lượng phải khớp số vị trí đã chọn.');
   const allowedSlots = slotsForWheelCount(entry.wheelCount); if (slots.some((slot) => !allowedSlots.includes(slot))) throw new TireOrderError(`Vị trí lốp không thuộc sơ đồ ${entry.wheelCount} bánh.`); if (slots.some((slot) => entry.assignments.some((item) => item.slotId === slot))) throw new TireOrderError('Có vị trí đã được gán lốp.', 409, 'SLOT_OCCUPIED'); if (entry.assignments.length + slots.length > allowedSlots.length) throw new TireOrderError(`Xe ${entry.wheelCount} bánh chỉ có tối đa ${allowedSlots.length} lốp.`);
   const base = snapshotProductVariant(product, body.variantIndex, body.variantId); const performedAt = date(body.performedAt, 'Ngày thay'); const note = text(body.note, 'Ghi chú', 2000) || '';
+  const serialNumbersBySlot = body.serialNumbersBySlot;
+  if (serialNumbersBySlot !== undefined && (!serialNumbersBySlot || typeof serialNumbersBySlot !== 'object' || Array.isArray(serialNumbersBySlot))) throw new TireOrderError('Danh sách seri lốp theo vị trí không hợp lệ.');
   const stoppedAtBySlot = body.previousTireStoppedAtBySlot;
   if (stoppedAtBySlot !== undefined && (!stoppedAtBySlot || typeof stoppedAtBySlot !== 'object' || Array.isArray(stoppedAtBySlot))) throw new TireOrderError('Thời điểm ngưng hoạt động theo vị trí không hợp lệ.');
   slots.forEach((slotId) => {
     const previousTireStoppedAt = nullableDate(stoppedAtBySlot?.[slotId], 'Thời điểm ngưng hoạt động');
     validateStoppedAt(previousTireStoppedAt, performedAt);
-    entry.assignments.push({ ...base, slotId, performedAt, previousTireStoppedAt, note });
+    const assignmentSerialNumber = serialNumbersBySlot === undefined ? '' : serialNumber(serialNumbersBySlot[slotId]);
+    entry.assignments.push({ ...base, serialNumber: assignmentSerialNumber, slotId, performedAt, previousTireStoppedAt, note });
   });
+  assertUniqueOrderSerials(order);
+  await assertProjectedOrderSerialsAvailable(order);
   await saveExpected(order, body.expectedVersion); return serialize(order);
 }
 async function updateAssignment(orderId, entryId, assignmentId, body) {
@@ -184,7 +203,10 @@ async function updateAssignment(orderId, entryId, assignmentId, body) {
   validateStoppedAt(previousTireStoppedAt, performedAt);
   if (body.performedAt !== undefined) assignment.performedAt = performedAt;
   if (body.previousTireStoppedAt !== undefined) assignment.previousTireStoppedAt = previousTireStoppedAt;
+  if (body.serialNumber !== undefined) assignment.serialNumber = serialNumber(body.serialNumber);
   if (body.note !== undefined) assignment.note = text(body.note, 'Ghi chú', 2000) || '';
+  assertUniqueOrderSerials(order);
+  await assertProjectedOrderSerialsAvailable(order);
   await saveExpected(order, body.expectedVersion); return serialize(order);
 }
 async function moveAssignment(orderId, entryId, assignmentId, body) {

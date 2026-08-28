@@ -21,6 +21,7 @@ const assignmentSchema = new mongoose.Schema({
     color: { type: String, default: '' }, shape: { type: String, default: '' },
     buttonCount: { type: String, default: '' }, frame: { type: String, default: '' }, note: { type: String, default: '' },
   },
+  serialNumber: { type: String, trim: true, default: '', maxlength: 100 },
   slotId: { type: String, required: true, enum: TIRE_SLOT_IDS },
   performedAt: { type: Date, default: null },
   previousTireStoppedAt: { type: Date, default: null },
@@ -83,6 +84,10 @@ tireOrderSchema.pre('validate', function deriveAndValidate(next) {
     if (slots.some((slot) => !allowedSlots.includes(slot))) return next(new Error(`Vị trí lốp không thuộc sơ đồ ${vehicle.wheelCount} bánh.`));
     if (slots.length !== new Set(slots).size) return next(new Error('Không được trùng vị trí lốp trong cùng xe.'));
   }
+  const serials = this.vehicles.flatMap((vehicle) => vehicle.assignments
+    .map((assignment) => String(assignment.serialNumber || '').trim().normalize('NFKC').toLocaleUpperCase('vi-VN'))
+    .filter(Boolean));
+  if (serials.length !== new Set(serials).size) return next(new Error('Không được trùng seri lốp trong cùng đơn.'));
   this.totalVehicles = this.vehicles.length;
   this.totalTires = this.vehicles.reduce((sum, vehicle) => sum + vehicle.assignments.length, 0);
   this.totalExportPrice = this.vehicles.reduce((sum, vehicle) => sum + vehicle.assignments.reduce((vehicleTotal, assignment) => vehicleTotal + parseExportPrice(assignment.exportPriceSnapshot), 0), 0);

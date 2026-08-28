@@ -52,6 +52,7 @@ async function buildLifecycleRecords() {
           productCode: assignment.productCodeSnapshot || '',
           productName: assignment.productNameSnapshot || '',
           brand: assignment.brandSnapshot || '',
+          serialNumber: assignment.serialNumber || '',
           startedAt,
           previousTireStoppedAt: assignment.previousTireStoppedAt ? new Date(assignment.previousTireStoppedAt) : null,
           endedAt: null,
@@ -95,7 +96,7 @@ const matchesQuery = (record, query) => {
   const wheelCount = Number.parseInt(query.wheelCount, 10);
   const slot = Number.parseInt(query.position, 10);
   if (vehicle && !normalizedText(`${record.licensePlate} ${record.vehicleName}`).includes(vehicle)) return false;
-  if (tire && !normalizedText(`${record.productCode} ${record.productName}`).includes(tire)) return false;
+  if (tire && !normalizedText(`${record.productCode} ${record.productName} ${record.serialNumber}`).includes(tire)) return false;
   if (query.wheelCount && record.wheelCount !== wheelCount) return false;
   if (query.position && (!Number.isInteger(slot) || record.positionNumber !== slot)) return false;
   if (query.status && record.status !== query.status) return false;
@@ -157,6 +158,7 @@ async function getActiveTiresForOrderVehicle(orderId, vehicleEntryId) {
       positionNumber: record.positionNumber,
       productCode: record.productCode,
       productName: record.productName,
+      serialNumber: record.serialNumber,
       startedAt: record.startedAt,
       status: record.status,
     }));

@@ -14,6 +14,17 @@ const REAR_LABEL_LAYOUT = {
   rear_right_aft_outer: { path: 'M 325 251 H 337', x: 377, y: 251 },
 };
 
+const TWELVE_REAR_LABEL_LAYOUT = {
+  rear_left_forward_outer: { path: 'M 115 196 L 103 204', x: 63, y: 204 },
+  rear_left_forward_inner: { path: 'M 149 173 L 124 152 H 108', x: 68, y: 152 },
+  rear_left_aft_outer: { path: 'M 115 268 L 103 256', x: 63, y: 256 },
+  rear_left_aft_inner: { path: 'M 149 290 L 124 308 H 108', x: 68, y: 308 },
+  rear_right_forward_inner: { path: 'M 291 173 L 316 152 H 332', x: 372, y: 152 },
+  rear_right_forward_outer: { path: 'M 325 196 L 337 204', x: 377, y: 204 },
+  rear_right_aft_inner: { path: 'M 291 290 L 316 308 H 332', x: 372, y: 308 },
+  rear_right_aft_outer: { path: 'M 325 268 L 337 256', x: 377, y: 256 },
+};
+
 const LABEL_LAYOUTS = {
   10: {
     front_left: { path: 'M 138 76 H 108', x: 68, y: 76 },
@@ -21,17 +32,17 @@ const LABEL_LAYOUTS = {
     ...REAR_LABEL_LAYOUT,
   },
   12: {
-    front_left: { path: 'M 138 53 H 108', x: 68, y: 53 },
-    front_right: { path: 'M 302 53 H 332', x: 372, y: 53 },
-    front_second_left: { path: 'M 138 113 H 108', x: 68, y: 113 },
-    front_second_right: { path: 'M 302 113 H 332', x: 372, y: 113 },
-    ...REAR_LABEL_LAYOUT,
+    front_left: { path: 'M 138 48 H 108', x: 68, y: 48 },
+    front_right: { path: 'M 302 48 H 332', x: 372, y: 48 },
+    front_second_left: { path: 'M 138 100 H 108', x: 68, y: 100 },
+    front_second_right: { path: 'M 302 100 H 332', x: 372, y: 100 },
+    ...TWELVE_REAR_LABEL_LAYOUT,
   },
 };
 
 const STATIC_CONNECTIONS = {
   10: 'M 158 76 H 169 M 271 76 H 282 M 135 196 H 169 M 271 196 H 305 M 135 251 H 169 M 271 251 H 305',
-  12: 'M 158 53 H 169 M 271 53 H 282 M 158 113 H 169 M 271 113 H 282 M 135 196 H 169 M 271 196 H 305 M 135 251 H 169 M 271 251 H 305',
+  12: 'M 158 48 H 174 M 266 48 H 282 M 158 100 H 174 M 266 100 H 282 M 135 196 H 174 M 266 196 H 305 M 135 268 H 174 M 266 268 H 305',
 };
 
 const formatReplacementDate = (value) => {
@@ -85,9 +96,10 @@ const TireChassis = ({ assignments = [], wheelCount = 10, selectedSlotIds = [], 
         const usageDuration = formatUsageDuration(assignment.performedAt);
         return <g key={slotId}>
           <path className="tire-product-leader" d={label.path} />
-          <text className="tire-product-code" x={label.x} y={label.y - 11} textAnchor="middle">{assignment.productCodeSnapshot}</text>
-          <text className="tire-product-meta" x={label.x} y={label.y} textAnchor="middle">Thay: {replacementDate}</text>
-          <text className="tire-product-meta" x={label.x} y={label.y + 11} textAnchor="middle">Đã dùng: {usageDuration}</text>
+          <text className="tire-product-code" x={label.x} y={label.y - 16.5} textAnchor="middle">{assignment.productCodeSnapshot}</text>
+          <text className="tire-product-meta" x={label.x} y={label.y - 5.5} textAnchor="middle">Seri: {assignment.serialNumber || '—'}</text>
+          <text className="tire-product-meta" x={label.x} y={label.y + 5.5} textAnchor="middle">Thay: {replacementDate}</text>
+          <text className="tire-product-meta" x={label.x} y={label.y + 16.5} textAnchor="middle">Đã dùng: {usageDuration}</text>
         </g>;
       })}
     </svg>

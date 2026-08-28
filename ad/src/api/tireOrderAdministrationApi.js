@@ -4,7 +4,7 @@ const query = (params = {}) => new URLSearchParams(Object.entries(params).filter
 const request = async (path, options = {}) => {
   const response = await apiFetch(path, options);
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) { const error = new Error(payload.message || 'Không thể thực hiện yêu cầu.'); error.status = response.status; error.code = payload.code; throw error; }
+  if (!response.ok) { const error = new Error(payload.message || 'Không thể thực hiện yêu cầu.'); error.status = response.status; error.code = payload.code; error.details = payload.details; throw error; }
   return payload.data;
 };
 export const listTireOrders = (params) => request(`/tire-orders?${query(params)}`);

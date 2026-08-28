@@ -5,7 +5,7 @@ const tireLifecycle = require('../services/tireLifecycleService');
 const send = (res, data, status = 200) => res.status(status).json({ success: true, data });
 const sendError = (res, error) => {
   const status = error?.statusCode || 500;
-  res.status(status).json({ success: false, code: error?.code, message: error?.message || 'Lỗi server.' });
+  res.status(status).json({ success: false, code: error?.code, message: error?.message || 'Lỗi server.', ...(error?.details ? { details: error.details } : {}) });
 };
 const wrap = (handler) => async (req, res) => { try { await handler(req, res); } catch (error) { sendError(res, error); } };
 

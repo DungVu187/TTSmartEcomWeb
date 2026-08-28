@@ -8,6 +8,7 @@ const { TIRE_PRODUCT_TYPE } = require('../config/tireSlots');
 const { applyStockAdjustments, rollbackOrThrow } = require('./inventory');
 const { TireOrderError, objectId, version, serialize, ensureNotDeleted } = require('./tireOrderService');
 const { buildLifecycleRecords } = require('./tireLifecycleService');
+const { assertProjectedOrderSerialsAvailable, assertRevertKeepsSerialsUnique } = require('./tireSerialService');
 
 const loadOrder = async (id, expectedVersion) => {
   objectId(id, 'Mã đơn');
@@ -73,7 +74,7 @@ const cleanupHistories = (operationId) => StorageHistory.deleteMany({ inventoryO
 const release = async (order, phase = 'idle') => { order.inventory.phase = phase; order.inventory.operationId = null; order.inventory.startedAt = null; await save(order); };
 
 async function completeTireOrder(orderId, body, user) {
-  const order = await loadOrder(orderId, body.expectedVersion); assertCompleteable(order); const breakdown = buildBreakdown(order); await validateProducts(breakdown); await validatePreviousTireStopTimes(order);
+  const order = await loadOrder(orderId, body.expectedVersion); assertCompleteable(order); const breakdown = buildBreakdown(order); await validateProducts(breakdown); await validatePreviousTireStopTimes(order); await assertProjectedOrderSerialsAvailable(order);
   const operationId = randomUUID(); order.inventory.phase = 'applying'; order.inventory.operationId = operationId; order.inventory.startedAt = new Date(); await save(order);
   let applied = [];
   try {
@@ -85,7 +86,7 @@ async function completeTireOrder(orderId, body, user) {
   } catch (error) {
     await cleanupHistories(operationId).catch(() => {});
     if (applied.length) { try { await rollbackOrThrow(applied, error); } catch (rollbackError) { throw rollbackError; } }
-    // A failed final save must leave the order as a draft because stock was compensated.
+    // Nếu lần lưu cuối thất bại, phải giữ đơn ở trạng thái nháp vì tồn kho đã được hoàn lại.
     order.vehicles.forEach((vehicle) => vehicle.assignments.forEach((assignment) => { assignment.stockAppliedQuantity = 0; }));
     order.status = 'processing'; order.completedAt = null;
     order.inventory = { phase: 'idle', operationId: null, startedAt: null, appliedAt: null, adjustments: [] };
@@ -96,9 +97,10 @@ async function completeTireOrder(orderId, body, user) {
 async function revertTireOrder(orderId, body, user) {
   const order = await loadOrder(orderId, body.expectedVersion);
   if (order.status !== 'completed' || order.inventory?.phase !== 'applied') throw new TireOrderError('Đơn chưa hoàn thành hoặc đã được hoàn kho.', 409, 'ORDER_NOT_COMPLETED');
+  await assertRevertKeepsSerialsUnique(order._id);
   const breakdown = (order.inventory.adjustments || []).map((entry) => {
-    // Mongoose subdocuments do not expose their paths through object spread.
-    // Convert the persisted ledger before passing identifiers to inventory.
+    // Toán tử trải rộng đối tượng không lấy được đầy đủ các trường của subdocument Mongoose.
+    // Chuyển bản ghi tồn kho đã lưu thành đối tượng thường trước khi truyền mã định danh sang nghiệp vụ kho.
     const adjustment = entry.toObject ? entry.toObject() : entry;
     return {
       ...adjustment,
@@ -117,7 +119,7 @@ async function revertTireOrder(orderId, body, user) {
   } catch (error) {
     await cleanupHistories(operationId).catch(() => {});
     if (applied.length) { try { await rollbackOrThrow(applied, error); } catch (rollbackError) { throw rollbackError; } }
-    // The stock was put back to its completed-state amount, so restore the persisted order state too.
+    // Tồn kho đã được đưa về mức ứng với đơn hoàn tất, nên cũng phải khôi phục trạng thái đã lưu của đơn.
     order.vehicles.forEach((vehicle) => vehicle.assignments.forEach((assignment) => { assignment.stockAppliedQuantity = 1; }));
     order.status = 'completed';
     order.completedAt = previousCompletedAt || new Date();

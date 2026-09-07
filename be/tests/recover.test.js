@@ -1,7 +1,7 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 
-// Mock mailer để test không phụ thuộc SMTP thật (code prod vẫn gửi mail thật)
+// Mô phỏng bộ gửi thư để kiểm thử không phụ thuộc SMTP thật; mã production vẫn gửi thư thật.
 jest.mock('../mailer', () => ({
   sendNewOrderNotification: jest.fn().mockResolvedValue(undefined),
   sendResetOtpEmail: jest.fn().mockResolvedValue(undefined),
@@ -26,7 +26,7 @@ afterEach(async () => {
 
 describe('Password Recovery API Tests', () => {
   it('should send OTP and reset password successfully', async () => {
-    // 1. Create a user with a phone and email
+    // 1. Tạo người dùng có số điện thoại và email.
     const user = new User({
       phone: '0987654321',
       password: 'oldPassword123',
@@ -36,7 +36,7 @@ describe('Password Recovery API Tests', () => {
     });
     await user.save();
 
-    // 2. Request OTP
+    // 2. Yêu cầu gửi mã OTP.
     const forgotRes = await request(app)
       .post('/users/forgot-password')
       .send({ phone: '0987 654 321' });
@@ -44,13 +44,13 @@ describe('Password Recovery API Tests', () => {
     expect(forgotRes.status).toBe(200);
     expect(forgotRes.body.message).toContain('Mã OTP đã được gửi');
 
-    // 3. Get OTP from DB
+    // 3. Lấy mã OTP từ cơ sở dữ liệu.
     const updatedUser = await User.findOne({ phone: '0987654321' });
     expect(updatedUser.resetOtp).toBeDefined();
     expect(updatedUser.resetOtpExpires).toBeDefined();
     const otp = updatedUser.resetOtp;
 
-    // 4. Reset password
+    // 4. Đặt lại mật khẩu.
     const resetRes = await request(app)
       .post('/users/reset-password')
       .send({
@@ -63,7 +63,7 @@ describe('Password Recovery API Tests', () => {
     expect(resetRes.status).toBe(200);
     expect(resetRes.body.message).toContain('Đặt lại mật khẩu thành công');
 
-    // 5. Verify password updated
+    // 5. Kiểm tra mật khẩu đã được cập nhật.
     const finalUser = await User.findOne({ phone: '0987654321' });
     expect(finalUser.resetOtp).toBeUndefined();
     expect(finalUser.resetOtpExpires).toBeUndefined();

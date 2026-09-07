@@ -8,7 +8,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const { resolveMongoUri } = require('./config/database');
 
-// Router imports
+// Nhập các router của từng nhóm chức năng.
 const { router: userRoutes } = require('./components/user');
 const { authenticateAdmin } = require('./middlewares/auth');
 const { User } = require('./models/user');
@@ -118,7 +118,7 @@ io.on('connection', (socket) => {
 // Lưu io vào app để các route khác (chỉ `order.js`) dùng được
 app.set('io', io);
 
-// Middleware
+// Các middleware dùng chung.
 app.use(express.json());
 app.use(cookieParser());
 
@@ -141,8 +141,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Accept the customer frontend's stable /api prefix when Express serves Vite
-// directly. Keep the existing unprefixed endpoints for backwards compatibility.
+// Chấp nhận tiền tố `/api` cố định của giao diện khách hàng khi Express phục vụ Vite trực tiếp.
+// Vẫn giữ các endpoint không có tiền tố để tương thích với mã cũ.
 app.use((req, res, next) => {
   const hasApiPrefix = req.path === '/api' || req.path.startsWith('/api/');
 
@@ -155,7 +155,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
+// Khai báo các route.
 app.use('/users', userRoutes);
 app.use('/products', productRoutes);
 app.use('/orders', orderRoutes); // <== chỉ route này có thể dùng io.emit()
@@ -175,7 +175,7 @@ app.use('/telegram', telegramRoutes);
   app.use('/tire-orders', tireOrderRoutes);
   app.use('/tire-lifecycles', tireLifecycleRoutes);
 
-// Static files
+// Phục vụ các tệp tĩnh.
 const fs = require('fs');
 const uploadInvoicesDir = path.join(__dirname, 'upload', 'invoices');
 const uploadDocumentsDir = path.join(__dirname, 'upload', 'documents');
@@ -192,7 +192,7 @@ app.use('/section-images', express.static(path.join(__dirname, 'upload', 'sectio
 app.use('/station', express.static(path.join(__dirname, 'upload', 'stations'), { redirect: false }));
 app.use('/invoice-images', authenticateAdmin, express.static(uploadInvoicesDir));
 
-// A prefixed API request must never fall through to an HTML SPA response.
+// Không để yêu cầu API có tiền tố rơi xuống và nhận nhầm phản hồi HTML của SPA.
 app.use((req, res, next) => {
   if (req.isApiPrefixedRequest) {
     return res.status(404).json({ message: 'Route not found' });
@@ -200,7 +200,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve admin dashboard static files
+// Phục vụ các tệp tĩnh của trang quản trị.
 const adminDistPath = path.join(__dirname, '../ad/dist');
 app.use('/admin', express.static(adminDistPath));
 
@@ -209,11 +209,11 @@ app.get('/admin/*', (req, res) => {
   res.sendFile(path.join(adminDistPath, 'index.html'));
 });
 
-// Serve the Vite customer frontend production build.
+// Phục vụ bản dựng production của giao diện khách hàng dùng Vite.
 const feDistPath = path.join(__dirname, '../fe/dist');
 app.use(express.static(feDistPath));
 
-// Fallback for React Router on customer website (exclude API endpoints)
+// Xử lý dự phòng cho React Router trên trang khách hàng, không áp dụng cho endpoint API.
 app.get('*', (req, res, next) => {
   const apiPaths = [
     '/users', '/products', '/orders', '/chips', '/carts',
@@ -235,12 +235,12 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(feDistPath, 'index.html'));
 });
 
-// 404 handler
+// Xử lý các đường dẫn không tồn tại.
 app.use((req, res, next) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Error handler
+// Xử lý lỗi chung.
 app.use((err, req, res, next) => {
   if (err?.status === 400 && err?.type === 'entity.parse.failed') {
     return res.status(400).json({ message: 'Invalid JSON payload' });
@@ -270,7 +270,7 @@ const startServer = async () => {
   });
 };
 
-// Start server with socket only after the database is ready.
+// Chỉ khởi động máy chủ và Socket.IO sau khi cơ sở dữ liệu đã sẵn sàng.
 if (process.env.NODE_ENV !== 'test') {
   startServer().catch((error) => {
     console.error('Server startup failed:', error.message);

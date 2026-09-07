@@ -89,7 +89,7 @@ async function updateUserPermissions(req, res) {
       }
     }
 
-    // Validate quyền TRƯỚC khi thay đổi document; role mới quyết định nhóm quyền hợp lệ.
+    // Kiểm tra quyền trước khi thay đổi tài liệu; vai trò mới quyết định nhóm quyền hợp lệ.
     const finalRole = role || user.role;
     if (!VALID_ROLES.includes(finalRole)) {
       return res.status(400).json({ message: "Vai trò không hợp lệ" });
@@ -107,7 +107,7 @@ async function updateUserPermissions(req, res) {
         validatedPermissions = [];
       }
     } else {
-      // customer/superadmin: luôn xóa sạch quyền.
+      // Với khách hàng và quản trị viên cấp cao, luôn xóa sạch danh sách quyền riêng.
       validatedPermissions = [];
     }
 

@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { Product } = require('../models/product');
 const { resolveMongoUri } = require('../config/database');
 
-// Help & CLI Options parsing
+// Phân tích tùy chọn dòng lệnh và yêu cầu hiển thị trợ giúp.
 const args = process.argv.slice(2);
 const isForce = args.includes('--force');
 const isDryRun = args.includes('--dry-run');
@@ -20,7 +20,7 @@ if (idIdx !== -1 && args[idIdx + 1]) {
   targetId = args[idIdx + 1].trim();
 }
 
-let delayMs = 1000; // 1s delay across rotating models
+let delayMs = 1000; // Chờ 1 giây giữa các lần chuyển mô hình.
 const delayIdx = args.indexOf('--delay');
 if (delayIdx !== -1 && args[delayIdx + 1]) {
   delayMs = parseInt(args[delayIdx + 1], 10) || 1000;
@@ -45,18 +45,18 @@ function parseWaitTimeFrom429(errMsg) {
       return Math.ceil(secs * 1000) + 1000;
     }
   }
-  return 15000; // 15s backoff if all models exhausted
+  return 15000; // Chờ 15 giây nếu tất cả mô hình đều tạm thời không dùng được.
 }
 
 function extractJsonObject(rawText) {
   if (!rawText) return null;
   
-  // Try direct JSON parse
+  // Thử phân tích trực tiếp nội dung JSON.
   try {
     return JSON.parse(rawText);
   } catch (_) {}
 
-  // Match ```json ... ``` codeblock
+  // Tìm nội dung nằm trong khối mã ```json ... ```.
   const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (jsonMatch && jsonMatch[1]) {
     try {
@@ -64,7 +64,7 @@ function extractJsonObject(rawText) {
     } catch (_) {}
   }
 
-  // Fallback match first { ... } block
+  // Nếu chưa được, lấy khối `{ ... }` đầu tiên làm phương án dự phòng.
   const firstBrace = rawText.indexOf('{');
   const lastBrace = rawText.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -226,7 +226,7 @@ async function main() {
         try {
           console.log(`\n⏳ ${seqStr} [Key #${currentKeyIdx + 1} | Model: ${modelName}] Tra cứu: "${labelStr}"...`);
           specsData = await fetchProductSpecsFromGoogle(prod, apiKey, modelName);
-          // Rotate key and model after success
+          // Chuyển sang khóa và mô hình tiếp theo sau khi xử lý thành công.
           currentKeyIdx = (currentKeyIdx + 1) % apiKeys.length;
           currentModelIdx = (currentModelIdx + 1) % GEMINI_MODELS.length;
           break;
@@ -234,7 +234,7 @@ async function main() {
           const isRateLimit = err.message.includes("429") || err.message.includes("Quota exceeded");
           console.warn(`  ⚠️ [Key #${currentKeyIdx + 1} | ${modelName}] Báo lỗi: ${err.message}`);
 
-          // Switch key and model
+          // Chuyển sang khóa và mô hình tiếp theo.
           currentKeyIdx = (currentKeyIdx + 1) % apiKeys.length;
           currentModelIdx = (currentModelIdx + 1) % GEMINI_MODELS.length;
 

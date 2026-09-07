@@ -60,7 +60,7 @@ describe('TireLifecycles', () => {
     render(<TireLifecycles />);
     await screen.findByText('MIC-OLD');
     fireEvent.change(screen.getByLabelText('Xe / Biển số'), { target: { value: '51A' } });
-    fireEvent.change(screen.getByLabelText('Mã lốp'), { target: { value: 'MIC' } });
+    fireEvent.change(screen.getByLabelText('Mã sản phẩm'), { target: { value: 'MIC' } });
     fireEvent.change(screen.getByLabelText('Loại xe'), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText('Vị trí lốp'), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'ended' } });

@@ -17,9 +17,9 @@ const Station = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [error, setError] = useState("");
   
-  // UI States
+  // Các trạng thái điều khiển giao diện.
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState("list"); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState("list"); // Hiển thị dạng danh sách hoặc dạng lưới.
   
   const navigate = useNavigate();
 
@@ -71,7 +71,7 @@ const Station = () => {
     checkAuthAndFetch();
   }, [t]);
 
-  // Filter stations based on search term
+  // Lọc danh sách trạm theo từ khóa tìm kiếm.
   const filteredStations = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     return stationIds
@@ -149,7 +149,7 @@ const Station = () => {
           </div>
         </section>
 
-        {/* Stats Grid */}
+        {/* Lưới thống kê tổng quan. */}
         <section className="station-stats-grid">
           <div className="station-stat-card">
             <div className="station-stat-icon-wrapper total">
@@ -196,10 +196,10 @@ const Station = () => {
           </div>
         </section>
 
-        {/* Main List Card */}
+        {/* Khung danh sách chính. */}
         <section className="station-list-section">
           
-          {/* Header toolbar */}
+          {/* Thanh công cụ phía trên danh sách. */}
           <div className="station-list-header">
             <div className="station-list-title-container">
               <h2 className="station-list-title">{t("assigned_station_list")}</h2>
@@ -241,7 +241,7 @@ const Station = () => {
               {t("no_matching_stations")}
             </div>
           ) : viewMode === "list" ? (
-            /* Table list view */
+            /* Chế độ xem dạng bảng. */
             <>
               <div className="station-table-wrapper">
                 <table className="station-custom-table">
@@ -332,7 +332,7 @@ const Station = () => {
               </div>
             </>
           ) : (
-            /* Grid bento view */
+            /* Chế độ xem dạng lưới Bento. */
             <div className="station-grid-wrapper">
               {filteredStations.map((station) => (
                 <div
@@ -381,7 +381,7 @@ const Station = () => {
             </div>
           )}
 
-          {/* Pagination Footer */}
+          {/* Thanh phân trang phía cuối. */}
           <div className="station-pagination-container">
             <span className="station-pagination-info">
               {t("station_display_range")

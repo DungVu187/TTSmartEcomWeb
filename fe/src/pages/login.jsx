@@ -18,7 +18,7 @@ function LogIn() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
 
-  // Quên mật khẩu state
+  // Trạng thái của quy trình quên mật khẩu.
   const [isForgotPasswordActive, setIsForgotPasswordActive] = useState(false);
   const [forgotPasswordStep, setForgotPasswordStep] = useState(1); // 1 = nhập SĐT/Email, 2 = nhập OTP & đặt lại mật khẩu mới
   const [forgotIdentifier, setForgotIdentifier] = useState(""); // SĐT hoặc Email
@@ -397,7 +397,7 @@ function LogIn() {
                 onClick={() => {
                   setIsForgotPasswordActive(true);
                   setForgotPasswordStep(1);
-                  setForgotIdentifier(loginIdentifier); // auto fill nếu họ đã nhập
+                  setForgotIdentifier(loginIdentifier); // Tự điền lại thông tin người dùng đã nhập.
                 }}
                 style={{
                   alignSelf: "flex-end",

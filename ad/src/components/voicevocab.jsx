@@ -28,8 +28,8 @@ import {
   updateVoiceVocabularyEntry,
 } from "../api/voiceApi";
 
-// Metadata cho từng nhóm từ vựng: nhãn hiển thị + kiểu (simple = mảng chuỗi,
-// object = mảng bản ghi có nhiều trường). Dùng chung để render bảng + form.
+// Thông tin mô tả cho từng nhóm từ vựng: nhãn hiển thị và kiểu dữ liệu
+// (`simple` là mảng chuỗi, `object` là mảng bản ghi nhiều trường). Dùng chung để hiển thị bảng và biểu mẫu.
 const GROUPS = [
   {
     key: "brands",
@@ -88,7 +88,7 @@ const VoiceVocab = () => {
   });
   const [tab, setTab] = useState(0);
 
-  // Dialog thêm/sửa dùng chung; mode = 'add' | 'edit'.
+  // Hộp thoại dùng chung để thêm hoặc sửa; `mode` nhận giá trị `add` hoặc `edit`.
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState("add");
   const [activeGroup, setActiveGroup] = useState(GROUPS[0]);
@@ -96,7 +96,7 @@ const VoiceVocab = () => {
   const [originalKey, setOriginalKey] = useState(""); // giá trị/key gốc khi sửa
   const [submitting, setSubmitting] = useState(false);
 
-  // Dialog xác nhận xóa.
+  // Hộp thoại xác nhận xóa.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // { group, item }
 
@@ -124,7 +124,7 @@ const VoiceVocab = () => {
 
   const currentGroup = GROUPS[tab];
 
-  // Khởi tạo form rỗng theo kiểu nhóm.
+  // Khởi tạo biểu mẫu rỗng theo kiểu của nhóm.
   const emptyForm = (group) => {
     switch (group.kind) {
       case "simple":
@@ -185,7 +185,7 @@ const VoiceVocab = () => {
     setOriginalKey("");
   };
 
-  // Dựng body request theo nhóm + mode.
+  // Tạo nội dung yêu cầu theo nhóm và chế độ thao tác.
   const buildBody = (group, mode) => {
     if (group.kind === "simple") {
       return mode === "add"
@@ -274,7 +274,7 @@ const VoiceVocab = () => {
     }
   };
 
-  // Đóng dialog xóa an toàn (tránh giữ target cũ).
+  // Đóng hộp thoại xóa và bỏ đối tượng cũ đang được chọn.
   const setDeleteOpenSafe = (open) => {
     setDeleteOpen(open);
     if (!open) setDeleteTarget(null);
@@ -500,7 +500,7 @@ const VoiceVocab = () => {
     }
   };
 
-  // Form fields trong dialog theo nhóm.
+  // Hiển thị các trường trong hộp thoại theo từng nhóm.
   const renderFormFields = () => {
     const group = activeGroup;
     if (group.kind === "simple") {
@@ -738,7 +738,7 @@ const VoiceVocab = () => {
         </Paper>
       )}
 
-      {/* Dialog thêm/sửa */}
+      {/* Hộp thoại thêm hoặc sửa. */}
       <Dialog open={dialogOpen} onClose={closeDialog} disableScrollLock fullWidth maxWidth="sm">
         <DialogTitle>
           {dialogMode === "add" ? "Thêm" : "Sửa"} - {activeGroup.label}
@@ -752,7 +752,7 @@ const VoiceVocab = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog xác nhận xóa */}
+      {/* Hộp thoại xác nhận xóa. */}
       <Dialog open={deleteOpen} onClose={() => setDeleteOpenSafe(false)} disableScrollLock>
         <DialogTitle>Xác nhận xóa</DialogTitle>
         <DialogContent>

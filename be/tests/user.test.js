@@ -32,7 +32,7 @@ describe('User Model Unit Tests (Phase 1)', () => {
     // Khẳng định mật khẩu được lưu đã bị mã hóa (không trùng mật khẩu thô)
     expect(user.password).not.toBe(rawPassword);
     
-    // Bcrypt hash trên NodeJS thường bắt đầu bằng $2a$ hoặc $2b$
+    // Mã băm Bcrypt trên Node.js thường bắt đầu bằng `$2a$` hoặc `$2b$`.
     expect(user.password.startsWith('$2a$') || user.password.startsWith('$2b$')).toBe(true);
   });
 

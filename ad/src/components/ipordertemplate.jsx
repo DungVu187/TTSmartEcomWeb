@@ -349,7 +349,7 @@ const IpOrderTemplate = () => {
         </Table>
       </TableContainer>
 
-      {/* Dialog thêm sản phẩm */}
+      {/* Hộp thoại thêm sản phẩm. */}
       <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} disableScrollLock>
         <DialogTitle>Thêm sản phẩm vào mẫu</DialogTitle>
         <DialogContent>

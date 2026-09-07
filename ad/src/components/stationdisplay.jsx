@@ -61,7 +61,7 @@ const StationDisplay = () => {
 
   const [openOrderDialog, setOpenOrderDialog] = useState(false);
   const [openProductDialog, setOpenProductDialog] = useState(false);
-  const [orderType, setOrderType] = useState("ep"); // "ep" or "ip"
+  const [orderType, setOrderType] = useState("ep"); // Chọn loại đơn xuất hoặc đơn nhập.
   const [orderSearchText, setOrderSearchText] = useState("");
   const [ordersList, setOrdersList] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);

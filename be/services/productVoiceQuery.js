@@ -85,7 +85,7 @@ function detectVoiceCode(text) {
     const compact = normalized.replace(/\s+/g, '');
 
     // Duyệt danh sách mã model (VOICE_CODE_MAP) theo thứ tự: khớp nếu bất kỳ
-    // pattern nào (test trên chuỗi đã bỏ dấu) khớp, hoặc compact chứa chuỗi con.
+    // mẫu nào khớp với chuỗi đã bỏ dấu, hoặc chuỗi rút gọn có chứa chuỗi con tương ứng.
     for (const entry of VOICE_CODE_MAP) {
         const patternHit = (entry.patterns || []).some(p => new RegExp(p, 'i').test(normalized));
         const compactHit = entry.compact ? compact.includes(entry.compact) : false;
@@ -290,7 +290,7 @@ function normalizeVoiceQueryResult(raw = {}) {
     const brandProbeText = transcript || String(raw.keyword || '');
 
     // Ưu tiên brand suy ra từ mã máy rồi tới regex quét trên transcript; chỉ dùng brand
-    // do Gemini đưa (filters.brand) khi không có transcript, tránh brand "ảo" AI tự thêm
+    // do Gemini đưa ra trong `filters.brand` khi không có nội dung nhận dạng, tránh hãng "ảo" do AI tự thêm.
     const rawBrand = VOICE_BRANDS.includes(filters.brand) ? filters.brand : null;
     const detectedBrand = findVoiceBrand(brandProbeText);
     const brand = codeInfo?.brand || detectedBrand || (!transcript ? rawBrand : null);

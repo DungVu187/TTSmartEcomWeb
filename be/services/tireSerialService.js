@@ -54,7 +54,7 @@ const assertNoActiveSerialDuplicates = (records, code = 'TIRE_SERIAL_IN_USE') =>
   for (const record of records) {
     const existing = bySerial.get(record.normalizedSerial);
     if (existing && (existing.vehicleId !== record.vehicleId || existing.slotId !== record.slotId)) {
-      throw new TireSerialError(`Seri lốp "${record.serialNumber}" đang được sử dụng ở một vị trí khác.`, code, {
+      throw new TireSerialError(`Mã lốp "${record.serialNumber}" đang được sử dụng ở một vị trí khác.`, code, {
         normalizedSerial: record.normalizedSerial,
         serialNumber: record.serialNumber,
       });
@@ -80,7 +80,7 @@ const assertNotReservedByDraftOrder = (candidateOrder, draftOrders) => {
     const normalizedSerial = normalizeTireSerial(assignment.serialNumber);
     const reservation = reservations.get(normalizedSerial);
     if (!reservation) continue;
-    const message = `Sản phẩm ${reservation.productName} mã seri ${reservation.serialNumber} đã tồn tại ở đơn ${reservation.orderName}.`;
+    const message = `Sản phẩm ${reservation.productName} mã lốp ${reservation.serialNumber} đã tồn tại ở đơn ${reservation.orderName}.`;
     throw new TireSerialError(message, 'TIRE_SERIAL_RESERVED', reservation);
   }
 };

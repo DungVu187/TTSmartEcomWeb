@@ -92,7 +92,7 @@ const Sidebar = () => {
           setProcessingCount(data.count);
         }
       } catch {
-        // Silently ignore fetch errors for badge count
+        // Bỏ qua lỗi tải số lượng huy hiệu để thanh bên vẫn hoạt động bình thường.
       }
     };
     fetchCount();
@@ -114,7 +114,7 @@ const Sidebar = () => {
         socketOptions.path = parsedUrl.pathname.replace(/\/$/, "") + "/socket.io";
       }
     } catch {
-      // Silently ignore URL parse errors for socket
+      // Bỏ qua lỗi phân tích URL của Socket.IO để không làm hỏng thanh bên.
     }
 
     const socketInstance = io(socketUrl, socketOptions);
@@ -127,7 +127,7 @@ const Sidebar = () => {
           setProcessingCount(data.count);
         }
       } catch {
-        // Silently ignore fetch errors for badge count
+        // Bỏ qua lỗi tải số lượng huy hiệu để thanh bên vẫn hoạt động bình thường.
       }
     };
 
@@ -462,7 +462,7 @@ const Sidebar = () => {
         open={isMobile ? mobileOpen : true}
         onClose={handleDrawerToggle}
         ModalProps={{
-          keepMounted: true, // Better open performance on mobile.
+          keepMounted: true, // Giữ nội dung trong DOM để mở nhanh hơn trên điện thoại.
         }}
         sx={{
           width: isMobile ? 0 : drawerWidth,

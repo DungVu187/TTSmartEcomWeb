@@ -110,13 +110,13 @@ const VoiceSearchFAB = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Choose a mimeType supported by browser
+      // Chọn định dạng âm thanh mà trình duyệt hiện tại hỗ trợ.
       let options = { mimeType: "audio/webm" };
       if (!MediaRecorder.isTypeSupported(options.mimeType)) {
         options = { mimeType: "audio/ogg" };
       }
       if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: "" }; // default fallback
+        options = { mimeType: "" }; // Dùng cấu hình mặc định nếu không tìm thấy định dạng phù hợp.
       }
 
       const mediaRecorder = new MediaRecorder(stream, options);
@@ -129,7 +129,7 @@ const VoiceSearchFAB = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        // Stop all track nodes
+        // Dừng toàn bộ luồng âm thanh đang thu.
         stream.getTracks().forEach((track) => track.stop());
 
         const audioBlob = new Blob(audioChunksRef.current, {
@@ -151,7 +151,7 @@ const VoiceSearchFAB = () => {
         duration: 3000,
       });
 
-      // Auto-stop after 15 seconds to prevent runaway recording
+      // Tự dừng sau 15 giây để tránh ghi âm kéo dài ngoài ý muốn.
       recordingTimeoutRef.current = setTimeout(() => {
         stopRecording();
       }, 15000);
@@ -198,7 +198,7 @@ const VoiceSearchFAB = () => {
           duration: 3000,
         });
 
-        // Save new filters to session storage
+        // Lưu bộ lọc mới vào bộ nhớ của phiên làm việc.
         const savedFiltersStr = sessionStorage.getItem("productFilters");
         const currentFilters = savedFiltersStr ? JSON.parse(savedFiltersStr) : {
           search: "",
@@ -223,10 +223,10 @@ const VoiceSearchFAB = () => {
 
         sessionStorage.setItem("productFilters", JSON.stringify(updatedFilters));
 
-        // Dispatch window event so products.jsx updates its state instantly
+        // Phát sự kiện trên window để products.jsx cập nhật trạng thái ngay lập tức.
         window.dispatchEvent(new Event("voiceSearchQuery"));
 
-        // If not on product list page, redirect there
+        // Nếu đang ở trang khác thì chuyển về trang danh sách sản phẩm.
         if (location.pathname !== "/product") {
           navigate("/product");
         }

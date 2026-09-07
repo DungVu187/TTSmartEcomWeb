@@ -56,7 +56,7 @@ const IOSSwitch = styled((props) => (
       transform: 'translateX(16px)',
       color: '#fff',
       '& + .MuiSwitch-track': {
-        backgroundColor: '#22c55e', // iOS green
+        backgroundColor: '#22c55e', // Màu xanh lá theo phong cách iOS.
         opacity: 1,
         border: 0,
       },
@@ -90,7 +90,7 @@ const IOSSwitch = styled((props) => (
   },
 }));
 
-// Moved SectionComponent OUTSIDE of SectionDisplay to prevent component recreation on updates and preserve expanded state.
+// Đặt SectionComponent bên ngoài SectionDisplay để không tạo lại component khi cập nhật và vẫn giữ trạng thái mở rộng.
 const SectionComponent = ({
   section,
   displayName,
@@ -123,7 +123,7 @@ const SectionComponent = ({
   const [selectedType, setSelectedType] = useState(isTypeMatched ? sectionData.name : "");
   const [manualName, setManualName] = useState(!isTypeMatched ? sectionData.name : "");
 
-  // Sync state khi manageData thay đổi
+  // Đồng bộ trạng thái khi `manageData` thay đổi.
   useEffect(() => {
     const currentName = sectionData.name || "";
     setName(currentName);

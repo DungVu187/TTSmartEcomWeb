@@ -188,7 +188,7 @@ const Chips = ({ onlySection = false }) => {
           onRowsPerPageChange={handleDeviceRowsPerPageChange}
         />
 
-        {/* Dialog chỉnh sửa/xóa */}
+        {/* Hộp thoại chỉnh sửa hoặc xóa. */}
         <Dialog open={selectedDevice !== null} onClose={handleClose} disableScrollLock>
           <DialogTitle>Chỉnh sửa thiết bị</DialogTitle>
           <DialogContent>
@@ -651,7 +651,7 @@ const fetchSectionDevices = async (sectionName) => {
         </>
       )}
 
-      {/* Dialog thêm thiết bị */}
+      {/* Hộp thoại thêm thiết bị. */}
       <Dialog open={openValueDialog} onClose={handleCloseValueDialog} disableScrollLock>
         <DialogTitle>Thêm thiết bị</DialogTitle>
         <DialogContent>

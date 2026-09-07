@@ -171,7 +171,7 @@ const History = ({ direction = "import" }) => {
   const [endDate, setEndDate] = useState("");
   const [noteType, setNoteType] = useState("");
 
-  // debounced values cho tìm kiếm chữ
+  // Các giá trị tìm kiếm được trì hoãn để hạn chế gọi API liên tục.
   const [debouncedUserName, setDebouncedUserName] = useState("");
   const [debouncedOrderName, setDebouncedOrderName] = useState("");
   const [filterOptions, setFilterOptions] = useState({
@@ -181,7 +181,7 @@ const History = ({ direction = "import" }) => {
 
   const navigate = useNavigate();
 
-  // Debounce hiệu ứng gõ phím
+  // Trì hoãn xử lý khi người dùng đang gõ.
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedUserName(userName);

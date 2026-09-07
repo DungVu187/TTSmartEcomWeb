@@ -74,12 +74,12 @@ function Product() {
   const [values, setValues] = useState([]);
   const [initialSection] = useState(() => queryParams.get("section"));
 
-  // States mới cho việc lọc theo trạm trộn
+  // Các trạng thái phục vụ bộ lọc theo trạm trộn.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userStations, setUserStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(queryParams.get("stationId") || ALL_FILTER_VALUE);
 
-  // Check đăng nhập và load danh sách trạm
+  // Kiểm tra đăng nhập rồi tải danh sách trạm được gán.
   useEffect(() => {
     const checkAuthAndLoadStations = async () => {
       try {
@@ -87,7 +87,7 @@ function Product() {
         if (response.ok) {
           const userData = await response.json();
           setIsLoggedIn(true);
-          const codes = userData.station || []; // these are station IDs!
+          const codes = userData.station || []; // Đây là danh sách mã định danh của trạm.
           if (codes.length > 0) {
             const stationsRes = await getStorefrontStationsByIds(codes);
             if (stationsRes.ok) {

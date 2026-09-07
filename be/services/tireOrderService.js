@@ -84,15 +84,15 @@ const snapshotProductVariant = (product, variantIndex, variantId) => {
   };
 };
 const serialNumber = (value) => {
-  if (value === undefined) throw new TireOrderError('Seri lốp là bắt buộc.');
-  return text(value, 'Seri lốp', 100, true);
+  if (value === undefined) throw new TireOrderError('Mã lốp là bắt buộc.');
+  return text(value, 'Mã lốp', 100, true);
 };
 const assertUniqueOrderSerials = (order) => {
   const seen = new Set();
   for (const vehicle of order.vehicles) for (const assignment of vehicle.assignments) {
     const normalized = normalizeTireSerial(assignment.serialNumber);
     if (!normalized) continue;
-    if (seen.has(normalized)) throw new TireOrderError(`Seri lốp "${assignment.serialNumber}" bị trùng trong cùng đơn.`, 409, 'DUPLICATE_TIRE_SERIAL');
+    if (seen.has(normalized)) throw new TireOrderError(`Mã lốp "${assignment.serialNumber}" bị trùng trong cùng đơn.`, 409, 'DUPLICATE_TIRE_SERIAL');
     seen.add(normalized);
   }
 };
@@ -181,7 +181,7 @@ async function addAssignments(orderId, entryId, body) {
   const allowedSlots = slotsForWheelCount(entry.wheelCount); if (slots.some((slot) => !allowedSlots.includes(slot))) throw new TireOrderError(`Vị trí lốp không thuộc sơ đồ ${entry.wheelCount} bánh.`); if (slots.some((slot) => entry.assignments.some((item) => item.slotId === slot))) throw new TireOrderError('Có vị trí đã được gán lốp.', 409, 'SLOT_OCCUPIED'); if (entry.assignments.length + slots.length > allowedSlots.length) throw new TireOrderError(`Xe ${entry.wheelCount} bánh chỉ có tối đa ${allowedSlots.length} lốp.`);
   const base = snapshotProductVariant(product, body.variantIndex, body.variantId); const performedAt = date(body.performedAt, 'Ngày thay'); const note = text(body.note, 'Ghi chú', 2000) || '';
   const serialNumbersBySlot = body.serialNumbersBySlot;
-  if (serialNumbersBySlot !== undefined && (!serialNumbersBySlot || typeof serialNumbersBySlot !== 'object' || Array.isArray(serialNumbersBySlot))) throw new TireOrderError('Danh sách seri lốp theo vị trí không hợp lệ.');
+  if (serialNumbersBySlot !== undefined && (!serialNumbersBySlot || typeof serialNumbersBySlot !== 'object' || Array.isArray(serialNumbersBySlot))) throw new TireOrderError('Danh sách mã lốp theo vị trí không hợp lệ.');
   const stoppedAtBySlot = body.previousTireStoppedAtBySlot;
   if (stoppedAtBySlot !== undefined && (!stoppedAtBySlot || typeof stoppedAtBySlot !== 'object' || Array.isArray(stoppedAtBySlot))) throw new TireOrderError('Thời điểm ngưng hoạt động theo vị trí không hợp lệ.');
   slots.forEach((slotId) => {

@@ -17,7 +17,7 @@ afterAll(async () => {
 afterEach(async () => {
   await User.deleteMany({});
   await Station.deleteMany({});
-  // Restore default env value
+  // Khôi phục giá trị biến môi trường mặc định.
   process.env.PUBLIC_SIGNUP_ENABLED = 'false';
 });
 

@@ -43,7 +43,7 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Quên mật khẩu state
+  // Trạng thái của quy trình quên mật khẩu.
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState(1); // 1 = nhập SĐT/Email, 2 = nhập OTP & mật khẩu mới
   const [forgotIdentifier, setForgotIdentifier] = useState("");
@@ -160,7 +160,7 @@ export default function SignInPage() {
       const data = await response.json();
       if (response.ok) {
         toast.success(data.message || "Đặt lại mật khẩu thành công");
-        // Reset state và quay về form đăng nhập
+        // Đặt lại trạng thái và quay về biểu mẫu đăng nhập.
         setIsForgotPassword(false);
         setForgotStep(1);
         setForgotIdentifier("");
@@ -177,7 +177,7 @@ export default function SignInPage() {
     }
   };
 
-  // Render form quên mật khẩu bước 1: nhập SĐT/Email
+  // Hiển thị bước 1 của biểu mẫu quên mật khẩu: nhập số điện thoại hoặc email.
   const renderForgotStep1 = () => (
     <form onSubmit={handleRequestOtp}>
       <Stack spacing={2}>
@@ -225,7 +225,7 @@ export default function SignInPage() {
     </form>
   );
 
-  // Render form quên mật khẩu bước 2: nhập OTP + mật khẩu mới
+  // Hiển thị bước 2 của biểu mẫu quên mật khẩu: nhập OTP và mật khẩu mới.
   const renderForgotStep2 = () => (
     <form onSubmit={handleResetPassword}>
       <Stack spacing={2}>
@@ -353,7 +353,7 @@ export default function SignInPage() {
               {error && <Typography color="danger">{error}</Typography>}
 
               <form onSubmit={handleLogin} autoComplete="on">
-                {/* Input ẩn để Chrome nhận diện username/password */}
+                {/* Ô nhập ẩn giúp Chrome nhận diện tên đăng nhập và mật khẩu. */}
                 <input
                   type="text"
                   name="username"

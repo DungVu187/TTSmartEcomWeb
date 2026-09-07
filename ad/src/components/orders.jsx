@@ -88,7 +88,7 @@ const Orders = () => {
   // Trạng thái bộ lọc đã được debounce
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
 
-  // Effect để debounce bộ lọc (các trường phone, id, name cần debounce)
+  // Trì hoãn áp dụng các bộ lọc số điện thoại, mã và tên để hạn chế gọi API liên tục.
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedFilters(filters);
@@ -96,7 +96,7 @@ const Orders = () => {
     return () => clearTimeout(timer);
   }, [filters]);
 
-  // Hàm xử lý response API chung
+  // Xử lý phản hồi API dùng chung.
   const runApiRequest = useCallback(async (responsePromise) => {
     try {
       const response = await responsePromise;
@@ -176,7 +176,7 @@ const Orders = () => {
               if (order._id !== _id) return order;
               const updated = { ...order, [field]: value };
               if (field === "status") {
-                // Lấy completedAt thật từ server (server sinh khi chuyển Completed) rồi format như fetchOrders
+                // Lấy `completedAt` do máy chủ tạo khi đơn hoàn tất, rồi định dạng giống lúc tải danh sách đơn.
                 updated.completedAt = result.order?.completedAt
                   ? moment(result.order.completedAt).format("HH:mm [ngày] DD-MM-YYYY")
                   : "";
@@ -188,7 +188,7 @@ const Orders = () => {
             `Cập nhật ${field === "status" ? "trạng thái" : "thanh toán"} thành công`
           );
 
-          // Trigger cập nhật Sidebar
+          // Kích hoạt cập nhật thanh bên.
           setOrderChanged((prev) => !prev);
         }
       }
@@ -198,7 +198,7 @@ const Orders = () => {
     }
   };
 
-  // Trigger lấy đơn hàng khi page hoặc fetchOrders thay đổi
+  // Tải lại đơn hàng khi trang hiện tại hoặc hàm tải danh sách thay đổi.
   useEffect(() => {
     fetchOrders(page + 1);
   }, [page, fetchOrders]);

@@ -84,7 +84,7 @@ const ActivityLog = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // debounced values cho tìm kiếm chữ
+  // Các giá trị tìm kiếm được trì hoãn để hạn chế gọi API liên tục.
   const [debouncedUserName, setDebouncedUserName] = useState("");
   const [debouncedProductName, setDebouncedProductName] = useState("");
 
@@ -126,7 +126,7 @@ const ActivityLog = () => {
     };
   }, []);
 
-  // Debounce hiệu ứng gõ phím
+  // Trì hoãn xử lý khi người dùng đang gõ.
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedUserName(userName);

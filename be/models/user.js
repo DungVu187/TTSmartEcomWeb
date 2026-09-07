@@ -20,7 +20,7 @@ const isValidVietnamPhone = (raw) => {
   return /^0\d{9,10}$/.test(phone);
 };
 
-// Schema cho User (giữ nguyên)
+// Lược đồ dữ liệu người dùng.
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -130,7 +130,7 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-// Hash mật khẩu trước khi lưu (giữ nguyên)
+// Tạo mã băm cho mật khẩu trước khi lưu.
 userSchema.pre("save", async function (next) {
   if (this.isModified("password")) {
     this.password = await bcrypt.hash(this.password, 10);

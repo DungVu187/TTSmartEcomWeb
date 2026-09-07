@@ -47,8 +47,8 @@ export const PermissionProvider = ({ children }) => {
     (permission) => {
       if (!profile) return false;
       if (isSuperadmin) return true;
-      // F1: admin temporarily full access to match backend ADMIN_FULL_ACCESS=true.
-      // Will be tightened after B6.
+      // Tạm thời cho admin toàn quyền để đồng bộ với ADMIN_FULL_ACCESS=true ở backend.
+      // Quyền admin sẽ được siết lại sau khi hoàn tất bước B6.
       if (isAdmin) return true;
       return Array.isArray(profile.permissions) &&
         profile.permissions.includes(permission);

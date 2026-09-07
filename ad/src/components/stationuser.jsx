@@ -244,7 +244,7 @@ const StationUser = () => {
     }
   };
 
-  // Reset mật khẩu về 123456
+  // Đặt lại mật khẩu về 123456.
   const handleResetPassword = async () => {
     if (!editUser) return;
     if (!window.confirm(`Bạn có chắc muốn reset mật khẩu của ${editUser.name || editUser.phone} về 123456?`)) return;
@@ -456,7 +456,7 @@ const StationUser = () => {
         </Table>
       </TableContainer>
 
-      {/* Dialog tạo user */}
+      {/* Hộp thoại tạo người dùng. */}
       <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
         <DialogTitle>Đăng ký người dùng</DialogTitle>
         <DialogContent>
@@ -501,7 +501,7 @@ const StationUser = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog thêm trạm */}
+      {/* Hộp thoại thêm trạm. */}
       <Dialog
         open={openStationDialog}
         onClose={() => setOpenStationDialog(false)}
@@ -595,7 +595,7 @@ const StationUser = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog sửa thông tin khách hàng */}
+      {/* Hộp thoại sửa thông tin khách hàng. */}
       <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} disableScrollLock>
         <DialogTitle>Sửa thông tin khách hàng</DialogTitle>
         <DialogContent>

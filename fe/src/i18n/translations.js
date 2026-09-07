@@ -2,7 +2,7 @@ import { customerTranslations } from "../context/customertranslations.js";
 
 const baseTranslations = {
   vi: {
-    // Navbar
+    // Thanh điều hướng.
     "my_stations_nav": "Trạm của tôi",
     "account": "Tài khoản",
     "personal_info": "Thông tin cá nhân",
@@ -25,7 +25,7 @@ const baseTranslations = {
     "policies": "Chính sách",
     "copyright": "Bản quyền thuộc về TTSmart. Bảo lưu mọi quyền.",
 
-    // Dashboard
+    // Trang tổng quan.
     "loading_banner": "Đang tải banner...",
     "loading_sections": "Đang tải sections...",
     "loading_partners": "Đang tải đối tác...",
@@ -33,7 +33,7 @@ const baseTranslations = {
     "error_prefix": "Lỗi: ",
     "price_unavailable": "Giá không có sẵn",
 
-    // Products / Filters
+    // Sản phẩm và bộ lọc.
     "search_products": "Tìm kiếm sản phẩm",
     "select_mixing_station": "Chọn trạm trộn",
     "all_my_stations": "Tất cả trạm của tôi",
@@ -60,7 +60,7 @@ const baseTranslations = {
     "no_stations_configured": "Tài khoản của bạn chưa được cấp trạm trộn nào. Vui lòng liên hệ Admin để được cấu hình trạm.",
     "no_items_configured": "Trạm trộn của bạn chưa được cấu hình thiết bị nào, hoặc bộ lọc không tìm thấy sản phẩm phù hợp.",
 
-    // Product Display
+    // Khu vực hiển thị sản phẩm.
     "loading_product_details": "Đang tải chi tiết sản phẩm...",
     "product_not_found": "Sản phẩm không tìm thấy.",
     "product_does_not_exist": "Sản phẩm không tồn tại",
@@ -102,7 +102,7 @@ const baseTranslations = {
     "image": "Hình ảnh",
     "product_name": "Tên sản phẩm",
 
-    // Cart
+    // Giỏ hàng.
     "cart_empty": "Giỏ hàng của bạn hiện tại trống.",
     "login_to_order": "Bạn cần phải đăng nhập để đặt hàng",
     "no_items_selected": "Bạn chưa chọn sản phẩm nào để đặt hàng!",
@@ -125,7 +125,7 @@ const baseTranslations = {
     "insufficient_stock_general": "Không còn đủ số lượng hàng để đặt thêm",
     "total": "Tổng:",
 
-    // My Orders
+    // Đơn hàng của tôi.
     "orders_list": "Danh sách đơn hàng",
     "login_to_view_orders": "Bạn chưa đăng nhập! Vui lòng đăng nhập để xem đơn hàng.",
     "session_expired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!",
@@ -160,7 +160,7 @@ const baseTranslations = {
     "no": "Không",
     "yes": "Có",
 
-    // Profile & Password
+    // Hồ sơ và mật khẩu.
     "full_name": "Họ và tên",
     "phone_number": "Số điện thoại",
     "email_address": "Địa chỉ email",
@@ -171,13 +171,13 @@ const baseTranslations = {
     "confirm_new_password": "Xác nhận mật khẩu mới",
     "passwords_do_not_match": "Mật khẩu mới không trùng khớp!",
 
-    // Station
+    // Trạm.
     "my_station": "Trạm của tôi",
     "station_not_found": "Không tìm thấy trạm",
     "stations_list": "Danh sách trạm trộn",
     "select_station_continue": "Vui lòng chọn trạm trộn để tiếp tục",
 
-    // Database translations
+    // Bản dịch cho dữ liệu lấy từ cơ sở dữ liệu.
     "CẢM BIẾN": "CẢM BIẾN",
     "ĐỘNG CƠ HỘP SỐ": "ĐỘNG CƠ HỘP SỐ",
     "THIẾT BỊ ĐIỆN": "THIẾT BỊ ĐIỆN",
@@ -198,7 +198,7 @@ const baseTranslations = {
     "already_have_account_login": "Đã có tài khoản? Đăng nhập ngay",
     "dont_have_account_register": "Chưa có tài khoản? Đăng ký ngay",
 
-    // Missing UI translations
+    // Các bản dịch giao diện được bổ sung.
     "location": "Vị trí",
     "failed_to_get_user_stations": "Không thể lấy trạm người dùng",
     "failed_to_get_station_info": "Không thể lấy thông tin trạm",
@@ -277,7 +277,7 @@ const baseTranslations = {
     "login_to_use_all_features": "Hãy đăng nhập để sử dụng hết các tính năng"
   },
   zh: {
-    // Navbar
+    // Thanh điều hướng.
     "my_stations_nav": "我的站点",
     "account": "账户",
     "personal_info": "个人信息",
@@ -300,7 +300,7 @@ const baseTranslations = {
     "policies": "政策法规",
     "copyright": "版权所有 © TTSmart. 保留所有权利。",
 
-    // Dashboard
+    // Trang tổng quan.
     "loading_banner": "正在加载轮播图...",
     "loading_sections": "正在加载栏目...",
     "loading_partners": "正在加载合作伙伴...",
@@ -308,7 +308,7 @@ const baseTranslations = {
     "error_prefix": "错误: ",
     "price_unavailable": "暂无价格",
 
-    // Products / Filters
+    // Sản phẩm và bộ lọc.
     "search_products": "搜索产品",
     "select_mixing_station": "选择搅拌站",
     "all_my_stations": "我的所有站点",
@@ -335,7 +335,7 @@ const baseTranslations = {
     "no_stations_configured": "您的账户尚未分配任何搅拌站。请联系管理员进行配置。",
     "no_items_configured": "您的搅拌站尚未配置任何设备，或筛选未找到匹配的产品。",
 
-    // Product Display
+    // Khu vực hiển thị sản phẩm.
     "loading_product_details": "正在加载产品详情...",
     "product_not_found": "未找到该产品。",
     "product_does_not_exist": "产品不存在",
@@ -377,7 +377,7 @@ const baseTranslations = {
     "image": "图片",
     "product_name": "产品名称",
 
-    // Cart
+    // Giỏ hàng.
     "cart_empty": "您的购物车目前是空的。",
     "login_to_order": "您需要登录后才能下单",
     "no_items_selected": "您尚未选择任何要下单的产品！",
@@ -400,7 +400,7 @@ const baseTranslations = {
     "insufficient_stock_general": "没有足够的库存可添加",
     "total": "总计:",
 
-    // My Orders
+    // Đơn hàng của tôi.
     "orders_list": "订单列表",
     "login_to_view_orders": "您尚未登录！请登录后查看订单。",
     "session_expired": "登录已过期。请重新登录！",
@@ -435,7 +435,7 @@ const baseTranslations = {
     "no": "否",
     "yes": "是",
 
-    // Profile & Password
+    // Hồ sơ và mật khẩu.
     "full_name": "姓名",
     "phone_number": "电话号码",
     "email_address": "邮箱地址",
@@ -446,13 +446,13 @@ const baseTranslations = {
     "confirm_new_password": "确认新密码",
     "passwords_do_not_match": "新密码不一致！",
 
-    // Station
+    // Trạm.
     "my_station": "我的搅拌站",
     "station_not_found": "未找到该站点",
     "stations_list": "搅拌站列表",
     "select_station_continue": "请选择搅拌站以继续",
 
-    // Database translations
+    // Bản dịch cho dữ liệu lấy từ cơ sở dữ liệu.
     "CẢM BIẾN": "传感器",
     "ĐỘNG CƠ HỘP SỐ": "减速电机",
     "THIẾT BỊ ĐIỆN": "电气设备",
@@ -473,7 +473,7 @@ const baseTranslations = {
     "already_have_account_login": "已有账号？立即登录",
     "dont_have_account_register": "还没有账号？立即注册",
 
-    // Missing UI translations
+    // Các bản dịch giao diện được bổ sung.
     "location": "位置",
     "failed_to_get_user_stations": "无法获取用户站点",
     "failed_to_get_station_info": "无法获取站点信息",
@@ -552,7 +552,7 @@ const baseTranslations = {
     "login_to_use_all_features": "请登录以使用我们所有的功能"
   },
   en: {
-    // Navbar
+    // Thanh điều hướng.
     "my_stations_nav": "My Stations",
     "account": "Account",
     "personal_info": "Personal Info",
@@ -575,7 +575,7 @@ const baseTranslations = {
     "policies": "Policies",
     "copyright": "Copyright © TTSmart. All rights reserved.",
 
-    // Dashboard
+    // Trang tổng quan.
     "loading_banner": "Loading banners...",
     "loading_sections": "Loading sections...",
     "loading_partners": "Loading partners...",
@@ -583,7 +583,7 @@ const baseTranslations = {
     "error_prefix": "Error: ",
     "price_unavailable": "Price unavailable",
 
-    // Products / Filters
+    // Sản phẩm và bộ lọc.
     "search_products": "Search Products",
     "select_mixing_station": "Select Mixing Station",
     "all_my_stations": "All My Stations",
@@ -610,7 +610,7 @@ const baseTranslations = {
     "no_stations_configured": "Your account has not been assigned any mixing station. Please contact admin for configuration.",
     "no_items_configured": "Your mixing station has not been configured with any equipment, or filters found no matching products.",
 
-    // Product Display
+    // Khu vực hiển thị sản phẩm.
     "loading_product_details": "Loading product details...",
     "product_not_found": "Product not found.",
     "product_does_not_exist": "Product does not exist",
@@ -652,7 +652,7 @@ const baseTranslations = {
     "image": "Image",
     "product_name": "Product Name",
 
-    // Cart
+    // Giỏ hàng.
     "cart_empty": "Your cart is currently empty.",
     "login_to_order": "You need to log in to place an order",
     "no_items_selected": "You have not selected any products to order!",
@@ -675,7 +675,7 @@ const baseTranslations = {
     "insufficient_stock_general": "Not enough stock to add more",
     "total": "Total:",
 
-    // My Orders
+    // Đơn hàng của tôi.
     "orders_list": "My Orders List",
     "login_to_view_orders": "You are not logged in! Please log in to view orders.",
     "session_expired": "Session expired. Please log in again!",
@@ -710,7 +710,7 @@ const baseTranslations = {
     "no": "No",
     "yes": "Yes",
 
-    // Profile & Password
+    // Hồ sơ và mật khẩu.
     "full_name": "Full Name",
     "phone_number": "Phone Number",
     "email_address": "Email Address",
@@ -721,13 +721,13 @@ const baseTranslations = {
     "confirm_new_password": "Confirm New Password",
     "passwords_do_not_match": "New passwords do not match!",
 
-    // Station
+    // Trạm.
     "my_station": "My Station",
     "station_not_found": "Station not found",
     "stations_list": "Mixing Stations List",
     "select_station_continue": "Please select a mixing station to continue",
 
-    // Database translations
+    // Bản dịch cho dữ liệu lấy từ cơ sở dữ liệu.
     "CẢM BIẾN": "Sensor",
     "ĐỘNG CƠ HỘP SỐ": "Gear Motor",
     "THIẾT BỊ ĐIỆN": "Electrical Equipment",
@@ -748,7 +748,7 @@ const baseTranslations = {
     "already_have_account_login": "Already have an account? Login now",
     "dont_have_account_register": "Don't have an account? Register now",
 
-    // Missing UI translations
+    // Các bản dịch giao diện được bổ sung.
     "location": "Location",
     "failed_to_get_user_stations": "Failed to get user stations",
     "failed_to_get_station_info": "Failed to get station information",

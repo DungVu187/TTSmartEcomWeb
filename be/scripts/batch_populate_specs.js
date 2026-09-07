@@ -18,7 +18,7 @@ function generateSpecsAndDescription(prod) {
     `Loại thiết bị: ${type}`
   ];
 
-  // Tailored logic by type & name keywords
+  // Áp dụng logic riêng theo loại sản phẩm và từ khóa trong tên.
   const nUpper = name.toUpperCase();
   const cUpper = code.toUpperCase();
   const bUpper = brand.toUpperCase();

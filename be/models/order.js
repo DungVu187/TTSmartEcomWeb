@@ -13,7 +13,7 @@ const orderSchema = new mongoose.Schema(
       type: String,
       unique: true
     },
-    // Draft admin co the tao truoc thong tin khach; route nhap that van validate phone.
+    // Admin có thể tạo trước thông tin khách cho đơn nháp; route nhập đơn chính thức vẫn kiểm tra số điện thoại.
     userPhone: {
       type: String,
       default: "",

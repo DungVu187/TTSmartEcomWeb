@@ -72,7 +72,7 @@ describe('buildTokenQuery', () => {
     it('dùng regex fuzzy cho mã có ký tự ngăn cách', () => {
         const q = buildTokenQuery('TTSM1');
         const codeClause = q.$or.find(c => c.code);
-        // code phải là RegExp fuzzy (chấp nhận TT-SM1, TT SM1...)
+        // Mã phải là biểu thức chính quy cho phép khớp gần đúng, ví dụ `TT-SM1` hoặc `TT SM1`.
         expect(codeClause.code).toBeInstanceOf(RegExp);
         expect('TT-SM1').toMatch(codeClause.code);
         expect('TT SM1').toMatch(codeClause.code);
@@ -80,7 +80,7 @@ describe('buildTokenQuery', () => {
 });
 
 describe('greedyNarrowTokens', () => {
-    // runFn giả lập DB: chỉ trả kết quả khi tập token là tiền tố hợp lệ.
+    // Hàm `runFn` mô phỏng cơ sở dữ liệu: chỉ trả kết quả khi tập từ là tiền tố hợp lệ.
     // Kho giả có sản phẩm khớp "van", "van điện", "van điện khí" nhưng KHÔNG có
     // "van điện khí TTSM1" (mã sai) và KHÔNG có "van xyz".
     const makeRunFn = (validSubsets) => async (tokens) => {

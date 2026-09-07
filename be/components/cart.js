@@ -39,7 +39,7 @@ router.post('/addToCart', authenticateUser, async (req, res) => {
     const { productId } = req.body;
     const variantIndex = Number(req.body.variantIndex);
     
-    // Validate & sanitize quantity
+    // Kiểm tra và chuẩn hóa số lượng.
     let quantity = 1;
     if (req.body.quantity !== undefined) {
         const parsed = parseInt(req.body.quantity, 10);
@@ -89,12 +89,12 @@ router.put('/updateStatus', authenticateUser, async (req, res) => {
     const { productId, status } = req.body;
     const variantIndex = Number(req.body.variantIndex);
     try {
-        // Validate user existence
+        // Kiểm tra người dùng có tồn tại hay không.
         const user = await User.findById(req.user.userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-        // Find the cart item
+        // Tìm sản phẩm tương ứng trong giỏ hàng.
         const cartItem = user.cart.find(
             (item) => item.productId.toString() === productId && item.variantIndex === variantIndex
         );
@@ -111,7 +111,7 @@ router.put('/updateStatus', authenticateUser, async (req, res) => {
                 return res.status(409).json({ message: 'Sản phẩm này hiện chỉ nhận liên hệ.' });
             }
         }
-        // Update the status
+        // Cập nhật trạng thái của sản phẩm trong giỏ hàng.
         cartItem.status = status;
         await user.save();
 
@@ -168,12 +168,12 @@ router.get('/getCart', authenticateUser, async (req, res) => {
 router.post('/removeFromCart', authenticateUser, async (req, res) => {
     const { productId, variantIndex } = req.body;
     try {
-        // Validate user existence
+        // Kiểm tra người dùng có tồn tại hay không.
         const user = await User.findById(req.user.userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-        // Remove the cart item
+        // Xóa sản phẩm khỏi giỏ hàng.
         user.cart = user.cart.filter(
             (item) => !(item.productId.toString() === productId && item.variantIndex === variantIndex)
         );
@@ -188,12 +188,12 @@ router.post('/removeFromCart', authenticateUser, async (req, res) => {
 
 router.post('/clearCart', authenticateUser, async (req, res) => {
     try {
-        // Validate user existence
+        // Kiểm tra người dùng có tồn tại hay không.
         const user = await User.findById(req.user.userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-        // Clear the cart
+        // Xóa toàn bộ sản phẩm trong giỏ hàng.
         user.cart = [];
         await user.save();
 

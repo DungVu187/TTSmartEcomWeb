@@ -121,7 +121,7 @@ router.put("/update-policy", [authenticateAdmin, checkPermission('storefront.man
 
 router.put("/update-policies", [authenticateAdmin, checkPermission('storefront.manage')], logManageRoute("update_policies", "Trang Chính sách"), updatePolicies);
 
-// Legacy section update routes kept for backward compatibility
+// Giữ các route cập nhật mục theo cơ chế cũ để bảo đảm tương thích ngược.
 router.put("/update-section1", [authenticateAdmin, checkPermission('storefront.manage')], legacySectionHandlers.section1);
 router.put("/update-section2", [authenticateAdmin, checkPermission('storefront.manage')], legacySectionHandlers.section2);
 router.put("/update-section3", [authenticateAdmin, checkPermission('storefront.manage')], legacySectionHandlers.section3);

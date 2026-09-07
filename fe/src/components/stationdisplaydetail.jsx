@@ -20,7 +20,7 @@ const StationDisplayDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // State to hold quantity for each product
+  // Lưu số lượng người dùng chọn cho từng sản phẩm.
   const [quantities, setQuantities] = useState({});
   
   const navigate = useNavigate();
@@ -67,7 +67,7 @@ const StationDisplayDetail = () => {
         setValues(Object.keys(grouped));
         setProductsByValue(grouped);
 
-        // Prepopulate default quantities to 1 for all products
+        // Khởi tạo số lượng mặc định là 1 cho mọi sản phẩm.
         const defaultQtys = {};
         filtered.forEach((p) => {
           defaultQtys[p._id] = 1;
@@ -85,7 +85,7 @@ const StationDisplayDetail = () => {
     fetchProducts();
   }, [code, section, t]);
 
-  // Quantity control helpers
+  // Các hàm hỗ trợ điều chỉnh số lượng.
   const handleQuantityChange = (productId, val, maxStock) => {
     let num = parseInt(val, 10);
     if (isNaN(num)) {
@@ -148,7 +148,7 @@ const StationDisplayDetail = () => {
 
   return (
     <div className="station-detail-container">
-      {/* Header Banner */}
+      {/* Ảnh đầu trang. */}
       <section className="station-detail-header-banner">
         <div className="station-detail-header-banner-pattern" />
         
@@ -168,7 +168,7 @@ const StationDisplayDetail = () => {
         </div>
       </section>
 
-      {/* Main product listing by group */}
+      {/* Danh sách sản phẩm chính được chia theo nhóm. */}
       <div className="station-detail-content-shell" style={{ paddingTop: "32px" }}>
         {values.map((value) => {
           const visibleProducts = productsByValue[value];
@@ -196,7 +196,7 @@ const StationDisplayDetail = () => {
 
                       return (
                         <tr key={product._id}>
-                          {/* Image */}
+                          {/* Ảnh sản phẩm. */}
                           <td style={{ textAlign: "center" }}>
                             <div className="station-detail-table-img" style={{ margin: "auto" }}>
                               {product.variant?.[0]?.imgUrl ? (
@@ -207,7 +207,7 @@ const StationDisplayDetail = () => {
                             </div>
                           </td>
 
-                          {/* Name and Stock Info */}
+                          {/* Tên sản phẩm và thông tin tồn kho. */}
                           <td>
                             <div className="station-detail-name-cell">
                               <span className="station-detail-name-primary">{product.name}</span>
@@ -223,7 +223,7 @@ const StationDisplayDetail = () => {
                             </div>
                           </td>
 
-                          {/* - 1 + Quantity Selector */}
+                          {/* Bộ điều chỉnh giảm, nhập và tăng số lượng. */}
                           <td style={{ textAlign: "center" }}>
                             <div className="quantity-selector">
                               <button
@@ -255,7 +255,7 @@ const StationDisplayDetail = () => {
                             </div>
                           </td>
 
-                          {/* Actions */}
+                          {/* Các thao tác với sản phẩm. */}
                           <td>
                             <div className="action-buttons-group">
                               <a className="btn-action-call" href="tel:0813158383">
@@ -290,7 +290,7 @@ const StationDisplayDetail = () => {
           );
         })}
 
-        {/* Mock pagination matching the mockup */}
+        {/* Phân trang mô phỏng theo thiết kế giao diện. */}
         <div className="station-detail-pagination">
           <span className="station-pagination-info" style={{ color: "#64748b", fontSize: "13px", fontWeight: "500" }}>
             {t("device_display_range")

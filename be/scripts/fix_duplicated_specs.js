@@ -20,7 +20,7 @@ function cleanDescriptionAndSpecs(prod) {
   let description = "";
   const specsMap = new Map();
 
-  // Standard initial fields
+  // Các trường thông tin ban đầu dùng chung.
   specsMap.set("Mã sản phẩm", code || "Đang cập nhật");
   specsMap.set("Thương hiệu", brand);
   specsMap.set("Phân nhóm", section);
@@ -85,7 +85,7 @@ function cleanDescriptionAndSpecs(prod) {
     specsMap.set("Tiêu chuẩn", "CE, ISO 9001, RoHs");
   }
 
-  // Build clean non-duplicated specs string
+  // Tạo chuỗi thông số sạch và không bị lặp.
   const specLines = [];
   specsMap.forEach((val, key) => {
     if (val && String(val).trim()) {
@@ -106,7 +106,7 @@ async function main() {
   console.log(`✅ Đã kết nối DB: ${mongoose.connection.name}`);
 
   try {
-    // Lay tat ca san pham co chua van ban bi trung ngat hoac desc co "Thiet bi tu dong hoa Chua ro"
+    // Lấy tất cả sản phẩm có nội dung bị lặp hoặc phần mô tả chứa cụm "Thiết bị tự động hóa Chưa rõ".
     const products = await Product.find({}).select('_id name code brand type section description specifications').lean();
 
     console.log(`📦 Đang làm sạch dữ liệu cho ${products.length} sản phẩm...`);
@@ -115,7 +115,7 @@ async function main() {
     for (let i = 0; i < products.length; i++) {
       const prod = products[i];
 
-      // Chi lam sach nhung sp khong phai du lieu goc tu Siemens Datasheet (sp tu Siemens co hon 10 dòng chi tiet)
+      // Chỉ làm sạch sản phẩm không lấy từ bảng dữ liệu gốc của Siemens; sản phẩm Siemens thường có hơn 10 dòng chi tiết.
       const isSiemensDatasheet = prod.specifications && prod.specifications.includes("CPU 1214C") || prod.specifications.includes("Framework version") || prod.specifications.includes("STEP 7 V20");
 
       if (isSiemensDatasheet) {

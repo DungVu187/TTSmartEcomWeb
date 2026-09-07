@@ -1858,7 +1858,7 @@ describe("backend model boundaries", () => {
     const voiceControllerSource = readBackendFile("controllers/productVoiceQueries.js");
     const voiceUploadSource = readBackendFile("services/productVoiceUploads.js");
     const voiceRouteIndex = productRouteSource.indexOf("router.post('/voice-query'");
-    const exportIndex = productRouteSource.indexOf("// Export router");
+    const exportIndex = productRouteSource.indexOf("// Xuất router để ứng dụng chính sử dụng.");
     const voiceRouteSource = productRouteSource.slice(voiceRouteIndex, exportIndex);
 
     expect(voiceRouteSource).toContain("uploadVoiceAudio");

@@ -72,6 +72,6 @@ describe('TireOrder model invariants', () => {
     await expect(order([vehicle(id(), [
       assignment('front_left', 'SERI-001'),
       assignment('front_right', 'seri-001'),
-    ])]).validate()).rejects.toThrow('Không được trùng seri lốp');
+    ])]).validate()).rejects.toThrow('Không được trùng mã lốp');
   });
 });

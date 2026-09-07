@@ -323,7 +323,7 @@ function Cart() {
                     px: { xs: 1, sm: 2 },
                   }}
                 >
-                  {/* Top content row (Checkbox + Image + Name/Price/Attrs) */}
+                  {/* Dòng thông tin chính: ô chọn, ảnh, tên, giá và thuộc tính. */}
                   <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}>
                     <Checkbox
                       checked={item.status}
@@ -395,14 +395,14 @@ function Cart() {
                     </Box>
                   </Box>
 
-                  {/* Quantity and Delete row */}
+                  {/* Dòng điều chỉnh số lượng và xóa sản phẩm. */}
                   <Box
                     sx={{
                       display: "flex",
                       alignItems: "center",
                       justifyContent: { xs: "space-between", md: "flex-end" },
                       mt: { xs: 2, md: 0 },
-                      pl: { xs: "110px", md: 0 }, // align with text detail start on mobile
+                      pl: { xs: "110px", md: 0 }, // Căn thẳng với phần thông tin chi tiết trên điện thoại.
                       width: { xs: "auto", md: "auto" }
                     }}
                   >

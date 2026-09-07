@@ -16,7 +16,7 @@ const TireOrders = () => {
   const navigate = useNavigate(); const { can } = usePermissions();
   const [data, setData] = useState({ items: [], pagination: {} }); const [loading, setLoading] = useState(true); const [filters, setFilters] = useState({ search: '', creator: '', status: '', from: '', to: '' }); const [suggestions, setSuggestions] = useState({ orderNames: [], creators: [] }); const [page, setPage] = useState(1); const [limit, setLimit] = useState(10); const [createDialogOpen, setCreateDialogOpen] = useState(false); const [newOrderName, setNewOrderName] = useState(''); const [creating, setCreating] = useState(false); const [statusDialogOrder, setStatusDialogOrder] = useState(null); const [updatingStatus, setUpdatingStatus] = useState(false);
   const load = async (targetPage = page, nextLimit = limit) => { setLoading(true); try { setData(await listTireOrders({ ...filters, page: targetPage, limit: nextLimit })); setPage(targetPage); } catch (error) { toast.error(error.message); } finally { setLoading(false); } };
-  // Filters are deliberately applied only after users press the Lọc button.
+  // Chỉ áp dụng bộ lọc sau khi người dùng bấm nút Lọc.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(1); listTireOrders({ limit: 100 }).then((result) => setSuggestions({ orderNames: [...new Set(result.items.map((item) => item.orderName).filter(Boolean))], creators: [...new Set(result.items.map((item) => item.createdByName).filter(Boolean))] })).catch(() => {}); }, []);
   const openCreateDialog = () => { setNewOrderName(''); setCreateDialogOpen(true); };

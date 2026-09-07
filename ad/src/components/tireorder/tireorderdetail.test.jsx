@@ -149,7 +149,7 @@ describe('TireOrderDetail', () => {
     expect(stoppedAt).toHaveValue('2026-08-20T08:00');
   });
 
-  it('uses concise confirmations and performs soft-delete requests for vehicles and orders', async () => {
+  it('keeps order deletion hidden while retaining concise vehicle deletion confirmation', async () => {
     render(<TireOrderDetail />);
     await screen.findByText('Sơ đồ lốp xe 51A-111.11');
     fireEvent.click(screen.getByRole('button', { name: 'Thêm xe' }));
@@ -163,12 +163,8 @@ describe('TireOrderDetail', () => {
     fireEvent.click(within(vehicleDialog).getByRole('button', { name: 'Đóng' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Chọn xe' })).not.toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Xóa đơn' }));
-    const deleteOrderDialog = await screen.findByRole('dialog', { name: 'Xác nhận xóa đơn' });
-    expect(within(deleteOrderDialog).getByText('Bạn có chắc chắn muốn xóa đơn này không?')).toBeInTheDocument();
-    fireEvent.click(within(deleteOrderDialog).getByRole('button', { name: 'Xóa đơn' }));
-    await waitFor(() => expect(api.deleteTireOrder).toHaveBeenCalledWith('order-1', { expectedVersion: 7 }));
-    expect(navigateMock).toHaveBeenCalledWith('/tire-orders');
+    expect(screen.queryByRole('button', { name: 'Xóa đơn' })).not.toBeInTheDocument();
+    expect(api.deleteTireOrder).not.toHaveBeenCalled();
   });
 
   it('creates or adds a vehicle and keeps create payload separate from adding to the order', async () => {
@@ -200,7 +196,7 @@ describe('TireOrderDetail', () => {
     const option = await screen.findByRole('option', { name: /MIC-NEW.*Michelin mới/ });
     fireEvent.click(option);
     fireEvent.click(within(dialog).getByRole('button', { name: 'choose-front_left' }));
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Seri lốp' }), { target: { value: ' SER-NEW-001 ' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Mã lốp' }), { target: { value: ' SER-NEW-001 ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
     await waitFor(() => expect(api.addTireAssignments).toHaveBeenCalledWith('order-1', 'entry-1', expect.objectContaining({
       productId: 'product-1', variantIndex: 0, variantId: 'variant-1', quantity: 1, slotIds: ['front_left'],
@@ -242,15 +238,15 @@ describe('TireOrderDetail', () => {
     fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Số lượng' }), { target: { value: '2' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'choose-front_left' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'choose-front_right' }));
-    const firstSerial = within(dialog).getByRole('textbox', { name: 'Seri lốp 1 — Vị trí 1' });
-    const secondSerial = within(dialog).getByRole('textbox', { name: 'Seri lốp 2 — Vị trí 2' });
+    const firstSerial = within(dialog).getByRole('textbox', { name: 'Mã lốp 1 — Vị trí 1' });
+    const secondSerial = within(dialog).getByRole('textbox', { name: 'Mã lốp 2 — Vị trí 2' });
     fireEvent.change(firstSerial, { target: { value: 'DUP-001' } });
     fireEvent.change(secondSerial, { target: { value: 'dup-001' } });
     expect(within(dialog).getByRole('button', { name: 'Lưu' })).toBeDisabled();
-    expect(within(dialog).getAllByText('Seri không được trùng trong cùng lần thêm.')).toHaveLength(2);
+    expect(within(dialog).getAllByText('Mã lốp không được trùng trong cùng lần thêm.')).toHaveLength(2);
     fireEvent.change(secondSerial, { target: { value: 'DUP-002' } });
     expect(within(dialog).getByRole('button', { name: 'Lưu' })).not.toBeDisabled();
-    const conflictMessage = 'Sản phẩm Michelin mới mã seri DUP-002 đã tồn tại ở đơn Đơn A.';
+    const conflictMessage = 'Sản phẩm Michelin mới mã lốp DUP-002 đã tồn tại ở đơn Đơn A.';
     api.addTireAssignments.mockRejectedValueOnce(Object.assign(new Error(conflictMessage), {
       code: 'TIRE_SERIAL_RESERVED', details: { normalizedSerial: 'DUP-002' },
     }));

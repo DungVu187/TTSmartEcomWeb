@@ -8,12 +8,12 @@ require("dotenv").config();
 
 const router = express.Router();
 
-// Các nhóm hợp lệ và metadata phục vụ validate + nhãn.
+// Các nhóm hợp lệ và thông tin mô tả dùng để kiểm tra dữ liệu và tạo nhãn.
 const SIMPLE_GROUPS = ["stopwords", "brands", "types"];
 const OBJECT_GROUPS = ["brandAliases", "typeAliases", "intentAliases", "codeMap"];
 const ALL_GROUPS = [...SIMPLE_GROUPS, ...OBJECT_GROUPS];
 
-// Chuyển defaults (dạng tuple) sang shape object để seed lần đầu vào DB.
+// Chuyển dữ liệu mặc định từ dạng bộ giá trị sang đối tượng để khởi tạo cơ sở dữ liệu lần đầu.
 function defaultsToDoc() {
   return {
     stopwords: voiceVocabDefaults.stopwords.slice(),
@@ -44,7 +44,7 @@ function defaultsToDoc() {
   };
 }
 
-// Chuyển doc DB (object) sang shape tuple mà refreshVoiceVocab của product.js cần.
+// Chuyển tài liệu trong cơ sở dữ liệu từ dạng đối tượng sang bộ giá trị mà `refreshVoiceVocab` cần.
 function docToVocabPayload(doc) {
   return {
     stopwords: (doc.stopwords || []).slice(),
@@ -65,9 +65,9 @@ function docToVocabPayload(doc) {
 }
 
 // Lấy doc hiện tại, seed từ defaults nếu chưa có.
-// Backfill: doc tạo TRƯỚC khi có nhóm intentAliases sẽ thiếu 4 hành vi mặc định
+// Bổ sung dữ liệu cũ: tài liệu tạo trước khi có nhóm `intentAliases` sẽ thiếu 4 hành vi mặc định.
 // (xem/thêm/sửa/xóa). Nếu rỗng thì bơm lại từ defaults để tính năng intent không
-// im lặng khi document đã tồn tại từ phiên cũ, và trang admin luôn hiển thị sẵn 4 hành vi.
+// Bỏ qua khi tài liệu đã tồn tại từ phiên bản cũ; trang quản trị luôn hiển thị sẵn 4 hành vi.
 async function getOrCreateVocab() {
   let doc = await VoiceVocab.findOne();
   if (!doc) {
@@ -94,7 +94,7 @@ async function initVoiceVocab() {
   }
 }
 
-// Sau mỗi mutation: lưu doc + nạp lại cache runtime để voice/text dùng vocab mới ngay.
+// Sau mỗi thay đổi: lưu tài liệu và nạp lại bộ nhớ đệm để tìm kiếm giọng nói hoặc văn bản dùng ngay từ vựng mới.
 async function persistAndRefresh(doc) {
   await doc.save();
   refreshVoiceVocab(docToVocabPayload(doc));
@@ -118,7 +118,7 @@ function norm(s) {
   return String(s || "").trim().toLowerCase();
 }
 
-// GET /voice-vocabs - trả toàn bộ vocab hiện tại để render bảng.
+// GET /voice-vocabs - trả toàn bộ từ vựng hiện tại để hiển thị bảng.
 router.get("/", authenticateAdmin, checkPermission("voice.manage"), async (req, res) => {
   try {
     const doc = await getOrCreateVocab();
@@ -355,7 +355,7 @@ router.put("/:group", authenticateAdmin, checkPermission("voice.manage"), async 
   }
 });
 
-// DELETE /voice-vocabs/:group - xóa 1 mục (định danh bằng value/key trong body).
+// DELETE /voice-vocabs/:group - xóa một mục, xác định bằng giá trị hoặc khóa trong nội dung yêu cầu.
 router.delete("/:group", authenticateAdmin, checkPermission("voice.manage"), async (req, res) => {
   const { group } = req.params;
   if (!ALL_GROUPS.includes(group)) {

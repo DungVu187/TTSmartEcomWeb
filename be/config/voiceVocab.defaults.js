@@ -5,7 +5,7 @@
 //      SEARCH_STOPWORDS, VOICE_BRANDS, VOICE_TYPES, VOICE_BRAND_ALIASES,
 //      VOICE_TYPE_ALIASES, detectVoiceCode.
 //   2. Nhánh Gemini (voice thật): 2 dòng danh sách thương hiệu/loại + khối
-//      alias gợi ý trong system prompt được SINH ĐỘNG từ chính dữ liệu này.
+//      Các tên gọi thay thế trong câu lệnh hệ thống được tạo động từ chính dữ liệu này.
 //
 // Muốn dạy AI thêm 1 hãng/1 cách đọc lóng mới: chỉ cần sửa ở đây, cả 2 nhánh
 // đều học được (Giai đoạn 2 sẽ cho phép sửa qua trang admin, seed lần đầu từ file này).

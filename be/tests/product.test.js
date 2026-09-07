@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { Product } = require('../components/product');
-// Require chip.js để đăng ký model Section
+// Nạp `chip.js` để đăng ký mô hình `Section`.
 require('../components/chip');
 const Section = mongoose.model('Section');
 

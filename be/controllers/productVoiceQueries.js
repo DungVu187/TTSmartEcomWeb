@@ -21,7 +21,7 @@ async function queryProductsByVoice(req, res) {
         const base64Audio = req.file.buffer.toString('base64');
         let mimeType = req.file.mimetype || 'audio/webm';
         if (mimeType === 'application/octet-stream') {
-            mimeType = 'audio/mp4'; // Safari fallback
+            mimeType = 'audio/mp4'; // Định dạng dự phòng cho Safari.
         }
 
         const systemPrompt = buildVoiceSystemPrompt();
@@ -38,7 +38,7 @@ async function queryProductsByVoice(req, res) {
 
         const callGeminiWithModel = async (modelName) => {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+            const timeoutId = setTimeout(() => controller.abort(), 25000); // Hủy yêu cầu nếu quá 25 giây.
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
             try {
@@ -114,7 +114,7 @@ async function queryProductsByVoice(req, res) {
             resultObj = match ? JSON.parse(match[0]) : JSON.parse(textResult);
         } catch (parseErr) {
             console.warn("[voice-query] Không parse được JSON phản hồi từ Gemini:", textResult);
-            // Fallback: dùng toàn bộ transcript/text làm keyword
+            // Dự phòng: dùng toàn bộ nội dung nhận dạng hoặc văn bản làm từ khóa.
             const fallbackResult = normalizeVoiceQueryResult({
                 transcript: textResult,
                 keyword: textResult.replace(/^(tìm|cho tôi hỏi|là bao nhiêu)\s*/gi, '').trim(),

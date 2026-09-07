@@ -4,7 +4,7 @@ const app = require('../index');
 const { User } = require('../components/user');
 const CryptoJS = require('crypto-js');
 
-const AES_KEY = '4iMJKyD4JOktNOP5'; // Default key for tests
+const AES_KEY = '4iMJKyD4JOktNOP5'; // Khóa mặc định dùng trong kiểm thử.
 
 beforeAll(async () => {
   const url = 'mongodb://localhost:27017/EcomTest';
@@ -23,7 +23,7 @@ afterEach(async () => {
 
 describe('Auto-login API Tests', () => {
   it('should generate a secure token on register, and log in successfully with it', async () => {
-    // 1. Register user
+    // 1. Đăng ký người dùng.
     const regRes = await request(app)
       .post('/users/register')
       .send({
@@ -36,9 +36,9 @@ describe('Auto-login API Tests', () => {
     expect(regRes.status).toBe(201);
     expect(regRes.body.logInString).toBeDefined();
     const token = regRes.body.logInString;
-    expect(token.length).toBe(64); // hex token from 32 bytes should be 64 chars
+    expect(token.length).toBe(64); // Token hex tạo từ 32 byte phải có 64 ký tự.
 
-    // 2. Perform autologin using the token
+    // 2. Đăng nhập tự động bằng token vừa tạo.
     const loginRes = await request(app)
       .post('/users/autologin')
       .send({ token });
@@ -49,7 +49,7 @@ describe('Auto-login API Tests', () => {
   });
 
   it('should support legacy AES encrypted tokens, perform fallback log in, and upgrade the token', async () => {
-    // 1. Create a user manually with a legacy AES logInString
+    // 1. Tạo thủ công người dùng có `logInString` AES theo cơ chế cũ.
     const raw = '0987654321+++password123';
     const legacyEncrypted = CryptoJS.AES.encrypt(raw, AES_KEY).toString();
     const legacyToken = encodeURIComponent(legacyEncrypted);
@@ -63,7 +63,7 @@ describe('Auto-login API Tests', () => {
     });
     await user.save();
 
-    // 2. Perform autologin using the legacy token
+    // 2. Đăng nhập tự động bằng token theo cơ chế cũ.
     const loginRes = await request(app)
       .post('/users/autologin')
       .send({ token: legacyToken });
@@ -71,7 +71,7 @@ describe('Auto-login API Tests', () => {
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.message).toContain('Đăng nhập tự động thành công');
 
-    // 3. Verify that logInString in DB has been updated to the new token format (64 hex characters)
+    // 3. Kiểm tra `logInString` trong cơ sở dữ liệu đã được đổi sang token mới gồm 64 ký tự hex.
     const updatedUser = await User.findOne({ phone: '0987654321' });
     expect(updatedUser.logInString).toBeDefined();
     expect(updatedUser.logInString).not.toBe(legacyToken);
@@ -79,7 +79,7 @@ describe('Auto-login API Tests', () => {
   });
 
   it('should invalidate token on password change', async () => {
-    // 1. Register a user and get original token
+    // 1. Đăng ký người dùng và lấy token ban đầu.
     const regRes = await request(app)
       .post('/users/register')
       .send({
@@ -90,7 +90,7 @@ describe('Auto-login API Tests', () => {
       });
     const originalToken = regRes.body.logInString;
 
-    // Log in normally to get auth cookie
+    // Đăng nhập theo cách thông thường để lấy cookie xác thực.
     const loginRes = await request(app)
       .post('/users/login')
       .send({ phone: '0987654321', password: 'password123' });
@@ -124,7 +124,7 @@ describe('Auto-login API Tests', () => {
   });
 
   it('should support rotate-autologin-token route by admin, invalidate old token and accept new token', async () => {
-    // 1. Create admin user
+    // 1. Tạo người dùng admin.
     const adminUser = new User({
       phone: '0987654320',
       password: 'adminpassword',
@@ -134,13 +134,13 @@ describe('Auto-login API Tests', () => {
     });
     await adminUser.save();
 
-    // Log in admin to get cookie
+    // Đăng nhập bằng tài khoản admin để lấy cookie.
     const adminLoginRes = await request(app)
       .post('/users/login')
       .send({ phone: '0987654320', password: 'adminpassword' });
     const adminCookie = adminLoginRes.headers['set-cookie'][0].split(';')[0];
 
-    // 2. Create customer user
+    // 2. Tạo người dùng khách hàng.
     const customerUser = new User({
       phone: '0987654321',
       password: 'password123',
@@ -150,7 +150,7 @@ describe('Auto-login API Tests', () => {
     });
     await customerUser.save();
 
-    // 3. Admin rotates customer's autologin token
+    // 3. Admin tạo lại token đăng nhập tự động cho khách hàng.
     const rotateRes = await request(app)
       .post(`/users/${customerUser._id}/rotate-autologin-token`)
       .set('Cookie', adminCookie);

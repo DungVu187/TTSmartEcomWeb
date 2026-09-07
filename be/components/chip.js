@@ -84,7 +84,7 @@ router.get("/getValues", async (req, res) => {
   }
 });
 
-// Routes cho Brand
+// Các route quản lý hãng.
 router.get("/brands", async (req, res) => {
   try {
     const brands = await Brand.find();

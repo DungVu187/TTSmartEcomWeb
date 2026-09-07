@@ -22,7 +22,7 @@ export const LanguageProvider = ({ children }) => {
   const t = (key, fallback = null) => {
     if (!key) return "";
 
-    // Check local translations first
+    // Ưu tiên kiểm tra bản dịch được khai báo cục bộ.
     const langDict = translations[language];
     if (langDict && langDict[key] !== undefined) {
       return langDict[key];

@@ -1,8 +1,7 @@
-// Test DB-free cho tính năng từ vựng voice có thể sửa qua admin.
-// Không phụ thuộc MongoDB: chỉ kiểm tra các hàm thuần + vòng đời cache runtime
-//   defaults -> defaultsToDoc -> docToVocabPayload -> refreshVoiceVocab -> nhận diện.
-// Bằng chứng cốt lõi: admin thêm 1 hãng/alias mới thì normalizeVoiceQueryResult
-// nhận diện được ngay, không cần restart server.
+// Kiểm thử không cần cơ sở dữ liệu cho tính năng quản lý từ vựng giọng nói.
+// Chỉ kiểm tra các hàm thuần và vòng đời bộ nhớ đệm khi ứng dụng đang chạy.
+// Luồng kiểm thử đi từ dữ liệu mặc định, dữ liệu lưu trữ, dữ liệu nạp lại đến bước nhận diện.
+// Trường hợp cốt lõi: khi quản trị viên thêm hãng hoặc tên gọi mới, hệ thống phải nhận diện ngay mà không cần khởi động lại.
 
 const {
     normalizeVoiceQueryResult,
@@ -15,8 +14,8 @@ const {
 } = require('../components/voicevocab');
 const voiceVocabDefaults = require('../config/voiceVocab.defaults');
 
-// Sau mỗi test, nạp lại vocab mặc định để không rò rỉ trạng thái sang test khác
-// trong cùng file (refreshVoiceVocab ghi đè biến module-level trong product.js).
+// Sau mỗi ca kiểm thử, nạp lại từ vựng mặc định để không rò rỉ trạng thái sang ca khác
+// trong cùng tệp; `refreshVoiceVocab` ghi đè biến cấp mô-đun trong `product.js`.
 afterEach(() => {
     refreshVoiceVocab({
         stopwords: voiceVocabDefaults.stopwords,
@@ -34,19 +33,19 @@ describe('defaultsToDoc', () => {
         const doc = defaultsToDoc();
         expect(doc.brands).toContain('Omron');
         expect(doc.types).toContain('PLC');
-        // brandAliases tuple [name, [aliases]] -> { name, aliases }
+        // Chuyển tên gọi khác của hãng từ bộ giá trị `[name, [aliases]]` sang đối tượng `{ name, aliases }`.
         const omron = doc.brandAliases.find(b => b.name === 'Omron');
         expect(omron).toBeTruthy();
         expect(omron.aliases).toEqual(expect.arrayContaining(['om ron']));
-        // typeAliases tuple [type, keyword, [aliases]] -> { type, keyword, aliases }
+        // Chuyển tên gọi khác của loại từ bộ giá trị sang đối tượng có loại, từ khóa và các tên thay thế.
         const aptomat = doc.typeAliases.find(t => t.type === 'Aptomat');
         expect(aptomat.keyword).toBe('Aptomat');
         expect(aptomat.aliases).toEqual(expect.arrayContaining(['at to mat']));
-        // intentAliases tuple [intent, label, [aliases]] -> { intent, label, aliases }
+        // Chuyển tên gọi khác của ý định từ bộ giá trị sang đối tượng có ý định, nhãn và các tên thay thế.
         const addToCart = doc.intentAliases.find(i => i.intent === 'add_to_cart');
         expect(addToCart.label).toBe('Thêm');
         expect(addToCart.aliases).toEqual(expect.arrayContaining(['them vao']));
-        // codeMap giữ nguyên các trường
+        // Bảng ánh xạ mã giữ nguyên các trường.
         const s7 = doc.codeMap.find(c => c.code === 'S7-1200');
         expect(s7).toMatchObject({ brand: 'Siemens', type: 'PLC', compact: 's71200' });
     });
@@ -56,13 +55,13 @@ describe('docToVocabPayload', () => {
     it('round-trip defaultsToDoc -> docToVocabPayload trả lại shape tuple gốc', () => {
         const payload = docToVocabPayload(defaultsToDoc());
         expect(payload.brands).toContain('Siemens');
-        // brandAliases về lại [name, [aliases]]
+        // Chuyển tên gọi khác của hãng trở lại bộ giá trị `[name, [aliases]]`.
         const omron = payload.brandAliases.find(([name]) => name === 'Omron');
         expect(omron[1]).toEqual(expect.arrayContaining(['om ron']));
-        // typeAliases về lại [type, keyword, [aliases]]
+        // Chuyển tên gọi khác của loại trở lại bộ giá trị gồm loại, từ khóa và các tên thay thế.
         const aptomat = payload.typeAliases.find(([type]) => type === 'Aptomat');
         expect(aptomat[2]).toEqual(expect.arrayContaining(['at to mat']));
-        // intentAliases về lại [intent, label, [aliases]]
+        // Chuyển tên gọi khác của ý định trở lại bộ giá trị gồm ý định, nhãn và các tên thay thế.
         const addToCart = payload.intentAliases.find(([intent]) => intent === 'add_to_cart');
         expect(addToCart[1]).toBe('Thêm');
         expect(addToCart[2]).toEqual(expect.arrayContaining(['them vao']));
@@ -78,13 +77,13 @@ describe('refreshVoiceVocab áp dụng vocab mới lúc runtime', () => {
             filters: {}
         }).filters.brand).toBeNull();
 
-        // Admin thêm hãng "Fuji" + cách đọc "phu ji"
+        // Quản trị viên thêm hãng "Fuji" và cách đọc "phu ji".
         const doc = defaultsToDoc();
         doc.brands.push('Fuji');
         doc.brandAliases.push({ name: 'Fuji', aliases: ['phu ji', 'fu ji'] });
         refreshVoiceVocab(docToVocabPayload(doc));
 
-        // Sau khi refresh: nhận diện được ngay
+        // Sau khi làm mới từ vựng, hệ thống nhận diện được ngay.
         const result = normalizeVoiceQueryResult({
             transcript: 'tim bien tan phu ji',
             keyword: 'biến tần',

@@ -70,7 +70,7 @@ const StationDisplay = () => {
 
         const uniqueSections = Array.from(sectionSet);
 
-        // Fetch section image URLs
+        // Tải đường dẫn ảnh của từng phân loại.
         const resImages = await getStorefrontSectionImages(uniqueSections);
 
         const imageData = await resImages.json();
@@ -115,11 +115,11 @@ const StationDisplay = () => {
 
   return (
     <div className="station-detail-container">
-      {/* Background Dot Decorative Overlays */}
+      {/* Lớp chấm trang trí trên nền. */}
       <div className="station-detail-bg-dots-left" />
       <div className="station-detail-bg-dots-right" />
 
-      {/* Main Bento grid content */}
+      {/* Nội dung chính dạng lưới Bento. */}
       <section className="station-detail-content-shell">
         <div className="station-detail-grid">
           {sections.map((section, index) => {

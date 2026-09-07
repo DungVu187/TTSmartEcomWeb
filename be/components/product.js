@@ -190,7 +190,7 @@ router.post('/voice-query', [authenticateUser, uploadVoiceAudio], queryProductsB
 
 router.post('/voice-query-text', authenticateUser, queryProductsByVoiceText);
 
-// Export router
+// Xuất router để ứng dụng chính sử dụng.
 module.exports = {
     Product,
     router,

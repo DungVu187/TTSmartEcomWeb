@@ -87,7 +87,7 @@ tireOrderSchema.pre('validate', function deriveAndValidate(next) {
   const serials = this.vehicles.flatMap((vehicle) => vehicle.assignments
     .map((assignment) => String(assignment.serialNumber || '').trim().normalize('NFKC').toLocaleUpperCase('vi-VN'))
     .filter(Boolean));
-  if (serials.length !== new Set(serials).size) return next(new Error('Không được trùng seri lốp trong cùng đơn.'));
+  if (serials.length !== new Set(serials).size) return next(new Error('Không được trùng mã lốp trong cùng đơn.'));
   this.totalVehicles = this.vehicles.length;
   this.totalTires = this.vehicles.reduce((sum, vehicle) => sum + vehicle.assignments.length, 0);
   this.totalExportPrice = this.vehicles.reduce((sum, vehicle) => sum + vehicle.assignments.reduce((vehicleTotal, assignment) => vehicleTotal + parseExportPrice(assignment.exportPriceSnapshot), 0), 0);

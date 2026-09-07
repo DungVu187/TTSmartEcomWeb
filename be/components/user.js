@@ -60,7 +60,7 @@ const {
 
 const router = express.Router();
 
-// Rate limiting configuration
+// Cấu hình giới hạn số lượng yêu cầu trong một khoảng thời gian.
 const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
 const max = parseInt(process.env.RATE_LIMIT_MAX) || 100;
 

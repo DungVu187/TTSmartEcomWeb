@@ -299,7 +299,7 @@ const IpOrders = () => {
     }
   }, [authToken, currentPage, debouncedOrderName, debouncedUserName]);
 
-  // Tải danh sách mẫu hóa đơn khi component mount
+  // Tải danh sách mẫu hóa đơn khi component được hiển thị lần đầu.
   useEffect(() => {
     if (authToken) {
       fetchOrderTemplates();
@@ -455,7 +455,7 @@ const IpOrders = () => {
         </Button>
       </Box>
 
-      {/* Dialog danh sách mẫu hóa đơn (chỉnh sửa mẫu) */}
+      {/* Hộp thoại danh sách mẫu hóa đơn để chỉnh sửa. */}
       <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock>
         <DialogTitle>Danh sách mẫu hóa đơn</DialogTitle>
         <DialogContent>
@@ -487,7 +487,7 @@ const IpOrders = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog tạo đơn mới với mẫu (hiển thị nút) */}
+      {/* Hộp thoại tạo đơn mới từ mẫu. */}
       <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog} disableScrollLock>
         <DialogTitle>Chọn mẫu hóa đơn để tạo đơn</DialogTitle>
         <DialogContent>

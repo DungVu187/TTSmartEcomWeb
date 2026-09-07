@@ -233,7 +233,7 @@ const OrderedProducts = () => {
     setOpenDialog(false);
   };
 
-  // Format ngày giờ bằng native JS
+  // Định dạng ngày giờ bằng API có sẵn của JavaScript.
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString("vi-VN", {
@@ -325,7 +325,7 @@ const OrderedProducts = () => {
         </Box>
       </div>
 
-      {/* Loading */}
+      {/* Trạng thái đang tải. */}
       {loading && (
         <Box display="flex" justifyContent="center" my={2}>
           <CircularProgress />
@@ -401,7 +401,7 @@ const OrderedProducts = () => {
         </>
       )}
 
-      {/* Dialog đơn hàng */}
+      {/* Hộp thoại đơn hàng. */}
       <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock maxWidth="md" fullWidth>
         <DialogTitle>Đơn hàng chứa sản phẩm: {selectedProductName}</DialogTitle>
         <DialogContent>

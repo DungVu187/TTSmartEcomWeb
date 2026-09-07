@@ -334,7 +334,7 @@ const EpOrders = () => {
     fetchOrders(currentPage, debouncedOrderName, debouncedUserName);
   }, [currentPage, debouncedOrderName, debouncedUserName]);
 
-  // Tải danh sách mẫu hóa đơn khi component mount
+  // Tải danh sách mẫu hóa đơn khi component được hiển thị lần đầu.
   useEffect(() => {
     fetchOrderTemplates();
   }, []);
@@ -651,7 +651,7 @@ const EpOrders = () => {
         </Box>
       </div>
 
-      {/* Dialog danh sách mẫu hóa đơn (chỉnh sửa mẫu) */}
+      {/* Hộp thoại danh sách mẫu hóa đơn để chỉnh sửa. */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
@@ -718,7 +718,7 @@ const EpOrders = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog tạo đơn mới với mẫu */}
+      {/* Hộp thoại tạo đơn mới từ mẫu. */}
       <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog} disableScrollLock>
         <DialogTitle>Chọn mẫu hóa đơn để tạo đơn</DialogTitle>
         <DialogContent>

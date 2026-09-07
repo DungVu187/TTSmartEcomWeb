@@ -404,7 +404,7 @@ const ExportedProducts = () => {
         onRowsPerPageChange={handleChangeRowsPerPage}
       />
 
-      {/* Dialog đơn hàng */}
+      {/* Hộp thoại đơn hàng. */}
       <Dialog open={openDialog} onClose={handleCloseDialog} disableScrollLock maxWidth="md" fullWidth>
         <DialogTitle>Đơn hàng chứa sản phẩm: {selectedProductName}</DialogTitle>
         <DialogContent>

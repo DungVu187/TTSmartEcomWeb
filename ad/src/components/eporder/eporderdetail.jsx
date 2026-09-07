@@ -98,7 +98,7 @@ const brandKeyOf = (value) => removeTonesLocal(value)
   .replace(/\s+/g, "")
   .trim();
 
-// Ẩn input file
+// Ẩn ô chọn tệp.
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
   clipPath: "inset(50%)",
@@ -143,7 +143,7 @@ const purpleOutlinedButtonSx = {
   },
 };
 
-// Component con cho hàng có thể kéo thả
+// Thành phần con biểu diễn một hàng có thể kéo thả.
 const SortableTableRow = ({
   product,
   index,
@@ -391,7 +391,7 @@ const SortableTableRow = ({
   );
 };
 
-// Component chính
+// Thành phần chính.
 const ExportOrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -422,7 +422,7 @@ const ExportOrderDetail = () => {
   const [templateNote, setTemplateNote] = useState("");
   const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
 
-  // States phục vụ tính năng quét hóa đơn bằng AI
+  // Các trạng thái phục vụ tính năng quét hóa đơn bằng AI.
   const [allProducts, setAllProducts] = useState([]);
   const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -433,14 +433,14 @@ const ExportOrderDetail = () => {
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [tempScanImageUrl, setTempScanImageUrl] = useState(null);
 
-  // States phục vụ Zoom + Drag cho khung xem ảnh hóa đơn AI
+  // Các trạng thái phóng to và kéo ảnh trong khung xem hóa đơn AI.
   const [scanZoomScale, setScanZoomScale] = useState(1);
   const [scanPanOffset, setScanPanOffset] = useState({ x: 0, y: 0 });
   const [scanIsDragging, setScanIsDragging] = useState(false);
   const [scanDragStart, setScanDragStart] = useState({ x: 0, y: 0 });
   const imageWrapperRef = useRef(null);
 
-  // States phục vụ Zoom + Xoay + Drag ảnh giống Zalo
+  // Các trạng thái phóng to, xoay và kéo ảnh theo cách xem ảnh của Zalo.
   const [rotation, setRotation] = useState(0);
   const [zoomScale, setZoomScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -452,7 +452,7 @@ const ExportOrderDetail = () => {
   const activeTouchMoveRef = useRef(null);
   const activeTouchEndRef = useRef(null);
 
-  // States phục vụ chạm/pinch zoom trên điện thoại
+  // Các trạng thái phục vụ thao tác chạm và chụm để phóng to trên điện thoại.
   const [touchStartDist, setTouchStartDist] = useState(null);
   const [touchStartScale, setTouchStartScale] = useState(1);
 
@@ -612,7 +612,7 @@ const ExportOrderDetail = () => {
     setLightboxOpen(true);
   };
 
-  // Zoom & Pan handlers for the AI Scan invoice image box via ref callback
+  // Xử lý phóng to và kéo ảnh hóa đơn AI thông qua hàm callback của ref.
   const setWrapperRef = useCallback((node) => {
     if (imageWrapperRef.current) {
       try {
@@ -628,7 +628,7 @@ const ExportOrderDetail = () => {
         const zoomFactor = 0.15;
         setScanZoomScale((prevScale) => {
           let newScale = prevScale + (e.deltaY < 0 ? zoomFactor : -zoomFactor);
-          newScale = Math.max(1, Math.min(newScale, 8)); // Limit zoom scale from 1x to 8x
+          newScale = Math.max(1, Math.min(newScale, 8)); // Giới hạn mức phóng từ 1 đến 8 lần.
           if (newScale <= 1) {
             setScanPanOffset({ x: 0, y: 0 });
           }
@@ -740,7 +740,7 @@ const ExportOrderDetail = () => {
     }
   };
 
-  // Hàm nén ảnh ngay tại client trước khi upload
+  // Nén ảnh ngay trên trình duyệt trước khi tải lên.
   const compressImage = (file, maxWidth = 1600, maxHeight = 1600, quality = 0.8) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -773,7 +773,7 @@ const ExportOrderDetail = () => {
           canvas.toBlob(
             (blob) => {
               if (!blob) {
-                // Fallback sang JPEG nếu trình duyệt cũ không hỗ trợ WebP
+                // Chuyển sang JPEG nếu trình duyệt cũ không hỗ trợ WebP.
                 canvas.toBlob(
                   (jpegBlob) => {
                     const jpegName = file.name.substring(0, file.name.lastIndexOf('.')) + ".jpg";
@@ -877,19 +877,19 @@ const ExportOrderDetail = () => {
       return a.reduce((n, w) => n + (b.includes(w) ? 1 : 0), 0);
     };
 
-    // Lọc các ứng viên trong đơn hàng vượt qua các cổng kiểm soát (gates)
+    // Chỉ giữ các sản phẩm ứng viên vượt qua toàn bộ điều kiện kiểm soát.
     let candidates = [];
     for (const item of currentTempList) {
       const product = currentProductDetails.find((p) => p._id === item.productId);
       if (!product) continue;
 
-      // Cổng 1: Code conflict
+      // Điều kiện 1: loại bỏ trường hợp xung đột mã sản phẩm.
       if (ctx.scanCodeKind === 'model' && codeKind(product.code) === 'model'
           && cleanCode(scanItem.code) !== cleanCode(product.code)) {
         continue;
       }
 
-      // Cổng 2: Spec subset (Set membership)
+      // Điều kiện 2: kiểm tra tập thông số yêu cầu có nằm trong tập thông số sản phẩm.
       if (ctx.hasScanSpec) {
         const pSpec = tokenizeSpec(`${product.name || ''} ${product.code || ''}`);
         let specMatch = true;
@@ -902,7 +902,7 @@ const ExportOrderDetail = () => {
         if (!specMatch) continue;
       }
 
-      // Cổng 3: Type word match
+      // Điều kiện 3: kiểm tra từ khóa loại sản phẩm có khớp.
       const pType = tokenizeTypeWords(product.name || '');
       let typeHit = false;
       for (const t of ctx.scanType) {
@@ -917,7 +917,7 @@ const ExportOrderDetail = () => {
     }
 
     if (candidates.length > 0) {
-      // Fuzzy score tie-breaker
+      // Dùng điểm khớp gần đúng để phân hạng khi các kết quả bằng nhau.
       const best = candidates.reduce((x, p) => fuzzyScore(p, scanName) > fuzzyScore(x, scanName) ? p : x);
       const pSpec = tokenizeSpec(`${best.name || ''} ${best.code || ''}`);
       const confidence = !ctx.hasScanSpec ? 'low'
@@ -944,7 +944,7 @@ const ExportOrderDetail = () => {
       // Tải danh sách sản phẩm trước để lát khớp thủ công
       await loadAllProductsForScan();
 
-      // Nén ảnh tại client
+      // Nén ảnh ngay trên trình duyệt.
       const compressedFile = await compressImage(file);
 
       const res = await handleApiResponse(scanInventoryInvoice(compressedFile));
@@ -984,12 +984,12 @@ const ExportOrderDetail = () => {
       setIsScanDialogOpen(false);
     } finally {
       setIsScanning(false);
-      // Reset input file để có thể chọn lại cùng 1 file
+      // Đặt lại ô chọn tệp để có thể chọn lại chính tệp đó.
       event.target.value = "";
     }
   };
 
-  // Hàm xử lý upload ảnh hóa đơn thủ công
+  // Xử lý tải ảnh hóa đơn lên theo cách thủ công.
   const handleManualUploadSelect = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
@@ -999,7 +999,7 @@ const ExportOrderDetail = () => {
 
     try {
       for (const file of files) {
-        // Nén ảnh tại client thành WebP
+        // Nén ảnh thành WebP ngay trên trình duyệt.
         const compressedFile = await compressImage(file);
 
         const res = await handleApiResponse(
@@ -1012,7 +1012,7 @@ const ExportOrderDetail = () => {
       }
 
       if (uploadedUrls.length > 0) {
-        // Sử dụng functional update để tránh Race Condition và closure state
+        // Cập nhật trạng thái bằng hàm để tránh tranh chấp dữ liệu và dùng nhầm giá trị cũ.
         setScannedImages((prev) => {
           const updated = [...prev, ...uploadedUrls];
           handleApiResponse(
@@ -1186,7 +1186,7 @@ const ExportOrderDetail = () => {
             if (createRes && createRes.product) {
               productId = createRes.product._id;
               details = createRes.product;
-              // Thêm sản phẩm mới vào danh sách allProducts ở client
+              // Thêm sản phẩm mới vào danh sách `allProducts` trên trình duyệt.
               setAllProducts((prev) => [createRes.product, ...prev]);
             } else {
               console.error("Không tạo được sản phẩm mới:", row.rawScannedName);
@@ -1212,7 +1212,7 @@ const ExportOrderDetail = () => {
         if (existingProductIndex !== -1) {
           const existingProduct = tempProductList[existingProductIndex];
           if (existingProduct.status) {
-            // Đã hoàn thành thì bỏ qua không update đè
+            // Nếu đã hoàn thành thì bỏ qua để không ghi đè dữ liệu.
             continue;
           }
 
@@ -1302,7 +1302,7 @@ const ExportOrderDetail = () => {
         }
       }
 
-      // Cập nhật lại state đơn hàng cục bộ để hiển thị danh sách mới
+      // Cập nhật trạng thái đơn hàng cục bộ để hiển thị danh sách mới.
       if (updatedOrder) {
         let finalOrder = updatedOrder;
         if (tempScanImageUrl) {
@@ -1448,7 +1448,7 @@ const ExportOrderDetail = () => {
     }
   };
 
-  // Debounce thủ công cho tìm kiếm sản phẩm
+  // Tự trì hoãn tìm kiếm sản phẩm để hạn chế gọi API liên tục.
   useEffect(() => {
     if (!openAddDialog) return;
 
@@ -1519,7 +1519,7 @@ const ExportOrderDetail = () => {
     };
     setTempProductList(updatedTempList);
 
-    // Lưu vào server nếu save = true (khi nhấn Enter)
+    // Lưu lên máy chủ nếu `save = true`, tức là khi người dùng nhấn Enter.
     if (save) {
       if (
         !order ||
@@ -1999,7 +1999,7 @@ const ExportOrderDetail = () => {
     }
   };
 
-  // Hàm xuất dữ liệu ra file Excel
+  // Xuất dữ liệu ra tệp Excel.
   const handleExportToExcel = async () => {
     if (!enrichedProductList || enrichedProductList.length === 0) {
       toast.error("Không có dữ liệu để xuất");
@@ -2017,7 +2017,7 @@ const ExportOrderDetail = () => {
     titleCell.font = { bold: true, size: 16 };
     titleCell.alignment = { vertical: "middle", horizontal: "center" };
 
-    // Header row A2:H2
+    // Dòng tiêu đề nằm trong vùng A2:H2.
     const headerRow = [
       "STT",
       "Tên sản phẩm",
@@ -2096,7 +2096,7 @@ const ExportOrderDetail = () => {
       { width: 30 },
     ];
 
-    // Xuất file
+    // Xuất tệp.
     const buffer = await workbook.xlsx.writeBuffer();
     const safeName = (order?.orderName || `Đơn xuất_${id}`).replace(
       /[\\/:*?"<>|]/g,
@@ -2123,11 +2123,11 @@ const ExportOrderDetail = () => {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
 
-        // Lấy worksheet đầu tiên hoặc worksheet theo tên nếu biết
+        // Lấy trang tính đầu tiên hoặc lấy theo tên nếu đã biết tên trang tính.
         const worksheet =
           workbook.getWorksheet("Chi tiết đơn xuất") || workbook.worksheets[0];
 
-        // Header nằm ở dòng 2
+        // Dòng tiêu đề nằm ở dòng 2.
         const headerRow = worksheet.getRow(2);
         const headers = headerRow.values
           .slice(1)
@@ -2144,7 +2144,7 @@ const ExportOrderDetail = () => {
           "Ghi chú",
         ];
 
-        // Kiểm tra header đúng định dạng
+        // Kiểm tra dòng tiêu đề có đúng định dạng hay không.
         const isValidHeader = expectedHeaders.every((h, i) => h === headers[i]);
         if (!isValidHeader) {
           toast.error("File Excel không đúng định dạng hoặc thiếu cột");
@@ -2992,7 +2992,7 @@ const ExportOrderDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog Preview và Đối khớp hóa đơn AI */}
+      {/* Hộp thoại xem trước và đối khớp hóa đơn AI. */}
       <Dialog
         open={isScanDialogOpen}
         onClose={handleCancelScanDialog}
@@ -3322,7 +3322,7 @@ const ExportOrderDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog Xem ảnh hóa đơn Zoom đa điểm trực tiếp */}
+      {/* Hộp thoại xem và phóng to ảnh hóa đơn bằng nhiều điểm chạm. */}
       <Dialog 
         open={lightboxOpen} 
         onClose={() => setLightboxOpen(false)}
@@ -3391,7 +3391,7 @@ const ExportOrderDetail = () => {
         >
           {scannedImages.length > 0 && (
             <>
-              {/* Nút Previous */}
+              {/* Nút chuyển về ảnh trước. */}
               {scannedImages.length > 1 && (
                 <IconButton
                   onClick={(e) => {
@@ -3448,7 +3448,7 @@ const ExportOrderDetail = () => {
                 />
               </Box>
 
-              {/* Nút Next */}
+              {/* Nút chuyển sang ảnh tiếp theo. */}
               {scannedImages.length > 1 && (
                 <IconButton
                   onClick={(e) => {

@@ -166,7 +166,7 @@ describe('Station API Automated Tests (Module 5)', () => {
     const res = await request(app).get('/stations/public/TRAM-PUB');
     expect(res.status).toBe(200);
     expect(res.body.stationName).toBe('Trạm Trộn Công Cộng');
-    // virtual inviteCode bị loại bỏ trong toPublicStation
+    // Trường ảo `inviteCode` bị loại khỏi kết quả của `toPublicStation`.
     expect(res.body.inviteCode).toBeUndefined();
   });
 });

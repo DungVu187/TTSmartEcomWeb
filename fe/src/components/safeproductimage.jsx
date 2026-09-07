@@ -50,13 +50,13 @@ function SafeProductImage({ src, alt, className = "" }) {
 
       context.drawImage(sourceImage, offsetX, offsetY, drawWidth, drawHeight);
 
-      // Force a CPU readback so Chrome does not keep the product thumbnail as
-      // the same corrupted GPU texture that can appear on some Windows drivers.
+      // Buộc CPU đọc lại ảnh để Chrome không tiếp tục dùng texture GPU bị lỗi;
+      // hiện tượng này có thể xảy ra với một số trình điều khiển đồ họa trên Windows.
       try {
         const pixels = context.getImageData(0, 0, width, height);
         context.putImageData(pixels, 0, 0);
       } catch {
-        // The image is still drawn even if a future cross-origin URL prevents readback.
+        // Ảnh vẫn được vẽ nếu một URL khác nguồn trong tương lai không cho phép đọc lại dữ liệu.
       }
     };
 

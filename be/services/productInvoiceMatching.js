@@ -110,9 +110,9 @@ const cleanCode = (code) => {
     return code ? code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
 };
 
-// Gate chung: code không xung đột + spec subset (Set) + type-word hit
+// Điều kiện chung: mã không xung đột, các thông số là tập con và có ít nhất một từ chỉ loại sản phẩm trùng khớp.
 const passGates = (p, ctx, item) => {
-    // R: code conflict - cả 2 là model mà khác mã -> reject
+    // R: Nếu cả hai đều là mã model nhưng khác nhau thì loại kết quả.
     if (ctx.scanCodeKind === 'model' && codeKind(p.code) === 'model'
         && cleanCode(item.code) !== cleanCode(p.code)) {
         return false;
@@ -122,7 +122,7 @@ const passGates = (p, ctx, item) => {
         const pSpec = tokenizeSpec(`${p.name || ''} ${p.code || ''}`);
         for (const t of ctx.scanSpec) {
             if (!pSpec.has(t)) {
-                return false; // thiếu 1 spec -> reject (R2)
+                return false; // Thiếu một thông số thì loại kết quả theo quy tắc R2.
             }
         }
     }

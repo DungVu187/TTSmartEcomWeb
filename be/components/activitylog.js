@@ -22,20 +22,20 @@ const ACTION_LABELS = {
     add_variant: 'Thêm biến thể',
     delete_variant: 'Xóa biến thể',
     
-    // User management
+    // Quản lý người dùng.
     create_user: 'Tạo tài khoản',
     update_user: 'Sửa tài khoản',
     delete_user: 'Xóa tài khoản',
     update_user_permissions: 'Sửa quyền tài khoản',
     assign_user_stations: 'Phân trạm cho tài khoản',
     
-    // Station management
+    // Quản lý trạm trộn.
     create_station: 'Tạo trạm trộn',
     update_station: 'Sửa trạm trộn',
     update_station_products: 'Cập nhật sản phẩm trạm',
     delete_station: 'Xóa trạm trộn',
     
-    // Chips & attributes
+    // Quản lý hãng và thuộc tính sản phẩm.
     add_chip_attr: 'Thêm thuộc tính sản phẩm',
     remove_chip_attr: 'Xóa thuộc tính sản phẩm',
     create_brand: 'Thêm thương hiệu',
@@ -50,7 +50,7 @@ const ACTION_LABELS = {
     update_section_value: 'Sửa giá trị phân loại',
     delete_section_value: 'Xóa giá trị phân loại',
     
-    // Homepage & config updates
+    // Cập nhật trang chủ và cấu hình.
     update_settings: 'Cập nhật cấu hình chung',
     update_introduction: 'Sửa trang giới thiệu',
     update_policy: 'Sửa trang chính sách',
@@ -58,21 +58,21 @@ const ACTION_LABELS = {
     update_homepage_section: 'Sửa phần trang chủ',
     update_home_categories: 'Cập nhật danh mục trang chủ',
     
-    // Zalo settings
+    // Cấu hình Zalo.
     update_zalo_settings: 'Cập nhật cấu hình Zalo OA',
 
-    // Telegram settings
+    // Cấu hình Telegram.
     update_telegram_settings: 'Cập nhật cấu hình Telegram',
     create_telegram_recipient: 'Thêm người/nhóm nhận Telegram',
     update_telegram_recipient: 'Sửa người/nhóm nhận Telegram',
     delete_telegram_recipient: 'Xóa người/nhóm nhận Telegram',
 
-    // Voice vocabulary (từ vựng tìm kiếm bằng giọng nói)
+    // Quản lý từ vựng tìm kiếm bằng giọng nói.
     create_voice_vocab: 'Thêm từ vựng tìm kiếm giọng nói',
     update_voice_vocab: 'Sửa từ vựng tìm kiếm giọng nói',
     delete_voice_vocab: 'Xóa từ vựng tìm kiếm giọng nói',
 
-    // Customer access
+    // Quản lý quyền truy cập của khách hàng.
     rotate_autologin_token: 'Xoay mã đăng nhập tự động'
     ,create_vehicle: 'Tạo xe mới'
     ,create_tire_order: 'Tạo đơn lốp'

@@ -53,7 +53,7 @@ const SoldProducts = () => {
     filtersRef.current = filters;
   }, [filters]);
 
-  // Hàm xử lý response API chung
+  // Xử lý phản hồi API dùng chung.
   const runApiRequest = useCallback(async (responsePromise) => {
     try {
       const response = await responsePromise;
@@ -180,7 +180,7 @@ const SoldProducts = () => {
     [rowsPerPage, runApiRequest]
   );
 
-  // Debounce tìm kiếm productName
+  // Trì hoãn tìm kiếm theo tên sản phẩm để hạn chế gọi API liên tục.
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       fetchSoldProducts(1);
@@ -190,7 +190,7 @@ const SoldProducts = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [filters.productName, fetchSoldProducts]);
 
-  // Lấy dữ liệu khi thay đổi page hoặc rowsPerPage
+  // Tải lại dữ liệu khi trang hoặc số dòng mỗi trang thay đổi.
   useEffect(() => {
     fetchSoldProducts(page + 1);
   }, [page, rowsPerPage, fetchSoldProducts]);
@@ -222,14 +222,14 @@ const SoldProducts = () => {
     setPage(0);
   };
 
-  // Mở dialog chi tiết
+  // Mở hộp thoại chi tiết.
   const handleProductClick = (product) => {
     setSelectedProductOrders(product.orders);
     setSelectedProductName(product.name);
     setOpenDialog(true);
   };
 
-  // Đóng dialog
+  // Đóng hộp thoại.
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setSelectedProductOrders([]);

@@ -157,7 +157,7 @@ const VoiceSearchFAB = () => {
           duration: 3000,
         });
 
-        // Construct search query string
+        // Tạo chuỗi tham số cho yêu cầu tìm kiếm.
         const params = new URLSearchParams();
         let searchVal = filters.code ? filters.code : (keyword || "");
 

@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
-// Model single-document (giống ZaloConfig): toàn bộ từ vựng voice nằm trong 1 doc.
-// Lưu dạng object (dễ cho UI) rồi convert sang shape tuple mà product.js cần khi
+// Mô hình chỉ dùng một tài liệu, giống `ZaloConfig`: toàn bộ từ vựng giọng nói nằm trong tài liệu này.
+// Lưu dưới dạng đối tượng để giao diện dễ sử dụng, rồi chuyển sang dạng bộ giá trị mà `product.js` cần khi
 // gọi refreshVoiceVocab. Dùng Mixed cho các mảng có cấu trúc lồng nhau.
 const voiceVocabSchema = new mongoose.Schema({
   stopwords: { type: [String], default: [] },

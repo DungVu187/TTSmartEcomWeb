@@ -19,7 +19,7 @@ const homeCategoryItemSchema = new mongoose.Schema({
     showQuick: { type: Boolean, default: true }
 }, { _id: false });
 
-// Schema cho Manage
+// Lược đồ dữ liệu cấu hình quản lý.
 const manageSchema = new mongoose.Schema({
     overViewImg: {
         type: [String],
